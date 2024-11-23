@@ -1,7 +1,7 @@
 import torch
 from torch.nn.attention.flex_attention import _mask_mod_signature
 
-from hepattn.utils.flex_utils import visualize_attention_scores
+from hepattn.flex.utils import visualize_attention_scores
 
 
 def sliding_window_mask(window_size: int) -> _mask_mod_signature:

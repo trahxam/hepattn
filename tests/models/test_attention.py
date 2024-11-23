@@ -2,8 +2,8 @@ import pytest
 import torch
 from torch import nn
 
+from hepattn.flex.sliding_window import sliding_window_mask
 from hepattn.models import Attention
-from hepattn.models.flex_local_mask import sliding_window_mask
 
 
 @pytest.mark.parametrize("batch_size", [1, 4])

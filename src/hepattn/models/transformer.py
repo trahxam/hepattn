@@ -3,8 +3,8 @@ from functools import partial
 import torch
 from torch import BoolTensor, Tensor, nn
 
+from hepattn.flex.sliding_window import sliding_window_mask
 from hepattn.models import Attention, Dense, LayerNorm
-from hepattn.models.flex_local_mask import sliding_window_mask
 
 
 class DropPath(nn.Module):
