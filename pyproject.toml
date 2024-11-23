@@ -1,0 +1,31 @@
+[project]
+authors = [{name = "Sam Van Stroud", email = "sam.van.stroud@cern.ch"}]
+dependencies = ["ruff==0.7.4,<0.8", "pytest>=8.3.3,<9", "setuptools>=75.5.0,<76"]
+description = "Attention for High Energy Physics"
+license = { text = "MIT" }
+readme = "README.md"
+name = "hepattn"
+requires-python = "== 3.11"
+version = "0.1.0"
+
+[build-system]
+build-backend = "hatchling.build"
+requires = ["hatchling"]
+
+[tool.pixi.project]
+channels = ["nvidia", "pytorch", "conda-forge"]
+platforms = ["linux-64"]
+
+[tool.pixi.pypi-dependencies]
+hepattn = { path = ".", editable = true }
+
+[tool.pixi.system-requirements]
+linux = "3.10.0"
+libc = "2.17"
+cuda = "12.3"
+
+[tool.pixi.dependencies]
+pytorch-cuda = "12.1.*"
+pytorch = "2.5.1.*"
+numpy = ">=2.1.3,<3"
+gcc = ">=14.2.0,<14.3"
