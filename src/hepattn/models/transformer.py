@@ -4,6 +4,7 @@ import torch
 from torch import BoolTensor, Tensor, nn
 
 from hepattn.models import Attention, Dense, LayerNorm
+from hepattn.models.flex_local_mask import sliding_window_mask
 
 
 class DropPath(nn.Module):
@@ -76,6 +77,7 @@ class EncoderLayer(nn.Module):
         drop_path: float = 0.0,
         dense_kwargs: dict | None = None,
         attn_kwargs: dict | None = None,
+        window_size: int | None = None,
     ) -> None:
         """Encoder layer: self-attention -> feed-forward.
 
@@ -93,6 +95,8 @@ class EncoderLayer(nn.Module):
             Keyword arguments for dense layer.
         attn_kwargs : dict | None, optional
             Keyword arguments for self-attention layer.
+        window_size : int | None, optional
+            The window size for the sliding window.
         """
         super().__init__()
 
@@ -106,11 +110,15 @@ class EncoderLayer(nn.Module):
         self.attn = residual(Attention(self.dim, **attn_kwargs))
         self.dense = residual(Dense(self.dim, **dense_kwargs))
 
+        self.mask_mod = None
+        if window_size is not None:
+            self.mask_mod = sliding_window_mask(10)
+
     def forward(self, x: Tensor, **kwargs) -> Tensor:
-        return self.dense(self.attn(x, x, x, **kwargs))
+        return self.dense(self.attn(x, x, x, mask_mod=self.mask_mod, **kwargs))
 
 
-class Transformer(nn.Module):
+class Encoder(nn.Module):
     def __init__(self, num_layers: int, dim: int, **kwargs) -> None:
         """Transformer encoder.
 
@@ -133,7 +141,6 @@ class Transformer(nn.Module):
     def forward(self, x: Tensor, mask: BoolTensor | None = None, **kwargs) -> Tensor:
         if isinstance(x, dict):
             x = torch.cat(list(x.values()), dim=1)
-            # mask = torch.cat(list(mask.values()), dim=1)  # noqa: ERA001
 
         for layer in self.layers:
             x = layer(x, **kwargs)

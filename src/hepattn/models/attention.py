@@ -60,11 +60,14 @@ class Attention(nn.Module):
 
         # Attention
         if self.flex:
+            block_mask = None
             if mask_mod is not None:
                 block_mask = create_block_mask(mask_mod, B=None, H=None, Q_LEN=q_len, KV_LEN=kv_len)
             out = self.attn(q, k, v, block_mask=block_mask)
         else:
-            mask = create_mask(mask_mod, 1, 1, q_len, kv_len, device=q.device) if mask_mod is not None else None
+            mask = None
+            if mask_mod is not None:
+                mask = create_mask(mask_mod, 1, 1, q_len, kv_len, device=q.device)
             out = self.attn(q, k, v, attn_mask=mask)
 
         # Get output

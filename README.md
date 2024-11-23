@@ -20,7 +20,10 @@ test
 ## Features
 
 - [x] gated dense network
-- [ ] Flex transformer
+- [x] Flex transformer
+- [x] Flex local
+- [x] layerscale
+- [ ] flex decoder
 - [ ] Flex mask attention
 - [ ] Flex local CA
 - [ ] SAM random positional embeddings
@@ -28,8 +31,7 @@ test
 - [ ] value residuals including learnable per token
 - [ ] register tokens but interspersed for local attention
 - [ ] moe
-- [ ] layerscale
-
+- [ ] CLS token
 
 ## Notes
 
