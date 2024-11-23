@@ -15,7 +15,7 @@ class Attention(nn.Module):
     def __init__(
         self,
         dim: int,
-        num_heads: int,
+        num_heads: int = 8,
         bias: bool = True,
         flex: bool = False,
         torch_compile: bool = True,
@@ -26,6 +26,7 @@ class Attention(nn.Module):
 
         self.dim = dim
         self.num_heads = num_heads
+        self.flex = flex
         self.attn = flex_attention if flex else F.scaled_dot_product_attention
         if torch_compile:
             self.attn = torch.compile(self.attn, dynamic=False)
