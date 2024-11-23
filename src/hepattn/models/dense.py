@@ -57,8 +57,7 @@ class Dense(nn.Module):
             proj_dim = proj_dim * 2 if gate else proj_dim
 
             # inner projection and activation
-            layers.append(nn.Linear(in_dim, proj_dim, bias=bias))
-            layers.append(activation())
+            layers.extend((nn.Linear(in_dim, proj_dim, bias=bias), activation()))
 
             # maybe dropout
             if dropout:

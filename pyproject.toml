@@ -1,6 +1,6 @@
 [project]
 authors = [{name = "Sam Van Stroud", email = "sam.van.stroud@cern.ch"}]
-dependencies = ["ruff==0.7.4,<0.8", "pytest>=8.3.3,<9", "setuptools>=75.5.0,<76"]
+dependencies = [ "pytest>=8.3.3,<9", "setuptools>=75.5.0,<76", "ruff==0.8.0", "pre-commit>=4.0.1,<5"]
 description = "Attention for High Energy Physics"
 license = { text = "MIT" }
 readme = "README.md"
@@ -29,3 +29,11 @@ pytorch-cuda = "12.1.*"
 pytorch = "2.5.1.*"
 numpy = ">=2.1.3,<3"
 gcc = ">=14.2.0,<14.3"
+
+[tool.ruff]
+src = ["src"]
+target-version = "py311"
+line-length = 150
+preview = true
+lint.select = ["ALL"]
+lint.ignore = ["G", "D", "ANN", "PLW", "FBT", "COM812", "ISC001", "CPY001", "TRY003", "S101", "A003", "N812", "PLR0913", "PLR0917", "DOC201", "INP001"]

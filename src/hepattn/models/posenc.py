@@ -1,5 +1,6 @@
-from torch import nn
+import numpy as np
 import torch
+from torch import nn
 
 
 class PositionEmbeddingRandom(nn.Module):
@@ -33,15 +34,13 @@ class PositionEmbeddingRandom(nn.Module):
         grid = torch.ones((h, w), device=device, dtype=self.positional_encoding_gaussian_matrix.dtype)
         y_embed = grid.cumsum(dim=0) - 0.5
         x_embed = grid.cumsum(dim=1) - 0.5
-        y_embed = y_embed / h
-        x_embed = x_embed / w
+        y_embed /= h
+        x_embed /= w
 
         pe = self._pe_encoding(torch.stack([x_embed, y_embed], dim=-1))
         return pe.permute(2, 0, 1)  # C x H x W
 
-    def forward_with_coords(
-        self, coords_input: torch.Tensor, image_size: tuple[int, int]
-    ) -> torch.Tensor:
+    def forward_with_coords(self, coords_input: torch.Tensor, image_size: tuple[int, int]) -> torch.Tensor:
         # Take advantage of square image size to simplify normalization
         assert image_size[1] == image_size[0]
         return self._pe_encoding(coords_input / image_size[1])  # B x N x C

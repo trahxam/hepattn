@@ -4,6 +4,6 @@ from torch import Tensor, nn
 
 
 class SwiGLU(nn.Module):
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor) -> Tensor:  # noqa: PLR6301
         x1, x2 = torch.chunk(x, 2, dim=-1)
         return x1 * F.silu(x2)
