@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
-from torch.nn.attention.flex_attention import flex_attention
+from torch.nn.attention.flex_attention import _mask_mod_signature, create_block_mask, create_mask, flex_attention
 
 
 class Attention(nn.Module):
@@ -44,7 +44,10 @@ class Attention(nn.Module):
         x = x.transpose(-3, -2)  # B H S Dh -> B S H Dh
         return x.flatten(-2)  # B S H Dh -> B S D
 
-    def forward(self, q: Tensor, k: Tensor, v: Tensor) -> Tensor:
+    def forward(self, q: Tensor, k: Tensor, v: Tensor, mask_mod: _mask_mod_signature | None = None) -> Tensor:
+        q_len = q.shape[-2]
+        kv_len = k.shape[-2]
+
         # Input projections
         q = self.q_proj(q)
         k = self.k_proj(k)
@@ -56,7 +59,13 @@ class Attention(nn.Module):
         v = self.separate_heads(v, self.num_heads)
 
         # Attention
-        out = self.attn(q, k, v)
+        if self.flex:
+            if mask_mod is not None:
+                block_mask = create_block_mask(mask_mod, B=None, H=None, Q_LEN=q_len, KV_LEN=kv_len)
+            out = self.attn(q, k, v, block_mask=block_mask)
+        else:
+            mask = create_mask(mask_mod, 1, 1, q_len, kv_len, device=q.device) if mask_mod is not None else None
+            out = self.attn(q, k, v, attn_mask=mask)
 
         # Get output
         out = self.recombine_heads(out)

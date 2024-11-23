@@ -36,4 +36,4 @@ target-version = "py311"
 line-length = 150
 preview = true
 lint.select = ["ALL"]
-lint.ignore = ["G", "D", "ANN", "PLW", "FBT", "COM812", "ISC001", "CPY001", "TRY003", "S101", "A003", "N812", "PLR0913", "PLR0917", "DOC201", "INP001", "PLR6301"]
+lint.ignore = ["G", "D", "ANN", "PLW", "FBT", "COM812", "ISC001", "CPY001", "TRY003", "S101", "A003", "N812", "PLR0913", "PLR0917", "DOC201", "INP001", "PLR6301", "T201"]

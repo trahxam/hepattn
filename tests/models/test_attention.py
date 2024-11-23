@@ -3,6 +3,7 @@ import torch
 from torch import nn
 
 from hepattn.models import Attention
+from hepattn.models.flex_local_mask import sliding_window_mask
 
 
 @pytest.mark.parametrize("batch_size", [1, 4])
@@ -67,3 +68,27 @@ def test_nested_jagged_tensor(flex: bool):
         out = attn(q, k, v)
         this_out_nt = nt_out[i]
         torch.testing.assert_close(out, this_out_nt, atol=1e-3, rtol=1e-3)
+
+
+def test_local_attention():
+    # Generate random input tensors
+    q = torch.randn(1, 128, 128, dtype=torch.float16, device="cuda")
+    k = torch.randn(1, 128, 128, dtype=torch.float16, device="cuda")
+    v = torch.randn(1, 128, 128, dtype=torch.float16, device="cuda")
+
+    # Initialize attention layers
+    attn_flex = Attention(dim=128, num_heads=8, flex=True, torch_compile=True, bias=False).cuda().half()
+    attn_spda = Attention(dim=128, num_heads=8, flex=False, torch_compile=True, bias=False).cuda().half()
+
+    # Synchronize weights for comparison
+    attn_flex.q_proj.weight.data = attn_spda.q_proj.weight
+    attn_flex.k_proj.weight.data = attn_spda.k_proj.weight
+    attn_flex.v_proj.weight.data = attn_spda.v_proj.weight
+    attn_flex.out_proj.weight.data = attn_spda.out_proj.weight
+
+    mask_mod = sliding_window_mask(10)
+    out_flex = attn_flex(q, k, v, mask_mod=mask_mod)
+    out_spda = attn_spda(q, k, v, mask_mod=mask_mod)
+
+    # Compare outputs
+    torch.testing.assert_close(out_flex, out_spda, atol=1e-3, rtol=1e-3)
