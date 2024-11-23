@@ -1,8 +1,6 @@
 import torch
 import torch.nn.functional as F
-from torch.nn.attention.flex_attention import (
-    flex_attention,
-)
+from torch.nn.attention.flex_attention import flex_attention
 
 data_type = torch.float16
 flex_attention = torch.compile(flex_attention, dynamic=False)

@@ -450,7 +450,7 @@ packages:
   name: hepattn
   version: 0.1.0
   path: .
-  sha256: 753624c71e689a1a33919efc10ca2759ac8763fc742eb41b6d525e486bc4d5af
+  sha256: 146dfe8d9dc6ee077a0290d9125b7156d435e1db237755663c82e6d25d82bf99
   requires_dist:
   - pytest>=8.3.3,<9
   - setuptools>=75.5.0,<76

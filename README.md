@@ -29,3 +29,10 @@ test
 - [ ] register tokens but interspersed for local attention
 - [ ] moe
 - [ ] layerscale
+
+
+## Notes
+
+- einops doesn't work with nested tensors
+    - support masking?
+    - don't use einops?
