@@ -16,9 +16,9 @@ def test_attention_consistency(batch_size, seq_len, dim, num_heads, bias, flex):
     torch.manual_seed(42)
 
     # Generate random input tensors
-    q = torch.randn(batch_size, seq_len, dim, dtype=torch.float16, device="cuda", requires_grad=True)
-    k = torch.randn(batch_size, seq_len, dim, dtype=torch.float16, device="cuda", requires_grad=True)
-    v = torch.randn(batch_size, seq_len, dim, dtype=torch.float16, device="cuda", requires_grad=True)
+    q = torch.randn(batch_size, seq_len, dim, dtype=torch.float16, device="cuda")
+    k = torch.randn(batch_size, seq_len, dim, dtype=torch.float16, device="cuda")
+    v = torch.randn(batch_size, seq_len, dim, dtype=torch.float16, device="cuda")
 
     # Initialize attention layers
     attention_layer = Attention(dim=dim, num_heads=num_heads, bias=bias, flex=flex).cuda().half()
@@ -41,3 +41,29 @@ def test_attention_consistency(batch_size, seq_len, dim, num_heads, bias, flex):
 
     # Compare outputs
     torch.testing.assert_close(custom_out, mha_out, atol=1e-3, rtol=1e-3)
+
+
+# NJT not working out of the box with flex, but can be done with a block mask
+@pytest.mark.parametrize("flex", [False])
+def test_nested_jagged_tensor(flex: bool):
+    # Set random seed for reproducibility
+    torch.manual_seed(42)
+
+    attn = Attention(dim=128, num_heads=8, flex=flex, torch_compile=flex).cuda().half()
+
+    # Current limitation that the total sequnce length must be divisible by 128
+    qs = [torch.randn(s, 128, dtype=torch.float16, device="cuda") for s in (128, 256)]
+    ks = [torch.randn(s, 128, dtype=torch.float16, device="cuda") for s in (128, 256)]
+    vs = [torch.randn(s, 128, dtype=torch.float16, device="cuda") for s in (128, 256)]
+
+    nq = torch.nested.nested_tensor(qs, layout=torch.jagged, device="cuda", requires_grad=True)
+    nk = torch.nested.nested_tensor(ks, layout=torch.jagged, device="cuda", requires_grad=True)
+    nv = torch.nested.nested_tensor(vs, layout=torch.jagged, device="cuda", requires_grad=True)
+
+    nt_out = attn(nq, nk, nv)
+
+    # do the same but looping over the list
+    for i, (q, k, v) in enumerate(zip(qs, ks, vs, strict=False)):
+        out = attn(q, k, v)
+        this_out_nt = nt_out[i]
+        torch.testing.assert_close(out, this_out_nt, atol=1e-3, rtol=1e-3)

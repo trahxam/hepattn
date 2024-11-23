@@ -18,14 +18,17 @@ class Attention(nn.Module):
         num_heads: int,
         bias: bool = True,
         flex: bool = False,
+        torch_compile: bool = True,
     ) -> None:
         super().__init__()
         assert dim % num_heads == 0, "num_heads must divide dim."
+        assert not (flex and not torch_compile), "must compile with flex."
 
         self.dim = dim
         self.num_heads = num_heads
         self.attn = flex_attention if flex else F.scaled_dot_product_attention
-        self.attn = torch.compile(self.attn, dynamic=False)
+        if torch_compile:
+            self.attn = torch.compile(self.attn, dynamic=False)
 
         self.q_proj = nn.Linear(dim, self.dim, bias=bias)
         self.k_proj = nn.Linear(dim, self.dim, bias=bias)
