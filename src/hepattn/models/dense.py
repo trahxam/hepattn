@@ -14,6 +14,7 @@ class Dense(nn.Module):
         final_activation: nn.Module | None = None,
         dropout: float = 0.0,
         bias: bool = True,
+        norm_input: bool = False,
     ) -> None:
         """A fully connected feed forward neural network, which can take
         in additional contextual information.
@@ -37,6 +38,8 @@ class Dense(nn.Module):
             Apply dropout with the supplied probability.
         bias : bool, optional
             Whether to use bias in the linear layers.
+        norm_input : bool, optional
+            Whether to apply batch normalization to the input.
         """
         super().__init__()
 
@@ -50,6 +53,8 @@ class Dense(nn.Module):
         gate = activation == SwiGLU
 
         layers = []
+        if norm_input:
+            layers.append(nn.BatchNorm1d(input_size))
         node_list = [input_size, *hidden_layers]
         for i in range(len(node_list) - 1):
             in_dim = node_list[i]
