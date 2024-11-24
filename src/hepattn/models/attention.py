@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
-from torch import Tensor, nn
-from torch.nn.attention.flex_attention import _mask_mod_signature, create_block_mask, create_mask, flex_attention
+from torch import BoolTensor, Tensor, nn
+from torch.nn.attention.flex_attention import BlockMask, create_mask, flex_attention
 
 
 class Attention(nn.Module):
@@ -17,7 +17,7 @@ class Attention(nn.Module):
         dim: int,
         num_heads: int = 8,
         bias: bool = True,
-        flex: bool = False,
+        flex: bool = True,
         torch_compile: bool = True,
     ) -> None:
         super().__init__()
@@ -44,7 +44,7 @@ class Attention(nn.Module):
         x = x.transpose(-3, -2)  # B H S Dh -> B S H Dh
         return x.flatten(-2)  # B S H Dh -> B S D
 
-    def forward(self, q: Tensor, k: Tensor, v: Tensor, mask_mod: _mask_mod_signature | None = None) -> Tensor:
+    def forward(self, q: Tensor, k: Tensor, v: Tensor, mask: BlockMask | BoolTensor | None = None) -> Tensor:
         q_len = q.shape[-2]
         kv_len = k.shape[-2]
 
@@ -60,14 +60,12 @@ class Attention(nn.Module):
 
         # Attention
         if self.flex:
-            block_mask = None
-            if mask_mod is not None:
-                block_mask = create_block_mask(mask_mod, B=None, H=None, Q_LEN=q_len, KV_LEN=kv_len)
-            out = self.attn(q, k, v, block_mask=block_mask)
+            out = self.attn(q, k, v, block_mask=mask)
         else:
             mask = None
-            if mask_mod is not None:
-                mask = create_mask(mask_mod, 1, 1, q_len, kv_len, device=q.device)
+            if mask is not None:
+                # materialise full mask
+                mask = create_mask(mask, 1, 1, q_len, kv_len, device=q.device)
             out = self.attn(q, k, v, attn_mask=mask)
 
         # Get output

@@ -1,10 +1,13 @@
 from functools import partial
 
 import torch
-from torch import BoolTensor, Tensor, nn
+from torch import Tensor, nn
+from torch.nn.attention.flex_attention import create_block_mask
 
 from hepattn.flex.sliding_window import sliding_window_mask
 from hepattn.models import Attention, Dense, LayerNorm
+
+create_block_mask = torch.compile(create_block_mask)
 
 
 class DropPath(nn.Module):
@@ -40,7 +43,7 @@ class Residual(nn.Module):
     def __init__(
         self,
         fn: nn.Module,
-        norm: nn.Module = LayerNorm,
+        norm: nn.Module | None = None,
         layer_scale: float | None = None,
         drop_path: float = 0.0,
         dim: int = 0,
@@ -59,6 +62,8 @@ class Residual(nn.Module):
             The dimension of the input and output.
         """
         super().__init__()
+        if norm is None:
+            norm = LayerNorm
         self.fn = fn
         self.norm = norm(dim)
         self.ls = LayerScale(dim, layer_scale) if layer_scale is not None else nn.Identity()
@@ -72,12 +77,11 @@ class EncoderLayer(nn.Module):
     def __init__(
         self,
         dim: int,
-        norm: nn.Module = LayerNorm,
+        norm: nn.Module = None,
         layer_scale: float | None = None,
         drop_path: float = 0.0,
         dense_kwargs: dict | None = None,
         attn_kwargs: dict | None = None,
-        window_size: int | None = None,
     ) -> None:
         """Encoder layer: self-attention -> feed-forward.
 
@@ -95,8 +99,6 @@ class EncoderLayer(nn.Module):
             Keyword arguments for dense layer.
         attn_kwargs : dict | None, optional
             Keyword arguments for self-attention layer.
-        window_size : int | None, optional
-            The window size for the sliding window.
         """
         super().__init__()
 
@@ -104,22 +106,20 @@ class EncoderLayer(nn.Module):
             attn_kwargs = {}
         if dense_kwargs is None:
             dense_kwargs = {}
+        if norm is None:
+            norm = LayerNorm
 
         self.dim = dim
         residual = partial(Residual, dim=dim, norm=norm, layer_scale=layer_scale, drop_path=drop_path)
         self.attn = residual(Attention(self.dim, **attn_kwargs))
         self.dense = residual(Dense(self.dim, **dense_kwargs))
 
-        self.mask_mod = None
-        if window_size is not None:
-            self.mask_mod = sliding_window_mask(10)
-
     def forward(self, x: Tensor, **kwargs) -> Tensor:
-        return self.dense(self.attn(x, x, x, mask_mod=self.mask_mod, **kwargs))
+        return self.dense(self.attn(x, x, x, **kwargs))
 
 
 class Encoder(nn.Module):
-    def __init__(self, num_layers: int, dim: int, **kwargs) -> None:
+    def __init__(self, num_layers: int, dim: int, window_size: int | None = None, **kwargs) -> None:
         """Transformer encoder.
 
         Parameters
@@ -128,6 +128,8 @@ class Encoder(nn.Module):
             Number of layers.
         dim : int
             Dimension of the embeddings at each layer.
+        window_size : int | None, optional
+            The window size for the sliding window.
         kwargs : dict
             Keyword arguments for EncoderLayer.
         """
@@ -138,11 +140,17 @@ class Encoder(nn.Module):
 
         self.layers = torch.nn.ModuleList([EncoderLayer(dim=dim, **kwargs) for _ in range(num_layers)])
 
-    def forward(self, x: Tensor, mask: BoolTensor | None = None, **kwargs) -> Tensor:
+        self.mask = None
+        if window_size is not None:
+            self.mask_mod = sliding_window_mask(10)
+
+    def forward(self, x: Tensor, **kwargs) -> Tensor:
         if isinstance(x, dict):
             x = torch.cat(list(x.values()), dim=1)
 
+        q_len = x.shape[-2]
+        block_mask = create_block_mask(self.mask_mod, B=None, H=None, Q_LEN=q_len, KV_LEN=q_len, device=x.device)
         for layer in self.layers:
-            x = layer(x, **kwargs)
+            x = layer(x, mask=block_mask, **kwargs)
 
-        return x, mask
+        return x

@@ -28,9 +28,9 @@ def test_dense_custom_parameters():
         bias=False,
         norm_input=True,
     )
-    x = torch.randn(4, 10)  # Batch of 4, input size of 10
+    x = torch.randn(4, 10, 10)  # Batch of 4, input size of 10
     output = model(x)
-    assert output.shape == (4, 5), "Output shape should match batch size and output size"
+    assert output.shape == (4, 10, 5), "Output shape should match batch size and output size"
 
 
 def test_dense_forward_propagation():

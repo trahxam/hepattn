@@ -1,0 +1,113 @@
+seed_everything: 42
+name: HF-test
+
+model:
+  lrs_config:
+    initial: 1e-5
+    max: 1e-4
+    end: 1e-5
+    pct_start: 0.05
+
+  init:
+    class_path: hepattn.models.Dense
+    init_args:
+      input_size: 17
+      output_size: &embed_dim 256
+      hidden_layers: [256]
+
+  encoder:
+    class_path: hepattn.models.Encoder
+    init_args:
+      num_layers: 12
+      dim: *embed_dim
+      window_size: 1024
+
+  dense:
+    class_path: hepattn.models.Dense
+    init_args:
+      input_size: *embed_dim
+      output_size: 1
+      hidden_layers: [256, 128, 64]
+
+data:
+  use_exatrkx_inputs: true
+  num_objects: 1600
+
+  minimum_pt: 0.75 # GeV
+  max_abs_eta: 2.5
+
+  # use pixel barrel layers only
+  # https://competitions.codalab.org/competitions/20112
+  volume_ids: [7, 8, 9]
+
+  inputs:
+    hit:
+      - "x"
+      - "y"
+      - "z"
+      - "r"
+      - "eta"
+      - "phi"
+      - "u"
+      - "v"
+      - "eta"
+      - "charge_frac"
+      - "leta"
+      - "lphi"
+      - "lx"
+      - "ly"
+      - "lz"
+      - "geta"
+      - "gphi"
+
+  labels:
+    hit:
+      - particle_id
+    truth:
+      - particle_id
+      - particle_type
+      - px
+      - py
+      - pz
+      - vz
+      - p
+
+  #train_dir: /share/lustre/svanstroud/data/trackml/data/train/
+  #val_dir: /share/lustre/svanstroud/data/trackml/data/val/
+  #train_dir: /unix/atlastracking/svanstroud/trackml/data
+  #val_dir: /unix/atlastracking/svanstroud/trackml/data
+  train_dir: /home/xucapsva/data/trackml/train/
+  val_dir: /home/xucapsva/data/trackml/val/
+  test_dir: /home/xucapsva/data/trackml/test/
+  #train_dir: /share/rcifdata/svanstroud/data/trackml/train/
+  #val_dir: /share/rcifdata/svanstroud/data/trackml/val/
+  #test_dir: /share/rcifdata/svanstroud/data/trackml/test/
+
+  num_workers: 15
+  num_train: -1
+  num_val: -1
+  num_test: -1
+
+trainer:
+  gradient_clip_val: 0.1
+  max_epochs: 10
+  accelerator: gpu
+  devices: 1
+  precision: 16-mixed
+  log_every_n_steps: 1
+  default_root_dir: logs
+
+  logger:
+    class_path: lightning.pytorch.loggers.CometLogger
+    init_args:
+      project_name: hepattn
+      display_summary_level: 0
+
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+    - class_path: lightning.pytorch.callbacks.ModelSummary
+      init_args:
+        max_depth: 2
+    - class_path: lightning.pytorch.callbacks.TQDMProgressBar
+      init_args:
+        refresh_rate: 1
