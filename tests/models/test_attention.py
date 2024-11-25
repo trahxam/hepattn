@@ -1,6 +1,7 @@
 import pytest
 import torch
 from torch import nn
+from torch.nn.attention.flex_attention import create_block_mask, create_mask
 
 from hepattn.flex.sliding_window import sliding_window_mask
 from hepattn.models import Attention
@@ -11,8 +12,8 @@ from hepattn.models import Attention
 @pytest.mark.parametrize("dim", [128])
 @pytest.mark.parametrize("num_heads", [8])
 @pytest.mark.parametrize("bias", [True, False])
-@pytest.mark.parametrize("flex", [True, False])
-def test_attention_consistency(batch_size, seq_len, dim, num_heads, bias, flex):
+@pytest.mark.parametrize("attn_type", ["torch", "flex", "flash"])
+def test_attention_consistency(batch_size, seq_len, dim, num_heads, bias, attn_type):
     # Set random seed for reproducibility
     torch.manual_seed(42)
 
@@ -22,7 +23,7 @@ def test_attention_consistency(batch_size, seq_len, dim, num_heads, bias, flex):
     v = torch.randn(batch_size, seq_len, dim, dtype=torch.float16, device="cuda")
 
     # Initialize attention layers
-    attention_layer = Attention(dim=dim, num_heads=num_heads, bias=bias, flex=flex).cuda().half()
+    attention_layer = Attention(dim=dim, num_heads=num_heads, bias=bias, attn_type=attn_type).cuda().half()
     mha_layer = nn.MultiheadAttention(embed_dim=dim, num_heads=num_heads, bias=bias, batch_first=True).cuda().half()
 
     # Synchronize weights for comparison
@@ -45,12 +46,12 @@ def test_attention_consistency(batch_size, seq_len, dim, num_heads, bias, flex):
 
 
 # NJT not working out of the box with flex, but can be done with a block mask
-@pytest.mark.parametrize("flex", [False])
-def test_nested_jagged_tensor(flex: bool):
+# for now just test with SDPA
+def test_nested_jagged_tensor():
     # Set random seed for reproducibility
     torch.manual_seed(42)
 
-    attn = Attention(dim=128, num_heads=8, flex=flex, torch_compile=flex).cuda().half()
+    attn = Attention(dim=128, num_heads=8, attn_type="torch", torch_compile=False).cuda().half()
 
     # Current limitation that the total sequnce length must be divisible by 128
     qs = [torch.randn(s, 128, dtype=torch.float16, device="cuda") for s in (128, 256)]
@@ -71,24 +72,36 @@ def test_nested_jagged_tensor(flex: bool):
 
 
 def test_local_attention():
+    window_size = 4
+
     # Generate random input tensors
     q = torch.randn(1, 128, 128, dtype=torch.float16, device="cuda")
     k = torch.randn(1, 128, 128, dtype=torch.float16, device="cuda")
     v = torch.randn(1, 128, 128, dtype=torch.float16, device="cuda")
 
     # Initialize attention layers
-    attn_flex = Attention(dim=128, num_heads=8, flex=True, torch_compile=True, bias=False).cuda().half()
-    attn_spda = Attention(dim=128, num_heads=8, flex=False, torch_compile=True, bias=False).cuda().half()
+    attn_flex = Attention(dim=128, num_heads=8, attn_type="flex", torch_compile=True, bias=False).cuda().half()
+    attn_spda = Attention(dim=128, num_heads=8, attn_type="torch", torch_compile=False, bias=False).cuda().half()
+    attn_flash = Attention(dim=128, num_heads=8, attn_type="flash", torch_compile=False, window_size=window_size, bias=False).cuda().half()
 
     # Synchronize weights for comparison
     attn_flex.q_proj.weight.data = attn_spda.q_proj.weight
     attn_flex.k_proj.weight.data = attn_spda.k_proj.weight
     attn_flex.v_proj.weight.data = attn_spda.v_proj.weight
     attn_flex.out_proj.weight.data = attn_spda.out_proj.weight
+    attn_flash.q_proj.weight.data = attn_spda.q_proj.weight
+    attn_flash.k_proj.weight.data = attn_spda.k_proj.weight
+    attn_flash.v_proj.weight.data = attn_spda.v_proj.weight
+    attn_flash.out_proj.weight.data = attn_spda.out_proj.weight
 
-    mask_mod = sliding_window_mask(10)
-    out_flex = attn_flex(q, k, v, mask_mod=mask_mod)
-    out_spda = attn_spda(q, k, v, mask_mod=mask_mod)
+    mask_mod = sliding_window_mask(window_size)
+    q_len = q.shape[-2]
+    block_mask = create_block_mask(mask_mod, B=None, H=None, Q_LEN=q_len, KV_LEN=q_len, device=q.device)
+    mask = create_mask(mask_mod, 1, 1, q_len, q_len, device=q.device)
+    out_flex = attn_flex(q, k, v, mask=block_mask)
+    out_spda = attn_spda(q, k, v, mask=mask)
+    out_flash = attn_flash(q, k, v)
 
     # Compare outputs
     torch.testing.assert_close(out_flex, out_spda, atol=1e-3, rtol=1e-3)
+    torch.testing.assert_close(out_flex, out_flash, atol=1e-3, rtol=1e-3)

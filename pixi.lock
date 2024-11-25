@@ -107,6 +107,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/a9/b8/b721ca21ff5226bdb7ad883b175cc4da31675f93373f0250209c1a24f269/dulwich-0.22.6-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/44/5a/f0b9ad6c0a9017e62d4735daaeb11ba3b6c009d69a26141b258cd37b5588/einops-0.8.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/91/9a/d882fd7562208456236fb2e62b762bf16fbc9ecde842bb871f676ca0f7e1/everett-3.1.0-py2.py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/40/2c/90bf7f2b4800708e3a8a62694c935283b492384a0a791cfefbedd9138e1b/flash_attn-2.7.0.post2.tar.gz
       - pypi: https://files.pythonhosted.org/packages/47/2b/9bf7527260d265281dd812951aa22f3d1c331bcc91e86e7038dc6b9737cb/fonttools-4.55.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/b8/5f/c10123e8d64867bc9b4f2f510a32042a306ff5fcd7e2e09e5ae5100ee333/frozenlist-1.5.0-cp311-cp311-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/c6/b2/454d6e7f0158951d8a78c2e1eb4f69ae81beb8dca5fee9809c6c99e9d0d0/fsspec-2024.10.0-py3-none-any.whl
@@ -614,6 +615,15 @@ packages:
   size: 17357
   timestamp: 1726613593584
 - kind: pypi
+  name: flash-attn
+  version: 2.7.0.post2
+  url: https://files.pythonhosted.org/packages/40/2c/90bf7f2b4800708e3a8a62694c935283b492384a0a791cfefbedd9138e1b/flash_attn-2.7.0.post2.tar.gz
+  sha256: 62244de20dabad9a42d0636f6b2ea4c051d33df179a0b3bea4352502ebca1466
+  requires_dist:
+  - torch
+  - einops
+  requires_python: '>=3.8'
+- kind: pypi
   name: fonttools
   version: 4.55.0
   url: https://files.pythonhosted.org/packages/47/2b/9bf7527260d265281dd812951aa22f3d1c331bcc91e86e7038dc6b9737cb/fonttools-4.55.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
@@ -846,7 +856,7 @@ packages:
   name: hepattn
   version: 0.1.0
   path: .
-  sha256: 96be9d5c6455add138f7f59d516d3d92691146200a83d601e8432b84d5c1ce7b
+  sha256: f6ff0752c5cd15c3192c6e829d1c541cb9bc93aec6020995209a6f680e0af4f5
   requires_dist:
   - pytest>=8.3.3,<9
   - setuptools>=75.5.0,<76
@@ -860,6 +870,7 @@ packages:
   - pyarrow>=18.0.0,<19
   - numpy>=2.1.3,<3
   - jsonargparse[signatures]>=4.34.0,<5
+  - flash-attn>=2.7.0.post2,<3
   requires_python: ==3.11
   editable: true
 - kind: pypi
