@@ -2,7 +2,7 @@ from functools import partial
 
 import torch
 from torch import Tensor, nn
-from torch.nn.attention.flex_attention import create_block_mask
+from torch.nn.attention.flex_attention import create_block_mask, create_mask
 
 from hepattn.flex.sliding_window import sliding_window_mask
 from hepattn.models import Attention, Dense, LayerNorm
@@ -135,22 +135,35 @@ class Encoder(nn.Module):
         """
         super().__init__()
 
+        if kwargs is None:
+            kwargs = {"attn_kwargs": {"attn_type": "torch"}}
+        elif "attn_kwargs" not in kwargs:
+            kwargs["attn_kwargs"] = {"attn_type": "torch"}
+
         self.num_layers = num_layers
         self.dim = dim
+        self.attn_type = kwargs["attn_kwargs"]["attn_type"]
 
         self.layers = torch.nn.ModuleList([EncoderLayer(dim=dim, **kwargs) for _ in range(num_layers)])
 
-        self.mask = None
-        if window_size is not None:
+        if self.attn_type == "flash":
+            kwargs["attn_kwargs"]["window_size"] = window_size
+            self.mask_mod = None
+        else:
             self.mask_mod = sliding_window_mask(10)
 
     def forward(self, x: Tensor, **kwargs) -> Tensor:
         if isinstance(x, dict):
             x = torch.cat(list(x.values()), dim=1)
 
+        mask = None
         q_len = x.shape[-2]
-        block_mask = create_block_mask(self.mask_mod, B=None, H=None, Q_LEN=q_len, KV_LEN=q_len, device=x.device)
+        if self.attn_type == "torch":
+            mask = create_mask(self.mask_mod, 1, 1, q_len, q_len, device=x.device)
+        elif self.attn_type == "flex":
+            mask = create_block_mask(self.mask_mod, B=None, H=None, Q_LEN=q_len, KV_LEN=q_len, device=x.device)
+
         for layer in self.layers:
-            x = layer(x, mask=block_mask, **kwargs)
+            x = layer(x, mask=mask, **kwargs)
 
         return x

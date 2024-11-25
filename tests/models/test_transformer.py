@@ -53,7 +53,7 @@ def test_encoderlayer(input_tensor):
 
 def test_encoderlayer_with_kwargs(input_tensor):
     dim = input_tensor.shape[-1]
-    model = EncoderLayer(dim=dim, drop_path=0.1, attn_kwargs={"num_heads": 4}, window_size=10).cuda()
+    model = EncoderLayer(dim=dim, drop_path=0.1, attn_kwargs={"num_heads": 4}).cuda()
     output = model(input_tensor)
     assert output.shape == input_tensor.shape
 

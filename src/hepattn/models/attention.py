@@ -38,7 +38,9 @@ class Attention(nn.Module):
         self.num_heads = num_heads
         self.attn_type = attn_type
         self.attn = ATTN_TYPES[attn_type]
-        self.window_size = (window_size // 2, window_size // 2) if window_size is not None else (-1, -1)
+        self.window_size = None
+        if attn_type == "flash":
+            self.window_size = (window_size // 2, window_size // 2) if window_size is not None else (-1, -1)
         if torch_compile:
             self.attn = torch.compile(self.attn, dynamic=False)
 
