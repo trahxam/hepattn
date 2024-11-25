@@ -27,9 +27,9 @@ class HitFilter(L.LightningModule):
         super().__init__()
 
         self.name = name
-        self.init = init
-        self.encoder = encoder
-        self.dense = dense
+        self.init = torch.compile(init)
+        self.encoder = torch.compile(encoder)
+        self.dense = torch.compile(dense)
         self.target = target
         self.lrs_config = lrs_config
         self.times: list[float] = []
@@ -42,11 +42,8 @@ class HitFilter(L.LightningModule):
             start.record()
 
         x = self.init(x["hit"])
-        print("x init", x)
         x = self.encoder(x)
-        print("x enc", x)
         preds = self.dense(x).squeeze(-1)
-        print("preds", preds)
 
         if timing:
             end.record()

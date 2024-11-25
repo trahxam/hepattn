@@ -12,20 +12,22 @@ model:
     class_path: hepattn.models.Dense
     init_args:
       input_size: 17
-      output_size: &embed_dim 256
+      output_size: &dim 256
       hidden_layers: [256]
 
   encoder:
     class_path: hepattn.models.Encoder
     init_args:
       num_layers: 12
-      dim: *embed_dim
+      dim: *dim
       window_size: 1024
+      attn_kwargs:
+        attn_type: flash
 
   dense:
     class_path: hepattn.models.Dense
     init_args:
-      input_size: *embed_dim
+      input_size: *dim
       output_size: 1
       hidden_layers: [256, 128, 64]
 
@@ -94,7 +96,7 @@ trainer:
   accelerator: gpu
   devices: 1
   precision: 16-mixed
-  log_every_n_steps: 1
+  log_every_n_steps: 20
   default_root_dir: logs
 
   logger:
@@ -110,4 +112,4 @@ trainer:
         max_depth: 2
     - class_path: lightning.pytorch.callbacks.TQDMProgressBar
       init_args:
-        refresh_rate: 1
+        refresh_rate: 20

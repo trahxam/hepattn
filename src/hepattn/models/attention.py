@@ -77,7 +77,6 @@ class Attention(nn.Module):
         elif self.attn_type == "torch":
             out = self.attn(q, k, v, attn_mask=mask)
         elif self.attn_type == "flash":
-            print(self.window_size)
             out = self.attn(q, k, v, window_size=self.window_size)
         else:
             raise ValueError(f"Invalid attention type: {self.attn_type}")
