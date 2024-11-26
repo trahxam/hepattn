@@ -2,8 +2,32 @@
 
 ## Setup
 
+### Frist time
+
 First install `pixi` according to https://pixi.sh/latest/.
 
+This is probably just
+
+```bash
+curl -fsSL https://pixi.sh/install.sh | bash
+```
+
+Clone the repo:
+
+```bash
+
+```
+
+
+To install, you need to first remove the flash attention dependency from teh `pyproject.toml` file. Then run: 
+
+```bash
+pixi install
+```
+
+Then, add back the flash attention dependency and install again.
+
+### Coming back
 On DIAS: 
 
 ```bash
@@ -13,7 +37,7 @@ python src/hepattn/flex.py
 exit
 ```
 
-Check tests
+## Run tests
 
 ```bash
 pytest tests/

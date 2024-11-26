@@ -39,6 +39,7 @@ libc = "2.17"
 cuda = "12.3"
 
 [tool.pixi.dependencies]
+python= "3.11.*"
 pytorch-cuda = "12.1.*"
 pytorch = "2.5.1.*"
 gcc = ">=14.2.0,<14.3"
