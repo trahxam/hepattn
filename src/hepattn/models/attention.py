@@ -42,7 +42,7 @@ class Attention(nn.Module):
         if attn_type == "flash":
             self.window_size = (window_size // 2, window_size // 2) if window_size is not None else (-1, -1)
         if torch_compile:
-            self.attn = torch.compile(self.attn, dynamic=False)
+            self.attn = torch.compile(self.attn)
 
         self.q_proj = nn.Linear(dim, self.dim, bias=bias)
         self.k_proj = nn.Linear(dim, self.dim, bias=bias)

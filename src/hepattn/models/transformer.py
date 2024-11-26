@@ -149,6 +149,8 @@ class Encoder(nn.Module):
             self.mask_mod = None
         else:
             self.mask_mod = sliding_window_mask(10)
+        if self.attn_type == "flex":
+            self.block_mask = None
 
         self.layers = torch.nn.ModuleList([EncoderLayer(dim=dim, **kwargs) for _ in range(num_layers)])
 
@@ -161,7 +163,9 @@ class Encoder(nn.Module):
         if self.attn_type == "torch":
             mask = create_mask(self.mask_mod, 1, 1, q_len, q_len, device=x.device)
         elif self.attn_type == "flex":
-            mask = create_block_mask(self.mask_mod, B=None, H=None, Q_LEN=q_len, KV_LEN=q_len, device=x.device)
+            if self.block_mask is None:
+                self.block_mask = create_block_mask(self.mask_mod, B=None, H=None, Q_LEN=1, KV_LEN=1, device=x.device)
+            mask = self.block_mask
 
         for layer in self.layers:
             x = layer(x, mask=mask, **kwargs)

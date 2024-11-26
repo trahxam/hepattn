@@ -105,3 +105,16 @@ def test_local_attention():
     # Compare outputs
     torch.testing.assert_close(out_flex, out_spda, atol=1e-3, rtol=1e-3)
     torch.testing.assert_close(out_flex, out_flash, atol=1e-3, rtol=1e-3)
+
+
+def test_flex_dynamic():
+    # generate inputs
+    xs = [torch.randn(1, i, 128, dtype=torch.float16, device="cuda") for i in range(100, 110)]
+
+    # Initialize attention layers
+    attn = Attention(dim=128, num_heads=8, attn_type="flex", torch_compile=True, bias=False).cuda().half()
+
+    # loop over inputs
+    for x in xs:
+        out = attn(x, x, x)
+        assert out.shape == x.shape

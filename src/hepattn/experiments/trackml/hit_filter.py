@@ -88,10 +88,7 @@ class HitFilter(L.LightningModule):
 
     def log_losses(self, loss, stage):
         kwargs = {"sync_dist": True, "batch_size": 1}
-        self.log(f"{stage}_loss", loss["loss"], **kwargs)
-        for t, loss_value in loss.items():
-            n = f"{stage}_{t}_loss" if "loss" not in t else f"{stage}_{t}"
-            self.log(n, loss_value, **kwargs)
+        self.log(f"{stage}_loss", loss["loss"], prog_bar=True, **kwargs)
 
     def log_metrics(self, preds, labels, stage):
         kwargs = {"sync_dist": True, "batch_size": 1}

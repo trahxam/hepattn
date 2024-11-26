@@ -2,7 +2,7 @@ seed_everything: 42
 name: HF-test
 
 model:
-  torch_compile: true
+  torch_compile: false
   lrs_config:
     initial: 1e-5
     max: 1e-4
