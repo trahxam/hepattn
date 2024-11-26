@@ -2,6 +2,7 @@ seed_everything: 42
 name: HF-test
 
 model:
+  torch_compile: true
   lrs_config:
     initial: 1e-5
     max: 1e-4
@@ -79,12 +80,12 @@ data:
   #val_dir: /share/lustre/svanstroud/data/trackml/data/val/
   #train_dir: /unix/atlastracking/svanstroud/trackml/data
   #val_dir: /unix/atlastracking/svanstroud/trackml/data
-  train_dir: /home/xucapsva/data/trackml/train/
-  val_dir: /home/xucapsva/data/trackml/val/
-  test_dir: /home/xucapsva/data/trackml/test/
-  #train_dir: /share/rcifdata/svanstroud/data/trackml/train/
-  #val_dir: /share/rcifdata/svanstroud/data/trackml/val/
-  #test_dir: /share/rcifdata/svanstroud/data/trackml/test/
+  #train_dir: /home/xucapsva/data/trackml/train/
+  #val_dir: /home/xucapsva/data/trackml/val/
+  #test_dir: /home/xucapsva/data/trackml/test/
+  train_dir: /share/rcifdata/svanstroud/data/trackml/train/
+  val_dir: /share/rcifdata/svanstroud/data/trackml/val/
+  test_dir: /share/rcifdata/svanstroud/data/trackml/test/
 
   num_workers: 15
   num_train: -1
@@ -108,6 +109,7 @@ trainer:
 
   callbacks:
     - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+    - class_path: hepattn.callbacks.MyThroughputMonitor
     - class_path: lightning.pytorch.callbacks.ModelSummary
       init_args:
         max_depth: 2
