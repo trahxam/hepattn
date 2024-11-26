@@ -1,8 +1,8 @@
 seed_everything: 42
-name: HF-test
+name: HF-test-compile
 
 model:
-  torch_compile: false
+  torch_compile: true
   lrs_config:
     initial: 1e-5
     max: 1e-4
@@ -35,8 +35,6 @@ model:
 
 data:
   use_exatrkx_inputs: true
-  num_objects: 1600
-
   minimum_pt: 0.75 # GeV
   max_abs_eta: 2.5
 

@@ -194,9 +194,9 @@ class TrackMLDataset(Dataset):
                 if self.volume_ids:
                     allowed_values = list(hits["hit_id"].unique())
                     cells = cells[cells["hit_id"].isin(allowed_values)]
-                assert (
-                    hits["hit_id"].nunique() == cells["hit_id"].nunique()
-                ), "load event just before different number of unique hit ids in hits & cells"
+                assert hits["hit_id"].nunique() == cells["hit_id"].nunique(), (
+                    "load event just before different number of unique hit ids in hits & cells"
+                )
                 detector_config = cells_info_path.parent.parent / "detectors.csv"
                 hits = ecf.append_cell_features(hits, cells, detector_config)
             else:
@@ -211,6 +211,13 @@ class TrackMLDataset(Dataset):
         hits, particles = self.add_info(hits, particles)
         particles = self.kinematic_selection(particles)
         hits, particles = self.set_unreconstructable_targets(hits, particles)
+
+        # set hit targets
+        # get indices of hits associated to particles after filtering particles
+        valid_idx = hits.particle_id.isin(particles.particle_id)
+
+        # if the hit is not in the filtered particles, set id to zero but don't remove
+        hits.loc[~valid_idx, "tgt_pid"] = 0
 
         # sort hits by phi
         hits["phi"] = np.arctan2(hits["y"], hits["x"])
