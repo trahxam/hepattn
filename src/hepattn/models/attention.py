@@ -25,7 +25,7 @@ class Attention(nn.Module):
         num_heads: int = 8,
         bias: bool = True,
         attn_type: str = "torch",
-        torch_compile: bool = True,
+        torch_compile: bool = False,
         window_size: int | None = None,
     ) -> None:
         super().__init__()

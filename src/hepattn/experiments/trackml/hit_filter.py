@@ -5,6 +5,7 @@ import lightning as L
 import numpy as np
 import torch
 import torch.nn.functional as F
+from lightning.fabric.utilities.throughput import measure_flops
 from lightning.pytorch.cli import ArgsType
 from torch import nn
 
@@ -27,13 +28,27 @@ class HitFilter(L.LightningModule):
         super().__init__()
 
         self.name = name
-        self.init = torch.compile(init)
-        self.encoder = torch.compile(encoder)
-        self.dense = torch.compile(dense)
+        self.init = init
+        self.encoder = encoder
+        self.dense = dense
+        if True:
+            self.init = torch.compile(init)
+            self.encoder = torch.compile(encoder)
+            self.dense = torch.compile(dense)
         self.target = target
         self.lrs_config = lrs_config
         self.times: list[float] = []
         self.num_hits: list[int] = []
+
+    def setup(self):
+        print("\n\n\nrunning setup")
+        with torch.device("meta"):
+
+            def sample_forward():
+                batch = torch.randn(..., device="meta")
+                return self(batch)
+
+            self.flops_per_batch = measure_flops(self, sample_forward, loss_fn=torch.Tensor.sum)
 
     def forward(self, x, labels=None, timing=False):
         if timing:

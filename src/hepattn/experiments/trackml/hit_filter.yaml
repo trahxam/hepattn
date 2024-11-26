@@ -14,6 +14,7 @@ model:
       input_size: 17
       output_size: &dim 256
       hidden_layers: [256]
+      norm_input: true
 
   encoder:
     class_path: hepattn.models.Encoder

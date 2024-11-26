@@ -144,13 +144,13 @@ class Encoder(nn.Module):
         self.dim = dim
         self.attn_type = kwargs["attn_kwargs"]["attn_type"]
 
-        self.layers = torch.nn.ModuleList([EncoderLayer(dim=dim, **kwargs) for _ in range(num_layers)])
-
         if self.attn_type == "flash":
             kwargs["attn_kwargs"]["window_size"] = window_size
             self.mask_mod = None
         else:
             self.mask_mod = sliding_window_mask(10)
+
+        self.layers = torch.nn.ModuleList([EncoderLayer(dim=dim, **kwargs) for _ in range(num_layers)])
 
     def forward(self, x: Tensor, **kwargs) -> Tensor:
         if isinstance(x, dict):

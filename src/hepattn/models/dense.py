@@ -56,7 +56,7 @@ class Dense(nn.Module):
 
         layers = []
         if norm_input:
-            layers.append(nn.BatchNorm1d(input_size))
+            layers.append(nn.LayerNorm(input_size))
         node_list = [input_size, *hidden_layers]
         for i in range(len(node_list) - 1):
             in_dim = node_list[i]
