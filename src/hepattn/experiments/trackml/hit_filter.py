@@ -82,8 +82,8 @@ class HitFilter(L.LightningModule):
 
     def validation_step(self, batch):
         preds, labels, loss = self.shared_step(batch)
-        self.log_losses(loss, stage="val")
-        self.log_metrics(preds, labels, stage="val")
+        self.log_losses(loss, stage="validate")
+        self.log_metrics(preds, labels, stage="validate")
         return loss
 
     def test_step(self, batch):
@@ -92,7 +92,7 @@ class HitFilter(L.LightningModule):
 
     def log_losses(self, loss, stage):
         kwargs = {"sync_dist": True, "batch_size": 1}
-        self.log(f"{stage}_loss", loss["loss"], prog_bar=True, **kwargs)
+        self.log(f"{stage}/loss", loss["loss"], prog_bar=True, **kwargs)
 
     def log_metrics(self, preds, labels, stage):
         kwargs = {"sync_dist": True, "batch_size": 1}
@@ -100,26 +100,26 @@ class HitFilter(L.LightningModule):
         pred = preds["hit_pred"]
         tgt = labels["hit"]["tgt_pid"].bool()
         pred_true = pred.sigmoid() > 0.15
-        self.log(f"{stage}_nh_total_pre", float(pred.shape[1]), **kwargs)
-        self.log(f"{stage}_nh_total_post", float(pred_true.sum()), **kwargs)
-        self.log(f"{stage}_nh_pred_true", pred_true.float().sum(), **kwargs)
-        self.log(f"{stage}_nh_pred_false", (~pred_true).float().sum(), **kwargs)
-        self.log(f"{stage}_nh_valid_pre", tgt.float().sum(), **kwargs)
-        self.log(f"{stage}_nh_valid_post", (pred_true & tgt).float().sum(), **kwargs)
-        self.log(f"{stage}_nh_noise_pre", (~tgt).float().sum(), **kwargs)
-        self.log(f"{stage}_nh_noise_post", (pred_true & ~tgt).float().sum(), **kwargs)
+        self.log(f"{stage}/nh_total_pre", float(pred.shape[1]), **kwargs)
+        self.log(f"{stage}/nh_total_post", float(pred_true.sum()), **kwargs)
+        self.log(f"{stage}/nh_pred_true", pred_true.float().sum(), **kwargs)
+        self.log(f"{stage}/nh_pred_false", (~pred_true).float().sum(), **kwargs)
+        self.log(f"{stage}/nh_valid_pre", tgt.float().sum(), **kwargs)
+        self.log(f"{stage}/nh_valid_post", (pred_true & tgt).float().sum(), **kwargs)
+        self.log(f"{stage}/nh_noise_pre", (~tgt).float().sum(), **kwargs)
+        self.log(f"{stage}/nh_noise_post", (pred_true & ~tgt).float().sum(), **kwargs)
 
         # accuracy
-        self.log(f"{stage}_acc", (pred_true == tgt).half().mean(), **kwargs)
+        self.log(f"{stage}/acc", (pred_true == tgt).half().mean(), **kwargs)
 
         # precision and recall
         tp = (pred_true * tgt).sum()
-        self.log(f"{stage}_valid_recall", tp / tgt.sum(), **kwargs)
-        self.log(f"{stage}_valid_precision", tp / pred_true.sum(), **kwargs)
+        self.log(f"{stage}/valid_recall", tp / tgt.sum(), **kwargs)
+        self.log(f"{stage}/valid_precision", tp / pred_true.sum(), **kwargs)
 
         tn = ((~pred_true) * (~tgt)).sum()
-        self.log(f"{stage}_noise_recall", tn / (~tgt).sum(), **kwargs)
-        self.log(f"{stage}_noise_precision", tn / (~pred_true).sum(), **kwargs)
+        self.log(f"{stage}/noise_recall", tn / (~tgt).sum(), **kwargs)
+        self.log(f"{stage}/noise_precision", tn / (~pred_true).sum(), **kwargs)
 
     def on_test_epoch_end(self):
         if self.times:
