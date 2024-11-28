@@ -4,7 +4,7 @@ import torch
 from torch import Tensor, nn
 from torch.nn.attention.flex_attention import create_block_mask, create_mask
 
-from hepattn.flex.sliding_window import sliding_window_mask
+from hepattn.flex.sliding_window import sliding_window_mask, sliding_window_mask_wrapped
 from hepattn.models import Attention, Dense, LayerNorm
 
 create_block_mask = torch.compile(create_block_mask, dynamic=True)
@@ -122,7 +122,14 @@ class EncoderLayer(nn.Module):
 
 class Encoder(nn.Module):
     def __init__(
-        self, num_layers: int, dim: int, attn_type: str = "torch", window_size: int | None = None, value_residual: bool = False, **layer_kwargs
+        self,
+        num_layers: int,
+        dim: int,
+        attn_type: str = "torch",
+        window_size: int | None = None,
+        window_wrap: bool = False,
+        value_residual: bool = False,
+        **layer_kwargs,
     ) -> None:
         """Transformer encoder.
 
@@ -141,18 +148,20 @@ class Encoder(nn.Module):
         """
         super().__init__()
 
+        assert not window_wrap or window_size, "Window size must be set if window wrap is True."
+
         layer_kwargs = layer_kwargs or {}
 
         self.num_layers = num_layers
         self.dim = dim
         self.attn_type = attn_type
         self.window_size = window_size
+        self.window_wrap = window_wrap
         self.value_residual = value_residual
 
         # handle masking
         self.mask_mod = None
-        if attn_type != "flash" and window_size:
-            self.mask_mod = sliding_window_mask(window_size)
+        self.q_len = None
 
         # handle attention
         attn_kwargs = layer_kwargs.get("attn_kwargs", None) or {}
@@ -166,19 +175,36 @@ class Encoder(nn.Module):
         self.layers = torch.nn.ModuleList([EncoderLayer(dim=dim, **layer_kwargs) for _ in range(num_layers)])
 
     def forward(self, x: Tensor, **kwargs) -> Tensor:
+        # Concatenate dictionary values
         if isinstance(x, dict):
             x = torch.cat(list(x.values()), dim=1)
 
-        # get mask
+        # Initialise sliding window mask
+        if self.mask_mod is None and self.attn_type != "flash" and self.window_size:
+            self.q_len = torch.tensor([1], device=x.device)
+            self.mask_mod = (
+                sliding_window_mask(self.window_size) if not self.window_wrap else sliding_window_mask_wrapped(self.window_size, self.q_len)
+            )
+
+        # Handle masking
         mask = None
-        q_len = x.shape[-2]
+        self.q_len[0] = q_len = x.shape[-2]
         if self.attn_type == "torch" and self.mask_mod:
             mask = create_mask(self.mask_mod, 1, 1, q_len, q_len, device=x.device)
         elif self.attn_type == "flex" and self.mask_mod:
             mask = create_block_mask(self.mask_mod, B=None, H=None, Q_LEN=q_len, KV_LEN=q_len, device=x.device)
 
+        # Add wrapping for flash attention with sliding window
+        if self.attn_type == "flash" and self.window_wrap:
+            x = torch.cat([x[:, -self.window_size // 2 :], x, x[:, : self.window_size // 2]], dim=1)
+
+        # Apply layers
         initial_values = {} if self.value_residual else None
         for layer in self.layers:
             x = layer(x, mask=mask, initial_values=initial_values, **kwargs)
+
+        # Remove wrapping for flash attention with sliding window
+        if self.attn_type == "flash" and self.window_wrap:
+            x = x[:, self.window_size // 2 : -self.window_size // 2]
 
         return x

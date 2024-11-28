@@ -1,11 +1,11 @@
 seed_everything: 42
-name: HF-test-flash-lr-valres
+name: HF-test-flex-wrap
 
 model:
   torch_compile: true
   lrs_config:
     initial: 1e-5
-    max: 1e-3
+    max: 1e-4
     end: 1e-5
     pct_start: 0.05
 
@@ -22,10 +22,11 @@ model:
     init_args:
       dim: *dim
       num_layers: 12
-      attn_type: flash
+      attn_type: flex
       window_size: 1024
-      #layer_scale: 1e-3
-      #drop_path: 0.1
+      window_wrap: true
+      layer_scale: 1e-3
+      drop_path: 0.1
       value_residual: true
 
   dense:
@@ -94,11 +95,11 @@ data:
 
 trainer:
   gradient_clip_val: 0.1
-  max_epochs: 10
+  max_epochs: 20
   accelerator: gpu
   devices: 1
   precision: bf16-mixed
-  log_every_n_steps: 20
+  log_every_n_steps: 50
   default_root_dir: logs
 
   logger:
@@ -109,8 +110,8 @@ trainer:
 
   callbacks:
     - class_path: lightning.pytorch.callbacks.LearningRateMonitor
-    - class_path: hepattn.callbacks.MyThroughputMonitor
+    #- class_path: hepattn.callbacks.MyThroughputMonitor
     - class_path: lightning.pytorch.callbacks.ModelSummary
     - class_path: lightning.pytorch.callbacks.TQDMProgressBar
       init_args:
-        refresh_rate: 20
+        refresh_rate: 50
