@@ -69,8 +69,8 @@ class Residual(nn.Module):
         self.ls = LayerScale(dim, layer_scale) if layer_scale is not None else nn.Identity()
         self.dp = DropPath(drop_path) if drop_path else nn.Identity()
 
-    def forward(self, x: Tensor, *args, **kwargs) -> Tensor:
-        return x + self.dp(self.ls(self.fn(self.norm(x), *args, **kwargs)))
+    def forward(self, x: Tensor, **kwargs) -> Tensor:
+        return x + self.dp(self.ls(self.fn(self.norm(x), **kwargs)))
 
 
 class EncoderLayer(nn.Module):
@@ -117,7 +117,7 @@ class EncoderLayer(nn.Module):
         self.dense = residual(Dense(self.dim, **dense_kwargs))
 
     def forward(self, x: Tensor, **kwargs) -> Tensor:
-        return self.dense(self.attn(x, x, x, **kwargs))
+        return self.dense(self.attn(x, **kwargs))
 
 
 class Encoder(nn.Module):

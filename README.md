@@ -52,6 +52,7 @@ pytest tests/
 - [x] Flex local
 - [x] layerscale
 - [x] value residuals including learnable per token
+- [ ] local flex with wrapping
 - [ ] flex decoder
 - [ ] Flex mask attention
 - [ ] Flex local CA

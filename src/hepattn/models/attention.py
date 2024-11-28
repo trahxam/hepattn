@@ -65,7 +65,18 @@ class Attention(nn.Module):
             x = x.transpose(-3, -2)  # B H S Dh -> B S H Dh
         return x.flatten(-2)  # B S H Dh -> B S D
 
-    def forward(self, q: Tensor, k: Tensor, v: Tensor, mask: BlockMask | BoolTensor | None = None, initial_values: dict | None = None) -> Tensor:
+    def forward(
+        self,
+        q: Tensor,
+        k: Tensor | None = None,
+        v: Tensor | None = None,
+        mask: BlockMask | BoolTensor | None = None,
+        initial_values: dict | None = None,
+    ) -> Tensor:
+        # Default to self-attention
+        k = k or q
+        v = v or q
+
         # Mix for value residual
         mix = None
         if self.value_residual:

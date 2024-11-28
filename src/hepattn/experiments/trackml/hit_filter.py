@@ -36,12 +36,13 @@ class HitFilter(L.LightningModule):
         self.times: list[float] = []
         self.num_hits: list[int] = []
         if torch_compile:
-            self.init = torch.compile(init)
-            self.encoder = torch.compile(encoder)
-            self.dense = torch.compile(dense)
+            self.init = torch.compile(init, dynamic=True)
+            self.encoder = torch.compile(encoder, dynamic=True)
+            self.dense = torch.compile(dense, dynamic=True)
 
+    def on_train_start(self):
         params = sum(p.numel() for p in self.parameters() if p.requires_grad)
-        self.logger.experiment.log_hyperparams({"trainable_params": params})
+        self.logger.log_hyperparams({"trainable_params": params})
 
     def forward(self, x, labels=None, timing=False):
         if timing:

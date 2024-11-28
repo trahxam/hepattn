@@ -1,11 +1,11 @@
 seed_everything: 42
-name: HF-test-flash
+name: HF-test-flash-lr-valres
 
 model:
-  torch_compile: false
+  torch_compile: true
   lrs_config:
     initial: 1e-5
-    max: 1e-4
+    max: 1e-3
     end: 1e-5
     pct_start: 0.05
 
@@ -20,13 +20,13 @@ model:
   encoder:
     class_path: hepattn.models.Encoder
     init_args:
-      num_layers: 12
       dim: *dim
+      num_layers: 12
       attn_type: flash
       window_size: 1024
-      #layer_scale: 1e-5
+      #layer_scale: 1e-3
       #drop_path: 0.1
-      #value_residual: true
+      value_residual: true
 
   dense:
     class_path: hepattn.models.Dense
