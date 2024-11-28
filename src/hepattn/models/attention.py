@@ -27,6 +27,7 @@ class Attention(nn.Module):
         attn_type: str = "torch",
         torch_compile: bool = False,
         window_size: int | None = None,
+        value_residual: bool = False,
     ) -> None:
         super().__init__()
         assert dim % num_heads == 0, "num_heads must divide dim."
@@ -39,6 +40,8 @@ class Attention(nn.Module):
         self.attn_type = attn_type
         self.attn = ATTN_TYPES[attn_type]
         self.window_size = None
+        self.value_residual = value_residual
+
         if attn_type == "flash":
             self.window_size = (window_size // 2, window_size // 2) if window_size is not None else (-1, -1)
         if torch_compile:
@@ -48,6 +51,9 @@ class Attention(nn.Module):
         self.k_proj = nn.Linear(dim, self.dim, bias=bias)
         self.v_proj = nn.Linear(dim, self.dim, bias=bias)
         self.out_proj = nn.Linear(self.dim, dim, bias=bias)
+
+        if self.value_residual:
+            self.value_residual_mix = nn.Sequential(nn.Linear(dim, num_heads), nn.Sigmoid())
 
     def separate_heads(self, x: Tensor, num_heads: int) -> Tensor:
         x = x.unflatten(-1, (num_heads, -1))  # B S D -> B S H Dh
@@ -60,7 +66,15 @@ class Attention(nn.Module):
             x = x.transpose(-3, -2)  # B H S Dh -> B S H Dh
         return x.flatten(-2)  # B S H Dh -> B S D
 
-    def forward(self, q: Tensor, k: Tensor, v: Tensor, mask: BlockMask | BoolTensor | None = None) -> Tensor:
+    def forward(self, q: Tensor, k: Tensor, v: Tensor, mask: BlockMask | BoolTensor | None = None, initial_values: dict | None = None) -> Tensor:
+        # Mix for value residual
+        mix = None
+        if self.value_residual:
+            mix = self.value_residual_mix(q)
+            if self.attn_type != "flash":
+                mix = mix.transpose(-1, -2)
+            mix = mix.unsqueeze(-1)
+
         # Input projections
         q = self.q_proj(q)
         k = self.k_proj(k)
@@ -70,6 +84,12 @@ class Attention(nn.Module):
         q = self.separate_heads(q, self.num_heads)
         k = self.separate_heads(k, self.num_heads)
         v = self.separate_heads(v, self.num_heads)
+
+        # Residual connection with initial values
+        if self.value_residual and not initial_values:
+            initial_values["v"] = v
+        elif self.value_residual:
+            v = v * mix + initial_values["v"] * (1.0 - mix)
 
         # Fused attention
         if self.attn_type == "flex":

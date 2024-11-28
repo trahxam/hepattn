@@ -78,3 +78,12 @@ def test_dyanmic_shape_block_mask():
         assert out.shape == x.shape
         assert out.sum() != 0
         assert not torch.isnan(out).any()
+
+
+def test_value_residuals():
+    model = Encoder(num_layers=3, dim=128, value_residual=True).cuda()
+    x = torch.randn(8, 100, 128, device="cuda")
+    out = model(x)
+    assert out.shape == x.shape
+    assert out.sum() != 0
+    assert not torch.isnan(out).any()

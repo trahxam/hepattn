@@ -80,6 +80,7 @@ class EncoderLayer(nn.Module):
         norm: nn.Module = None,
         layer_scale: float | None = None,
         drop_path: float = 0.0,
+        value_residual: bool = False,
         dense_kwargs: dict | None = None,
         attn_kwargs: dict | None = None,
     ) -> None:
@@ -110,6 +111,7 @@ class EncoderLayer(nn.Module):
             norm = LayerNorm
 
         self.dim = dim
+        self.value_residual = value_residual
         residual = partial(Residual, dim=dim, norm=norm, layer_scale=layer_scale, drop_path=drop_path)
         self.attn = residual(Attention(self.dim, **attn_kwargs))
         self.dense = residual(Dense(self.dim, **dense_kwargs))
@@ -119,7 +121,7 @@ class EncoderLayer(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self, num_layers: int, dim: int, window_size: int | None = None, **kwargs) -> None:
+    def __init__(self, num_layers: int, dim: int, window_size: int | None = None, value_residual: bool = False, **kwargs) -> None:
         """Transformer encoder.
 
         Parameters
@@ -130,6 +132,8 @@ class Encoder(nn.Module):
             Dimension of the embeddings at each layer.
         window_size : int | None, optional
             The window size for the sliding window.
+        value_residual : bool, optional
+            Whether to use value residual.
         kwargs : dict
             Keyword arguments for EncoderLayer.
         """
@@ -142,6 +146,7 @@ class Encoder(nn.Module):
 
         self.num_layers = num_layers
         self.dim = dim
+        self.value_residual = value_residual
         self.attn_type = kwargs["attn_kwargs"]["attn_type"]
 
         if self.attn_type == "flash":
@@ -152,12 +157,16 @@ class Encoder(nn.Module):
         if self.attn_type == "flex":
             self.block_mask = None
 
+        if self.value_residual:
+            kwargs["attn_kwargs"]["value_residual"] = True
+
         self.layers = torch.nn.ModuleList([EncoderLayer(dim=dim, **kwargs) for _ in range(num_layers)])
 
     def forward(self, x: Tensor, **kwargs) -> Tensor:
         if isinstance(x, dict):
             x = torch.cat(list(x.values()), dim=1)
 
+        # get mask
         mask = None
         q_len = x.shape[-2]
         if self.attn_type == "torch":
@@ -167,7 +176,8 @@ class Encoder(nn.Module):
                 self.block_mask = create_block_mask(self.mask_mod, B=None, H=None, Q_LEN=1, KV_LEN=1, device=x.device)
             mask = self.block_mask
 
+        initial_values = {} if self.value_residual else None
         for layer in self.layers:
-            x = layer(x, mask=mask, **kwargs)
+            x = layer(x, mask=mask, initial_values=initial_values, **kwargs)
 
         return x
