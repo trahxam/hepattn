@@ -7,7 +7,7 @@ from torch.nn.attention.flex_attention import create_block_mask, create_mask
 from hepattn.flex.sliding_window import sliding_window_mask
 from hepattn.models import Attention, Dense, LayerNorm
 
-create_block_mask = torch.compile(create_block_mask)
+create_block_mask = torch.compile(create_block_mask, dynamic=True)
 
 
 class DropPath(nn.Module):
@@ -121,7 +121,9 @@ class EncoderLayer(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self, num_layers: int, dim: int, window_size: int | None = None, value_residual: bool = False, **kwargs) -> None:
+    def __init__(
+        self, num_layers: int, dim: int, attn_type: str = "torch", window_size: int | None = None, value_residual: bool = False, **layer_kwargs
+    ) -> None:
         """Transformer encoder.
 
         Parameters
@@ -139,28 +141,29 @@ class Encoder(nn.Module):
         """
         super().__init__()
 
-        if kwargs is None:
-            kwargs = {"attn_kwargs": {"attn_type": "torch"}}
-        elif "attn_kwargs" not in kwargs:
-            kwargs["attn_kwargs"] = {"attn_type": "torch"}
+        layer_kwargs = layer_kwargs or {}
 
         self.num_layers = num_layers
         self.dim = dim
+        self.attn_type = attn_type
+        self.window_size = window_size
         self.value_residual = value_residual
-        self.attn_type = kwargs["attn_kwargs"]["attn_type"]
 
-        if self.attn_type == "flash":
-            kwargs["attn_kwargs"]["window_size"] = window_size
-            self.mask_mod = None
-        else:
-            self.mask_mod = sliding_window_mask(10)
-        if self.attn_type == "flex":
-            self.block_mask = None
+        # handle masking
+        self.mask_mod = None
+        if attn_type != "flash" and window_size:
+            self.mask_mod = sliding_window_mask(window_size)
 
-        if self.value_residual:
-            kwargs["attn_kwargs"]["value_residual"] = True
+        # handle attention
+        attn_kwargs = layer_kwargs.get("attn_kwargs", None) or {}
+        attn_kwargs["attn_type"] = attn_type
+        if value_residual:
+            attn_kwargs["value_residual"] = True
+        if attn_type == "flash" and window_size is not None:
+            attn_kwargs["window_size"] = window_size
+        layer_kwargs["attn_kwargs"] = attn_kwargs
 
-        self.layers = torch.nn.ModuleList([EncoderLayer(dim=dim, **kwargs) for _ in range(num_layers)])
+        self.layers = torch.nn.ModuleList([EncoderLayer(dim=dim, **layer_kwargs) for _ in range(num_layers)])
 
     def forward(self, x: Tensor, **kwargs) -> Tensor:
         if isinstance(x, dict):
@@ -169,12 +172,10 @@ class Encoder(nn.Module):
         # get mask
         mask = None
         q_len = x.shape[-2]
-        if self.attn_type == "torch":
+        if self.attn_type == "torch" and self.mask_mod:
             mask = create_mask(self.mask_mod, 1, 1, q_len, q_len, device=x.device)
-        elif self.attn_type == "flex":
-            if self.block_mask is None:
-                self.block_mask = create_block_mask(self.mask_mod, B=None, H=None, Q_LEN=1, KV_LEN=1, device=x.device)
-            mask = self.block_mask
+        elif self.attn_type == "flex" and self.mask_mod:
+            mask = create_block_mask(self.mask_mod, B=None, H=None, Q_LEN=q_len, KV_LEN=q_len, device=x.device)
 
         initial_values = {} if self.value_residual else None
         for layer in self.layers:

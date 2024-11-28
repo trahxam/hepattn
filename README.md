@@ -51,12 +51,12 @@ pytest tests/
 - [x] Flex transformer
 - [x] Flex local
 - [x] layerscale
+- [x] value residuals including learnable per token
 - [ ] flex decoder
 - [ ] Flex mask attention
 - [ ] Flex local CA
 - [ ] SAM random positional embeddings
 - [ ] alphafold2 attention gating
-- [ ] value residuals including learnable per token
 - [ ] register tokens but interspersed for local attention
 - [ ] moe
 - [ ] CLS token

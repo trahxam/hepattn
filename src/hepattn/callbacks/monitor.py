@@ -15,7 +15,7 @@ class MyThroughputMonitor(ThroughputMonitor):
             model = deepcopy(pl_module).to(device="meta")
 
             def dummy_forward():
-                batch = {"hit": torch.randn(1, int(1e4), pl_module.init.input_size)}
+                batch = {"hit": torch.randn(1, int(1e4), pl_module.init.input_size, device="meta")}
                 return model(batch)[0]["hit_pred"]
 
             pl_module.flops_per_batch = measure_flops(model, dummy_forward, loss_fn=torch.Tensor.sum)

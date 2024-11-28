@@ -40,6 +40,9 @@ class HitFilter(L.LightningModule):
             self.encoder = torch.compile(encoder)
             self.dense = torch.compile(dense)
 
+        params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        self.logger.experiment.log_hyperparams({"trainable_params": params})
+
     def forward(self, x, labels=None, timing=False):
         if timing:
             start = torch.cuda.Event(enable_timing=True)

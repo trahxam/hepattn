@@ -8,18 +8,18 @@ requires-python = "== 3.11"
 version = "0.1.0"
 dependencies = [
     "pytest>=8.3.3,<9",
-    "setuptools>=75.5.0,<76",
     "ruff==0.8.0",
     "pre-commit>=4.0.1,<5",
     "einops>=0.8.0,<0.9",
-    "matplotlib>=3.9.2,<4",
+    "matplotlib",
     "lightning>=2.4.0,<3",
     "comet-ml>=3.47.3,<4",
     "pandas>=2.2.3,<3",
-    "pyarrow>=18.0.0,<19",
-    "numpy>=2.1.3,<3",
+    "pyarrow",
+    "numpy",
     "jsonargparse[signatures]>=4.34.0,<5",
     "flash-attn>=2.7.0.post2,<3",
+    "torch==2.6.0.dev20241112+cu121",
 ]
 
 [build-system]
@@ -41,11 +41,11 @@ cuda = "12.3"
 [tool.pixi.dependencies]
 python= "3.11.*"
 pytorch-cuda = "12.1.*"
-pytorch = "2.5.1.*"
 gcc = ">=14.2.0,<14.3"
 
 [tool.pixi.pypi-options]
 no-build-isolation = ["flash-attn"]
+extra-index-urls = ["https://download.pytorch.org/whl/nightly/cu121"]
 
 [tool.ruff]
 src = ["src"]

@@ -32,7 +32,6 @@ class Attention(nn.Module):
         super().__init__()
         assert dim % num_heads == 0, "num_heads must divide dim."
         assert attn_type in ATTN_TYPES, f"Invalid attention type: {attn_type}"
-        assert attn_type != "flex" or torch_compile, "Flex attention requires torch compile"
         assert window_size is None or attn_type == "flash", "Window size can only be specified for flash attention"
 
         self.dim = dim
@@ -44,8 +43,8 @@ class Attention(nn.Module):
 
         if attn_type == "flash":
             self.window_size = (window_size // 2, window_size // 2) if window_size is not None else (-1, -1)
-        if torch_compile:
-            self.attn = torch.compile(self.attn)
+        if torch_compile or attn_type == "flex":
+            self.attn = torch.compile(self.attn, dynamic=True)
 
         self.q_proj = nn.Linear(dim, self.dim, bias=bias)
         self.k_proj = nn.Linear(dim, self.dim, bias=bias)

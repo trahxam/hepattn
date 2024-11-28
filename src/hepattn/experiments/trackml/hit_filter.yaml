@@ -1,8 +1,8 @@
 seed_everything: 42
-name: HF-test-compile
+name: HF-test-flash
 
 model:
-  torch_compile: true
+  torch_compile: false
   lrs_config:
     initial: 1e-5
     max: 1e-4
@@ -22,16 +22,18 @@ model:
     init_args:
       num_layers: 12
       dim: *dim
+      attn_type: flash
       window_size: 1024
-      attn_kwargs:
-        attn_type: flash
+      #layer_scale: 1e-5
+      #drop_path: 0.1
+      #value_residual: true
 
   dense:
     class_path: hepattn.models.Dense
     init_args:
       input_size: *dim
       output_size: 1
-      hidden_layers: [256, 128, 64]
+      hidden_layers: [128, 64, 32]
 
 data:
   use_exatrkx_inputs: true
@@ -78,12 +80,12 @@ data:
   #val_dir: /share/lustre/svanstroud/data/trackml/data/val/
   #train_dir: /unix/atlastracking/svanstroud/trackml/data
   #val_dir: /unix/atlastracking/svanstroud/trackml/data
-  #train_dir: /home/xucapsva/data/trackml/train/
-  #val_dir: /home/xucapsva/data/trackml/val/
-  #test_dir: /home/xucapsva/data/trackml/test/
-  train_dir: /share/rcifdata/svanstroud/data/trackml/train/
-  val_dir: /share/rcifdata/svanstroud/data/trackml/val/
-  test_dir: /share/rcifdata/svanstroud/data/trackml/test/
+  train_dir: /home/xucapsva/data/trackml/train/
+  val_dir: /home/xucapsva/data/trackml/val/
+  test_dir: /home/xucapsva/data/trackml/test/
+  #train_dir: /share/rcifdata/svanstroud/data/trackml/train/
+  #val_dir: /share/rcifdata/svanstroud/data/trackml/val/
+  #test_dir: /share/rcifdata/svanstroud/data/trackml/test/
 
   num_workers: 15
   num_train: -1
@@ -95,7 +97,7 @@ trainer:
   max_epochs: 10
   accelerator: gpu
   devices: 1
-  precision: 16-mixed
+  precision: bf16-mixed
   log_every_n_steps: 20
   default_root_dir: logs
 
@@ -109,8 +111,6 @@ trainer:
     - class_path: lightning.pytorch.callbacks.LearningRateMonitor
     - class_path: hepattn.callbacks.MyThroughputMonitor
     - class_path: lightning.pytorch.callbacks.ModelSummary
-      init_args:
-        max_depth: 2
     - class_path: lightning.pytorch.callbacks.TQDMProgressBar
       init_args:
         refresh_rate: 20
