@@ -81,9 +81,9 @@ class Attention(nn.Module):
         mix = None
         if self.value_residual:
             mix = self.value_residual_mix(q)
-            if self.attn_type != "flash":
-                mix = mix.transpose(-1, -2)
             mix = mix.unsqueeze(-1)
+            if self.attn_type != "flash":
+                mix = mix.transpose(-2, -3)
 
         # Input projections
         q = self.q_proj(q)

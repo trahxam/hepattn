@@ -1,12 +1,12 @@
 seed_everything: 42
-name: HF-test-flex-wrap
+name: HF-test-flash-wrap
 
 model:
   torch_compile: true
   lrs_config:
     initial: 1e-5
     max: 1e-4
-    end: 1e-5
+    end: 5e-5
     pct_start: 0.05
 
   init:
@@ -22,12 +22,12 @@ model:
     init_args:
       dim: *dim
       num_layers: 12
-      attn_type: flex
+      attn_type: flash
       window_size: 1024
       window_wrap: true
-      layer_scale: 1e-3
-      drop_path: 0.1
       value_residual: true
+      #layer_scale: 1e-3
+      #drop_path: 0.1
 
   dense:
     class_path: hepattn.models.Dense

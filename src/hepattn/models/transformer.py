@@ -188,10 +188,11 @@ class Encoder(nn.Module):
 
         # Handle masking
         mask = None
-        self.q_len[0] = q_len = x.shape[-2]
+        q_len = x.shape[-2]
         if self.attn_type == "torch" and self.mask_mod:
             mask = create_mask(self.mask_mod, 1, 1, q_len, q_len, device=x.device)
         elif self.attn_type == "flex" and self.mask_mod:
+            self.q_len[0] = q_len
             mask = create_block_mask(self.mask_mod, B=None, H=None, Q_LEN=q_len, KV_LEN=q_len, device=x.device)
 
         # Add wrapping for flash attention with sliding window
