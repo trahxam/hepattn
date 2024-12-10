@@ -4,10 +4,16 @@ import torch
 from torch import Tensor, nn
 from torch.nn.attention.flex_attention import create_block_mask, create_mask
 
+from hepattn.flex import relative_position, relative_position_wrapped
 from hepattn.flex.sliding_window import sliding_window_mask, sliding_window_mask_wrapped
 from hepattn.models import Attention, Dense, LayerNorm
 
 create_block_mask = torch.compile(create_block_mask, dynamic=True)
+
+SCORE_MODS = {
+    "relative_position": relative_position,
+    "relative_position_wrapped": relative_position_wrapped,
+}
 
 
 class DropPath(nn.Module):
@@ -128,6 +134,7 @@ class Encoder(nn.Module):
         attn_type: str = "torch",
         window_size: int | None = None,
         window_wrap: bool = False,
+        score_mod: str | None = None,
         value_residual: bool = False,
         **layer_kwargs,
     ) -> None:
@@ -149,7 +156,7 @@ class Encoder(nn.Module):
         super().__init__()
 
         assert not window_wrap or window_size, "Window size must be set if window wrap is True."
-
+        assert attn_type != "flex" or score_mod is None, "Score mod is only supported with flex attention."
         layer_kwargs = layer_kwargs or {}
 
         self.num_layers = num_layers
@@ -157,6 +164,7 @@ class Encoder(nn.Module):
         self.attn_type = attn_type
         self.window_size = window_size
         self.window_wrap = window_wrap
+        self.score_mod = SCORE_MODS[score_mod] if score_mod else None
         self.value_residual = value_residual
 
         # handle masking
@@ -202,7 +210,7 @@ class Encoder(nn.Module):
         # Apply layers
         initial_values = {} if self.value_residual else None
         for layer in self.layers:
-            x = layer(x, mask=mask, initial_values=initial_values, **kwargs)
+            x = layer(x, mask=mask, score_mod=self.score_mod, initial_values=initial_values, **kwargs)
 
         # Remove wrapping for flash attention with sliding window
         if self.attn_type == "flash" and self.window_wrap:

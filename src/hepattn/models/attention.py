@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 from flash_attn import flash_attn_func
 from torch import BoolTensor, Tensor, nn
-from torch.nn.attention.flex_attention import BlockMask, flex_attention
+from torch.nn.attention.flex_attention import BlockMask, _score_mod_signature, flex_attention
 
 ATTN_TYPES = {
     "torch": F.scaled_dot_product_attention,
@@ -71,6 +71,7 @@ class Attention(nn.Module):
         k: Tensor | None = None,
         v: Tensor | None = None,
         mask: BlockMask | BoolTensor | None = None,
+        score_mod: _score_mod_signature | None = None,
         initial_values: dict | None = None,
     ) -> Tensor:
         # Default to self-attention
@@ -103,7 +104,7 @@ class Attention(nn.Module):
 
         # Fused attention
         if self.attn_type == "flex":
-            out = self.attn(q, k, v, block_mask=mask)
+            out = self.attn(q, k, v, block_mask=mask, score_mod=score_mod)
         elif self.attn_type == "torch":
             out = self.attn(q, k, v, attn_mask=mask)
         elif self.attn_type == "flash":
