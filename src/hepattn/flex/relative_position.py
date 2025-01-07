@@ -2,6 +2,10 @@ from torch import Tensor
 from torch.nn.attention.flex_attention import _score_mod_signature
 
 
+def identity(score, b, h, q_idx, kv_idx):  # noqa: ARG001
+    return score
+
+
 def relative_position(score, b, h, q_idx, kv_idx):  # noqa: ARG001
     return score - (q_idx - kv_idx).abs()
 
