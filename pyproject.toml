@@ -19,6 +19,7 @@ dependencies = [
     "numpy",
     "jsonargparse[signatures]>=4.34.0,<5",
     "flash-attn>=2.7.0.post2,<3",
+    "wheel",
 ]
 
 [build-system]
@@ -36,7 +37,7 @@ hepattn = { path = ".", editable = true }
 [tool.pixi.system-requirements]
 linux = "3.10.0"
 libc = "2.17"
-cuda = "12.3"
+cuda = "12.2"
 
 [tool.pixi.dependencies]
 python= "3.11.*"
