@@ -1,9 +1,5 @@
 version: 6
 environments:
-  arm:
-    channels:
-    - url: https://prefix.dev/conda-forge/
-    packages: {}
   default:
     channels:
     - url: https://prefix.dev/conda-forge/
@@ -609,7 +605,7 @@ packages:
 - pypi: .
   name: hepattn
   version: 0.1.0
-  sha256: 4a7b14e0b92a7786dfa825e278f1844a59411d116ff2c330cddf867a0fb14d85
+  sha256: 09ad648cea71b5393aeeb50c44ceebc714b45551f9e75079b540921ad9f65984
   requires_dist:
   - wheel
   - pytest>=8.3.3,<9
