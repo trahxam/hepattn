@@ -15,11 +15,12 @@ curl -fsSL https://pixi.sh/install.sh | bash
 Clone the repo:
 
 ```bash
-
+git clone git@github.com:samvanstroud/hepattn.git
 ```
 
 
-To install, you need to first remove the flash attention dependency from teh `pyproject.toml` file. Then run: 
+To install, you need to first remove the flash attention dependency from the `pyproject.toml` file.
+Then run: 
 
 ```bash
 pixi install
@@ -53,19 +54,33 @@ pytest tests/
 - [x] layerscale
 - [x] value residuals including learnable per token
 - [x] local flex with wrapping
+- [ ] hepformer positional embeddings
+- [ ] SAM random positional embeddings (possible to preseve symmetric posenc for phi)
 - [ ] flex decoder
 - [ ] flex mask attention
 - [ ] flex local CA
-- [ ] hepformer positional embeddings
-- [ ] SAM random positional embeddings
 - [ ] add pe to object queries and check impact on mask attention pattern
 - [ ] alphafold2 attention gating
 - [ ] register tokens but interspersed for local attention
 - [ ] moe
 - [ ] CLS token
+- [ ] laser https://github.com/lucidrains/x-transformers/commit/57efd7770f2f5df0ff7b4ffcbd623750b584e850#diff-b335630551682c19a781afebcf4d07bf978fb1f8ac04c6bf87428ed5106870f5R2360
 
 ## Notes
 
 - einops doesn't work with nested tensors
     - support masking?
     - don't use einops?
+
+- thinking about diagnalising the maskattention operator
+    - note mask attention is not attention. it's just the dot product of vectors
+    - i can apply my own "score mod" to that if I want to penalise off diagonal terms
+    - but how is this approach different from using LCA?
+    - basically how is alibi different from LCA?
+    - and by extension, how would doing manual PE be different from using LCA?
+    - TODO: go back to LCA test in hepformer but compare to no maskattention, not to maskattention
+        - look into some basic metrics like how many hits are selected by MA etc
+        - test if perf is impacted by LCA window size much
+    - TODO: try with just the standard sinusoidal PE or random PE (don't worry about wrapping) and see if it works
+            (might be enough to use the PE and then apply wrapping with the mask)
+    - if that doesn't work -- just switch to a flex mask attention implementation

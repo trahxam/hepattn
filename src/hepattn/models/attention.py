@@ -75,8 +75,8 @@ class Attention(nn.Module):
         initial_values: dict | None = None,
     ) -> Tensor:
         # Default to self-attention
-        k = k or q
-        v = v or q
+        k = k if k is not None else q
+        v = v if v is not None else q
 
         # Mix for value residual
         mix = None
