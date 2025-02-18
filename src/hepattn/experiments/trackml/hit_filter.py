@@ -21,6 +21,7 @@ class HitFilter(L.LightningModule):
         init: nn.Module,
         encoder: nn.Module,
         dense: nn.Module,
+        pos_enc: nn.Module | None = None,
         target: str = "hit_tgt",
         lrs_config: dict | None = None,
         torch_compile: bool = False,
@@ -35,6 +36,7 @@ class HitFilter(L.LightningModule):
         self.lrs_config = lrs_config
         self.times: list[float] = []
         self.num_hits: list[int] = []
+        self.pos_enc = pos_enc
         if torch_compile:
             self.init = torch.compile(init, dynamic=True)
             self.encoder = torch.compile(encoder, dynamic=True)
@@ -51,6 +53,11 @@ class HitFilter(L.LightningModule):
             start.record()
 
         x = self.init(x["hit"])
+
+        if self.pos_enc:
+            pe = self.pos_enc(labels["phi"].unsqueeze(-1))
+            x += pe
+
         x = self.encoder(x)
         preds = self.dense(x).squeeze(-1)
 

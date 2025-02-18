@@ -17,6 +17,12 @@ model:
       hidden_layers: [256]
       norm_input: true
 
+  pos_enc:
+    class_path: hepattn.models.PositionEncoder
+    init_args:
+      variables: [phi, theta]
+      dim: *dim
+
   encoder:
     class_path: hepattn.models.Encoder
     init_args:

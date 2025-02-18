@@ -110,6 +110,8 @@ class TrackMLDataset(Dataset):
             tgt[: len(particles)] = torch.from_numpy(particles[label].to_numpy()[: self.num_objects])
             labels[label] = tgt.unsqueeze(0)
 
+        labels["phi"] = torch.from_numpy(hits["phi"].values).unsqueeze(0).half()
+
         # target for hit classifier, don't change name or things will break
         labels["hit"] = {}
         labels["hit"]["tgt_pid"] = torch.from_numpy(hits["tgt_pid"].values).unsqueeze(0)
@@ -194,9 +196,9 @@ class TrackMLDataset(Dataset):
                 if self.volume_ids:
                     allowed_values = list(hits["hit_id"].unique())
                     cells = cells[cells["hit_id"].isin(allowed_values)]
-                assert hits["hit_id"].nunique() == cells["hit_id"].nunique(), (
-                    "load event just before different number of unique hit ids in hits & cells"
-                )
+                assert (
+                    hits["hit_id"].nunique() == cells["hit_id"].nunique()
+                ), "load event just before different number of unique hit ids in hits & cells"
                 detector_config = cells_info_path.parent.parent / "detectors.csv"
                 hits = ecf.append_cell_features(hits, cells, detector_config)
             else:

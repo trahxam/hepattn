@@ -1,46 +1,99 @@
-import numpy as np
 import torch
-from torch import nn
 
 
-class PositionEmbeddingRandom(nn.Module):
+def get_omegas(alpha, dim, **kwargs):
+    omega_1 = alpha * torch.logspace(0, 2 / (dim) - 1, (dim // 2), 100, **kwargs)
+    omega_2 = omega_1
+    if dim % 2 != 0:
+        omega_2 = alpha * torch.logspace(0, 2 / (dim) - 1, (dim // 2) + 1, 100, **kwargs)
+    return omega_1, omega_2
+
+
+def pos_enc_symmetric(xs, dim, alpha=1000):
+    """Symmetric positional encoding.
+
+    Parameters
+    ----------
+    xs : torch.Tensor
+        Input tensor.
+    dim : int
+        Dimension of the positional encoding.
+    alpha : float, optional
+        Scaling factor for the positional encoding, by default 100.
+
+    Returns
+    -------
+    torch.Tensor
+        Symmetric positional encoding.
     """
-    Positional encoding using random spatial frequencies.
-    Adapted from https://github.com/pytorch-labs/segment-anything-fast/blob/main/segment_anything_fast/modeling/prompt_encoder.py
+    xs = xs.unsqueeze(-1)
+    kwargs = {"device": xs.device, "dtype": xs.dtype}
+    omega_1, omega_2 = get_omegas(alpha, dim, **kwargs)
+    p1 = (xs.sin() * omega_1).sin()
+    p2 = (xs.cos() * omega_2).sin()
+    return torch.cat((p1, p2), dim=-1)
+
+
+def pos_enc(xs, dim, alpha=1000):
+    """Positional encoding.
+
+    Parameters
+    ----------
+    xs : torch.Tensor
+        Input tensor.
+    dim : int
+        Dimension of the positional encoding.
+    alpha : float, optional
+        Scaling factor for the positional encoding, by default 100.
+
+    Returns
+    -------
+    torch.Tensor
+        Positional encoding.
     """
+    xs = xs.unsqueeze(-1)
+    kwargs = {"device": xs.device, "dtype": xs.dtype}
+    omega_1, omega_2 = get_omegas(alpha, dim, **kwargs)
+    p1 = (xs * omega_1).sin()
+    p2 = (xs * omega_2).cos()
+    return torch.cat((p1, p2), dim=-1)
 
-    def __init__(self, num_pos_feats: int = 64, scale: float | None = None) -> None:
-        super().__init__()
-        if scale is None or scale <= 0.0:
-            scale = 1.0
-        self.register_buffer(
-            "positional_encoding_gaussian_matrix",
-            scale * torch.randn((2, num_pos_feats)),
-        )
 
-    def _pe_encoding(self, coords: torch.Tensor) -> torch.Tensor:
-        """Positionally encode points that are normalized to [0,1]."""
-        # assuming coords are in [0, 1]^2 square and have d_1 x ... x d_n x 2 shape
-        coords = 2 * coords - 1
-        coords = coords.to(self.positional_encoding_gaussian_matrix.dtype) @ self.positional_encoding_gaussian_matrix
-        coords = 2 * np.pi * coords
-        # outputs d_1 x ... x d_n x C shape
-        return torch.cat([torch.sin(coords), torch.cos(coords)], dim=-1)
+class PositionEncoder:
+    def __init__(self, variables: list[str], dim: int, alpha=1000):
+        """Positional encoder.
 
-    def forward(self, size: tuple[int, int]) -> torch.Tensor:
-        """Generate positional encoding for a grid of the specified size."""
-        h, w = size
-        device = self.positional_encoding_gaussian_matrix.device
-        grid = torch.ones((h, w), device=device, dtype=self.positional_encoding_gaussian_matrix.dtype)
-        y_embed = grid.cumsum(dim=0) - 0.5
-        x_embed = grid.cumsum(dim=1) - 0.5
-        y_embed /= h
-        x_embed /= w
+        Parameters
+        ----------
+        variables : list[str]
+            List of variables to apply the positional encoding to.
+        """
+        self.variables = variables
+        self.dim = dim
+        self.alpha = alpha
+        self.SYM_VARS = {"phi"}
 
-        pe = self._pe_encoding(torch.stack([x_embed, y_embed], dim=-1))
-        return pe.permute(2, 0, 1)  # C x H x W
+        self.per_input_dim = self.dim // len(self.variables)
+        self.remainder_dim = self.dim % len(self.variables)
 
-    def forward_with_coords(self, coords_input: torch.Tensor, image_size: tuple[int, int]) -> torch.Tensor:
-        # Take advantage of square image size to simplify normalization
-        assert image_size[1] == image_size[0]
-        return self._pe_encoding(coords_input / image_size[1])  # B x N x C
+    def __call__(self, inputs: dict):
+        """Apply positional encoding to the inputs.
+
+        Parameters
+        ----------
+        inputs : dict
+            Dictionary of inputs.
+
+        Returns
+        -------
+        torch.Tensor
+            Positional encoding of the input variables.
+        """
+        encodings = []
+        for var in self.variables:
+            pos_enc_fn = pos_enc_symmetric if var in self.SYM_VARS else pos_enc
+            encodings.append(pos_enc_fn(inputs[var], self.per_input_dim, self.alpha))
+        if self.remainder_dim:
+            encodings.append(torch.zeros_like(encodings[0])[:, : self.remainder_dim])
+        encodings = torch.cat(encodings, dim=-1)
+        return encodings

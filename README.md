@@ -45,6 +45,13 @@ pytest
 ```
 
 
+## Run experiments
+
+```bash
+cd src/hepattn/experiments/trackml/
+python hit_filter.py fit --config hit_filter.yaml --trainer.fast_dev_run 10
+```
+
 ## Features
 
 - [x] gated dense network
@@ -53,7 +60,9 @@ pytest
 - [x] layerscale
 - [x] value residuals including learnable per token
 - [x] local flex with wrapping
-- [ ] hepformer positional embeddings
+- [x] hepformer positional embeddings
+- [ ] fix flex with dynamic shapes
+- [ ] mask decoder
 - [ ] SAM random positional embeddings (possible to preseve symmetric posenc for phi)
 - [ ] flex decoder
 - [ ] flex mask attention
@@ -74,12 +83,11 @@ pytest
 - thinking about diagnalising the maskattention operator
     - note mask attention is not attention. it's just the dot product of vectors
     - i can apply my own "score mod" to that if I want to penalise off diagonal terms
-    - but how is this approach different from using LCA?
-    - basically how is alibi different from LCA?
+    - but how is this approach different from using LCA? basically how is alibi different from LCA?
     - and by extension, how would doing manual PE be different from using LCA?
     - TODO: go back to LCA test in hepformer but compare to no maskattention, not to maskattention
         - look into some basic metrics like how many hits are selected by MA etc
         - test if perf is impacted by LCA window size much
-    - TODO: try with just the standard sinusoidal PE or random PE (don't worry about wrapping) and see if it works
+    - TODO: try with just the standard sinusoidal PE or random PE (don't worry about wrapping the PE) and see if it works
             (might be enough to use the PE and then apply wrapping with the mask)
     - if that doesn't work -- just switch to a flex mask attention implementation

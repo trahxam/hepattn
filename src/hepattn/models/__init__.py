@@ -2,7 +2,7 @@ from hepattn.models.activation import SwiGLU
 from hepattn.models.attention import Attention
 from hepattn.models.dense import Dense
 from hepattn.models.norm import LayerNorm, RMSNorm
-from hepattn.models.posenc import PositionEmbeddingRandom
+from hepattn.models.posenc import PositionEncoder
 from hepattn.models.transformer import DropPath, Encoder, EncoderLayer, LayerScale, Residual
 
 __all__ = [
@@ -13,7 +13,7 @@ __all__ = [
     "EncoderLayer",
     "LayerNorm",
     "LayerScale",
-    "PositionEmbeddingRandom",
+    "PositionEncoder",
     "RMSNorm",
     "Residual",
     "SwiGLU",
