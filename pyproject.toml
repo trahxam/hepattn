@@ -17,6 +17,8 @@ dependencies = [
     "pandas>=2.2.3,<3",
     "pyarrow",
     "numpy",
+    "torch==2.6.0",
+    "flash-attn==2.7.3",
     "jsonargparse[signatures]>=4.34.0,<5",
 ]
 
@@ -31,7 +33,6 @@ platforms = ["linux-64"]
 
 [tool.pixi.pypi-dependencies]
 hepattn = { path = ".", editable = true }
-torch = { version = "==2.7.0.dev20250218+cu124", index = "https://download.pytorch.org/whl/nightly/cu124" }
 
 [tool.pixi.pypi-options]
 no-build-isolation = ["flash-attn"]
@@ -39,7 +40,7 @@ no-build-isolation = ["flash-attn"]
 [tool.pixi.system-requirements]
 linux = "3.10.0"
 libc = "2.17"
-cuda = "12.4"
+cuda = "12.3"
 
 [tool.pixi.dependencies]
 gcc = "12.3.0"

@@ -19,7 +19,7 @@ git clone git@github.com:samvanstroud/hepattn.git
 ```
 
 
-To install, you need to first remove the flash attention dependency from the `pyproject.toml` file.
+To install, you need to first remove the `flash-attn` dependency from the `pyproject.toml` file.
 Then run: 
 
 ```bash
@@ -41,9 +41,8 @@ exit
 ## Run tests
 
 ```bash
-pytest tests/
+pytest
 ```
-
 
 
 ## Features

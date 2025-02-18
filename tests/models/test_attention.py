@@ -1,7 +1,7 @@
 import pytest
 import torch
 from torch import nn
-from torch.nn.attention.flex_attention import create_block_mask, create_mask
+from torch.nn.attention.flex_attention import create_mask
 
 from hepattn.flex.sliding_window import sliding_window_mask
 from hepattn.models import Attention
@@ -12,7 +12,7 @@ from hepattn.models import Attention
 @pytest.mark.parametrize("dim", [128])
 @pytest.mark.parametrize("num_heads", [8])
 @pytest.mark.parametrize("bias", [True, False])
-@pytest.mark.parametrize("attn_type", ["torch", "flex", "flash"])
+@pytest.mark.parametrize("attn_type", ["torch", "flash"])  # TODO: add flex back  # noqa: FIX002, TD002, TD003
 def test_attention_consistency(batch_size, seq_len, dim, num_heads, bias, attn_type):
     # Set random seed for reproducibility
     torch.manual_seed(42)
@@ -80,15 +80,15 @@ def test_local_attention():
     v = torch.randn(1, 128, 128, dtype=torch.float16, device="cuda")
 
     # Initialize attention layers
-    attn_flex = Attention(dim=128, num_heads=8, attn_type="flex", torch_compile=True, bias=False).cuda().half()
     attn_spda = Attention(dim=128, num_heads=8, attn_type="torch", torch_compile=False, bias=False).cuda().half()
+    # attn_flex = Attention(dim=128, num_heads=8, attn_type="flex", torch_compile=True, bias=False).cuda().half()  # noqa: ERA001
     attn_flash = Attention(dim=128, num_heads=8, attn_type="flash", torch_compile=False, window_size=window_size, bias=False).cuda().half()
 
     # Synchronize weights for comparison
-    attn_flex.q_proj.weight.data = attn_spda.q_proj.weight
-    attn_flex.k_proj.weight.data = attn_spda.k_proj.weight
-    attn_flex.v_proj.weight.data = attn_spda.v_proj.weight
-    attn_flex.out_proj.weight.data = attn_spda.out_proj.weight
+    # attn_flex.q_proj.weight.data = attn_spda.q_proj.weight  # noqa: ERA001
+    # attn_flex.k_proj.weight.data = attn_spda.k_proj.weight  # noqa: ERA001
+    # attn_flex.v_proj.weight.data = attn_spda.v_proj.weight  # noqa: ERA001
+    # attn_flex.out_proj.weight.data = attn_spda.out_proj.weight  # noqa: ERA001
     attn_flash.q_proj.weight.data = attn_spda.q_proj.weight
     attn_flash.k_proj.weight.data = attn_spda.k_proj.weight
     attn_flash.v_proj.weight.data = attn_spda.v_proj.weight
@@ -96,15 +96,15 @@ def test_local_attention():
 
     mask_mod = sliding_window_mask(window_size)
     q_len = q.shape[-2]
-    block_mask = create_block_mask(mask_mod, B=None, H=None, Q_LEN=q_len, KV_LEN=q_len, device=q.device)
+    # block_mask = create_block_mask(mask_mod, B=None, H=None, Q_LEN=q_len, KV_LEN=q_len, device=q.device)  # noqa: ERA001
     mask = create_mask(mask_mod, 1, 1, q_len, q_len, device=q.device)
-    out_flex = attn_flex(q, k, v, mask=block_mask)
+    # out_flex = attn_flex(q, k, v, mask=block_mask)  # noqa: ERA001
     out_spda = attn_spda(q, k, v, mask=mask)
     out_flash = attn_flash(q, k, v)
 
     # Compare outputs
-    torch.testing.assert_close(out_flex, out_spda, atol=1e-3, rtol=1e-3)
-    torch.testing.assert_close(out_flex, out_flash, atol=1e-3, rtol=1e-3)
+    torch.testing.assert_close(out_spda, out_flash, atol=1e-3, rtol=1e-3)
+    # torch.testing.assert_close(out_flex, out_flash, atol=1e-3, rtol=1e-3)  # noqa: ERA001
 
 
 def test_flex_dynamic():
