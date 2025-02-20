@@ -1,5 +1,11 @@
 # hep-attn
 
+Goals:
+- cleanly switch between different attention backends (sdpa, flash, flex)
+- include some recent transformer advances (layerscale, value residuals, local attention)
+- full torch.compile and nested tensor support
+- don't use conda
+
 ## Setup
 
 ### Frist time
@@ -75,10 +81,6 @@ python hit_filter.py fit --config hit_filter.yaml --trainer.fast_dev_run 10
 - [ ] laser https://github.com/lucidrains/x-transformers/commit/57efd7770f2f5df0ff7b4ffcbd623750b584e850#diff-b335630551682c19a781afebcf4d07bf978fb1f8ac04c6bf87428ed5106870f5R2360
 
 ## Notes
-
-- einops doesn't work with nested tensors
-    - support masking?
-    - don't use einops?
 
 - thinking about diagnalising the maskattention operator
     - note mask attention is not attention. it's just the dot product of vectors
