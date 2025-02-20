@@ -8,46 +8,37 @@ Goals:
 
 ## Setup
 
-### Frist time
+### First time
 
-First install `pixi` according to https://pixi.sh/latest/.
-
+First install `pixi` according to https://pixi.sh/latest/. 
 This is probably just
 
 ```bash
 curl -fsSL https://pixi.sh/install.sh | bash
 ```
 
-Clone the repo:
+Then clone the repo:
 
 ```bash
 git clone git@github.com:samvanstroud/hepattn.git
 ```
 
-
-To install, you need to first remove the `flash-attn` dependency from the `pyproject.toml` file.
+To install, you need to first manually remove the `flash-attn` dependency from the `pyproject.toml` file.
 Then run: 
 
 ```bash
 pixi install
 ```
 
-Then, add back the flash attention dependency and install again.
+Then, add back the flash attention dependency and run `pixi install` again.
 
-### Coming back
-On DIAS: 
+### Activing the environment
 
 ```bash
-cd /home/xucapsva/hepattn
+cd hepattn
 pixi shell
-python src/hepattn/flex.py
-exit
-```
-
-## Run tests
-
-```bash
 pytest
+exit
 ```
 
 
