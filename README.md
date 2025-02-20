@@ -49,24 +49,30 @@ cd src/hepattn/experiments/trackml/
 python hit_filter.py fit --config hit_filter.yaml --trainer.fast_dev_run 10
 ```
 
-## Features
+## Todo
 
-- [x] gated dense network
-- [x] Flex transformer
-- [x] Flex local
-- [x] layerscale
-- [x] value residuals including learnable per token
-- [x] local flex with wrapping
-- [x] hepformer positional embeddings
-- [ ] fix flex with dynamic shapes
-- [ ] mask decoder
-- [ ] SAM random positional embeddings (possible to preseve symmetric posenc for phi)
-- [ ] flex decoder
-- [ ] flex mask attention
-- [ ] flex local CA
-- [ ] add pe to object queries and check impact on mask attention pattern
-- [ ] alphafold2 attention gating
-- [ ] register tokens but interspersed for local attention
-- [ ] moe
-- [ ] CLS token
-- [ ] laser https://github.com/lucidrains/x-transformers/commit/57efd7770f2f5df0ff7b4ffcbd623750b584e850#diff-b335630551682c19a781afebcf4d07bf978fb1f8ac04c6bf87428ed5106870f5R2360
+- [ ] maskformer
+    - [ ] mask decoder
+    - [ ] matcher
+    - [ ] maskformer loss
+- [ ] pe
+    - [x] positional embeddings from hepformer repo
+    - [ ] segment anything random positional embeddings
+    - [ ] add pe to object queries and check impact on mask attention pattern
+- [ ] flex
+    - [x] Flex transformer
+    - [x] Flex local
+    - [x] Flex local with wrapping
+    - [ ] fix flex with dynamic shapes
+    - [ ] flex decoder
+    - [ ] flex mask attention
+    - [ ] flex local CA
+- [ ] better transformer
+    - [x] gated dense network
+    - [x] layerscale
+    - [x] value residuals including learnable per token
+    - [ ] alphafold2 attention gating
+    - [ ] register tokens but interspersed for local attention
+    - [ ] moe
+    - [ ] CLS token
+    - [ ] [laser](https://github.com/lucidrains/x-transformers/commit/57efd7770f2f5df0ff7b4ffcbd623750b584e850#diff-b335630551682c19a781afebcf4d07bf978fb1f8ac04c6bf87428ed5106870f5R2360)
