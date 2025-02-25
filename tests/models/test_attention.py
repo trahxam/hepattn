@@ -6,6 +6,8 @@ from torch.nn.attention.flex_attention import create_mask
 from hepattn.flex.sliding_window import sliding_window_mask
 from hepattn.models import Attention
 
+torch.manual_seed(42)
+
 
 @pytest.mark.parametrize("batch_size", [1, 4])
 @pytest.mark.parametrize("seq_len", [8])
@@ -14,9 +16,6 @@ from hepattn.models import Attention
 @pytest.mark.parametrize("bias", [True, False])
 @pytest.mark.parametrize("attn_type", ["torch", "flash", "flex"])
 def test_attention_consistency(batch_size, seq_len, dim, num_heads, bias, attn_type):
-    # Set random seed for reproducibility
-    torch.manual_seed(42)
-
     # Generate random input tensors
     q = torch.randn(batch_size, seq_len, dim, dtype=torch.float16, device="cuda")
     k = torch.randn(batch_size, seq_len, dim, dtype=torch.float16, device="cuda")
@@ -48,9 +47,6 @@ def test_attention_consistency(batch_size, seq_len, dim, num_heads, bias, attn_t
 # NJT not working out of the box with flex, but can be done with a block mask
 # for now just test with SDPA
 def test_nested_jagged_tensor():
-    # Set random seed for reproducibility
-    torch.manual_seed(42)
-
     attn = Attention(dim=128, num_heads=8, attn_type="torch", torch_compile=False).cuda().half()
 
     # Current limitation that the total sequnce length must be divisible by 128
@@ -118,3 +114,20 @@ def test_flex_dynamic():
     for x in xs:
         out = attn(x, x, x)
         assert out.shape == x.shape
+
+
+@pytest.mark.parametrize("attn_type", ["torch", "flash", "flex"])
+def test_cross_attention(attn_type):
+    # Generate random input tensors
+    q = torch.randn(1, 128, 128, dtype=torch.float16, device="cuda")
+    k = torch.randn(1, 256, 128, dtype=torch.float16, device="cuda")
+    v = torch.randn(1, 256, 128, dtype=torch.float16, device="cuda")
+
+    # Initialize attention layers
+    attn = Attention(dim=128, num_heads=8, attn_type=attn_type).cuda().half()
+
+    # Compute outputs
+    out = attn(q, k, v)
+
+    # Check output shape
+    assert out.shape == q.shape
