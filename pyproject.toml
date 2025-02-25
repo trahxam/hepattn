@@ -7,46 +7,55 @@ name = "hepattn"
 requires-python = "== 3.11"
 version = "0.1.0"
 dependencies = [
+    "packaging",
     "wheel",
     "pytest>=8.3.3,<9",
     "ruff==0.8.0",
     "pre-commit>=4.0.1,<5",
-    "matplotlib",
+    "matplotlib==3.9.*",
     "lightning>=2.4.0,<3",
     "comet-ml>=3.47.3,<4",
     "pandas>=2.2.3,<3",
-    "pyarrow",
-    "numpy",
-    "torch==2.6.0",
-    "flash-attn==2.7.3",
+    "pyarrow>=17.0.0",
+    "numpy>=2.0.0",
     "jsonargparse[signatures]>=4.34.0,<5",
+    #"flash-attn==2.7.4.post1",
+    "flash-attn @ https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.6cxx11abiTRUE-cp311-cp311-linux_x86_64.whl"
+    #"torch==2.6.0",
 ]
 
 [build-system]
 build-backend = "hatchling.build"
 requires = ["hatchling"]
 
+[tool.hatch]
+metadata.allow-direct-references = true
+
 [tool.pixi.project]
-channels = ["conda-forge", "nodefaults"]
+channels = ["nvidia", "conda-forge", "nodefaults"]
 platforms = ["linux-64"]
 #platforms = ["linux-aarch64"]
 
 [tool.pixi.pypi-dependencies]
 hepattn = { path = ".", editable = true }
+torch = { version = "==2.7.*", index = "https://download.pytorch.org/whl/nightly/cu124"}
 
 [tool.pixi.pypi-options]
 no-build-isolation = ["flash-attn"]
+extra-index-urls = ["https://download.pytorch.org/whl/nightly/cu124"]
 
 [tool.pixi.system-requirements]
 linux = "3.10.0"
-libc = "2.17"
+libc = "2.28"
 cuda = "12.3"
 
 [tool.pixi.dependencies]
-gcc = "12.3.0"
-gxx = "12.3.0"
+#gcc = "==12.3.0"
+#gxx = "==12.3.0"
 python = "3.11.*"
 ninja = "*"
+git = "*"
+cuda = "12.3.*"
 
 [tool.ruff]
 src = ["src"]

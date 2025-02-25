@@ -8,25 +8,36 @@ Goals:
 
 ## Setup
 
+### Apptainer
+
+You might need to run in a container if your `glibc` is too old.
+
+```shell
+cd hepattn
+apptainer pull pixi.sif docker://ghcr.io/prefix-dev/pixi:noble-cuda-12.6.3
+apptainer shell --nv pixi.sif
+pixi install
+```
+
 ### First time
 
 First install `pixi` according to https://pixi.sh/latest/. 
 This is probably just
 
-```bash
+```shell
 curl -fsSL https://pixi.sh/install.sh | bash
 ```
 
 Then clone the repo:
 
-```bash
+```shell
 git clone git@github.com:samvanstroud/hepattn.git
 ```
 
 To install, you need to first manually remove the `flash-attn` dependency from the `pyproject.toml` file.
 Then run: 
 
-```bash
+```shell
 pixi install
 ```
 
@@ -34,7 +45,7 @@ Then, add back the flash attention dependency and run `pixi install` again.
 
 ### Activing the environment
 
-```bash
+```shell
 cd hepattn
 pixi shell
 pytest
@@ -44,7 +55,7 @@ exit
 
 ## Run experiments
 
-```bash
+```shell
 cd src/hepattn/experiments/trackml/
 python hit_filter.py fit --config hit_filter.yaml --trainer.fast_dev_run 10
 ```
