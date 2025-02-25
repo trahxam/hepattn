@@ -66,17 +66,18 @@ python hit_filter.py fit --config hit_filter.yaml --trainer.fast_dev_run 10
     - [ ] mask decoder
     - [ ] matcher
     - [ ] maskformer loss
+    - [ ] order queries by phi in decoder
 - [ ] pe
     - [x] positional embeddings from hepformer repo
     - [ ] segment anything random positional embeddings
-    - [ ] add pe to object queries and check impact on mask attention pattern
+    - [ ] add pe to inputs and queries and check impact on mask attention pattern
 - [ ] flex
     - [x] Flex transformer
     - [x] Flex local
     - [x] Flex local with wrapping
-    - [ ] fix flex with dynamic shapes
+    - [x] fix flex with dynamic shapes
     - [ ] flex decoder
-    - [ ] flex mask attention
+    - [ ] flex mask attention (fully realised mask)
     - [ ] flex local CA
 - [ ] better transformer
     - [x] gated dense network
@@ -85,5 +86,5 @@ python hit_filter.py fit --config hit_filter.yaml --trainer.fast_dev_run 10
     - [ ] alphafold2 attention gating
     - [ ] register tokens but interspersed for local attention
     - [ ] moe
-    - [ ] CLS token
+    - [ ] CLS token (for global with context from inputs and queries)
     - [ ] [laser](https://github.com/lucidrains/x-transformers/commit/57efd7770f2f5df0ff7b4ffcbd623750b584e850#diff-b335630551682c19a781afebcf4d07bf978fb1f8ac04c6bf87428ed5106870f5R2360)

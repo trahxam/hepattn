@@ -39,7 +39,7 @@ class Dense(nn.Module):
         bias : bool, optional
             Whether to use bias in the linear layers.
         norm_input : bool, optional
-            Whether to apply batch normalization to the input.
+            Whether to apply layer normalization to the input.
         """
         super().__init__()
 

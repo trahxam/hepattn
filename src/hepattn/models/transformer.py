@@ -49,13 +49,15 @@ class Residual(nn.Module):
     def __init__(
         self,
         fn: nn.Module,
+        dim: int,
         norm: nn.Module | None = None,
         layer_scale: float | None = None,
         drop_path: float = 0.0,
-        dim: int = 0,
     ) -> None:
         """Parameters
         ----------
+        dim : int
+            The dimension of the input and output.
         fn : nn.Module
             The module to wrap. Must be non-resizing.
         norm : str, optional
@@ -64,8 +66,6 @@ class Residual(nn.Module):
             The initial value for the layer_scale. If None, then no layer_scale is applied.
         drop_path : float, optional
             The drop path rate.
-        dim : int
-            The dimension of the input and output.
         """
         super().__init__()
         if norm is None:
@@ -109,12 +109,9 @@ class EncoderLayer(nn.Module):
         """
         super().__init__()
 
-        if attn_kwargs is None:
-            attn_kwargs = {}
-        if dense_kwargs is None:
-            dense_kwargs = {}
-        if norm is None:
-            norm = LayerNorm
+        attn_kwargs = attn_kwargs or {}
+        dense_kwargs = dense_kwargs or {}
+        norm = norm or LayerNorm
 
         self.dim = dim
         self.value_residual = value_residual
