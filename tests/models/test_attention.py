@@ -12,7 +12,7 @@ from hepattn.models import Attention
 @pytest.mark.parametrize("dim", [128])
 @pytest.mark.parametrize("num_heads", [8])
 @pytest.mark.parametrize("bias", [True, False])
-@pytest.mark.parametrize("attn_type", ["torch", "flash"])  # TODO: add flex back  # noqa: FIX002, TD002, TD003
+@pytest.mark.parametrize("attn_type", ["torch", "flash", "flex"])
 def test_attention_consistency(batch_size, seq_len, dim, num_heads, bias, attn_type):
     # Set random seed for reproducibility
     torch.manual_seed(42)
