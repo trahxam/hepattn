@@ -88,14 +88,10 @@ class MaskformerDecoder(nn.Module):
 
         # initialize layers
         self.layers = nn.ModuleList([MaskformerDecoderLayer(dim, **md_config) for _ in range(num_layers)])
-        # self.norm1 = nn.LayerNorm(dim) # noqa: ERA001
-        # self.norm2 = nn.LayerNorm(dim) # noqa: ERA001
 
     def forward(self, x: Tensor, input_pad_mask: Tensor = None):
-        # apply norm
-        # q = self.norm1(self.initial_q.expand(x.shape[0], -1, -1))  # noqa: ERA001
-        # x = self.norm2(x)  # noqa: ERA001
-        q = self.initial_q.expand(x.shape[0], -1, -1)  # broadcast to batch size
+        # broadcast queries to batch size
+        q = self.initial_q.expand(x.shape[0], -1, -1)
 
         # Sanity checks
         assert q.shape[0] == x.shape[0], f"Batch size mismatch: q ({q.shape[0]}) vs x ({x.shape[0]})"

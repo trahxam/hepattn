@@ -76,6 +76,7 @@ python hit_filter.py fit --config hit_filter.yaml --trainer.fast_dev_run 10
     - [x] Flex local
     - [x] Flex local with wrapping
     - [x] fix flex with dynamic shapes
+    - [ ] flex with nested tensors
     - [ ] flex decoder
     - [ ] flex mask attention (fully realised mask)
     - [ ] flex local CA
@@ -83,6 +84,10 @@ python hit_filter.py fit --config hit_filter.yaml --trainer.fast_dev_run 10
     - [x] gated dense network
     - [x] layerscale
     - [x] value residuals including learnable per token
+    - [ ] input pad mask
+        - [ ] otherwise pad mask
+        - [ ] dispatch to flash varlen if flash
+        - [ ] also support flex
     - [ ] alphafold2 attention gating
     - [ ] register tokens but interspersed for local attention
     - [ ] moe

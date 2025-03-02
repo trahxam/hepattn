@@ -47,7 +47,8 @@ def test_attention_consistency(batch_size, seq_len, dim, num_heads, bias, attn_t
 # NJT not working out of the box with flex, but can be done with a block mask
 # for now just test with SDPA
 def test_nested_jagged_tensor():
-    attn = Attention(dim=128, num_heads=8, attn_type="torch", torch_compile=False).cuda().half()
+    attn_torch = Attention(dim=128, num_heads=8, attn_type="torch", torch_compile=False).cuda().half()
+    # attn_flex = Attention(dim=128, num_heads=8, attn_type="flex", torch_compile=True).cuda().half()  # noqa: ERA001
 
     # Current limitation that the total sequnce length must be divisible by 128
     qs = [torch.randn(s, 128, dtype=torch.float16, device="cuda") for s in (128, 256)]
@@ -58,13 +59,14 @@ def test_nested_jagged_tensor():
     nk = torch.nested.nested_tensor(ks, layout=torch.jagged, device="cuda", requires_grad=True)
     nv = torch.nested.nested_tensor(vs, layout=torch.jagged, device="cuda", requires_grad=True)
 
-    nt_out = attn(nq, nk, nv)
+    nt_out = attn_torch(nq, nk, nv)
+    # flex_out = attn_flex(nq, nk, nv)  # noqa: ERA001
 
     # do the same but looping over the list
     for i, (q, k, v) in enumerate(zip(qs, ks, vs, strict=False)):
-        out = attn(q, k, v)
-        this_out_nt = nt_out[i]
-        torch.testing.assert_close(out, this_out_nt, atol=1e-3, rtol=1e-3)
+        out = attn_torch(q, k, v)
+        torch.testing.assert_close(out, nt_out[i], atol=1e-3, rtol=1e-3)
+        # torch.testing.assert_close(out, flex_out[i], atol=1e-3, rtol=1e-3)  # noqa: ERA001
 
 
 def test_local_attention():

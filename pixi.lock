@@ -216,7 +216,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/e1/33/d3e0779d5c58245e7370c98eb969275af6b7a4a5aec3b97cbf85f09ad328/simplejson-3.20.1-cp311-cp311-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://download.pytorch.org/whl/nightly/six-1.16.0-py2.py3-none-any.whl
       - pypi: https://download.pytorch.org/whl/nightly/sympy-1.13.3-py3-none-any.whl
-      - pypi: https://download.pytorch.org/whl/nightly/cu124/torch-2.7.0.dev20250224%2Bcu124-cp311-cp311-manylinux_2_28_x86_64.whl
+      - pypi: https://download.pytorch.org/whl/nightly/cu124/torch-2.7.0.dev20250225%2Bcu124-cp311-cp311-manylinux_2_28_x86_64.whl
       - pypi: https://download.pytorch.org/whl/nightly/torchmetrics-1.1.2-py3-none-any.whl
       - pypi: https://download.pytorch.org/whl/nightly/tqdm-4.66.5-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/fd/39/4702c2901899c018189b9aa7eb75aa8eb54527aed71c3f285895190dc664/typeshed_client-2.7.0-py3-none-any.whl
@@ -3095,9 +3095,9 @@ packages:
   purls: []
   size: 3318875
   timestamp: 1699202167581
-- pypi: https://download.pytorch.org/whl/nightly/cu124/torch-2.7.0.dev20250224%2Bcu124-cp311-cp311-manylinux_2_28_x86_64.whl
+- pypi: https://download.pytorch.org/whl/nightly/cu124/torch-2.7.0.dev20250225%2Bcu124-cp311-cp311-manylinux_2_28_x86_64.whl
   name: torch
-  version: 2.7.0.dev20250224+cu124
+  version: 2.7.0.dev20250225+cu124
   requires_dist:
   - filelock
   - typing-extensions>=4.10.0
