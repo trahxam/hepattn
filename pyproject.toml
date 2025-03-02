@@ -25,11 +25,11 @@ dependencies = [
 ]
 
 [build-system]
-build-backend = "hatchling.build"
-requires = ["hatchling"]
+requires = ["scikit-build-core>=0.3.3", "pybind11"]
+build-backend = "scikit_build_core.build"
 
-[tool.hatch]
-metadata.allow-direct-references = true
+[tool.scikit-build]
+wheel.packages = ["src/hepattn", "src/lap1015/src/lap1015"]
 
 [tool.pixi.project]
 channels = ["nvidia", "conda-forge", "nodefaults"]
