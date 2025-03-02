@@ -9,6 +9,8 @@ version = "0.1.0"
 dependencies = [
     "packaging",
     "wheel",
+    "numpy",
+    "scipy",
     "pytest>=8.3.3,<9",
     "ruff==0.8.0",
     "pre-commit>=4.0.1,<5",
@@ -17,7 +19,6 @@ dependencies = [
     "comet-ml>=3.47.3,<4",
     "pandas>=2.2.3,<3",
     "pyarrow>=17.0.0",
-    "numpy>=2.0.0",
     "jsonargparse[signatures]>=4.34.0,<5",
     #"flash-attn==2.7.4.post1",
     "flash-attn @ https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.6cxx11abiTRUE-cp311-cp311-linux_x86_64.whl"

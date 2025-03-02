@@ -77,6 +77,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/keyutils-1.6.1-h166bdaf_0.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/linux-64/krb5-1.21.3-h659f571_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/ld_impl_linux-64-2.43-h712a8e2_4.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/libblas-3.9.0-31_h59b9bed_openblas.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/libcblas-3.9.0-31_he106b2a_openblas.conda
       - conda: https://conda.anaconda.org/nvidia/linux-64/libcublas-12.8.3.14-0.conda
       - conda: https://conda.anaconda.org/nvidia/linux-64/libcublas-dev-12.8.3.14-0.conda
       - conda: https://conda.anaconda.org/nvidia/linux-64/libcufft-11.3.3.41-0.conda
@@ -97,8 +99,11 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libgcc-14.2.0-h767d61c_2.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/libgcc-devel_linux-64-13.3.0-hc03c837_102.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libgcc-ng-14.2.0-h69a702a_2.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/libgfortran-14.2.0-h69a702a_2.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/libgfortran5-14.2.0-hf1ad2bd_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libgomp-14.2.0-h767d61c_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libiconv-1.18-h4ce23a2_1.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/liblapack-3.9.0-31_h7ac8fdf_openblas.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/liblzma-5.6.4-hb9d3cd8_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libnghttp2-1.64.0-h161d5f1_0.conda
       - conda: https://conda.anaconda.org/nvidia/linux-64/libnpp-12.3.3.65-0.conda
@@ -110,6 +115,7 @@ environments:
       - conda: https://conda.anaconda.org/nvidia/linux-64/libnvjitlink-dev-12.8.61-1.conda
       - conda: https://conda.anaconda.org/nvidia/linux-64/libnvjpeg-12.3.5.57-0.conda
       - conda: https://conda.anaconda.org/nvidia/linux-64/libnvjpeg-dev-12.3.5.57-0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/libopenblas-0.3.29-pthreads_h94d23a6_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libsanitizer-13.3.0-he8ea267_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libsqlite-3.49.1-hee588c1_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libssh2-1.11.1-hf672d98_0.conda
@@ -122,13 +128,16 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/ncurses-6.5-h2d0b736_3.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/ninja-1.12.1-h297d8ca_0.conda
       - conda: https://conda.anaconda.org/nvidia/linux-64/nsight-compute-2024.1.1.4-0.tar.bz2
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/numpy-2.2.3-py311h5d046bc_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/ocl-icd-2.3.2-hb9d3cd8_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/opencl-headers-2024.10.24-h5888daf_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/openssl-3.4.1-h7b32b05_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/pcre2-10.44-hba22ea6_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/perl-5.32.1-7_hd590300_perl5.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/python-3.11.11-h9e4cc4f_1_cpython.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/python_abi-3.11-5_cp311.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/readline-8.2-h8c095d6_2.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/scipy-1.15.2-py311h8f841c2_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/sysroot_linux-64-2.17-h0157908_18.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/tk-8.6.13-noxft_h4845f30_101.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/tzdata-2025a-h78e105d_0.conda
@@ -173,7 +182,6 @@ environments:
       - pypi: https://download.pytorch.org/whl/nightly/multidict-6.1.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://download.pytorch.org/whl/nightly/networkx-3.4.2-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/d2/1d/1b658dbd2b9fa9c4c9f32accbfc0205d532c8c6194dc0f2a4c0428e7128a/nodeenv-1.9.1-py2.py3-none-any.whl
-      - pypi: https://download.pytorch.org/whl/nightly/numpy-2.1.2-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://download.pytorch.org/whl/nightly/cu124/nvidia_cublas_cu12-12.4.5.8-py3-none-manylinux2014_x86_64.whl
       - pypi: https://download.pytorch.org/whl/nightly/cu124/nvidia_cuda_cupti_cu12-12.4.127-py3-none-manylinux2014_x86_64.whl
       - pypi: https://download.pytorch.org/whl/nightly/cu124/nvidia_cuda_nvrtc_cu12-12.4.127-py3-none-manylinux2014_x86_64.whl
@@ -216,7 +224,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/e1/33/d3e0779d5c58245e7370c98eb969275af6b7a4a5aec3b97cbf85f09ad328/simplejson-3.20.1-cp311-cp311-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://download.pytorch.org/whl/nightly/six-1.16.0-py2.py3-none-any.whl
       - pypi: https://download.pytorch.org/whl/nightly/sympy-1.13.3-py3-none-any.whl
-      - pypi: https://download.pytorch.org/whl/nightly/cu124/torch-2.7.0.dev20250225%2Bcu124-cp311-cp311-manylinux_2_28_x86_64.whl
+      - pypi: https://download.pytorch.org/whl/nightly/cu124/torch-2.7.0.dev20250302%2Bcu124-cp311-cp311-manylinux_2_28_x86_64.whl
       - pypi: https://download.pytorch.org/whl/nightly/torchmetrics-1.1.2-py3-none-any.whl
       - pypi: https://download.pytorch.org/whl/nightly/tqdm-4.66.5-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/fd/39/4702c2901899c018189b9aa7eb75aa8eb54527aed71c3f285895190dc664/typeshed_client-2.7.0-py3-none-any.whl
@@ -1302,7 +1310,7 @@ packages:
 - pypi: .
   name: hepattn
   version: 0.1.0
-  sha256: 1dc655dc75218e3c5a20fd9544a8de9f724fd8b016e3bbbd1d53a80b02372a83
+  sha256: 74b5ab30adbe4a61a767c2134f778adee4a688c5a4bad99bf7ff587097feccfa
   requires_dist:
   - packaging
   - wheel
@@ -1314,9 +1322,10 @@ packages:
   - comet-ml>=3.47.3,<4
   - pandas>=2.2.3,<3
   - pyarrow>=17.0.0
-  - numpy>=2.0.0
   - jsonargparse[signatures]>=4.34.0,<5
   - flash-attn @ https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.6cxx11abiTRUE-cp311-cp311-linux_x86_64.whl
+  - numpy
+  - scipy
   requires_python: ==3.11
   editable: true
 - pypi: https://files.pythonhosted.org/packages/78/8c/4bfcab2d8286473b8d83ea742716f4b79290172e75f91142bc1534b05b9a/identify-2.6.8-py2.py3-none-any.whl
@@ -1512,6 +1521,39 @@ packages:
   purls: []
   size: 671240
   timestamp: 1740155456116
+- conda: https://conda.anaconda.org/conda-forge/linux-64/libblas-3.9.0-31_h59b9bed_openblas.conda
+  build_number: 31
+  sha256: 9839fc4ac0cbb0aa3b9eea520adfb57311838959222654804e58f6f2d1771db5
+  md5: 728dbebd0f7a20337218beacffd37916
+  depends:
+  - libopenblas >=0.3.29,<0.3.30.0a0
+  - libopenblas >=0.3.29,<1.0a0
+  constrains:
+  - liblapacke =3.9.0=31*_openblas
+  - liblapack =3.9.0=31*_openblas
+  - blas =2.131=openblas
+  - mkl <2025
+  - libcblas =3.9.0=31*_openblas
+  license: BSD-3-Clause
+  license_family: BSD
+  purls: []
+  size: 16859
+  timestamp: 1740087969120
+- conda: https://conda.anaconda.org/conda-forge/linux-64/libcblas-3.9.0-31_he106b2a_openblas.conda
+  build_number: 31
+  sha256: ede8545011f5b208b151fe3e883eb4e31d495ab925ab7b9ce394edca846e0c0d
+  md5: abb32c727da370c481a1c206f5159ce9
+  depends:
+  - libblas 3.9.0 31_h59b9bed_openblas
+  constrains:
+  - liblapacke =3.9.0=31*_openblas
+  - liblapack =3.9.0=31*_openblas
+  - blas =2.131=openblas
+  license: BSD-3-Clause
+  license_family: BSD
+  purls: []
+  size: 16796
+  timestamp: 1740087984429
 - conda: https://conda.anaconda.org/nvidia/linux-64/libcublas-12.8.3.14-0.conda
   sha256: 8c5f3e8cb145aeda96726dac01b5cb6fd948f1819a8100b16d62afcf72b2b4f8
   md5: 7e71c365495b09d1f2510b6d2f4fbd67
@@ -1766,6 +1808,31 @@ packages:
   purls: []
   size: 53758
   timestamp: 1740240660904
+- conda: https://conda.anaconda.org/conda-forge/linux-64/libgfortran-14.2.0-h69a702a_2.conda
+  sha256: e05263e8960da03c341650f2a3ffa4ccae4e111cb198e8933a2908125459e5a6
+  md5: fb54c4ea68b460c278d26eea89cfbcc3
+  depends:
+  - libgfortran5 14.2.0 hf1ad2bd_2
+  constrains:
+  - libgfortran-ng ==14.2.0=*_2
+  license: GPL-3.0-only WITH GCC-exception-3.1
+  license_family: GPL
+  purls: []
+  size: 53733
+  timestamp: 1740240690977
+- conda: https://conda.anaconda.org/conda-forge/linux-64/libgfortran5-14.2.0-hf1ad2bd_2.conda
+  sha256: c17b7cf3073a1f4e1f34d50872934fa326346e104d3c445abc1e62481ad6085c
+  md5: 556a4fdfac7287d349b8f09aba899693
+  depends:
+  - __glibc >=2.17,<3.0.a0
+  - libgcc >=14.2.0
+  constrains:
+  - libgfortran 14.2.0
+  license: GPL-3.0-only WITH GCC-exception-3.1
+  license_family: GPL
+  purls: []
+  size: 1461978
+  timestamp: 1740240671964
 - conda: https://conda.anaconda.org/conda-forge/linux-64/libgomp-14.2.0-h767d61c_2.conda
   sha256: 1a3130e0b9267e781b89399580f3163632d59fe5b0142900d63052ab1a53490e
   md5: 06d02030237f4d5b3d9a7e7d348fe3c6
@@ -1786,6 +1853,21 @@ packages:
   purls: []
   size: 713084
   timestamp: 1740128065462
+- conda: https://conda.anaconda.org/conda-forge/linux-64/liblapack-3.9.0-31_h7ac8fdf_openblas.conda
+  build_number: 31
+  sha256: f583661921456e798aba10972a8abbd9d33571c655c1f66eff450edc9cbefcf3
+  md5: 452b98eafe050ecff932f0ec832dd03f
+  depends:
+  - libblas 3.9.0 31_h59b9bed_openblas
+  constrains:
+  - libcblas =3.9.0=31*_openblas
+  - liblapacke =3.9.0=31*_openblas
+  - blas =2.131=openblas
+  license: BSD-3-Clause
+  license_family: BSD
+  purls: []
+  size: 16790
+  timestamp: 1740087997375
 - conda: https://conda.anaconda.org/conda-forge/linux-64/liblzma-5.6.4-hb9d3cd8_0.conda
   sha256: cad52e10319ca4585bc37f0bc7cce99ec7c15dc9168e42ccb96b741b0a27db3f
   md5: 42d5b6a0f30d3c10cd88cb8584fda1cb
@@ -1921,6 +2003,21 @@ packages:
   license: LicenseRef-NVIDIA-End-User-License-Agreement
   size: 27524
   timestamp: 1735966916055
+- conda: https://conda.anaconda.org/conda-forge/linux-64/libopenblas-0.3.29-pthreads_h94d23a6_0.conda
+  sha256: cc5389ea254f111ef17a53df75e8e5209ef2ea6117e3f8aced88b5a8e51f11c4
+  md5: 0a4d0252248ef9a0f88f2ba8b8a08e12
+  depends:
+  - __glibc >=2.17,<3.0.a0
+  - libgcc >=14
+  - libgfortran
+  - libgfortran5 >=14.2.0
+  constrains:
+  - openblas >=0.3.29,<0.3.30.0a0
+  license: BSD-3-Clause
+  license_family: BSD
+  purls: []
+  size: 5919288
+  timestamp: 1739825731827
 - conda: https://conda.anaconda.org/conda-forge/linux-64/libsanitizer-13.3.0-he8ea267_2.conda
   sha256: 27c4c8bf8e2dd60182d47274389be7c70446df6ed5344206266321ee749158b4
   md5: 2b6cdf7bb95d3d10ef4e38ce0bc95dba
@@ -2045,7 +2142,7 @@ packages:
   - tensorboardx>=2.2,<3.0 ; extra == 'all'
   - torchmetrics>=0.10.0,<2.0 ; extra == 'all'
   - torchvision>=0.16.0,<1.0 ; extra == 'all'
-  - deepspeed>=0.8.2,<=0.9.3 ; sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'all'
+  - deepspeed>=0.8.2,<=0.9.3 ; platform_system != 'Darwin' and platform_system != 'Windows' and extra == 'all'
   - bitsandbytes>=0.42.0,<1.0 ; sys_platform == 'darwin' and extra == 'all'
   - bitsandbytes>=0.44.0,<1.0 ; (sys_platform == 'linux' and extra == 'all') or (sys_platform == 'win32' and extra == 'all')
   - litdata>=0.2.0rc0,<1.0 ; extra == 'data'
@@ -2078,7 +2175,7 @@ packages:
   - torchmetrics>=0.7.0,<2.0 ; extra == 'dev'
   - torchvision>=0.16.0,<1.0 ; extra == 'dev'
   - uvicorn ; extra == 'dev'
-  - deepspeed>=0.8.2,<=0.9.3 ; sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'dev'
+  - deepspeed>=0.8.2,<=0.9.3 ; platform_system != 'Darwin' and platform_system != 'Windows' and extra == 'dev'
   - bitsandbytes>=0.42.0,<1.0 ; sys_platform == 'darwin' and extra == 'dev'
   - bitsandbytes>=0.44.0,<1.0 ; (sys_platform == 'linux' and extra == 'dev') or (sys_platform == 'win32' and extra == 'dev')
   - ipython[all]<9.0 ; extra == 'examples'
@@ -2097,7 +2194,7 @@ packages:
   - lightning-utilities>=0.8.0,<1.0 ; extra == 'fabric-all'
   - torchmetrics>=0.10.0,<2.0 ; extra == 'fabric-all'
   - torchvision>=0.16.0,<1.0 ; extra == 'fabric-all'
-  - deepspeed>=0.8.2,<=0.9.3 ; sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'fabric-all'
+  - deepspeed>=0.8.2,<=0.9.3 ; platform_system != 'Darwin' and platform_system != 'Windows' and extra == 'fabric-all'
   - bitsandbytes>=0.42.0,<1.0 ; sys_platform == 'darwin' and extra == 'fabric-all'
   - bitsandbytes>=0.44.0,<1.0 ; (sys_platform == 'linux' and extra == 'fabric-all') or (sys_platform == 'win32' and extra == 'fabric-all')
   - click==8.1.7 ; extra == 'fabric-dev'
@@ -2113,13 +2210,13 @@ packages:
   - torchmetrics>=0.10.0,<2.0 ; extra == 'fabric-dev'
   - torchmetrics>=0.7.0,<2.0 ; extra == 'fabric-dev'
   - torchvision>=0.16.0,<1.0 ; extra == 'fabric-dev'
-  - deepspeed>=0.8.2,<=0.9.3 ; sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'fabric-dev'
+  - deepspeed>=0.8.2,<=0.9.3 ; platform_system != 'Darwin' and platform_system != 'Windows' and extra == 'fabric-dev'
   - bitsandbytes>=0.42.0,<1.0 ; sys_platform == 'darwin' and extra == 'fabric-dev'
   - bitsandbytes>=0.44.0,<1.0 ; (sys_platform == 'linux' and extra == 'fabric-dev') or (sys_platform == 'win32' and extra == 'fabric-dev')
   - lightning-utilities>=0.8.0,<1.0 ; extra == 'fabric-examples'
   - torchmetrics>=0.10.0,<2.0 ; extra == 'fabric-examples'
   - torchvision>=0.16.0,<1.0 ; extra == 'fabric-examples'
-  - deepspeed>=0.8.2,<=0.9.3 ; sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'fabric-strategies'
+  - deepspeed>=0.8.2,<=0.9.3 ; platform_system != 'Darwin' and platform_system != 'Windows' and extra == 'fabric-strategies'
   - bitsandbytes>=0.42.0,<1.0 ; sys_platform == 'darwin' and extra == 'fabric-strategies'
   - bitsandbytes>=0.44.0,<1.0 ; (sys_platform == 'linux' and extra == 'fabric-strategies') or (sys_platform == 'win32' and extra == 'fabric-strategies')
   - click==8.1.7 ; extra == 'fabric-test'
@@ -2143,7 +2240,7 @@ packages:
   - tensorboardx>=2.2,<3.0 ; extra == 'pytorch-all'
   - torchmetrics>=0.10.0,<2.0 ; extra == 'pytorch-all'
   - torchvision>=0.16.0,<1.0 ; extra == 'pytorch-all'
-  - deepspeed>=0.8.2,<=0.9.3 ; sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'pytorch-all'
+  - deepspeed>=0.8.2,<=0.9.3 ; platform_system != 'Darwin' and platform_system != 'Windows' and extra == 'pytorch-all'
   - bitsandbytes>=0.42.0,<1.0 ; sys_platform == 'darwin' and extra == 'pytorch-all'
   - bitsandbytes>=0.44.0,<1.0 ; (sys_platform == 'linux' and extra == 'pytorch-all') or (sys_platform == 'win32' and extra == 'pytorch-all')
   - cloudpickle>=1.3,<3.0 ; extra == 'pytorch-dev'
@@ -2173,7 +2270,7 @@ packages:
   - torchmetrics>=0.10.0,<2.0 ; extra == 'pytorch-dev'
   - torchvision>=0.16.0,<1.0 ; extra == 'pytorch-dev'
   - uvicorn ; extra == 'pytorch-dev'
-  - deepspeed>=0.8.2,<=0.9.3 ; sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'pytorch-dev'
+  - deepspeed>=0.8.2,<=0.9.3 ; platform_system != 'Darwin' and platform_system != 'Windows' and extra == 'pytorch-dev'
   - bitsandbytes>=0.42.0,<1.0 ; sys_platform == 'darwin' and extra == 'pytorch-dev'
   - bitsandbytes>=0.44.0,<1.0 ; (sys_platform == 'linux' and extra == 'pytorch-dev') or (sys_platform == 'win32' and extra == 'pytorch-dev')
   - ipython[all]<9.0 ; extra == 'pytorch-examples'
@@ -2189,7 +2286,7 @@ packages:
   - tensorboardx>=2.2,<3.0 ; extra == 'pytorch-extra'
   - bitsandbytes>=0.42.0,<1.0 ; sys_platform == 'darwin' and extra == 'pytorch-extra'
   - bitsandbytes>=0.44.0,<1.0 ; (sys_platform == 'linux' and extra == 'pytorch-extra') or (sys_platform == 'win32' and extra == 'pytorch-extra')
-  - deepspeed>=0.8.2,<=0.9.3 ; sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'pytorch-strategies'
+  - deepspeed>=0.8.2,<=0.9.3 ; platform_system != 'Darwin' and platform_system != 'Windows' and extra == 'pytorch-strategies'
   - cloudpickle>=1.3,<3.0 ; extra == 'pytorch-test'
   - coverage==7.3.1 ; extra == 'pytorch-test'
   - fastapi ; extra == 'pytorch-test'
@@ -2206,7 +2303,7 @@ packages:
   - scikit-learn>0.22.1,<2.0 ; extra == 'pytorch-test'
   - tensorboard>=2.9.1,<3.0 ; extra == 'pytorch-test'
   - uvicorn ; extra == 'pytorch-test'
-  - deepspeed>=0.8.2,<=0.9.3 ; sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'strategies'
+  - deepspeed>=0.8.2,<=0.9.3 ; platform_system != 'Darwin' and platform_system != 'Windows' and extra == 'strategies'
   - bitsandbytes>=0.42.0,<1.0 ; sys_platform == 'darwin' and extra == 'strategies'
   - bitsandbytes>=0.44.0,<1.0 ; (sys_platform == 'linux' and extra == 'strategies') or (sys_platform == 'win32' and extra == 'strategies')
   - click==8.1.7 ; extra == 'test'
@@ -2385,10 +2482,26 @@ packages:
   md5: 217ed2ff255f52cbef787aba3f9b9637
   size: 699526661
   timestamp: 1709778043113
-- pypi: https://download.pytorch.org/whl/nightly/numpy-2.1.2-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
-  name: numpy
-  version: 2.1.2
-  requires_python: '>=3.10'
+- conda: https://conda.anaconda.org/conda-forge/linux-64/numpy-2.2.3-py311h5d046bc_0.conda
+  sha256: 9ff5ab34612b78ffcad42f33ef821594584eec30f8f24df600b5581831975378
+  md5: 6de29798b2e278c56f1e87b7d6e693bb
+  depends:
+  - __glibc >=2.17,<3.0.a0
+  - libblas >=3.9.0,<4.0a0
+  - libcblas >=3.9.0,<4.0a0
+  - libgcc >=13
+  - liblapack >=3.9.0,<4.0a0
+  - libstdcxx >=13
+  - python >=3.11,<3.12.0a0
+  - python_abi 3.11.* *_cp311
+  constrains:
+  - numpy-base <0a0
+  license: BSD-3-Clause
+  license_family: BSD
+  purls:
+  - pkg:pypi/numpy?source=hash-mapping
+  size: 9065890
+  timestamp: 1739425997956
 - pypi: https://download.pytorch.org/whl/nightly/cu124/nvidia_cublas_cu12-12.4.5.8-py3-none-manylinux2014_x86_64.whl
   name: nvidia-cublas-cu12
   version: 12.4.5.8
@@ -2769,6 +2882,17 @@ packages:
   requires_dist:
   - six>=1.5
   requires_python: '>=2.7,!=3.0.*,!=3.1.*,!=3.2.*'
+- conda: https://conda.anaconda.org/conda-forge/linux-64/python_abi-3.11-5_cp311.conda
+  build_number: 5
+  sha256: 2660b8059b3ee854bc5d3c6b1fce946e5bd2fe8fbca7827de2c5885ead6209de
+  md5: 139a8d40c8a2f430df31048949e450de
+  constrains:
+  - python 3.11.* *_cpython
+  license: BSD-3-Clause
+  license_family: BSD
+  purls: []
+  size: 6211
+  timestamp: 1723823324668
 - pypi: https://files.pythonhosted.org/packages/02/df/0c7e4582b74264fe2179e78fcdeb9313f680d40ffe1dd4b078da5a2cbf82/pytorch_lightning-2.5.0.post0-py3-none-any.whl
   name: pytorch-lightning
   version: 2.5.0.post0
@@ -2793,10 +2917,10 @@ packages:
   - ipython[all]<8.15.0 ; extra == 'all'
   - torchmetrics>=0.10.0 ; extra == 'all'
   - lightning-utilities>=0.8.0 ; extra == 'all'
-  - deepspeed>=0.8.2,<=0.9.3 ; sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'all'
+  - deepspeed>=0.8.2,<=0.9.3 ; platform_system != 'Darwin' and platform_system != 'Windows' and extra == 'all'
   - bitsandbytes>=0.42.0 ; sys_platform == 'darwin' and extra == 'all'
   - bitsandbytes>=0.44.0 ; (sys_platform == 'linux' and extra == 'all') or (sys_platform == 'win32' and extra == 'all')
-  - deepspeed>=0.8.2,<=0.9.3 ; sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'deepspeed'
+  - deepspeed>=0.8.2,<=0.9.3 ; platform_system != 'Darwin' and platform_system != 'Windows' and extra == 'deepspeed'
   - matplotlib>3.1 ; extra == 'dev'
   - omegaconf>=2.2.3 ; extra == 'dev'
   - hydra-core>=1.2.0 ; extra == 'dev'
@@ -2824,7 +2948,7 @@ packages:
   - fastapi ; extra == 'dev'
   - uvicorn ; extra == 'dev'
   - tensorboard>=2.9.1 ; extra == 'dev'
-  - deepspeed>=0.8.2,<=0.9.3 ; sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'dev'
+  - deepspeed>=0.8.2,<=0.9.3 ; platform_system != 'Darwin' and platform_system != 'Windows' and extra == 'dev'
   - bitsandbytes>=0.42.0 ; sys_platform == 'darwin' and extra == 'dev'
   - bitsandbytes>=0.44.0 ; (sys_platform == 'linux' and extra == 'dev') or (sys_platform == 'win32' and extra == 'dev')
   - requests<2.32.0 ; extra == 'examples'
@@ -2840,7 +2964,7 @@ packages:
   - tensorboardx>=2.2 ; extra == 'extra'
   - bitsandbytes>=0.42.0 ; sys_platform == 'darwin' and extra == 'extra'
   - bitsandbytes>=0.44.0 ; (sys_platform == 'linux' and extra == 'extra') or (sys_platform == 'win32' and extra == 'extra')
-  - deepspeed>=0.8.2,<=0.9.3 ; sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'strategies'
+  - deepspeed>=0.8.2,<=0.9.3 ; platform_system != 'Darwin' and platform_system != 'Windows' and extra == 'strategies'
   - coverage==7.3.1 ; extra == 'test'
   - pytest==7.4.0 ; extra == 'test'
   - pytest-cov==4.1.0 ; extra == 'test'
@@ -2939,6 +3063,29 @@ packages:
   version: 0.8.0
   sha256: 87a8e86bae0dbd749c815211ca11e3a7bd559b9710746c559ed63106d382bd9c
   requires_python: '>=3.7'
+- conda: https://conda.anaconda.org/conda-forge/linux-64/scipy-1.15.2-py311h8f841c2_0.conda
+  sha256: 6d0902775e3ff96dd1d36ac627e03fe6c0b3d2159bb71e115dd16a1f31693b25
+  md5: 5ec0a1732a05376241e1e4c6d50e0e91
+  depends:
+  - __glibc >=2.17,<3.0.a0
+  - libblas >=3.9.0,<4.0a0
+  - libcblas >=3.9.0,<4.0a0
+  - libgcc >=13
+  - libgfortran
+  - libgfortran5 >=13.3.0
+  - liblapack >=3.9.0,<4.0a0
+  - libstdcxx >=13
+  - numpy <2.5
+  - numpy >=1.19,<3
+  - numpy >=1.23.5
+  - python >=3.11,<3.12.0a0
+  - python_abi 3.11.* *_cp311
+  license: BSD-3-Clause
+  license_family: BSD
+  purls:
+  - pkg:pypi/scipy?source=hash-mapping
+  size: 17193126
+  timestamp: 1739791897768
 - pypi: https://files.pythonhosted.org/packages/6a/23/8146aad7d88f4fcb3a6218f41a60f6c2d4e3a72de72da1825dc7c8f7877c/semantic_version-2.10.0-py2.py3-none-any.whl
   name: semantic-version
   version: 2.10.0
@@ -3095,9 +3242,9 @@ packages:
   purls: []
   size: 3318875
   timestamp: 1699202167581
-- pypi: https://download.pytorch.org/whl/nightly/cu124/torch-2.7.0.dev20250225%2Bcu124-cp311-cp311-manylinux_2_28_x86_64.whl
+- pypi: https://download.pytorch.org/whl/nightly/cu124/torch-2.7.0.dev20250302%2Bcu124-cp311-cp311-manylinux_2_28_x86_64.whl
   name: torch
-  version: 2.7.0.dev20250225+cu124
+  version: 2.7.0.dev20250302+cu124
   requires_dist:
   - filelock
   - typing-extensions>=4.10.0
@@ -3106,20 +3253,20 @@ packages:
   - networkx
   - jinja2
   - fsspec
-  - nvidia-cuda-nvrtc-cu12==12.4.127 ; platform_machine == 'x86_64' and sys_platform == 'linux'
-  - nvidia-cuda-runtime-cu12==12.4.127 ; platform_machine == 'x86_64' and sys_platform == 'linux'
-  - nvidia-cuda-cupti-cu12==12.4.127 ; platform_machine == 'x86_64' and sys_platform == 'linux'
-  - nvidia-cudnn-cu12==9.1.0.70 ; platform_machine == 'x86_64' and sys_platform == 'linux'
-  - nvidia-cublas-cu12==12.4.5.8 ; platform_machine == 'x86_64' and sys_platform == 'linux'
-  - nvidia-cufft-cu12==11.2.1.3 ; platform_machine == 'x86_64' and sys_platform == 'linux'
-  - nvidia-curand-cu12==10.3.5.147 ; platform_machine == 'x86_64' and sys_platform == 'linux'
-  - nvidia-cusolver-cu12==11.6.1.9 ; platform_machine == 'x86_64' and sys_platform == 'linux'
-  - nvidia-cusparse-cu12==12.3.1.170 ; platform_machine == 'x86_64' and sys_platform == 'linux'
-  - nvidia-cusparselt-cu12==0.6.2 ; platform_machine == 'x86_64' and sys_platform == 'linux'
-  - nvidia-nccl-cu12==2.25.1 ; platform_machine == 'x86_64' and sys_platform == 'linux'
-  - nvidia-nvtx-cu12==12.4.127 ; platform_machine == 'x86_64' and sys_platform == 'linux'
-  - nvidia-nvjitlink-cu12==12.4.127 ; platform_machine == 'x86_64' and sys_platform == 'linux'
-  - pytorch-triton==3.2.0+git4b3bb1f8 ; platform_machine == 'x86_64' and sys_platform == 'linux'
+  - nvidia-cuda-nvrtc-cu12==12.4.127 ; platform_machine == 'x86_64' and platform_system == 'Linux'
+  - nvidia-cuda-runtime-cu12==12.4.127 ; platform_machine == 'x86_64' and platform_system == 'Linux'
+  - nvidia-cuda-cupti-cu12==12.4.127 ; platform_machine == 'x86_64' and platform_system == 'Linux'
+  - nvidia-cudnn-cu12==9.1.0.70 ; platform_machine == 'x86_64' and platform_system == 'Linux'
+  - nvidia-cublas-cu12==12.4.5.8 ; platform_machine == 'x86_64' and platform_system == 'Linux'
+  - nvidia-cufft-cu12==11.2.1.3 ; platform_machine == 'x86_64' and platform_system == 'Linux'
+  - nvidia-curand-cu12==10.3.5.147 ; platform_machine == 'x86_64' and platform_system == 'Linux'
+  - nvidia-cusolver-cu12==11.6.1.9 ; platform_machine == 'x86_64' and platform_system == 'Linux'
+  - nvidia-cusparse-cu12==12.3.1.170 ; platform_machine == 'x86_64' and platform_system == 'Linux'
+  - nvidia-cusparselt-cu12==0.6.2 ; platform_machine == 'x86_64' and platform_system == 'Linux'
+  - nvidia-nccl-cu12==2.25.1 ; platform_machine == 'x86_64' and platform_system == 'Linux'
+  - nvidia-nvtx-cu12==12.4.127 ; platform_machine == 'x86_64' and platform_system == 'Linux'
+  - nvidia-nvjitlink-cu12==12.4.127 ; platform_machine == 'x86_64' and platform_system == 'Linux'
+  - pytorch-triton==3.2.0+git4b3bb1f8 ; platform_machine == 'x86_64' and platform_system == 'Linux'
   - optree>=0.13.0 ; extra == 'optree'
   - opt-einsum>=3.3 ; extra == 'opt-einsum'
   requires_python: '>=3.9.0'
@@ -3269,7 +3416,7 @@ packages:
   name: tqdm
   version: 4.66.5
   requires_dist:
-  - colorama ; sys_platform == 'win32'
+  - colorama ; platform_system == 'Windows'
   - pytest>=6 ; extra == 'dev'
   - pytest-cov ; extra == 'dev'
   - pytest-timeout ; extra == 'dev'
