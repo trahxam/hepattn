@@ -1,5 +1,3 @@
-from collections.abc import Mapping
-
 from torch import nn
 from torch.nn import ModuleList
 
@@ -7,7 +5,7 @@ from torch.nn import ModuleList
 class MaskFormer(nn.Module):
     def __init__(
         self,
-        loss_config: Mapping,  # noqa: ARG002
+        loss_config: dict,  # noqa: ARG002
         init_nets: ModuleList,
         mask_decoder: nn.Module,
         encoder: nn.Module | None = None,
