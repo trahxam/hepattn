@@ -39,6 +39,8 @@ class MaskformerDecoderLayer(nn.Module):
             self.kv_dense = residual(Dense(dim, **dense_kwargs))
 
     def forward(self, q: Tensor, kv: Tensor, attn_mask: Tensor | None = None, kv_mask: Tensor | None = None) -> Tensor:
+        assert kv_mask is None, "KV mask is not yet supported"
+
         # q are object queries, kv are hit embeddings
         # if we want to do mask attention
         if self.mask_attention:
@@ -51,15 +53,15 @@ class MaskformerDecoderLayer(nn.Module):
             attn_mask = None
 
         # update queries
-        q = self.q_ca(q, k=kv, v=kv, kv_mask=kv_mask, attn_mask=attn_mask)
+        q = self.q_ca(q, k=kv, v=kv, attn_mask=attn_mask)  # needs input pad mask
         q = self.q_sa(q)
         q = self.q_dense(q)
 
         # update inputs
         if self.bidirectional_ca:
             if attn_mask is not None:
-                attn_mask = attn_mask.transpose(1, 2)
-            kv = self.kv_ca(kv, k=q, v=q, q_mask=kv_mask, attn_mask=attn_mask)
+                attn_mask = attn_mask.transpose(2, 3)
+            kv = self.kv_ca(kv, k=q, v=q, attn_mask=attn_mask)  # needs input pad mask
             kv = self.kv_dense(kv)
 
         return q, kv
@@ -90,6 +92,8 @@ class MaskformerDecoder(nn.Module):
         self.layers = nn.ModuleList([MaskformerDecoderLayer(dim, **md_config) for _ in range(num_layers)])
 
     def forward(self, x: Tensor, input_pad_mask: Tensor = None):
+        assert input_pad_mask is None, "Input padding is not yet supported"
+
         # broadcast queries to batch size
         q = self.initial_q.expand(x.shape[0], -1, -1)
 
@@ -103,13 +107,14 @@ class MaskformerDecoder(nn.Module):
             # compute the attention mask for the current layer
             mask_logits = self.mask_pred(q, x, input_pad_mask)
             attn_mask = mask_logits.sigmoid() < self.mask_threshold
+            attn_mask = attn_mask.unsqueeze(1)  # add head dimension
 
             # keep track of intermediate outputs
             if self.intermediate_loss:
                 intermediate_outputs.append({"q": q.detach(), **self.class_pred(q), "mask_logits": mask_logits})
 
             # update queries and inputs
-            q, x = layer(q, x, attn_mask=attn_mask, kv_mask=input_pad_mask)
+            q, x = layer(q, x, attn_mask=attn_mask)
 
         # construct final outputs
         preds = {"q": q, "x": x, **self.class_pred(q), "mask_logits": self.mask_pred(q, x, input_pad_mask)}

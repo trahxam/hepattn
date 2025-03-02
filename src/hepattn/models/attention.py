@@ -70,10 +70,28 @@ class Attention(nn.Module):
         q: Tensor,
         k: Tensor | None = None,
         v: Tensor | None = None,
-        mask: BlockMask | BoolTensor | None = None,
+        attn_mask: BlockMask | BoolTensor | None = None,
         score_mod: _score_mod_signature | None = None,
         initial_values: dict | None = None,
     ) -> Tensor:
+        """
+        Multi-head attention forward pass.
+
+        Parameters
+        ----------
+        q : Tensor
+            Queries tensor of shape (B, S, D).
+        k : Tensor, optional
+            Keys tensor of shape (B, S, D). If None, defaults to q.
+        v : Tensor, optional
+            Values tensor of shape (B, S, D). If None, defaults to q.
+        attn_mask : BlockMask | BoolTensor, optional
+            Attention mask to apply. If None, no mask is applied.
+        score_mod : _score_mod_signature, optional
+            Score modifier function for flex attention. If None, no score modifier is applied.
+        initial_values : dict, optional
+            Initial values for value residual connection.
+        """
         # Default to self-attention
         k = k if k is not None else q
         v = v if v is not None else q
@@ -104,9 +122,9 @@ class Attention(nn.Module):
 
         # Fused attention
         if self.attn_type == "flex":
-            out = self.attn(q, k, v, block_mask=mask, score_mod=score_mod)
+            out = self.attn(q, k, v, block_mask=attn_mask, score_mod=score_mod)
         elif self.attn_type == "torch":
-            out = self.attn(q, k, v, attn_mask=mask)
+            out = self.attn(q, k, v, attn_mask=attn_mask)
         elif self.attn_type == "flash":
             out = self.attn(q, k, v, window_size=self.window_size)
         else:

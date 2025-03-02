@@ -96,8 +96,8 @@ def test_local_attention():
     q_len = q.shape[-2]
     # block_mask = create_block_mask(mask_mod, B=None, H=None, Q_LEN=q_len, KV_LEN=q_len, device=q.device)  # noqa: ERA001
     mask = create_mask(mask_mod, 1, 1, q_len, q_len, device=q.device)
-    # out_flex = attn_flex(q, k, v, mask=block_mask)  # noqa: ERA001
-    out_spda = attn_spda(q, k, v, mask=mask)
+    # out_flex = attn_flex(q, k, v, attn_mask=block_mask)  # noqa: ERA001
+    out_spda = attn_spda(q, k, v, attn_mask=mask)
     out_flash = attn_flash(q, k, v)
 
     # Compare outputs
