@@ -55,8 +55,7 @@ class HitFilter(L.LightningModule):
         x = self.init(x["hit"])
 
         if self.pos_enc:
-            pe = self.pos_enc(labels["phi"].unsqueeze(-1))
-            x += pe
+            x += self.pos_enc(labels)
 
         x = self.encoder(x)
         preds = self.dense(x).squeeze(-1)

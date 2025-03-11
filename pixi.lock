@@ -224,7 +224,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/e1/33/d3e0779d5c58245e7370c98eb969275af6b7a4a5aec3b97cbf85f09ad328/simplejson-3.20.1-cp311-cp311-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://download.pytorch.org/whl/nightly/six-1.16.0-py2.py3-none-any.whl
       - pypi: https://download.pytorch.org/whl/nightly/sympy-1.13.3-py3-none-any.whl
-      - pypi: https://download.pytorch.org/whl/nightly/cu124/torch-2.7.0.dev20250302%2Bcu124-cp311-cp311-manylinux_2_28_x86_64.whl
+      - pypi: https://download.pytorch.org/whl/nightly/cu124/torch-2.7.0.dev20250310%2Bcu124-cp311-cp311-manylinux_2_28_x86_64.whl
       - pypi: https://download.pytorch.org/whl/nightly/torchmetrics-1.1.2-py3-none-any.whl
       - pypi: https://download.pytorch.org/whl/nightly/tqdm-4.66.5-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/fd/39/4702c2901899c018189b9aa7eb75aa8eb54527aed71c3f285895190dc664/typeshed_client-2.7.0-py3-none-any.whl
@@ -1310,10 +1310,12 @@ packages:
 - pypi: .
   name: hepattn
   version: 0.1.0
-  sha256: 74b5ab30adbe4a61a767c2134f778adee4a688c5a4bad99bf7ff587097feccfa
+  sha256: 2a802df406aca2cf6365d1e64069975a3d842630e386167947ca4941dfa81025
   requires_dist:
   - packaging
   - wheel
+  - numpy
+  - scipy
   - pytest>=8.3.3,<9
   - ruff==0.8.0
   - pre-commit>=4.0.1,<5
@@ -1324,8 +1326,6 @@ packages:
   - pyarrow>=17.0.0
   - jsonargparse[signatures]>=4.34.0,<5
   - flash-attn @ https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.6cxx11abiTRUE-cp311-cp311-linux_x86_64.whl
-  - numpy
-  - scipy
   requires_python: ==3.11
   editable: true
 - pypi: https://files.pythonhosted.org/packages/78/8c/4bfcab2d8286473b8d83ea742716f4b79290172e75f91142bc1534b05b9a/identify-2.6.8-py2.py3-none-any.whl
@@ -3242,14 +3242,14 @@ packages:
   purls: []
   size: 3318875
   timestamp: 1699202167581
-- pypi: https://download.pytorch.org/whl/nightly/cu124/torch-2.7.0.dev20250302%2Bcu124-cp311-cp311-manylinux_2_28_x86_64.whl
+- pypi: https://download.pytorch.org/whl/nightly/cu124/torch-2.7.0.dev20250310%2Bcu124-cp311-cp311-manylinux_2_28_x86_64.whl
   name: torch
-  version: 2.7.0.dev20250302+cu124
+  version: 2.7.0.dev20250310+cu124
   requires_dist:
   - filelock
   - typing-extensions>=4.10.0
   - setuptools ; python_full_version >= '3.12'
-  - sympy==1.13.3
+  - sympy>=1.13.3
   - networkx
   - jinja2
   - fsspec

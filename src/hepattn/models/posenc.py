@@ -1,4 +1,5 @@
 import torch
+from torch import nn
 
 
 def get_omegas(alpha, dim, **kwargs):
@@ -59,7 +60,7 @@ def pos_enc(xs, dim, alpha=1000):
     return torch.cat((p1, p2), dim=-1)
 
 
-class PositionEncoder:
+class PositionEncoder(nn.Module):
     def __init__(self, variables: list[str], dim: int, alpha=1000):
         """Positional encoder.
 
@@ -68,6 +69,8 @@ class PositionEncoder:
         variables : list[str]
             List of variables to apply the positional encoding to.
         """
+        super().__init__()
+
         self.variables = variables
         self.dim = dim
         self.alpha = alpha
@@ -76,7 +79,7 @@ class PositionEncoder:
         self.per_input_dim = self.dim // len(self.variables)
         self.remainder_dim = self.dim % len(self.variables)
 
-    def __call__(self, inputs: dict):
+    def forward(self, inputs: dict):
         """Apply positional encoding to the inputs.
 
         Parameters

@@ -4,6 +4,8 @@ from flash_attn import flash_attn_func
 from torch import BoolTensor, Tensor, nn
 from torch.nn.attention.flex_attention import BlockMask, _score_mod_signature, flex_attention
 
+from hepattn.models.norm import LayerNorm
+
 ATTN_TYPES = {
     "torch": F.scaled_dot_product_attention,
     "flex": flex_attention,
@@ -12,13 +14,6 @@ ATTN_TYPES = {
 
 
 class Attention(nn.Module):
-    """
-    An attention layer that allows for downscaling the size of the embedding
-    after projection to queries, keys, and values.
-
-    Adapted from https://github.com/pytorch-labs/segment-anything-fast/blob/main/segment_anything_fast/modeling/transformer.py
-    """
-
     def __init__(
         self,
         dim: int,
@@ -28,6 +23,7 @@ class Attention(nn.Module):
         torch_compile: bool = False,
         window_size: int | None = None,
         value_residual: bool = False,
+        qkv_norm: bool = False,
     ) -> None:
         super().__init__()
         assert dim % num_heads == 0, "num_heads must divide dim."
@@ -40,6 +36,7 @@ class Attention(nn.Module):
         self.attn = ATTN_TYPES[attn_type]
         self.window_size = None
         self.value_residual = value_residual
+        self.qkv_norm = qkv_norm
 
         if attn_type == "flash":
             self.window_size = (window_size // 2, window_size // 2) if window_size is not None else (-1, -1)
@@ -53,6 +50,11 @@ class Attention(nn.Module):
 
         if self.value_residual:
             self.value_residual_mix = nn.Sequential(nn.Linear(dim, num_heads), nn.Sigmoid())
+
+        if self.qkv_norm:
+            self.q_norm = LayerNorm(dim)
+            self.k_norm = LayerNorm(dim)
+            self.v_norm = LayerNorm(dim)
 
     def separate_heads(self, x: Tensor, num_heads: int) -> Tensor:
         x = x.unflatten(-1, (num_heads, -1))  # B S D -> B S H Dh
@@ -108,6 +110,12 @@ class Attention(nn.Module):
         q = self.q_proj(q)
         k = self.k_proj(k)
         v = self.v_proj(v)
+
+        # Normalize queries, keys, and values
+        if self.qkv_norm:
+            q = self.q_norm(q)
+            k = self.k_norm(k)
+            v = self.v_norm(v)
 
         # Separate into heads
         q = self.separate_heads(q, self.num_heads)

@@ -6,7 +6,9 @@ from torch.nn.attention.flex_attention import create_block_mask, create_mask
 
 from hepattn.flex import relative_position, relative_position_wrapped
 from hepattn.flex.sliding_window import sliding_window_mask, sliding_window_mask_wrapped
-from hepattn.models import Attention, Dense, LayerNorm
+from hepattn.models.attention import Attention
+from hepattn.models.dense import Dense
+from hepattn.models.norm import LayerNorm
 
 create_block_mask = torch.compile(create_block_mask, dynamic=True)
 
@@ -51,6 +53,7 @@ class Residual(nn.Module):
         fn: nn.Module,
         dim: int,
         norm: nn.Module | None = None,
+        norm_residual: bool = False,
         layer_scale: float | None = None,
         drop_path: float = 0.0,
     ) -> None:
@@ -62,6 +65,8 @@ class Residual(nn.Module):
             The module to wrap. Must be non-resizing.
         norm : str, optional
             The normalization layer.
+        norm_residual : bool, optional
+            Instead of standard pre-ln, apply the norm before the residual branch.
         layer_scale : float | None, optional
             The initial value for the layer_scale. If None, then no layer_scale is applied.
         drop_path : float, optional
@@ -74,8 +79,12 @@ class Residual(nn.Module):
         self.norm = norm(dim)
         self.ls = LayerScale(dim, layer_scale) if layer_scale is not None else nn.Identity()
         self.dp = DropPath(drop_path) if drop_path else nn.Identity()
+        self.norm_residual = norm_residual
 
     def forward(self, x: Tensor, **kwargs) -> Tensor:
+        if self.norm_residual:
+            x = self.norm(x)
+            return x + self.dp(self.ls(self.fn(x, **kwargs)))
         return x + self.dp(self.ls(self.fn(self.norm(x), **kwargs)))
 
 
@@ -83,10 +92,12 @@ class EncoderLayer(nn.Module):
     def __init__(
         self,
         dim: int,
+        depth: int,
         norm: nn.Module = None,
         layer_scale: float | None = None,
         drop_path: float = 0.0,
         value_residual: bool = False,
+        hybrid_norm: bool = False,
         dense_kwargs: dict | None = None,
         attn_kwargs: dict | None = None,
     ) -> None:
@@ -96,12 +107,18 @@ class EncoderLayer(nn.Module):
         ----------
         dim : int
             Dimension of the embeddings.
+        depth : int
+            The depth of the layer.
         norm : str, optional
             The normalization layer.
         drop_path : float, optional
             Drop path rate.
         layer_scale : float | None, optional
             Initial layer_scale value.
+        value_residual : bool, optional
+            Whether to apply a residual connection to initial values.
+        hybrid_norm : bool, optional
+            Whether to use HybridNorm from 2503.04598.
         dense_kwargs : dict | None, optional
             Keyword arguments for dense layer.
         attn_kwargs : dict | None, optional
@@ -113,11 +130,17 @@ class EncoderLayer(nn.Module):
         dense_kwargs = dense_kwargs or {}
         norm = norm or LayerNorm
 
+        # handle hybridnorm
+        qkv_norm = hybrid_norm
+        if depth == 0:
+            hybrid_norm = False
+        attn_norm = norm if not hybrid_norm else None
+
         self.dim = dim
         self.value_residual = value_residual
-        residual = partial(Residual, dim=dim, norm=norm, layer_scale=layer_scale, drop_path=drop_path)
-        self.attn = residual(Attention(self.dim, **attn_kwargs))
-        self.dense = residual(Dense(self.dim, **dense_kwargs))
+        residual = partial(Residual, dim=dim, layer_scale=layer_scale, drop_path=drop_path)
+        self.attn = residual(Attention(self.dim, qkv_norm=qkv_norm, **attn_kwargs), norm=attn_norm)
+        self.dense = residual(Dense(self.dim, **dense_kwargs), norm=norm, norm_residual=hybrid_norm)
 
     def forward(self, x: Tensor, **kwargs) -> Tensor:
         return self.dense(self.attn(x, **kwargs))
@@ -177,7 +200,7 @@ class Encoder(nn.Module):
             attn_kwargs["window_size"] = window_size
         layer_kwargs["attn_kwargs"] = attn_kwargs
 
-        self.layers = torch.nn.ModuleList([EncoderLayer(dim=dim, **layer_kwargs) for _ in range(num_layers)])
+        self.layers = torch.nn.ModuleList([EncoderLayer(dim=dim, depth=i, **layer_kwargs) for i in range(num_layers)])
 
     def forward(self, x: Tensor, **kwargs) -> Tensor:
         # Concatenate dictionary values
