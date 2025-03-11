@@ -1,5 +1,5 @@
 seed_everything: 42
-name: HF-test-flex-relative-pe
+name: HF-test-torch-hybridnorm
 
 model:
   torch_compile: false
@@ -17,21 +17,22 @@ model:
       hidden_layers: [256]
       norm_input: true
 
-  pos_enc:
-    class_path: hepattn.models.PositionEncoder
-    init_args:
-      variables: [phi, theta]
-      dim: *dim
+  #pos_enc:
+  #  class_path: hepattn.models.PositionEncoder
+  #  init_args:
+  #    variables: [phi, theta]
+  #    dim: *dim
 
   encoder:
     class_path: hepattn.models.Encoder
     init_args:
       dim: *dim
       num_layers: 12
-      attn_type: flex
+      attn_type: flash
       window_size: 1024
-      window_wrap: true
-      score_mod: relative_position
+      hybrid_norm: true
+      #window_wrap: true
+      #score_mod: relative_position
       #value_residual: true
       #layer_scale: 1e-3
       #drop_path: 0.1
@@ -50,7 +51,8 @@ data:
 
   # use pixel barrel layers only
   # https://competitions.codalab.org/competitions/20112
-  volume_ids: [7, 8, 9]
+  #volume_ids: [7, 8, 9]
+  volume_ids: [8]
 
   inputs:
     hit:
@@ -117,7 +119,7 @@ trainer:
 
   callbacks:
     - class_path: lightning.pytorch.callbacks.LearningRateMonitor
-    #- class_path: hepattn.callbacks.MyThroughputMonitor
+    - class_path: hepattn.callbacks.MyThroughputMonitor
     - class_path: lightning.pytorch.callbacks.ModelSummary
     - class_path: lightning.pytorch.callbacks.TQDMProgressBar
       init_args:
