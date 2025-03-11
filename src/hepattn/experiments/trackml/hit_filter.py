@@ -106,14 +106,14 @@ class HitFilter(L.LightningModule):
         pred = preds["hit_pred"]
         tgt = labels["hit"]["tgt_pid"].bool()
         pred_true = pred.sigmoid() > 0.1
-        self.log(f"{stage}/nh/total_pre", float(pred.shape[1]), **kwargs)
-        self.log(f"{stage}/nh/total_post", float(pred_true.sum()), **kwargs)
-        self.log(f"{stage}/nh/pred_true", pred_true.float().sum(), **kwargs)
-        self.log(f"{stage}/nh/pred_false", (~pred_true).float().sum(), **kwargs)
-        self.log(f"{stage}/nh/valid_pre", tgt.float().sum(), **kwargs)
-        self.log(f"{stage}/nh/valid_post", (pred_true & tgt).float().sum(), **kwargs)
-        self.log(f"{stage}/nh/noise_pre", (~tgt).float().sum(), **kwargs)
-        self.log(f"{stage}/nh/noise_post", (pred_true & ~tgt).float().sum(), **kwargs)
+        self.log(f"{stage}/nh_total_pre", float(pred.shape[1]), **kwargs)
+        self.log(f"{stage}/nh_total_post", float(pred_true.sum()), **kwargs)
+        self.log(f"{stage}/nh_pred_true", pred_true.float().sum(), **kwargs)
+        self.log(f"{stage}/nh_pred_false", (~pred_true).float().sum(), **kwargs)
+        self.log(f"{stage}/nh_valid_pre", tgt.float().sum(), **kwargs)
+        self.log(f"{stage}/nh_valid_post", (pred_true & tgt).float().sum(), **kwargs)
+        self.log(f"{stage}/nh_noise_pre", (~tgt).float().sum(), **kwargs)
+        self.log(f"{stage}/nh_noise_post", (pred_true & ~tgt).float().sum(), **kwargs)
 
         # accuracy
         self.log(f"{stage}/acc", (pred_true == tgt).half().mean(), **kwargs)

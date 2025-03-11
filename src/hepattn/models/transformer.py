@@ -53,7 +53,7 @@ class Residual(nn.Module):
         fn: nn.Module,
         dim: int,
         norm: nn.Module | None = None,
-        norm_residual: bool = False,
+        post_norm: bool = False,
         layer_scale: float | None = None,
         drop_path: float = 0.0,
     ) -> None:
@@ -65,8 +65,8 @@ class Residual(nn.Module):
             The module to wrap. Must be non-resizing.
         norm : str, optional
             The normalization layer.
-        norm_residual : bool, optional
-            Instead of standard pre-ln, apply the norm before the residual branch.
+        post_norm : bool, optional
+            Instead of standard pre-norm, apply norm before the residual (post-norm for the previous op).
         layer_scale : float | None, optional
             The initial value for the layer_scale. If None, then no layer_scale is applied.
         drop_path : float, optional
@@ -79,10 +79,10 @@ class Residual(nn.Module):
         self.norm = norm(dim)
         self.ls = LayerScale(dim, layer_scale) if layer_scale is not None else nn.Identity()
         self.dp = DropPath(drop_path) if drop_path else nn.Identity()
-        self.norm_residual = norm_residual
+        self.post_norm = post_norm
 
     def forward(self, x: Tensor, **kwargs) -> Tensor:
-        if self.norm_residual:
+        if self.post_norm:
             x = self.norm(x)
             return x + self.dp(self.ls(self.fn(x, **kwargs)))
         return x + self.dp(self.ls(self.fn(self.norm(x), **kwargs)))
@@ -135,12 +135,13 @@ class EncoderLayer(nn.Module):
         if depth == 0:
             hybrid_norm = False
         attn_norm = norm if not hybrid_norm else None
+        dense_post_norm = not hybrid_norm
 
         self.dim = dim
         self.value_residual = value_residual
         residual = partial(Residual, dim=dim, layer_scale=layer_scale, drop_path=drop_path)
         self.attn = residual(Attention(self.dim, qkv_norm=qkv_norm, **attn_kwargs), norm=attn_norm)
-        self.dense = residual(Dense(self.dim, **dense_kwargs), norm=norm, norm_residual=hybrid_norm)
+        self.dense = residual(Dense(self.dim, **dense_kwargs), norm=norm, post_norm=dense_post_norm)
 
     def forward(self, x: Tensor, **kwargs) -> Tensor:
         return self.dense(self.attn(x, **kwargs))

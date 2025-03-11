@@ -33,8 +33,6 @@
 
 # Change log names; %j gives job id, %x gives job name
 #SBATCH --output=/share/rcifdata/svanstroud/slurm_logs/slurm-%j.%x.out
-# optional separate error output file
-##SBATCH --error=/share/rcifdata/svanstroud/slurm_logs/slurm-%j.%x.err
 
 # Comet variables
 echo "Setting comet experiment key"
@@ -50,7 +48,7 @@ echo "CPU count: $(cat /proc/cpuinfo | awk '/^processor/{print $3}' | tail -1)"
 echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
 
 # move to workdir
-cd /share/rcifdata/svanstroud/hepattn/src/hepattn/experiments/trackml/
+cd /share/rcifdata/svanstroud/hepattn/
 echo "Moved dir, now in: ${PWD}"
 
 # set tmpdir
@@ -63,4 +61,10 @@ nvidia-smi
 echo "Running training script..."
 
 # train hit filter tracking model
-pixi run srun python hit_filter.py fit --config hit_filter.yaml
+PYTORCH_CMD="python src/hepattn/experiments/trackml/hit_filter.py fit --config src/hepattn/experiments/trackml/hit_filter.yaml"
+PIXI_CMD="pixi run $PYTORCH_CMD"
+APPTAINER_CMD="apptainer run --nv --bind /share/rcifdata/svanstroud /share/rcifdata/svanstroud/hepattn/pixi.sif $PIXI_CMD"
+
+echo "Running command: $APPTAINER_CMD"
+$APPTAINER_CMD
+

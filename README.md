@@ -11,12 +11,13 @@ Goals:
 ### Apptainer
 
 You might need to run in a container if your `glibc` is too old.
+I'm using the pixi cuda container as a starting point here.
 
 ```shell
 cd hepattn
 apptainer pull pixi.sif docker://ghcr.io/prefix-dev/pixi:noble-cuda-12.6.3
 apptainer shell --nv pixi.sif
-pixi install
+pixi install --locked
 ```
 
 ### First time
