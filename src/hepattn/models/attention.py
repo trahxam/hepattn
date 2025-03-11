@@ -123,10 +123,11 @@ class Attention(nn.Module):
         v = self.separate_heads(v, self.num_heads)
 
         # Residual connection with initial values
-        if self.value_residual and not initial_values:
-            initial_values["v"] = v
-        elif self.value_residual:
-            v = v * mix + initial_values["v"] * (1.0 - mix)
+        if self.value_residual:
+            if not initial_values:
+                initial_values["v"] = v
+            else:
+                v = v * mix + initial_values["v"] * (1.0 - mix)
 
         # Fused attention
         if self.attn_type == "flex":
