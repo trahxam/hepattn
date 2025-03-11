@@ -111,6 +111,13 @@ class Attention(nn.Module):
         k = self.k_proj(k)
         v = self.v_proj(v)
 
+        # Residual connection with initial values
+        if self.value_residual:
+            if not initial_values:
+                initial_values["v"] = v
+            else:
+                v = v * mix + initial_values["v"] * (1.0 - mix)
+
         # Normalize queries, keys, and values
         if self.qkv_norm:
             q = self.q_norm(q)
@@ -121,13 +128,6 @@ class Attention(nn.Module):
         q = self.separate_heads(q, self.num_heads)
         k = self.separate_heads(k, self.num_heads)
         v = self.separate_heads(v, self.num_heads)
-
-        # Residual connection with initial values
-        if self.value_residual:
-            if not initial_values:
-                initial_values["v"] = v
-            else:
-                v = v * mix + initial_values["v"] * (1.0 - mix)
 
         # Fused attention
         if self.attn_type == "flex":
