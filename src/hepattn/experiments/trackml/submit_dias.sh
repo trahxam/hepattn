@@ -44,7 +44,7 @@ echo "CPU count: $(cat /proc/cpuinfo | awk '/^processor/{print $3}' | tail -1)"
 echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
 
 # move to workdir
-cd /share/rcifdata/svanstroud/hepattn/src/hepattn/experiments/trackml/
+cd /home/xucapsva/hepattn/src/hepattn/experiments/trackml/
 echo "Moved dir, now in: ${PWD}"
 
 # set tmpdir
@@ -57,4 +57,9 @@ nvidia-smi
 echo "Running training script..."
 
 # train hit filter tracking model
-pixi run srun python hit_filter.py fit --config hit_filter.yaml
+PYTORCH_CMD="python hit_filter.py fit --config hit_filter.yaml"
+PIXI_CMD="pixi run $PYTORCH_CMD"
+APPTAINER_CMD="apptainer run --nv /home/xucapsva/hepattn/pixi.sif $PIXI_CMD"
+
+echo "Running command: $APPTAINER_CMD"
+$APPTAINER_CMD
