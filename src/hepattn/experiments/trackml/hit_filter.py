@@ -6,6 +6,7 @@ import torch
 import torch.nn.functional as F
 from lightning import LightningModule
 from lightning.pytorch.cli import ArgsType
+from lion_pytorch import Lion
 from torch import nn
 
 from hepattn.experiments.cli import CLI
@@ -23,7 +24,7 @@ class HitFilter(LightningModule):
         dense: nn.Module,
         pos_enc: nn.Module | None = None,
         target: str = "hit_tgt",
-        lrs_config: dict | None = None,
+        opt_config: dict | None = None,
     ):
         super().__init__()
 
@@ -32,7 +33,7 @@ class HitFilter(LightningModule):
         self.encoder = encoder
         self.dense = dense
         self.target = target
-        self.lrs_config = lrs_config
+        self.opt_config = opt_config
         self.times: list[float] = []
         self.num_hits: list[int] = []
         self.pos_enc = pos_enc
@@ -139,16 +140,23 @@ class HitFilter(LightningModule):
             print(f"Saved timing info to times/{self.name}_times.npy")
 
     def configure_optimizers(self):
-        opt = torch.optim.AdamW(self.parameters(), lr=self.lrs_config["initial"], weight_decay=1e-5)
+        optimizer = torch.optim.Adam
+        if self.opt_config["opt"] == "AdamW":
+            optimizer = torch.optim.AdamW
+        elif self.opt_config["opt"] == "Lion":
+            optimizer = Lion
+        else:
+            raise ValueError(f"Unknown optimizer: {self.opt_config['opt']}")
+        opt = optimizer(self.parameters(), lr=self.opt_config["initial_lr"], weight_decay=self.opt_config["weight_decay"])
 
         # 1cycle
         sch = torch.optim.lr_scheduler.OneCycleLR(
             opt,
-            max_lr=self.lrs_config["max"],
+            max_lr=self.opt_config["max_lr"],
             total_steps=self.trainer.estimated_stepping_batches,
-            div_factor=self.lrs_config["max"] / self.lrs_config["initial"],
-            final_div_factor=self.lrs_config["initial"] / self.lrs_config["end"],
-            pct_start=float(self.lrs_config["pct_start"]),
+            div_factor=self.opt_config["max_lr"] / self.opt_config["initial_lr"],
+            final_div_factor=self.opt_config["initial_lr"] / self.opt_config["final_lr"],
+            pct_start=float(self.opt_config["pct_start"]),
         )
         sch = {"scheduler": sch, "interval": "step"}
 
