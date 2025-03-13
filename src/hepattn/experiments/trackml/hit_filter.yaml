@@ -1,5 +1,5 @@
 seed_everything: 42
-name: HF-test-torch-hybridnorm
+name: HF-test-hybridnorm
 
 model:
   torch_compile: false
@@ -34,7 +34,7 @@ model:
       #window_wrap: true
       #score_mod: relative_position
       #value_residual: true
-      #layer_scale: 1e-3
+      #layer_scale: 1e-4
       #drop_path: 0.1
 
   dense:
@@ -120,6 +120,8 @@ trainer:
   callbacks:
     - class_path: lightning.pytorch.callbacks.LearningRateMonitor
     - class_path: hepattn.callbacks.MyThroughputMonitor
+    - class_path: hepattn.callbacks.Compile
+    - class_path: hepattn.callbacks.InferenceTimer
     - class_path: lightning.pytorch.callbacks.ModelSummary
     - class_path: lightning.pytorch.callbacks.TQDMProgressBar
       init_args:
