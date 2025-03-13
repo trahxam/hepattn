@@ -281,7 +281,7 @@ class TrackMLDataModule(L.LightningDataModule):
 
     def setup(self, stage: str):
         if self.trainer.is_global_zero:
-            print("-" * 100)
+            print("-" * 80)
 
         # create training and validation datasets
         if stage in {"fit", "test"}:
@@ -316,7 +316,7 @@ class TrackMLDataModule(L.LightningDataModule):
             print(f"Created test dataset with {len(self.test_dset):,} events")
 
         if self.trainer.is_global_zero:
-            print("-" * 100, "\n")
+            print("-" * 80, "\n")
 
     def get_dataloader(self, stage: str, dataset: TrackMLDataset, shuffle: bool):  # noqa: ARG002
         return DataLoader(
