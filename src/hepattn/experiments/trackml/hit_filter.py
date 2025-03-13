@@ -24,7 +24,6 @@ class HitFilter(LightningModule):
         pos_enc: nn.Module | None = None,
         target: str = "hit_tgt",
         lrs_config: dict | None = None,
-        torch_compile: bool = False,
     ):
         super().__init__()
 
@@ -37,10 +36,6 @@ class HitFilter(LightningModule):
         self.times: list[float] = []
         self.num_hits: list[int] = []
         self.pos_enc = pos_enc
-        if torch_compile:
-            self.init = torch.compile(init, dynamic=True)
-            self.encoder = torch.compile(encoder, dynamic=True)
-            self.dense = torch.compile(dense, dynamic=True)
 
     def on_train_start(self):
         params = sum(p.numel() for p in self.parameters() if p.requires_grad)
