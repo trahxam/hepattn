@@ -1,10 +1,10 @@
 import pathlib
 
 import comet_ml  # noqa: F401
-import lightning as L
 import numpy as np
 import torch
 import torch.nn.functional as F
+from lightning import LightningModule
 from lightning.pytorch.cli import ArgsType
 from torch import nn
 
@@ -14,7 +14,7 @@ from hepattn.experiments.trackml.trackml import TrackMLDataModule
 config_dir = pathlib.Path(__file__).parent / "configs"
 
 
-class HitFilter(L.LightningModule):
+class HitFilter(LightningModule):
     def __init__(
         self,
         name: str,
