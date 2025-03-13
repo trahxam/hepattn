@@ -7,10 +7,10 @@ from hepattn.utils.cuda_timer import cuda_timer
 class InferenceTimer(Callback):
     def __init__(self):
         super().__init__()
+        self.times = []
 
     def on_test_start(self, trainer, pl_module):  # noqa: ARG002
         self.old_forward = pl_module.forward
-        self.times = []
 
         def new_forward(*args, **kwargs):
             with cuda_timer(self.times):
@@ -26,8 +26,7 @@ class InferenceTimer(Callback):
         self.std_time = self.times.std().item()
 
     def teardown(self, trainer, pl_module, stage):  # noqa: ARG002
-        print("-" * 80)
-        print(f"Mean inference time: {self.mean_time:.3f} ± {self.std_time:.3f} ms")
-        print("-" * 80)
-
-        # save full list of inference times
+        if self.times:
+            print("-" * 80)
+            print(f"Mean inference time: {self.mean_time:.3f} ± {self.std_time:.3f} ms")
+            print("-" * 80)
