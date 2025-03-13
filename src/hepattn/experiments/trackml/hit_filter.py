@@ -66,34 +66,38 @@ class HitFilter(LightningModule):
             self.times.append(start.elapsed_time(end))
             self.num_hits.append(x.shape[1])
 
+        return {"hit_pred": preds}
+
+    def loss(self, preds, labels):
         loss = None
         if labels:
+            preds = preds["hit_pred"]
             tgt = labels["hit"][self.target]
             weight = 1 / tgt.float().mean()
             loss = F.binary_cross_entropy_with_logits(preds, tgt.type_as(preds), pos_weight=weight)
+        return {"hit_pred": loss}
 
-        return {"hit_pred": preds}, {"hit_pred": loss}
-
-    def shared_step(self, batch, **kwargs):
+    def step(self, batch, **kwargs):
         inputs, labels = batch
-        preds, loss = self(inputs, labels, **kwargs)
+        preds = self.forward(inputs, labels, **kwargs)
+        loss = self.loss(preds, labels)
         loss["loss"] = sum(subloss for subloss in loss.values())
         return preds, labels, loss
 
     def training_step(self, batch):
-        preds, labels, loss = self.shared_step(batch)
+        preds, labels, loss = self.step(batch)
         self.log_losses(loss, stage="train")
         self.log_metrics(preds, labels, stage="train")
         return loss["loss"]
 
     def validation_step(self, batch):
-        preds, labels, loss = self.shared_step(batch)
+        preds, labels, loss = self.step(batch)
         self.log_losses(loss, stage="validate")
         self.log_metrics(preds, labels, stage="validate")
         return loss
 
     def test_step(self, batch):
-        preds, _, _ = self.shared_step(batch, timing=True)
+        preds, _, _ = self.step(batch, timing=True)
         return preds
 
     def log_losses(self, loss, stage):
