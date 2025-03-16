@@ -63,7 +63,6 @@ class TrackMLDataset(Dataset):
             and is_valid_file(str(x).replace("truth", "particles"))
             and is_valid_file(str(x).replace("truth", "cells"))
         ]
-        print("len files", len(self.files))
         assert len(self.files) > 0
         self.num_samples = self.get_num_samples(num_samples)
 
@@ -196,9 +195,9 @@ class TrackMLDataset(Dataset):
                 if self.volume_ids:
                     allowed_values = list(hits["hit_id"].unique())
                     cells = cells[cells["hit_id"].isin(allowed_values)]
-                assert (
-                    hits["hit_id"].nunique() == cells["hit_id"].nunique()
-                ), "load event just before different number of unique hit ids in hits & cells"
+                assert hits["hit_id"].nunique() == cells["hit_id"].nunique(), (
+                    "load event just before different number of unique hit ids in hits & cells"
+                )
                 detector_config = cells_info_path.parent.parent / "detectors.csv"
                 hits = ecf.append_cell_features(hits, cells, detector_config)
             else:

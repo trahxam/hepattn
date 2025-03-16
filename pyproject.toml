@@ -48,7 +48,7 @@ extra-index-urls = ["https://download.pytorch.org/whl/nightly/cu124"]
 [tool.pixi.system-requirements]
 linux = "3.10.0"
 libc = "2.28"
-cuda = "12.3"
+cuda = "12.2"
 
 [tool.pixi.dependencies]
 #gcc = "==12.3.0"

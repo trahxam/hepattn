@@ -8,7 +8,6 @@ from hepattn.flex import relative_position, relative_position_wrapped
 from hepattn.flex.sliding_window import sliding_window_mask, sliding_window_mask_wrapped
 from hepattn.models.attention import Attention
 from hepattn.models.dense import Dense
-from hepattn.models.norm import LayerNorm
 
 create_block_mask = torch.compile(create_block_mask, dynamic=True)
 
@@ -52,7 +51,7 @@ class Residual(nn.Module):
         self,
         fn: nn.Module,
         dim: int,
-        norm: nn.Module | None = None,
+        norm: str | None,
         post_norm: bool = False,
         layer_scale: float | None = None,
         drop_path: float = 0.0,
@@ -73,10 +72,8 @@ class Residual(nn.Module):
             The drop path rate.
         """
         super().__init__()
-        if norm is None:
-            norm = LayerNorm
         self.fn = fn
-        self.norm = norm(dim)
+        self.norm = getattr(nn, norm)(dim, elementwise_affine=False) if norm is not None else nn.Identity()
         self.ls = LayerScale(dim, layer_scale) if layer_scale is not None else nn.Identity()
         self.dp = DropPath(drop_path) if drop_path else nn.Identity()
         self.post_norm = post_norm
@@ -93,7 +90,7 @@ class EncoderLayer(nn.Module):
         self,
         dim: int,
         depth: int,
-        norm: nn.Module = None,
+        norm: str | None = None,
         layer_scale: float | None = None,
         drop_path: float = 0.0,
         value_residual: bool = False,
@@ -128,7 +125,7 @@ class EncoderLayer(nn.Module):
 
         attn_kwargs = attn_kwargs or {}
         dense_kwargs = dense_kwargs or {}
-        norm = norm or LayerNorm
+        norm = norm or "LayerNorm"
 
         # handle hybridnorm
         qkv_norm = hybrid_norm

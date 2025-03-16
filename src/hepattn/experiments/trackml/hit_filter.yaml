@@ -1,15 +1,13 @@
 seed_everything: 42
-name: HF-test-hybridnorm
-
-
+name: HF-test-lion
 
 model:
   opt_config:
-    opt: AdamW
+    opt: Lion
     weight_decay: 1e-5
     initial_lr: 1e-5
-    max_lr: 1e-4
-    final_lr: 5e-5
+    max_lr: 5e-5
+    final_lr: 1e-6
     pct_start: 0.05
 
   init:
@@ -120,11 +118,15 @@ trainer:
       display_summary_level: 0
 
   callbacks:
-    #- class_path: lightning.pytorch.callbacks.LearningRateMonitor
     #- class_path: hepattn.callbacks.MyThroughputMonitor
-    #- class_path: hepattn.callbacks.Compile
-    #- class_path: hepattn.callbacks.InferenceTimer
+    - class_path: hepattn.callbacks.Compile
+    - class_path: hepattn.callbacks.InferenceTimer
+    - class_path: hepattn.callbacks.Metadata
+    - class_path: hepattn.callbacks.Checkpoint
+      init_args:
+        monitor: validate/loss
     - class_path: lightning.pytorch.callbacks.ModelSummary
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
     - class_path: lightning.pytorch.callbacks.TQDMProgressBar
       init_args:
         refresh_rate: 50
