@@ -1,0 +1,157 @@
+name: trackml_base
+
+data:
+  train_dir: /share/rcifdata/maxhart/data/trackml/raw/train/
+  val_dir: /share/rcifdata/maxhart/data/trackml/raw/train/
+  test_dir: /share/rcifdata/maxhart/data/trackml/raw/train/
+
+  num_workers: 10
+  num_train: -1
+  num_test: 10
+  num_val: 10
+
+
+  hit_volume_ids: [8]
+  particle_min_pt: 1.0
+  particle_max_abs_eta: 2.5
+  particle_min_num_hits: 3
+  event_max_num_particles: 1200
+  
+  inputs:
+    hit:
+      - x
+      - y
+      - z
+      - r
+      - s
+      - eta
+      - phi
+      - u
+      - v
+    
+  targets:
+    particle:
+      - pt
+      - eta
+      - phi
+
+trainer:
+  # Training stuff here
+  max_epochs: 30
+  accelerator: gpu
+  devices: 1
+  precision: bf16-mixed
+  log_every_n_steps: 10
+  default_root_dir: logs
+  gradient_clip_val: 0.1
+  enable_progress_bar: True
+
+  # Specify loggers here
+  logger:
+    class_path: lightning.pytorch.loggers.CometLogger
+    init_args:
+      project: trackml_tracking
+
+
+
+model:
+  lrs_config:
+    initial: 1e-5
+    max: 1e-4
+    end: 1e-5
+    pct_start: 0.05
+    skip_scheduler: false
+    weight_decay: 1e-5
+  
+  optimizer: adamw
+  
+  mtl: false
+
+  model:
+    class_path: hepattn.models.MaskFormer
+    init_args:
+      embed_dim: &embed_dim 256
+      num_queries: 1200
+      input_nets:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: hepattn.models.InputNet
+              init_args:
+                feature: hit
+                fields:
+                  # Coordinates in global frame
+                  - x
+                  - y
+                  - z
+                  - r
+                  - eta
+                  - phi
+                  - u
+                  - v
+                net:
+                  class_path: hepattn.models.Dense
+                  init_args:
+                    input_size: 8
+                    output_size: *embed_dim
+                posenc:
+                  class_path: hepattn.models.PositionEncoder
+                  init_args:
+                    feature: hit
+                    fields:
+                      - r
+                      - eta
+                      - phi
+                    sym_fields:
+                      - phi
+                    dim: *embed_dim
+      encoder:
+        class_path: hepattn.models.Encoder
+        init_args:
+          num_layers: 12
+          dim: *embed_dim
+          attn_type: flash
+          window_size: 512
+          window_wrap: true
+      num_decoder_layers: 8
+      decoder_layer_config:
+        dim: *embed_dim
+        mask_attention: true
+      tasks:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: hepattn.models.task.TrackValidTask
+              init_args:
+                # Task name - can be anything
+                name: track_valid
+                input_track: query
+                output_track: track
+                target_track: particle
+                losses:
+                  object_ce: 0.1
+                costs:
+                  object_ce: 0.1
+                embed_dim: *embed_dim
+                null_weight: 1.0
+            - class_path: hepattn.models.task.TrackHitValidTask
+              init_args:
+                # Task name - can be anything
+                name: track_hit_valid
+                input_hit: hit
+                input_track: query
+                output_track: track
+                target_track: particle
+                losses:
+                  #mask_ce: 1.0
+                  mask_dice: 2.0
+                  mask_focal: 50.0
+                costs:
+                  #mask_ce: 1.0
+                  mask_dice: 2.0
+                  mask_focal: 50.0
+                embed_dim: *embed_dim
+                null_weight: 1.0
+
+
+      
