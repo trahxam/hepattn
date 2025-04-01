@@ -275,6 +275,6 @@ class TrackHitValidTask(nn.Module):
 
         losses = {}
         for loss_fn, loss_weight in self.losses.items():
-            loss = loss_fns[loss_fn](outputs[self.output_track_hit + "_logit"], target, mask=None, weight=weight)
+            loss = loss_fns[loss_fn](outputs[self.output_track_hit + "_logit"], target, mask=track_hit_mask, weight=weight)
             losses[loss_fn] = loss_weight * loss
         return losses

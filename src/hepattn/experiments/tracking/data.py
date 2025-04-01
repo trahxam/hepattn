@@ -166,7 +166,7 @@ class TrackingDataset(Dataset):
 
         # Add additional input information about cluster shapes
         # TODO: Detector config should just be loaded once on init instead of every getitem
-        hits = ecf.append_cell_features(hits, cells, self.detector_config_path)
+        hits = cluster_features.append_cell_features(hits, cells, self.detector_config_path)
 
         # Scale the input coordinates to in meters so they are ~ 1
         for coord in ["x", "y", "z"]:
