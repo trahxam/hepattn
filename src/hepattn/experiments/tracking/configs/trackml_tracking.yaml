@@ -50,7 +50,7 @@ trainer:
   logger:
     class_path: lightning.pytorch.loggers.CometLogger
     init_args:
-      project: trackml_tracking
+      project_name: trackml_tracking
 
 
 
