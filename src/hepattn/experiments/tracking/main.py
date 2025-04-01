@@ -3,7 +3,7 @@ import comet_ml
 
 from lightning.pytorch.cli import ArgsType
 from hepattn.utils.cli import CLI
-from hepattn.experiments.tracking.trackml_data import TrackingDataModule
+from hepattn.experiments.tracking.data import TrackingDataModule
 from hepattn.experiments.tracking.tracker import Tracker
 
 
