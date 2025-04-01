@@ -22,7 +22,8 @@ dependencies = [
     "jsonargparse[signatures]>=4.34.0,<5",
     #"flash-attn==2.7.4.post1",
     #"torch==2.6.0",
-, "lion-pytorch>=0.2.3,<0.3"]
+    "lion-pytorch>=0.2.3,<0.3"
+]
 
 [build-system]
 requires = ["scikit-build-core>=0.3.3", "pybind11"]
