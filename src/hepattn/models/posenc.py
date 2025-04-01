@@ -61,23 +61,32 @@ def pos_enc(xs, dim, alpha=1000):
 
 
 class PositionEncoder(nn.Module):
-    def __init__(self, variables: list[str], dim: int, alpha=1000):
+    def __init__(self, feature: str, fields: list[str], sym_fields: list[str], dim: int, alpha=1000):
         """Positional encoder.
 
         Parameters
         ----------
-        variables : list[str]
-            List of variables to apply the positional encoding to.
+        feature : str
+            The name of the feature / object that will be encoded.
+        fields : list[str]
+            List of fields belonging to the feature to apply the positional encoding to.
+        fields : list[str]
+            List of fields that should use a rotationally symmetric positional encoding.
+        dim : int
+            Dimension to project the positional encoding into.
+        alpha : float
+            Scaling factor hyperparamater for the positional encoding.
         """
         super().__init__()
 
-        self.variables = variables
+        self.feature = feature
+        self.fields = fields
+        self.sym_fields = sym_fields
         self.dim = dim
         self.alpha = alpha
-        self.SYM_VARS = {"phi"}
 
-        self.per_input_dim = self.dim // len(self.variables)
-        self.remainder_dim = self.dim % len(self.variables)
+        self.per_input_dim = self.dim // len(self.fields)
+        self.remainder_dim = self.dim % len(self.fields)
 
     def forward(self, inputs: dict):
         """Apply positional encoding to the inputs.
@@ -93,10 +102,11 @@ class PositionEncoder(nn.Module):
             Positional encoding of the input variables.
         """
         encodings = []
-        for var in self.variables:
-            pos_enc_fn = pos_enc_symmetric if var in self.SYM_VARS else pos_enc
-            encodings.append(pos_enc_fn(inputs[var], self.per_input_dim, self.alpha))
+        for field in self.fields:
+            pos_enc_fn = pos_enc_symmetric if field in self.sym_fields else pos_enc
+            encodings.append(pos_enc_fn(inputs[f"{self.feature}_{field}"], self.per_input_dim, self.alpha))
         if self.remainder_dim:
-            encodings.append(torch.zeros_like(encodings[0])[:, : self.remainder_dim])
+            # Make sure to allow for arbitrary batch shape
+            encodings.append(torch.zeros_like(encodings[0])[...,:self.remainder_dim])
         encodings = torch.cat(encodings, dim=-1)
         return encodings
