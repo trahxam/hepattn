@@ -60,7 +60,8 @@ class MaskFormerDecoderLayer(nn.Module):
         # update inputs
         if self.bidirectional_ca:
             if attn_mask is not None:
-                attn_mask = attn_mask.transpose(2, 3)
+                # Index from the back so we are batch shape agnostic
+                attn_mask = attn_mask.transpose(-2, -1)
             kv = self.kv_ca(kv, k=q, v=q, attn_mask=attn_mask)  # needs input pad mask
             kv = self.kv_dense(kv)
 
