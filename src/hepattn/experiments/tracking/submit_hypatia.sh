@@ -8,7 +8,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=10
 #SBATCH --mem=50G
-#SBATCH --output=/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/slurm_logs/slurm-%j.%x.out
+#SBATCH --output=/share/rcifdata/maxhart/hepattn-test/hepattn/src/hepattn/experiments/tracking/slurm_logs/slurm-%j.%x.out
 
 
 # Comet variables
@@ -25,7 +25,7 @@ echo "CPU count: $(cat /proc/cpuinfo | awk '/^processor/{print $3}' | tail -1)"
 echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
 
 # move to workdir
-cd /share/rcifdata/maxhart/hepattn/
+cd /share/rcifdata/maxhart/hepattn-test/hepattn/
 echo "Moved dir, now in: ${PWD}"
 
 # set tmpdir
@@ -39,7 +39,7 @@ echo "Running training script..."
 
 PYTORCH_CMD="python src/hepattn/experiments/trackml/main.py fit --config src/hepattn/experiments/trackml/configs/trackml_tracking.yaml"
 PIXI_CMD="pixi run $PYTORCH_CMD"
-APPTAINER_CMD="apptainer run --nv --bind /share/rcifdata/maxhart /share/rcifdata/maxhart/hepattn/pixi.sif $PIXI_CMD"
+APPTAINER_CMD="apptainer run --nv --bind /share/rcifdata/maxhart /share/rcifdata/maxhart/hepattn-test/hepattn/pixi.sif $PIXI_CMD"
 pixi run $PYTORCH_CMD
 echo "Running command: $APPTAINER_CMD"
 $APPTAINER_CMD
