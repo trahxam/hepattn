@@ -8,53 +8,65 @@ Goals:
 
 ## Setup
 
-### Apptainer
-
-You might need to run in a container if your `glibc` is too old.
-I'm using the pixi cuda container as a starting point here.
-
-```shell
-cd hepattn
-apptainer pull pixi.sif docker://ghcr.io/prefix-dev/pixi:noble-cuda-12.6.3
-apptainer shell --nv pixi.sif
-pixi install --locked
-```
-
-### First time
-
-First install `pixi` according to https://pixi.sh/latest/. 
-This is probably just
-
-```shell
-curl -fsSL https://pixi.sh/install.sh | bash
-```
-
-Then clone the repo:
+First clone the repo
 
 ```shell
 git clone git@github.com:samvanstroud/hepattn.git
-```
-
-To install, you need to first manually remove the `flash-attn` dependency from the `pyproject.toml` file.
-Then run: 
-
-```shell
-pixi install
-```
-
-Then, add back the flash attention dependency and run `pixi install` again.
-
-### Activing the environment
-
-```shell
 cd hepattn
+```
+
+We recommend using a container to setup and run the code.
+This is necessary if your system's `libc` is version is `<2.28` 
+due to requirements of recent `torch` versions.
+We use `pixi`'s cuda image, which you can access with
+
+```shell
+apptainer pull pixi.sif docker://ghcr.io/prefix-dev/pixi:noble-cuda-12.6.3
+apptainer shell --nv pixi.sif
+```
+
+Note: if you are not using the `pixi` container, you will need to make sure 
+`pixi` is installed according to https://pixi.sh/latest/. 
+
+You can then install the project with locked dependencies with
+
+```shell
+pixi install --locked
+```
+
+Note that `flash-attn` is commented out in the [`pyproject.toml`](pyproject.toml).
+In order to install it, first install the package as above, then uncomment the 
+`flash-attn` requirement, and rerun the installation. This is because `flash-attn`
+depends on `torch` in order to be installed.
+
+
+## Activing the environment
+
+To run the installed environment, use
+
+```shell
 pixi shell
-pytest
+```
+
+You can close the environment with
+
+```shell
 exit
 ```
 
+See the [`pixi shell` docs](https://pixi.sh/latest/reference/cli/pixi/shell/) for more info.
+
+## Running tests
+
+Once inside the environemnt, just run 
+
+```shell
+pytest
+```
 
 ## Run experiments
+
+TrackML:
 
 ```shell
 cd src/hepattn/experiments/trackml/
