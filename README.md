@@ -48,11 +48,7 @@ To run the installed environment, use
 pixi shell
 ```
 
-You can close the environment with
-
-```shell
-exit
-```
+You can close the environment with `exit`.
 
 See the [`pixi shell` docs](https://pixi.sh/latest/reference/cli/pixi/shell/) for more info.
 
