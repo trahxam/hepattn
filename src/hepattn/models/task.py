@@ -8,31 +8,31 @@ from hepattn.models.loss import loss_fns, cost_fns
 from hepattn.models.dense import Dense
     
 
-class TrackValidTask(nn.Module):
+class ObjectValidTask(nn.Module):
     def __init__(
         self,
         name: str,
-        input_track: str,
-        output_track: str,
-        target_track: str,
+        input_object: str,
+        output_object: str,
+        target_object: str,
         losses: dict[str, float],
         costs: dict[str, float],
         embed_dim: int,
         null_weight: float = 1.0,
     ):
-        """ Task used for classifying whether track candidates / seeds should be
-        taken as reconstructed / pred tracks or not.
+        """ Task used for classifying whether object candidates / seeds should be
+        taken as reconstructed / pred objects or not.
 
         Parameters
         ----------
         name : str
             Name of the task - will be used as the key to separate task outputs.
-        input_track : str
-            Name of the input track feature 
-        output_track : str
-            Name of the output track feature which will denote if the predicted track slot is used or not.
-        target_track: str
-            Name of the target track feature that we want to predict is valid or not.
+        input_object : str
+            Name of the input object feature 
+        output_object : str
+            Name of the output object feature which will denote if the predicted object slot is used or not.
+        target_object: str
+            Name of the target object feature that we want to predict is valid or not.
         losses : dict[str, float]
             Dict specifying which losses to use. Keys denote the loss function name,
             whiel value denotes loss weight.
@@ -48,21 +48,21 @@ class TrackValidTask(nn.Module):
         super().__init__()
 
         self.name = name
-        self.input_track = input_track
-        self.output_track = output_track
-        self.target_track = target_track
+        self.input_object = input_object
+        self.output_object = output_object
+        self.target_object = target_object
         self.losses = losses
         self.costs = costs
         self.embed_dim = embed_dim
         self.null_weight = null_weight
 
         # Internal
-        self.input_features = [input_track + "_embed"]
-        self.output_features = [output_track + "_logit"]
+        self.inputs = [input_object + "_embed"]
+        self.outputs = [output_object + "_logit"]
         self.net = Dense(embed_dim, 1)
 
     def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:
-        """ Yields a probability denoting whether the model thinks whether a track
+        """ Yields a probability denoting whether the model thinks whether an object
         slot should be used or not. 
 
         Parameters
@@ -70,20 +70,20 @@ class TrackValidTask(nn.Module):
         x : dict[str, Tensor]
             Dictionary containing the embeding that is used for the task.
         pads : dict[str, Tensor]
-            Optional dictionary containing a padding tensor. Not used for the track valid task.
+            Optional dictionary containing a padding tensor. Not used for the object valid task.
 
         Returns
         -------
         outputs : dict[str, Tensor]
-            Dictionary containing the output track probabilites.
+            Dictionary containing the output object probabilites.
         """
         # Network projects the embedding down into a scalar
-        x_track = self.net(x[self.input_track + "_embed"])
-        return {self.output_track + "_logit": x_track.squeeze(-1),}
+        x_logit = self.net(x[self.input_object + "_embed"])
+        return {self.output_object + "_logit": x_logit.squeeze(-1),}
 
     def predict(self, outputs, threshold=0.5):
         """ Performs a cut on the output probability to predict whether the output
-        track slot should be used or not.
+        object slot should be used or not.
 
         Parameters
         ----------
@@ -91,49 +91,49 @@ class TrackValidTask(nn.Module):
             Dictionary containing the outputs from the forward pass of the task.
         threshold : float
             Float indicating the threshold value above which output probabilies correspond to a
-            psoitive predicton / a track slot is marked as predicted to be used.
+            psoitive predicton / an object slot is marked as predicted to be used.
 
         Returns
         -------
         outputs : dict[str, Tensor]
-            Dictionary containing the output track predictions of whether a track slot is used or not.
+            Dictionary containing the output object predictions of whether an object slot is used or not.
         """
-        # Tracks that have a predicted probability aove the threshold are marked as predicted to exist
-        return {self.output_track + "_valid": outputs[self.output_track + "_logit"].sigmoid() >= threshold}
+        # Objects that have a predicted probability aove the threshold are marked as predicted to exist
+        return {self.output_object + "_valid": outputs[self.output_object + "_logit"].sigmoid() >= threshold}
 
     def cost(self, outputs, targets):
         """ Produces a dict of cost matrices which consist of the loss between each possible
-        predicted and true track pair.
+        predicted and true object pair.
 
         Parameters
         ----------
         outputs : dict[str, Tensor]
             Dictionary containing the outputs from the forward pass of the task.
         data : float
-            Data containing grund truth / target tracks.
+            Data containing grund truth / target objects.
 
         Returns
         -------
         costs : dict[str, Tensor]
-            A dictionary of cost tensors. Each cost tensor is of shape (batch, num pred tracks, num true tracks),
-            where each entry [i,j,k] denotes the loss between the jth pred track and kth true track for the ith sample.
+            A dictionary of cost tensors. Each cost tensor is of shape (batch, num pred objects, num true objects),
+            where each entry [i,j,k] denotes the loss between the jth pred object and kth true object for the ith sample.
         """
         costs = {}
         for cost_fn, cost_weight in self.costs.items():
-            costs[cost_fn] = cost_weight * cost_fns[cost_fn](outputs[self.output_track + "_logit"], targets[self.target_track + "_valid"].float())
+            costs[cost_fn] = cost_weight * cost_fns[cost_fn](outputs[self.output_object + "_logit"], targets[self.target_object + "_valid"].float())
             # Set the costs of invalid objects to be (basically) inf
-            costs[cost_fn][~targets[self.target_track + "_valid"].unsqueeze(-2).expand_as(costs[cost_fn])] = 1e6
+            costs[cost_fn][~targets[self.target_object + "_valid"].unsqueeze(-2).expand_as(costs[cost_fn])] = 1e6
         return costs
 
     def loss(self, outputs, targets):
-        """ Calculates the loss between a set of predicted and true tracks.
+        """ Calculates the loss between a set of predicted and true objects.
 
         Parameters
         ----------
         outputs : dict[str, Tensor]
             Dictionary containing the outputs from the forward pass of the task.
         data : float
-            Data containing grund truth / target tracks.
+            Data containing grund truth / target objects.
 
         Returns
         -------
@@ -141,44 +141,44 @@ class TrackValidTask(nn.Module):
             A dictionary of losses. Each loss is the scalar average loss over the batch from a given loss function.
         """
         losses = {}
-        target = targets[self.target_track + "_valid"].float()
+        target = targets[self.target_object + "_valid"].float()
         weight = target + self.null_weight * (1 - target)
         # Calculate the loss from each specified loss function.
         for loss_fn, loss_weight in self.losses.items():
-            losses[loss_fn] = loss_weight * loss_fns[loss_fn](outputs[self.output_track + "_logit"], target, mask=None, weight=weight)
+            losses[loss_fn] = loss_weight * loss_fns[loss_fn](outputs[self.output_object + "_logit"], target, mask=None, weight=weight)
         return losses
 
 
-class TrackHitValidTask(nn.Module):
+class ObjectHitMaskTask(nn.Module):
     def __init__(
         self,
         name: str,
         input_hit: str,
-        input_track: str,
-        output_track: str,
-        target_track: str,
+        input_object: str,
+        output_object: str,
+        target_object: str,
         losses: dict[str, float],
         costs: dict[str, float],
         embed_dim: int,
         null_weight: float = 1.0,
     ):
-        """ Takes a set of input hits and input tracks and classifies whether each
-        hit and track pair is assocoiated to eachother or not. To do this it embeds
-        each hit and track separately, and then takes the sigmoid of the dot product
-        between each track-hit pair to produce a probability.
+        """ Takes a set of input hits and input objects and classifies whether each
+        hit and object pair is assocoiated to eachother or not. To do this it embeds
+        each hit and object separately, and then takes the sigmoid of the dot product
+        between each object-hit pair to produce a probability.
 
         Parameters
         ----------
         name : str
             Name of the task - will be used as the key to separate task outputs.
-        input_track : str
-            Name of the input track feature.
+        input_object : str
+            Name of the input object feature.
         input_hit : str
             Name of the input hit featrue.
-        output_track_hit : str
-            Name of the output track-hit feature pair that we want to predict asisgnment on.
-        target_track: str
-            Name of the target track-hit feature pair that we want to predict asisgnment on.
+        output_object_hit : str
+            Name of the output object-hit feature pair that we want to predict asisgnment on.
+        target_object: str
+            Name of the target object-hit feature pair that we want to predict asisgnment on.
         losses : dict[str, float]
             Dict specifying which losses to use. Keys denote the loss function name,
             whiel value denotes loss weight.
@@ -195,36 +195,36 @@ class TrackHitValidTask(nn.Module):
 
         self.name = name
         self.input_hit = input_hit
-        self.input_track = input_track
-        self.output_track = output_track
-        self.target_track = target_track
+        self.input_object = input_object
+        self.output_object = output_object
+        self.target_object = target_object
         self.losses = losses
         self.costs = costs
         self.embed_dim = embed_dim
         self.null_weight = null_weight
 
-        self.output_track_hit = output_track + "_" + input_hit
-        self.target_track_hit = target_track + "_" + input_hit
-        self.input_features = [input_track + "_embed", input_hit + "_embed"]
-        self.output_features = [self.output_track_hit + "_logit"]
+        self.output_object_hit = output_object + "_" + input_hit
+        self.target_object_hit = target_object + "_" + input_hit
+        self.inputs = [input_object + "_embed", input_hit + "_embed"]
+        self.outputs = [self.output_object_hit + "_logit"]
         self.hit_net = Dense(embed_dim, embed_dim)
-        self.track_net = Dense(embed_dim, embed_dim)
+        self.object_net = Dense(embed_dim, embed_dim)
 
     def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:
-        # Produce new task-specific embeddings for the hits and tracks
-        x_track = self.track_net(x[self.input_track + "_embed"])
+        # Produce new task-specific embeddings for the hits and objects
+        x_object = self.object_net(x[self.input_object + "_embed"])
         x_hit = x[self.input_hit + "_embed"]
 
-        # Track-hit probability is the dot product between the hit and track embedding
-        track_hit_logit = torch.einsum("bnc,bmc->bnm", x_track, x_hit)
+        # Object-hit probability is the dot product between the hit and object embedding
+        object_hit_logit = torch.einsum("bnc,bmc->bnm", x_object, x_hit)
 
         # Zero out entries for any hit slots that are not valid
-        track_hit_logit[~x[self.input_hit + "_valid"].unsqueeze(-2).expand_as(track_hit_logit)] = torch.finfo(track_hit_logit.dtype).min
+        object_hit_logit[~x[self.input_hit + "_valid"].unsqueeze(-2).expand_as(object_hit_logit)] = torch.finfo(object_hit_logit.dtype).min
 
-        return {self.output_track_hit + "_logit": track_hit_logit}
+        return {self.output_object_hit + "_logit": object_hit_logit}
     
     def attn_mask(self, outputs, threshold=0.1):
-        attn_mask = (outputs[self.output_track_hit + "_logit"].detach().sigmoid() < threshold)
+        attn_mask = (outputs[self.output_object_hit + "_logit"].detach().sigmoid() < threshold)
 
         # If the attn mask is completely padded for a given entry, unpad it - tested and is required (?)
         attn_mask[torch.where(torch.all(attn_mask, dim=-1))] = False
@@ -232,7 +232,7 @@ class TrackHitValidTask(nn.Module):
         return {self.input_hit: attn_mask}
 
     def predict(self, outputs, threshold=0.5):
-        """ Performs a cut on the output probability to predict whether each of the input tracks should be 
+        """ Performs a cut on the output probability to predict whether each of the input objects should be 
         assigned to each of the input hits.
 
         Parameters
@@ -246,35 +246,35 @@ class TrackHitValidTask(nn.Module):
         Returns
         -------
         outputs : dict[str, Tensor]
-            Dictionary containing the output track predictions of whether each
-            track is assigned to each hit or not.
+            Dictionary containing the output object predictions of whether each
+            object is assigned to each hit or not.
         """
-        # Track-hit pairs that have a predicted probability above the threshold are predicted as being associated to one-another
-        return {self.output_track_hit + "_valid": outputs[self.output_track_hit + "_logit"].sigmoid() >= threshold}
+        # Object-hit pairs that have a predicted probability above the threshold are predicted as being associated to one-another
+        return {self.output_object_hit + "_valid": outputs[self.output_object_hit + "_logit"].sigmoid() >= threshold}
 
     def cost(self, outputs, targets):
         costs = {}
         for cost_fn, cost_weight in self.costs.items():
-            costs[cost_fn] = cost_weight * cost_fns[cost_fn](outputs[self.output_track_hit + "_logit"], targets[self.target_track_hit + "_valid"].float())
+            costs[cost_fn] = cost_weight * cost_fns[cost_fn](outputs[self.output_object_hit + "_logit"], targets[self.target_object_hit + "_valid"].float())
 
             # Set the costs of invalid objects to be (basically) inf
 
-            costs[cost_fn][~targets[self.target_track + "_valid"].unsqueeze(-2).expand_as(costs[cost_fn])] = 1e6
+            costs[cost_fn][~targets[self.target_object + "_valid"].unsqueeze(-2).expand_as(costs[cost_fn])] = 1e6
         return costs
         
     def loss(self, outputs, targets):
-        target = targets[self.target_track_hit + "_valid"].float()
-        # Build a padding mask for track-hit pairs
+        target = targets[self.target_object_hit + "_valid"].float()
+        # Build a padding mask for object-hit pairs
         hit_pad = targets[self.input_hit + "_valid"].unsqueeze(-2).expand_as(target)
-        track_pad = targets[self.target_track + "_valid"].unsqueeze(-1).expand_as(target)
-        # A track-hit is valid slot if both its track and hit are valid slots
+        object_pad = targets[self.target_object + "_valid"].unsqueeze(-1).expand_as(target)
+        # An object-hit is valid slot if both its object and hit are valid slots
         # TODO: Maybe calling this a mask is confusing since true entries are 
-        track_hit_mask = track_pad & hit_pad
+        object_hit_mask = object_pad & hit_pad
         
         weight = target + self.null_weight * (1 - target)
 
         losses = {}
         for loss_fn, loss_weight in self.losses.items():
-            loss = loss_fns[loss_fn](outputs[self.output_track_hit + "_logit"], target, mask=track_hit_mask, weight=weight)
+            loss = loss_fns[loss_fn](outputs[self.output_object_hit + "_logit"], target, mask=object_hit_mask, weight=weight)
             losses[loss_fn] = loss_weight * loss
         return losses

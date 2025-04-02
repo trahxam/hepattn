@@ -28,31 +28,31 @@ class MaskFormer(nn.Module):
             self.query_initial = nn.Parameter(torch.randn(num_queries, embed_dim))
             
     def forward(self, inputs: dict[str, Tensor]) -> dict[str, Tensor]:
-        input_features = [input_net.feature for input_net in self.input_nets]
+        input_names = [input_net.input_name for input_net in self.input_nets]
 
-        assert "key" not in input_features, "'key' input name is reserved."
-        assert "query" not in input_features, "'query' input name is reserved."
+        assert "key" not in input_names, "'key' input name is reserved."
+        assert "query" not in input_names, "'query' input name is reserved."
     
         # Embed the input objects
         x = {}
 
         # Used for un-merging features later
-        feature_slices = {}
+        input_slices = {}
         slice_start = 0
 
         for input_net in self.input_nets:
-            feature = input_net.feature
-            x[feature + "_embed"] = input_net(inputs)
-            x[feature + "_valid"] = inputs[feature + "_valid"]
+            input_name = input_net.input_name
+            x[input_name + "_embed"] = input_net(inputs)
+            x[input_name + "_valid"] = inputs[input_name + "_valid"]
 
-            slice_size = inputs[feature + "_valid"].shape[-1]
-            feature_slices[feature] = slice(slice_start, slice_start + slice_size)
+            slice_size = inputs[input_name + "_valid"].shape[-1]
+            input_slices[input_name] = slice(slice_start, slice_start + slice_size)
             slice_start += slice_size
 
         # Merge the input objects and he padding mask into a single set
         # TODO: Need to correctly account for token ordering if we have multiple input features
-        x["key_embed"] = torch.concatenate([x[feature + "_embed"] for feature in input_features], dim=-2)
-        x["key_valid"] = torch.concatenate([x[feature + "_valid"] for feature in input_features], dim=-1)
+        x["key_embed"] = torch.concatenate([x[input_name + "_embed"] for input_name in input_names], dim=-2)
+        x["key_valid"] = torch.concatenate([x[input_name + "_valid"] for input_name in input_names], dim=-1)
 
         # Pass merged input objects through the encoder
         if self.encoder is not None:
@@ -60,8 +60,8 @@ class MaskFormer(nn.Module):
             x["key_embed"] = self.encoder(x["key_embed"])
 
         # Unmerge the updated features back into the separate input types
-        for feature in input_features:
-            x[feature + "_embed"] = x["key_embed"][...,feature_slices[feature],:]
+        for input_name in input_names:
+            x[input_name + "_embed"] = x["key_embed"][...,input_slices[input_name],:]
 
         # Generate the queries / tracks
         batch_size = x["key_valid"].shape[0]
@@ -83,20 +83,20 @@ class MaskFormer(nn.Module):
 
                 # If the task has attention masks to provide, record them
                 if hasattr(task, "attn_mask"):
-                    for feature, attn_mask in task.attn_mask(task_outputs).items():
+                    for input_name, attn_mask in task.attn_mask(task_outputs).items():
                         # If a feature already has an attention mask from another task, need to update it
-                        if feature in attn_masks:
-                            attn_masks[feature] = attn_masks[feature] & attn_mask
+                        if input_name in attn_masks:
+                            attn_masks[input_name] = attn_masks[input_name] & attn_mask
                         else:
-                            attn_masks[feature] = attn_mask
+                            attn_masks[input_name] = attn_mask
 
             # Fill in attention masks for features that did not get one specified by any task
             if attn_masks:
-                for feature in input_features:
-                    if feature not in attn_masks:
-                        attn_masks[feature] = torch.full((batch_size, self.num_queries, x[feature + "_valid"].shape[-1]), False)
+                for input_name in input_names:
+                    if input_name not in attn_masks:
+                        attn_masks[input_name] = torch.full((batch_size, self.num_queries, x[input_name + "_valid"].shape[-1]), False)
             
-                attn_mask = torch.concatenate([attn_masks[feature] for feature in input_features], dim=-1)
+                attn_mask = torch.concatenate([attn_masks[input_name] for input_name in input_names], dim=-1)
             
             # If no attention masks were specified, set it to none to avoid redundant masking
             else:
@@ -106,8 +106,8 @@ class MaskFormer(nn.Module):
             x["query_embed"], x["key_embed"] = decoder_layer(x["query_embed"], x["key_embed"], attn_mask=attn_mask)
 
             # Unmerge the updated features back into the separate input types
-            for feature in input_features:
-                x[feature + "_embed"] = x["key_embed"][...,feature_slices[feature],:]
+            for input_name in input_names:
+                x[input_name + "_embed"] = x["key_embed"][...,input_slices[input_name],:]
 
         # Get the final outputs - we don't need to compute attention masks or update things here
         outputs["final"] = {}
@@ -179,8 +179,8 @@ class MaskFormer(nn.Module):
             batch_idxs = torch.arange(costs[layer_name].shape[0]).unsqueeze(1).expand(-1, self.num_queries)
 
             for task in self.tasks:
-                for output_feature in task.output_features:
-                    outputs[layer_name][task.name][output_feature] = outputs[layer_name][task.name][output_feature][batch_idxs,pred_idxs]
+                for output in task.outputs:
+                    outputs[layer_name][task.name][output] = outputs[layer_name][task.name][output][batch_idxs,pred_idxs]
 
         # Compute the losses for each task in each block
         losses = {}
