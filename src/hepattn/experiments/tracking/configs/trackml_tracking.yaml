@@ -52,11 +52,9 @@ trainer:
     init_args:
       project_name: trackml_tracking
 
-
-
 model:
   lrs_config:
-    initial: 1e-5
+    initial: 5e-5
     max: 1e-4
     end: 1e-5
     pct_start: 0.05
@@ -78,7 +76,7 @@ model:
           modules:
             - class_path: hepattn.models.InputNet
               init_args:
-                feature: hit
+                input_name: hit
                 fields:
                   # Coordinates in global frame
                   - x
@@ -97,7 +95,7 @@ model:
                 posenc:
                   class_path: hepattn.models.PositionEncoder
                   init_args:
-                    feature: hit
+                    input_name: hit
                     fields:
                       - r
                       - eta
@@ -121,33 +119,33 @@ model:
         class_path: torch.nn.ModuleList
         init_args:
           modules:
-            - class_path: hepattn.models.task.TrackValidTask
+            - class_path: hepattn.models.task.ObjectValidTask
               init_args:
                 # Task name - can be anything
                 name: track_valid
-                input_track: query
-                output_track: track
-                target_track: particle
+                input_object: query
+                output_object: track
+                target_object: particle
                 losses:
-                  object_ce: 0.1
+                  object_ce: 1.0
                 costs:
-                  object_ce: 0.1
+                  object_ce: 1.0
                 embed_dim: *embed_dim
                 null_weight: 1.0
-            - class_path: hepattn.models.task.TrackHitValidTask
+            - class_path: hepattn.models.task.ObjectHitMaskTask
               init_args:
                 # Task name - can be anything
                 name: track_hit_valid
                 input_hit: hit
-                input_track: query
-                output_track: track
-                target_track: particle
+                input_object: query
+                output_object: track
+                target_object: particle
                 losses:
-                  mask_ce: 1.0
+                  mask_ce: 100.0
                   #mask_dice: 2.0
                   #mask_focal: 50.0
                 costs:
-                  mask_ce: 1.0
+                  mask_ce: 100.0
                   #mask_dice: 2.0
                   #mask_focal: 50.0
                 embed_dim: *embed_dim

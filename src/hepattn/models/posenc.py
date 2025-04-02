@@ -61,15 +61,15 @@ def pos_enc(xs, dim, alpha=1000):
 
 
 class PositionEncoder(nn.Module):
-    def __init__(self, feature: str, fields: list[str], sym_fields: list[str], dim: int, alpha=1000):
+    def __init__(self, input_name: str, fields: list[str], sym_fields: list[str], dim: int, alpha=1000):
         """Positional encoder.
 
         Parameters
         ----------
-        feature : str
-            The name of the feature / object that will be encoded.
+        input_name : str
+            The name of the input object that will be encoded.
         fields : list[str]
-            List of fields belonging to the feature to apply the positional encoding to.
+            List of fields belonging to the object to apply the positional encoding to.
         fields : list[str]
             List of fields that should use a rotationally symmetric positional encoding.
         dim : int
@@ -79,7 +79,7 @@ class PositionEncoder(nn.Module):
         """
         super().__init__()
 
-        self.feature = feature
+        self.input_name = input_name
         self.fields = fields
         self.sym_fields = sym_fields
         self.dim = dim
@@ -104,7 +104,7 @@ class PositionEncoder(nn.Module):
         encodings = []
         for field in self.fields:
             pos_enc_fn = pos_enc_symmetric if field in self.sym_fields else pos_enc
-            encodings.append(pos_enc_fn(inputs[f"{self.feature}_{field}"], self.per_input_dim, self.alpha))
+            encodings.append(pos_enc_fn(inputs[f"{self.input_name}_{field}"], self.per_input_dim, self.alpha))
         if self.remainder_dim:
             # Make sure to allow for arbitrary batch shape
             encodings.append(torch.zeros_like(encodings[0])[...,:self.remainder_dim])
