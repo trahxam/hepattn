@@ -2,7 +2,7 @@
 import torch
 from torch import Tensor, nn
 from hepattn.models.decoder import MaskFormerDecoderLayer
-from hepattn.models.matcher import get_optimal_matching
+from hepattn.models.matcher import Matcher
 
 
 class MaskFormer(nn.Module):
@@ -102,7 +102,6 @@ class MaskFormer(nn.Module):
             else:
                 attn_mask = None
 
-
             # Update the keys and queries
             x["query_embed"], x["key_embed"] = decoder_layer(x["query_embed"], x["key_embed"], attn_mask=attn_mask)
 
@@ -161,7 +160,7 @@ class MaskFormer(nn.Module):
                 if not hasattr(task, "cost"): continue
 
                 # Only use the cost from the final set of predictions
-                task_costs = task.cost(outputs["final"][task.name], targets)
+                task_costs = task.cost(outputs[layer_name][task.name], targets)
                 
                 # Add the cost on to our running cost total, otherwise initialise a running cost matrix
                 for cost_name, cost in task_costs.items():
@@ -176,7 +175,7 @@ class MaskFormer(nn.Module):
         # Note that this permutes the outputs in place
         for layer_name in outputs.keys():
             # Get the indicies that can permute the predictions to yield their optimal matching
-            pred_idxs = get_optimal_matching(costs[layer_name])
+            pred_idxs = self.matcher(costs[layer_name])
             batch_idxs = torch.arange(costs[layer_name].shape[0]).unsqueeze(1).expand(-1, self.num_queries)
 
             for task in self.tasks:
