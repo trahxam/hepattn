@@ -122,7 +122,7 @@ class TrackValidTask(nn.Module):
         for cost_fn, cost_weight in self.costs.items():
             costs[cost_fn] = cost_weight * cost_fns[cost_fn](outputs[self.output_track + "_logit"], targets[self.target_track + "_valid"].float())
             # Set the costs of invalid objects to be (basically) inf
-            costs[cost_fn][~targets[self.target_track + "_valid"].unsqueeze(1).expand_as(costs[cost_fn])] = 1e6
+            costs[cost_fn][~targets[self.target_track + "_valid"].unsqueeze(-2).expand_as(costs[cost_fn])] = 1e6
         return costs
 
     def loss(self, outputs, targets):
@@ -258,7 +258,8 @@ class TrackHitValidTask(nn.Module):
             costs[cost_fn] = cost_weight * cost_fns[cost_fn](outputs[self.output_track_hit + "_logit"], targets[self.target_track_hit + "_valid"].float())
 
             # Set the costs of invalid objects to be (basically) inf
-            costs[cost_fn][~targets[self.target_track + "_valid"].unsqueeze(1).expand_as(costs[cost_fn])] = 1e6
+
+            costs[cost_fn][~targets[self.target_track + "_valid"].unsqueeze(-2).expand_as(costs[cost_fn])] = 1e6
         return costs
         
     def loss(self, outputs, targets):
@@ -269,7 +270,6 @@ class TrackHitValidTask(nn.Module):
         # A track-hit is valid slot if both its track and hit are valid slots
         # TODO: Maybe calling this a mask is confusing since true entries are 
         track_hit_mask = track_pad & hit_pad
-        
         
         weight = target + self.null_weight * (1 - target)
 

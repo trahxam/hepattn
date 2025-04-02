@@ -143,15 +143,21 @@ model:
                 output_track: track
                 target_track: particle
                 losses:
-                  #mask_ce: 1.0
-                  mask_dice: 2.0
-                  mask_focal: 50.0
+                  mask_ce: 1.0
+                  #mask_dice: 2.0
+                  #mask_focal: 50.0
                 costs:
-                  #mask_ce: 1.0
-                  mask_dice: 2.0
-                  mask_focal: 50.0
+                  mask_ce: 1.0
+                  #mask_dice: 2.0
+                  #mask_focal: 50.0
                 embed_dim: *embed_dim
                 null_weight: 1.0
+      matcher:
+        class_path: hepattn.models.matcher.Matcher
+        init_args:
+          default_solver: scipy
+          adaptive_solver: false
+          adaptive_check_interval: 1000
 
 
       
