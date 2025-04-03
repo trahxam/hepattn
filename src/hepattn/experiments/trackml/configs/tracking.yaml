@@ -1,4 +1,4 @@
-name: trackml_base
+name: trackml_tracking
 
 data:
   train_dir: /share/rcifdata/maxhart/data/trackml/raw/train/
@@ -70,6 +70,7 @@ model:
     init_args:
       embed_dim: &embed_dim 256
       num_queries: 1200
+      
       input_nets:
         class_path: torch.nn.ModuleList
         init_args:
