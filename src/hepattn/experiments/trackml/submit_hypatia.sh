@@ -6,9 +6,9 @@
 #SBATCH --export=ALL
 #SBATCH --gres=gpu:l40s:1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=10
-#SBATCH --mem=50G
-#SBATCH --output=/share/rcifdata/maxhart/hepattn-test/hepattn/src/hepattn/experiments/tracking/slurm_logs/slurm-%j.%x.out
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=24G
+#SBATCH --output=/share/rcifdata/maxhart/hepattn-test/hepattn/src/hepattn/experiments/trackml/slurm_logs/slurm-%j.%x.out
 
 
 # Comet variables
@@ -37,7 +37,7 @@ nvidia-smi
 # run the training
 echo "Running training script..."
 
-PYTORCH_CMD="python src/hepattn/experiments/trackml/main.py fit --config src/hepattn/experiments/trackml/configs/trackml_tracking.yaml"
+PYTORCH_CMD="python src/hepattn/experiments/trackml/main.py fit --config src/hepattn/experiments/trackml/configs/tracking.yaml"
 PIXI_CMD="pixi run $PYTORCH_CMD"
 APPTAINER_CMD="apptainer run --nv --bind /share/rcifdata/maxhart /share/rcifdata/maxhart/hepattn-test/hepattn/pixi.sif $PIXI_CMD"
 pixi run $PYTORCH_CMD
@@ -45,6 +45,5 @@ echo "Running command: $APPTAINER_CMD"
 $APPTAINER_CMD
 echo "Done."
 
-
-
-
+# Interactive shell command
+# apptainer shell --nv --bind /share/rcifdata/maxhart /share/rcifdata/maxhart/hepattn-test/hepattn/pixi.sif

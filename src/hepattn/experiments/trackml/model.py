@@ -4,7 +4,7 @@ import torch.nn as nn
 from hepattn.models.wrapper import ModelWrapper
 
 
-class Tracker(ModelWrapper):
+class TrackMLTracker(ModelWrapper):
     def __init__(
             self,
             model: nn.Module,

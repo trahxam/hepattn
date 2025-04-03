@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader, Dataset
 from lightning import LightningDataModule
 from pathlib import Path
 
-import hepattn.experiments.tracking.trackml_cluster_features as cluster_features
+import hepattn.experiments.trackml.cluster_features as cluster_features
 
 
 def is_valid_file(path):
@@ -16,11 +16,8 @@ def is_valid_file(path):
 def trackml_event_files_valid(truth_path):
     return all([is_valid_file(str(truth_path).replace("truth", x)) for x in ["truth", "hits", "particles", "cells"]])
 
-def itk_event_files_valid(truth_path):
-    return all([is_valid_file(str(truth_path).replace("truth", x)) for x in ["truth", "pixel", "strip", "parts"]])
 
-
-class TrackingDataset(Dataset):
+class TrackMLDataset(Dataset):
     def __init__(
         self,
         dirpath: str,
@@ -123,21 +120,6 @@ class TrackingDataset(Dataset):
 
         return inputs, targets
     
-
-    def load_trackml_event(self, idx):
-        truth_fname = self.files[idx]
-        hits_fname = Path(str(truth_fname).replace("-truth", "-hits"))
-        cells_fname = Path(str(truth_fname).replace("-truth", "-cells"))
-        particles_fname = Path(str(truth_fname).replace("-truth", "-particles"))
-
-        # Load in event data
-        truth = pd.read_csv(truth_fname, engine="pyarrow")[["hit_id", "particle_id", "weight"]]
-        hits = pd.read_csv(hits_fname, engine="pyarrow", dtype={"x": np.float32, "y": np.float32, "z": np.float32},)
-        particles = pd.read_csv(particles_fname, engine="pyarrow")
-        cells = pd.read_csv(cells_fname, engine="pyarrow")
-
-        hits = cluster_features.append_cell_features(hits, cells, self.detector_config_path)
-    
     def load_event(self, idx):
         truth_fname = self.files[idx]
         hits_fname = Path(str(truth_fname).replace("-truth", "-hits"))
@@ -218,7 +200,7 @@ class TrackingDataset(Dataset):
         return hits, particles
 
 
-class TrackingDataModule(LightningDataModule):
+class TrackMLDataModule(LightningDataModule):
     def __init__(
         self,
         train_dir: str,
@@ -251,10 +233,10 @@ class TrackingDataModule(LightningDataModule):
 
     def setup(self, stage: str):
         if stage == "fit" or stage == "test":
-            self.train_dset = TrackingDataset(dirpath=self.train_dir, num_samples=self.num_train, **self.kwargs,)
+            self.train_dset = TrackMLDataset(dirpath=self.train_dir, num_samples=self.num_train, **self.kwargs,)
 
         if stage == "fit":
-            self.val_dset = TrackingDataset(dirpath=self.val_dir, num_samples=self.num_val, **self.kwargs,)
+            self.val_dset = TrackMLDataset(dirpath=self.val_dir, num_samples=self.num_val, **self.kwargs,)
 
         # Only print train/val dataset details when actually training
         if stage == "fit" and self.trainer.is_global_zero:
@@ -263,10 +245,10 @@ class TrackingDataModule(LightningDataModule):
 
         if stage == "test":
             assert self.test_dir is not None, "No test file specified, see --data.test_dir"
-            self.test_dset = TrackingDataset(dirpath=self.test_dir, num_samples=self.num_test, trainer=self.trainer, **self.kwargs,)
+            self.test_dset = TrackMLDataset(dirpath=self.test_dir, num_samples=self.num_test, trainer=self.trainer, **self.kwargs,)
             print(f"Created test dataset with {len(self.test_dset):,} events")
 
-    def get_dataloader(self, stage: str, dataset: TrackingDataset, shuffle: bool):  # noqa: ARG002
+    def get_dataloader(self, stage: str, dataset: TrackMLDataset, shuffle: bool):  # noqa: ARG002
         return DataLoader(
             dataset=dataset,
             batch_size=None,
