@@ -209,11 +209,13 @@ class Encoder(nn.Module):
 
         self.layers = torch.nn.ModuleList([EncoderLayer(dim=dim, depth=i, **layer_kwargs) for i in range(num_layers)])
 
-    def forward(self, x: Tensor, **kwargs) -> Tensor:
-        # Concatenate dictionary values
-        if isinstance(x, dict):
-            x = torch.cat(list(x.values()), dim=1)
-
+    def forward(self, x: Tensor, x_sort_value: Tensor | None = None, **kwargs) -> Tensor:
+        # If value to sort on is provided, use it to sort the tokens
+        # We don't need to use the stable sort assuming that the sort values are unique
+        if x_sort_value is not None:
+            x_sort_idx = torch.argsort(x_sort_value, axis=-1)
+            x = torch.gather(x, -2, x_sort_idx.unsqueeze(-1).expand_as(x))
+        
         # Initialise sliding window mask
         if self.mask_mod is None and self.attn_type != "flash" and self.window_size:
             self.q_len = torch.tensor([1], device=x.device)
@@ -242,5 +244,10 @@ class Encoder(nn.Module):
         # Remove wrapping for flash attention with sliding window
         if self.attn_type == "flash" and self.window_wrap:
             x = x[:, self.window_size // 2 : -self.window_size // 2]
+
+        # If we sorted the tokens, undo the sorting
+        if x_sort_value is not None:
+            x_unsort_idx = torch.argsort(x_sort_idx, axis=-1)
+            x = torch.gather(x, -2, x_unsort_idx.unsqueeze(-1).expand_as(x))
 
         return x

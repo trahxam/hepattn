@@ -1,6 +1,8 @@
 
 import torch
+import torch
 from torch import Tensor, nn
+
 from hepattn.models.decoder import MaskFormerDecoderLayer
 from hepattn.models.matcher import Matcher
 
@@ -16,16 +18,18 @@ class MaskFormer(nn.Module):
             matcher: None | nn.Module,
             num_queries: int,
             embed_dim: int,
+            input_sort_field: str | None = None,
         ):
             super().__init__()
 
             self.input_nets = input_nets
-            self.encoder = encoder #nn.TransformerEncoder(nn.TransformerEncoderLayer(128, 8, 128, batch_first=True), 4)
+            self.encoder = encoder
             self.decoder_layers = nn.ModuleList([MaskFormerDecoderLayer(**decoder_layer_config) for _ in range(num_decoder_layers)])
             self.tasks = tasks
             self.matcher = matcher
             self.num_queries = num_queries
             self.query_initial = nn.Parameter(torch.randn(num_queries, embed_dim))
+            self.input_sort_field = input_sort_field
             
     def forward(self, inputs: dict[str, Tensor]) -> dict[str, Tensor]:
         input_names = [input_net.input_name for input_net in self.input_nets]
@@ -50,14 +54,18 @@ class MaskFormer(nn.Module):
             slice_start += slice_size
 
         # Merge the input objects and he padding mask into a single set
-        # TODO: Need to correctly account for token ordering if we have multiple input features
         x["key_embed"] = torch.concatenate([x[input_name + "_embed"] for input_name in input_names], dim=-2)
         x["key_valid"] = torch.concatenate([x[input_name + "_valid"] for input_name in input_names], dim=-1)
 
+        if self.input_sort_field is not None:
+            x[f"key_{self.input_sort_field}"] = torch.concatenate([x[input_name + "_" + self.input_sort_field] for input_name in input_names], dim=-1)
+        else:
+            x[f"key_{self.input_sort_field}"] = None
+        
         # Pass merged input objects through the encoder
         if self.encoder is not None:
             # Note that a padded feature is a feature that is not valid
-            x["key_embed"] = self.encoder(x["key_embed"])
+            x["key_embed"] = self.encoder(x["key_embed"], x[f"key_{self.input_sort_field}"])
 
         # Unmerge the updated features back into the separate input types
         for input_name in input_names:
@@ -172,12 +180,12 @@ class MaskFormer(nn.Module):
             costs[layer_name] = layer_costs.detach()
 
         # Permute the outputs for each output in each layer
-        # Note that this permutes the outputs in place
         for layer_name in outputs.keys():
             # Get the indicies that can permute the predictions to yield their optimal matching
             pred_idxs = self.matcher(costs[layer_name])
             batch_idxs = torch.arange(costs[layer_name].shape[0]).unsqueeze(1).expand(-1, self.num_queries)
 
+            # Apply the permutation in place
             for task in self.tasks:
                 for output in task.outputs:
                     outputs[layer_name][task.name][output] = outputs[layer_name][task.name][output][batch_idxs,pred_idxs]

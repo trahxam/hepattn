@@ -189,9 +189,6 @@ class TrackMLDataset(Dataset):
 
         hits = hits[hits["on_valid_particle"]]
 
-        # Sort hits by phi, needed for phi-windowed attention
-        hits = hits.sort_values("phi")
-
         # Sanity checks
         assert len(particles) != 0, "No particles remaining - loosen selection!"
         assert len(hits) != 0, "No hits remaining - loosen selection!"
