@@ -3,7 +3,7 @@ import torch
 import matplotlib.pyplot as plt
 
 from pathlib import Path
-from hepattn.experiments.tracking.data import TrackingDataset
+from hepattn.experiments.tracking.data import TrackMLDataset
 from hepattn.models.matcher import Matcher
 from hepattn.models.loss import mask_ce_costs
 
@@ -40,7 +40,7 @@ class TestTrackMLEvent:
         particle_min_num_hits = 3
         event_max_num_particles = 1000
 
-        dataset = TrackingDataset(
+        dataset = TrackMLDataset(
             dirpath=dirpath,
             inputs=input_fields,
             targets=target_fields,
@@ -103,8 +103,3 @@ class TestTrackMLEvent:
             default_solver="scipy",
             adaptive_solver=False,
         )
-
-
-
-
-
