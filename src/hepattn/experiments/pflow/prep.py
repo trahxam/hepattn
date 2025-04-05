@@ -146,7 +146,7 @@ output_masks = [
 ]
 
 object_aliases = {
-    "MCParticles": "particles",
+    "MCParticles": "particle",
 
     "VXDTrackerHits": "vtrk_barrel_hit",
     "VXDEndcapTrackerHits": "vtrk_endcap_hit",
@@ -173,8 +173,9 @@ field_aliases = {
     "position": "pos",
     "vertex": "vtx.pos",
     "endpoint": "end.pos",
-    "momentum": "vtx.momentum",
-    "momentumAtEndpoint": "end.momentum",
+    "momentum": "vtx.mom",
+    "momentumAtEndpoint": "end.mom",
+    
 
 }
 

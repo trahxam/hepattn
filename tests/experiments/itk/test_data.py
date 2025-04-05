@@ -49,11 +49,10 @@ class TestITkEvent:
 
         dirpath = "/share/rcifdata/maxhart/data/itk/val"
         num_events = -1
-        hit_volume_ids = [8]
+        hit_regions = [3, 4]
         particle_min_pt = 1.0
         particle_max_abs_eta = 1.0
-        particle_min_num_pixels = 3
-        particle_min_num_strips = 3
+        particle_min_num_hits = {"pixel": 3, "strip": 3}
         event_max_num_particles = 2000
 
         dataset = ITkDataset(
@@ -61,11 +60,10 @@ class TestITkEvent:
             inputs=input_fields,
             targets=target_fields,
             num_events=num_events,
-            hit_volume_ids=hit_volume_ids,
+            hit_regions=hit_regions,
             particle_min_pt=particle_min_pt,
             particle_max_abs_eta=particle_max_abs_eta,
-            particle_min_num_pixels=particle_min_num_pixels,
-            particle_min_num_strips=particle_min_num_strips,
+            particle_min_num_hits=particle_min_num_hits,
             event_max_num_particles=event_max_num_particles,
         )
 

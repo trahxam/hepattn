@@ -19,11 +19,10 @@ class ITkDataset(Dataset):
         inputs: dict,
         targets: dict,
         num_events: int = -1,
-        hit_volume_ids: list | None = None,
+        hit_regions: list | None = None,
         particle_min_pt: float = 1.0,
         particle_max_abs_eta: float = 2.5,
-        particle_min_num_pixels = 3,
-        particle_min_num_strips = 6,
+        particle_min_num_hits: dict[str, int] = {"pixel": 3, "strip": 6},
         event_max_num_particles = 1000,
         ):
         super().__init__()
@@ -53,13 +52,12 @@ class ITkDataset(Dataset):
         self.event_names = event_names[:num_events]
 
         # Hit level cuts
-        self.hit_volume_ids = hit_volume_ids
+        self.hit_regions = hit_regions
 
         # Particle level cuts
         self.particle_min_pt = particle_min_pt
         self.particle_max_abs_eta = particle_max_abs_eta
-        self.particle_min_num_pixels = particle_min_num_pixels
-        self.particle_min_num_strips = particle_min_num_strips
+        self.particle_min_num_hits = particle_min_num_hits
 
         # Event level cuts
         self.event_max_num_particles = event_max_num_particles
@@ -76,6 +74,8 @@ class ITkDataset(Dataset):
 
         num_particles = len(particles)
 
+        print(list(hits["pixel"].columns))
+
         # Build the input hits
         for input_name, fields in self.inputs.items():
             inputs[f"{input_name}_valid"] = torch.full((len(hits[input_name]),), True).unsqueeze(0)
@@ -83,7 +83,7 @@ class ITkDataset(Dataset):
 
             for field in fields:
                 inputs[f"{input_name}_{field}"] = torch.from_numpy(hits[input_name][field].values).unsqueeze(0).half()
-
+            
 
         # Build the targets for whether a particle slot is used or not
         targets["particle_valid"] = torch.full((self.event_max_num_particles,), False)
@@ -126,32 +126,33 @@ class ITkDataset(Dataset):
     def load_event(self, idx):
         # Load in event data
         event_name = self.event_names[idx]
+        hit_names = list(self.inputs.keys())
 
-        particles = pd.read_parquet(self.dirpath / Path(event_name + "-parts.parquet"))
-        pixel = pd.read_parquet(self.dirpath / Path(event_name + "-pixel.parquet"))
-        strip = pd.read_parquet(self.dirpath / Path(event_name + "-strip.parquet"))
+        # Load the particles
+        particles = pd.read_parquet(self.dirpath / Path(f"{event_name}-parts.parquet"))
 
-        
+        # Load the hits
+        hits = {}
+        for hit_name in hit_names:
+            hits[hit_name] = pd.read_parquet(self.dirpath / Path(f"{event_name}-{hit_name}.parquet"))
 
-        # Only include hits from the specified volumes
-        # pix barrel: 8, pix endcap: 7, 9 - https://competitions.codalab.org/competitions/20112
-        #if self.hit_volume_ids:
-        #    pixel = pixel[pixel["region"].isin(self.hit_volume_ids)]
-        #    strip = strip[strip["region"].isin(self.hit_volume_ids)]
+        for k in hit_names:
+            # Only include hits from the specified detector regions
+            if self.hit_regions:
+                hits[k] = hits[k][hits[k]["region"].isin(self.hit_regions)]
 
-        # Add extra hit fields
-        for hits in [pixel, strip]:
             # Scale the input coordinates to in meters so they are ~ 1
             for coord in ["x", "y", "z"]:
-                hits[coord] *= 0.01
-
-            hits["r"] = np.sqrt(hits["x"] ** 2 + hits["y"] ** 2)
-            hits["s"] = np.sqrt(hits["x"] ** 2 + hits["y"] ** 2 + hits["z"] ** 2)
-            hits["theta"] = np.arccos(hits["z"] / hits["s"])
-            hits["phi"] = np.arctan2(hits["y"], hits["x"])
-            hits["eta"] = -np.log(np.tan(hits["theta"] / 2))
-            hits["u"] = hits["x"] / (hits["x"] ** 2 + hits["y"] ** 2)
-            hits["v"] = hits["y"] / (hits["x"] ** 2 + hits["y"] ** 2)
+                hits[k][coord] *= 0.01
+                
+            # Add extra hit fields
+            hits[k]["r"] = np.sqrt(hits[k]["x"] ** 2 + hits[k]["y"] ** 2)
+            hits[k]["s"] = np.sqrt(hits[k]["x"] ** 2 + hits[k]["y"] ** 2 + hits[k]["z"] ** 2)
+            hits[k]["theta"] = np.arccos(hits[k]["z"] / hits[k]["s"])
+            hits[k]["phi"] = np.arctan2(hits[k]["y"], hits[k]["x"])
+            hits[k]["eta"] = -np.log(np.tan(hits[k]["theta"] / 2))
+            hits[k]["u"] = hits[k]["x"] / (hits[k]["x"] ** 2 + hits[k]["y"] ** 2)
+            hits[k]["v"] = hits[k]["y"] / (hits[k]["x"] ** 2 + hits[k]["y"] ** 2)
 
         # Add extra particle fields
         particles["p"] = np.sqrt(particles["px"]**2 + particles["py"]**2 + particles["pz"]**2)
@@ -168,23 +169,26 @@ class ITkDataset(Dataset):
         # Apply particle level cuts based on particle fields
         particles = particles[particles["pt"] >= self.particle_min_pt]
         particles = particles[particles["eta"].abs() <= self.particle_max_abs_eta]
-
+        
+        # Remove particles that have no truth link record
         particles = particles[particles["particle_id"] != 0]
 
-        # Marck which hits are on a valid / reconstructable particle, for the hit filter
-        pixel["on_valid_particle"] = pixel["particle_id"].isin(particles["particle_id"])
-        strip["on_valid_particle"] = strip["particle_id"].isin(particles["particle_id"])
+        # Apply particle cut based on hit content
+        for k in hit_names:
+            hit_counts = hits[k]["particle_id"].value_counts()
+            keep_particle_ids = hit_counts[hit_counts >= self.particle_min_num_hits[hit_name]].index.to_numpy()
+            particles = particles[particles["particle_id"].isin(keep_particle_ids)]
 
-        pixel = pixel[pixel["on_valid_particle"]]
-        strip = strip[strip["on_valid_particle"]]
+            # Marck which hits are on a valid / reconstructable particle, for the hit filter
+            hits[k]["on_valid_particle"] = hits[k]["particle_id"].isin(particles["particle_id"])
 
-        # Sanity checks
-        assert len(particles) != 0, "No particles remaining - loosen selection!"
-        assert len(pixel) != 0, "No pixel hits remaining - loosen selection!"
-        assert len(strip) != 0, "No strip hits remaining - loosen selection!"
+            # TODO: Add back in option to have some noise hits
+            hits[k] = hits[k][hits[k]["on_valid_particle"]]
+
+            assert len(hits[k]) != 0, f"No {hit_name}s remaining, loosen selection"
+
+        assert len(particles) != 0, "No particles remaining, loosen selection"
         assert particles["particle_id"].nunique() == len(particles), "Non-unique particle ids"
-
-        hits = {"pixel": pixel, "strip": strip}
 
         return hits, particles
 
