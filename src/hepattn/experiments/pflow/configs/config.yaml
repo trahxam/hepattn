@@ -1,0 +1,157 @@
+data:
+  inputs:
+    # Vertex detector barrel hits
+    VXDTrackerHits:
+      - position.x
+      - position.y
+      - position.z
+      - eDep
+      - time
+      - u.a
+      - u.b
+      - v.a
+      - v.b
+      - du
+      - dv
+    
+    # Vertex detector endcap hits
+    VXDEndcapTrackerHits:
+      - position.x
+      - position.y
+      - position.z
+      - eDep
+      - time
+      - u.a
+      - u.b
+      - v.a
+      - v.b
+      - du
+      - dv
+    
+    # Inner tracker barrel hits
+    ITrackerHits:
+      - position.x
+      - position.y
+      - position.z
+      - eDep
+      - time
+      - u.a
+      - u.b
+      - v.a
+      - v.b
+      - du
+      - dv
+    
+    # Inner tracker endcap hits
+    ITrackerEndcapHits:
+      - position.x
+      - position.y
+      - position.z
+      - eDep
+      - time
+      - u.a
+      - u.b
+      - v.a
+      - v.b
+      - du
+      - dv
+    
+    # Outer tracker barrel hits
+    OTrackerHits:
+      - position.x
+      - position.y
+      - position.z
+      - eDep
+      - time
+      - u.a
+      - u.b
+      - v.a
+      - v.b
+      - du
+      - dv
+    
+    # Outer tracker endcap hits
+    OTrackerEndcapHits:
+      - position.x
+      - position.y
+      - position.z
+      - eDep
+      - time
+      - u.a
+      - u.b
+      - v.a
+      - v.b
+      - du
+      - dv
+
+    # Electromagnetic calorimeter barrel hits
+    ECALBarrel:
+      - position.x
+      - position.y
+      - position.z
+      - energy
+      - time
+    
+    # Electromagnetic calorimeter endcap hits
+    ECALEndcap:
+      - position.x
+      - position.y
+      - position.z
+      - energy
+      - time
+    
+    # Hadronic calorimeter barrel hits
+    HCALBarrel:
+      - position.x
+      - position.y
+      - position.z
+      - energy
+      - time
+    
+    # Hadronic calorimeter endcap hits
+    HCALEndcap:
+      - position.x
+      - position.y
+      - position.z
+      - energy
+      - time
+    
+    # Hadronic calorimeter ring hits (I think?)
+    HCALOther:
+      - position.x
+      - position.y
+      - position.z
+      - energy
+      - time
+
+    # Muon hits
+    MUON:
+      - position.x
+      - position.y
+      - position.z
+      - energy
+      - time
+
+  labels:
+    MCParticles:
+      - PDG
+      - charge
+      - time
+      - mass
+      - vertex.x
+      - vertex.y
+      - vertex.z
+      - endpoint.x
+      - endpoint.y
+      - endpoint.z
+      - momentum.x
+      - momentum.y
+      - momentum.z
+      - momentumAtEndpoint.x
+      - momentumAtEndpoint.y
+      - momentumAtEndpoint.z
+      - spin.x
+      - spin.y
+      - spin.z
+      - colorFlow.a
+      - colorFlow.b
