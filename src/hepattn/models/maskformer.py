@@ -19,7 +19,32 @@ class MaskFormer(nn.Module):
             num_queries: int,
             embed_dim: int,
             input_sort_field: str | None = None,
-        ):
+            ):
+            """
+            Initializes the MaskFormer model, which is a modular transformer-style architecture designed
+            for multi-task object inference with attention-based decoding and optional encoder blocks.
+
+            Parameters
+            ----------
+            input_nets : nn.ModuleList
+                A list of input modules, each responsible for embedding a specific input type.
+            encoder : nn.Module
+                An optional encoder module that processes merged input embeddings with optional sorting.
+            decoder_layer_config : dict
+                Configuration dictionary used to initialize each MaskFormerDecoderLayer.
+            num_decoder_layers : int
+                The number of decoder layers to stack.
+            tasks : nn.ModuleList
+                A list of task modules, each responsible for producing and processing predictions from decoder outputs.
+            matcher : nn.Module or None
+                A module used to match predictions to targets (e.g., using the Hungarian algorithm) for loss computation.
+            num_queries : int
+                The number of object-level queries to initialize and decode.
+            embed_dim : int
+                The dimensionality of the query and key embeddings.
+            input_sort_field : str or None, optional
+                An optional key used to sort the input objects (e.g., for windowed attention).
+            """
             super().__init__()
 
             self.input_nets = input_nets
@@ -31,24 +56,27 @@ class MaskFormer(nn.Module):
             self.query_initial = nn.Parameter(torch.randn(num_queries, embed_dim))
             self.input_sort_field = input_sort_field
             
+            
     def forward(self, inputs: dict[str, Tensor]) -> dict[str, Tensor]:
         input_names = [input_net.input_name for input_net in self.input_nets]
 
         assert "key" not in input_names, "'key' input name is reserved."
         assert "query" not in input_names, "'query' input name is reserved."
     
-        # Embed the input objects
         x = {}
 
         # Used for un-merging features later
         input_slices = {}
         slice_start = 0
 
+        # Embed the input objects
         for input_net in self.input_nets:
             input_name = input_net.input_name
             x[input_name + "_embed"] = input_net(inputs)
             x[input_name + "_valid"] = inputs[input_name + "_valid"]
 
+            # These slices can be used to pick out specific
+            # objects after we have merged them all together
             slice_size = inputs[input_name + "_valid"].shape[-1]
             input_slices[input_name] = slice(slice_start, slice_start + slice_size)
             slice_start += slice_size
@@ -57,6 +85,7 @@ class MaskFormer(nn.Module):
         x["key_embed"] = torch.concatenate([x[input_name + "_embed"] for input_name in input_names], dim=-2)
         x["key_valid"] = torch.concatenate([x[input_name + "_valid"] for input_name in input_names], dim=-1)
 
+        # Also merge the field being used for sorting in window attention if requested
         if self.input_sort_field is not None:
             x[f"key_{self.input_sort_field}"] = torch.concatenate([inputs[input_name + "_" + self.input_sort_field] for input_name in input_names], dim=-1)
         else:
@@ -71,7 +100,7 @@ class MaskFormer(nn.Module):
         for input_name in input_names:
             x[input_name + "_embed"] = x["key_embed"][...,input_slices[input_name],:]
 
-        # Generate the queries / tracks
+        # Generate the queries that represent objects
         batch_size = x["key_valid"].shape[0]
         x["query_embed"] = self.query_initial.expand(batch_size, -1, -1)
         x["query_valid"] = torch.full((batch_size, self.num_queries), True)
@@ -81,18 +110,18 @@ class MaskFormer(nn.Module):
         for layer_index, decoder_layer in enumerate(self.decoder_layers):
             outputs[f"layer_{layer_index}"] = {}
 
-            # Here we check if each task has an attention mask to contribute, then after
-            # we fill in any attention masks for any features that did not get an attention mask
             attn_masks = {}
             for task in self.tasks:
                 # Get the outputs of the task given the current embeddings and record them
                 task_outputs = task(x)
                 outputs[f"layer_{layer_index}"][task.name] = task_outputs
 
-                # If the task has attention masks to provide, record them
+                # Here we check if each task has an attention mask to contribute, then after
+                # we fill in any attention masks for any features that did not get an attention mask
                 if hasattr(task, "attn_mask"):
                     for input_name, attn_mask in task.attn_mask(task_outputs).items():
-                        # If a feature already has an attention mask from another task, need to update it
+                        # We only want to mask an attention slogt if every task wants to mask that slot
+                        # so we only mask if both the existing and new attention mask are masked
                         if input_name in attn_masks:
                             attn_masks[input_name] = attn_masks[input_name] & attn_mask
                         else:
