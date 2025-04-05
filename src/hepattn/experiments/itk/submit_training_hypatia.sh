@@ -49,6 +49,3 @@ APPTAINER_CMD="apptainer run --nv --bind /share/rcifdata/maxhart /share/rcifdata
 echo "Running command: $APPTAINER_CMD"
 $APPTAINER_CMD
 echo "Done!"
-
-# Interactive shell command
-# apptainer shell --nv --bind /share/rcifdata/maxhart /share/rcifdata/maxhart/hepattn-test/hepattn/pixi.sif

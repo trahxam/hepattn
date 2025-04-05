@@ -91,16 +91,22 @@ class ITkDataset(Dataset):
         targets["particle_valid"] = targets["particle_valid"].unsqueeze(0)
 
         # Build the particle regression targets
-        particle_ids = torch.from_numpy(particles["particle_id"].values)
+        particle_ids = torch.from_numpy(particles["particle_id"].values).long()
         
         message = f"Event {idx} has {num_particles}, but limit is {self.event_max_num_particles}"
         assert len(particle_ids) <= self.event_max_num_particles, message
 
         # Fill in empty slots with -1s and get the IDs of the particle on each hit
-        particle_ids = torch.cat([particle_ids, -999 * torch.ones(self.event_max_num_particles - len(particle_ids))])
+        # Important! Make sure that the null value tensor we concatenate on the end is also a long tensor,
+        # otherwise the resulting tensor will be a 32 bit int tensor which causes overflow issues as 
+        # particle_ids can be larger than the int32 max value
+        particle_ids = torch.cat([particle_ids, -1 * torch.ones(self.event_max_num_particles - len(particle_ids)).long()])
+
+        torch.set_printoptions(threshold=10000, sci_mode=False)
 
         for hit in ["pixel", "strip"]:
-            hit_particle_ids = torch.from_numpy(hits[hit]["particle_id"].values)
+            hit_particle_ids = torch.from_numpy(hits[hit]["particle_id"].values).long()
+            
 
             # Create the mask targets
             targets[f"particle_{hit}_valid"] = (particle_ids.unsqueeze(-1) == hit_particle_ids.unsqueeze(-2)).unsqueeze(0)
@@ -125,6 +131,8 @@ class ITkDataset(Dataset):
         pixel = pd.read_parquet(self.dirpath / Path(event_name + "-pixel.parquet"))
         strip = pd.read_parquet(self.dirpath / Path(event_name + "-strip.parquet"))
 
+        
+
         # Only include hits from the specified volumes
         # pix barrel: 8, pix endcap: 7, 9 - https://competitions.codalab.org/competitions/20112
         #if self.hit_volume_ids:
@@ -145,8 +153,6 @@ class ITkDataset(Dataset):
             hits["u"] = hits["x"] / (hits["x"] ** 2 + hits["y"] ** 2)
             hits["v"] = hits["y"] / (hits["x"] ** 2 + hits["y"] ** 2)
 
-            
-
         # Add extra particle fields
         particles["p"] = np.sqrt(particles["px"]**2 + particles["py"]**2 + particles["pz"]**2)
         particles["pt"] = np.sqrt(particles["px"]**2 + particles["py"]**2)
@@ -160,8 +166,10 @@ class ITkDataset(Dataset):
         particles["sinphi"] = np.sin(particles["phi"])
 
         # Apply particle level cuts based on particle fields
-        particles = particles[particles["pt"] > self.particle_min_pt]
-        particles = particles[particles["eta"].abs() < self.particle_max_abs_eta]
+        particles = particles[particles["pt"] >= self.particle_min_pt]
+        particles = particles[particles["eta"].abs() <= self.particle_max_abs_eta]
+
+        particles = particles[particles["particle_id"] != 0]
 
         # Marck which hits are on a valid / reconstructable particle, for the hit filter
         pixel["on_valid_particle"] = pixel["particle_id"].isin(particles["particle_id"])
