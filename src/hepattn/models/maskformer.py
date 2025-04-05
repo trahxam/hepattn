@@ -58,7 +58,7 @@ class MaskFormer(nn.Module):
         x["key_valid"] = torch.concatenate([x[input_name + "_valid"] for input_name in input_names], dim=-1)
 
         if self.input_sort_field is not None:
-            x[f"key_{self.input_sort_field}"] = torch.concatenate([x[input_name + "_" + self.input_sort_field] for input_name in input_names], dim=-1)
+            x[f"key_{self.input_sort_field}"] = torch.concatenate([inputs[input_name + "_" + self.input_sort_field] for input_name in input_names], dim=-1)
         else:
             x[f"key_{self.input_sort_field}"] = None
         

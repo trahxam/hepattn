@@ -13,9 +13,6 @@ def is_valid_file(path):
     path = Path(path)
     return path.is_file() and path.stat().st_size > 0
 
-def trackml_event_files_valid(truth_path):
-    return all([is_valid_file(str(truth_path).replace("truth", x)) for x in ["truth", "hits", "particles", "cells"]])
-
 
 class TrackMLDataset(Dataset):
     def __init__(
@@ -23,7 +20,7 @@ class TrackMLDataset(Dataset):
         dirpath: str,
         inputs: dict,
         targets: dict,
-        num_samples: int = -1,
+        num_events: int = -1,
         hit_volume_ids: list | None = None,
         particle_min_pt: float = 1.0,
         particle_max_abs_eta: float = 2.5,
@@ -36,28 +33,25 @@ class TrackMLDataset(Dataset):
         self.sampling_seed = 42
         np.random.seed(self.sampling_seed)  # noqa: NPY002
 
-        # Get a list of truth file paths that have valid accompanying hit/cell/etc info
-        files = [file for file in Path(dirpath).glob("event*-truth.csv.gz") if trackml_event_files_valid(file)]
+        # Get a list of event names
+        event_names = [Path(file).stem.replace("-parts", "") for file in Path(dirpath).glob("event*-parts.parquet")]
 
-        # Calculate the number of samples that will actually be used
-        num_samples_available = len(files)
+        # Calculate the number of events that will actually be used
+        num_events_available = len(event_names)
 
-        if num_samples > num_samples_available:
-            msg = f"Requested {num_samples} samples, but only {num_samples_available} are available in the directory {dirpath}."
+        if num_events > num_events_available:
+            msg = f"Requested {num_events} events, but only {num_events_available} are available in the directory {dirpath}."
             raise ValueError(msg)
 
-        if num_samples < 0:
-            num_samples = num_samples_available
+        if num_events < 0:
+            num_events = num_events_available
         
         # Metadata
         self.dirpath = Path(dirpath)
         self.inputs = inputs
         self.targets = targets
-        self.num_samples = num_samples
-        self.files = files[:num_samples]
-
-        self.detector_config_path = self.dirpath.parent / "detectors.csv"
-        assert is_valid_file(self.detector_config_path), f"Missing detector config at {self.detector_config_path}"
+        self.num_events = num_events
+        self.event_names = event_names[:num_events]
 
         # Hit level cuts
         self.hit_volume_ids = hit_volume_ids
@@ -71,7 +65,7 @@ class TrackMLDataset(Dataset):
         self.event_max_num_particles = event_max_num_particles
 
     def __len__(self):
-        return int(self.num_samples)
+        return int(self.num_events)
 
     def __getitem__(self, idx):
         inputs = {}
@@ -119,36 +113,16 @@ class TrackMLDataset(Dataset):
                 targets[f"{feature}_{field}"] = x.unsqueeze(0)
 
         return inputs, targets
-    
+
     def load_event(self, idx):
-        truth_fname = self.files[idx]
-        hits_fname = Path(str(truth_fname).replace("-truth", "-hits"))
-        cells_fname = Path(str(truth_fname).replace("-truth", "-cells"))
-        particles_fname = Path(str(truth_fname).replace("-truth", "-particles"))
+        event_name = self.event_names[idx]
 
-        # Load in event data
-        truth = pd.read_csv(truth_fname, engine="pyarrow")[["hit_id", "particle_id", "weight"]]
-        hits = pd.read_csv(hits_fname, engine="pyarrow", dtype={"x": np.float32, "y": np.float32, "z": np.float32},)
-        particles = pd.read_csv(particles_fname, engine="pyarrow")
-        cells = pd.read_csv(cells_fname, engine="pyarrow")
-
-        assert (truth.index == hits.index).all()
-
-        # Add hit info
-        hits["particle_id"] = truth["particle_id"]  # used for evaluation, don't modify
-
-        # Only include hits from the specified volumes
-        # pix barrel: 8, pix endcap: 7, 9 - https://competitions.codalab.org/competitions/20112
+        particles = pd.read_parquet(self.dirpath / Path(event_name + "-parts.parquet"))
+        hits = pd.read_parquet(self.dirpath / Path(event_name + "-hits.parquet"))
+        
+        # Make the detector volume selection
         if self.hit_volume_ids:
             hits = hits[hits["volume_id"].isin(self.hit_volume_ids)]
-        
-        # Remove any hits that were cut from the truth and cells also
-        truth = truth[truth["hit_id"].isin(hits["hit_id"])]
-        cells = cells[cells["hit_id"].isin(hits["hit_id"])]
-
-        # Add additional input information about cluster shapes
-        # TODO: Detector config should just be loaded once on init instead of every getitem
-        hits = cluster_features.append_cell_features(hits, cells, self.detector_config_path)
 
         # Scale the input coordinates to in meters so they are ~ 1
         for coord in ["x", "y", "z"]:
@@ -230,10 +204,10 @@ class TrackMLDataModule(LightningDataModule):
 
     def setup(self, stage: str):
         if stage == "fit" or stage == "test":
-            self.train_dset = TrackMLDataset(dirpath=self.train_dir, num_samples=self.num_train, **self.kwargs,)
+            self.train_dset = TrackMLDataset(dirpath=self.train_dir, num_events=self.num_train, **self.kwargs,)
 
         if stage == "fit":
-            self.val_dset = TrackMLDataset(dirpath=self.val_dir, num_samples=self.num_val, **self.kwargs,)
+            self.val_dset = TrackMLDataset(dirpath=self.val_dir, num_events=self.num_val, **self.kwargs,)
 
         # Only print train/val dataset details when actually training
         if stage == "fit" and self.trainer.is_global_zero:
@@ -242,7 +216,7 @@ class TrackMLDataModule(LightningDataModule):
 
         if stage == "test":
             assert self.test_dir is not None, "No test file specified, see --data.test_dir"
-            self.test_dset = TrackMLDataset(dirpath=self.test_dir, num_samples=self.num_test, trainer=self.trainer, **self.kwargs,)
+            self.test_dset = TrackMLDataset(dirpath=self.test_dir, num_events=self.num_test, trainer=self.trainer, **self.kwargs,)
             print(f"Created test dataset with {len(self.test_dset):,} events")
 
     def get_dataloader(self, stage: str, dataset: TrackMLDataset, shuffle: bool):  # noqa: ARG002
