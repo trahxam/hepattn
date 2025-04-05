@@ -67,3 +67,8 @@ line-length = 150
 preview = true
 lint.select = ["ALL"]
 lint.ignore = ["G", "D", "DOC", "ANN", "PLW", "FBT", "EM", "PLR1714", "PLR2004", "PT018", "RET504", "COM812", "ISC001", "CPY001", "TRY003", "S101", "A003", "N812", "PLR0913", "PLR0917", "DOC201", "INP001", "PLR6301", "T201"]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore:.*distutils Version classes are deprecated. Use packaging.version instead.*:DeprecationWarning",
+]
