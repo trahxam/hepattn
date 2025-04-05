@@ -21,8 +21,8 @@ export TMPDIR=/var/tmp/
 echo "Running preprocessing script..."
 
 # Change these to wherever your data is, or get access to them
-IN_DIR="/share/rcifdata/maxhart/data/itk/ATLAS-P2-RUN4-03-00-00_Rel.24_ttbar_uncorr_pu200_dumpv5_acorn2.0.0_acorn_data_reading_output_trainset/"
-OUT_DIR="/share/rcifdata/maxhart/data/itk/train/"
+IN_DIR="/share/rcifdata/maxhart/data/itk/ATLAS-P2-RUN4-03-00-00_Rel.24_ttbar_uncorr_pu200_dumpv5_acorn2.0.0_acorn_data_reading_output_valset/"
+OUT_DIR="/share/rcifdata/maxhart/data/itk/val/"
 
 # Python command that will be run
 PYTORCH_CMD="python src/hepattn/experiments/itk/prep.py --in_dir $IN_DIR --out_dir $OUT_DIR"
