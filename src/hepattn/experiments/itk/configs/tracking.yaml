@@ -63,7 +63,7 @@ trainer:
 
 model:
   lrs_config:
-    initial: 5e-5
+    initial: 1e-5
     max: 1e-4
     end: 1e-5
     pct_start: 0.05
@@ -187,11 +187,11 @@ model:
                 output_object: track
                 target_object: particle
                 losses:
-                  mask_ce: 1.0
+                  mask_ce: 100.0
                   #mask_dice: 2.0
                   #mask_focal: 50.0
                 costs:
-                  mask_ce: 1.0
+                  mask_ce: 100.0
                   #mask_dice: 2.0
                   #mask_focal: 50.0
                 embed_dim: *embed_dim
@@ -205,11 +205,11 @@ model:
                 output_object: track
                 target_object: particle
                 losses:
-                  mask_ce: 1.0
+                  mask_ce: 100.0
                   #mask_dice: 2.0
                   #mask_focal: 50.0
                 costs:
-                  mask_ce: 1.0
+                  mask_ce: 100.0
                   #mask_dice: 2.0
                   #mask_focal: 50.0
                 embed_dim: *embed_dim

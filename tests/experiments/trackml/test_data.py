@@ -3,7 +3,8 @@ import torch
 import matplotlib.pyplot as plt
 
 from pathlib import Path
-from hepattn.experiments.tracking.data import TrackMLDataset
+from hepattn.experiments.trackml.data import TrackMLDataset
+from hepattn.experiments.trackml.plot_event import plot_trackml_event_reconstruction
 from hepattn.models.matcher import Matcher
 from hepattn.models.loss import mask_ce_costs
 
@@ -19,6 +20,17 @@ class TestTrackMLEvent:
             "x",
             "y",
             "z",
+            "r",
+            "eta",
+            "phi",
+            "u",
+            "v",
+            "charge_frac",
+            "leta",
+            "lphi",
+            "lx",
+            "ly",
+            "lz",
             "geta",
             "gphi",
         ]
@@ -33,7 +45,7 @@ class TestTrackMLEvent:
         }
 
         dirpath = "/share/rcifdata/maxhart/data/trackml/raw/train/"
-        num_samples = -1
+        num_events = -1
         hit_volume_ids = [8]
         particle_min_pt = 1.0
         particle_max_abs_eta = 2.5
@@ -44,7 +56,7 @@ class TestTrackMLEvent:
             dirpath=dirpath,
             inputs=input_fields,
             targets=target_fields,
-            num_samples=num_samples,
+            num_events=num_events,
             hit_volume_ids=hit_volume_ids,
             particle_min_pt=particle_min_pt,
             particle_max_abs_eta=particle_max_abs_eta,
@@ -70,29 +82,7 @@ class TestTrackMLEvent:
 
         inputs, targets = trackml_event
 
-        fig, ax = plt.subplots(1, 2)
-        fig.set_size_inches(8, 4)
-
-        batch_idx = 0
-
-        hit_particle_valid = targets["hit_on_valid_particle"][batch_idx]
-
-        for ax_idx, ax_x, ax_y in [(0, "x", "y"),
-                                (1, "z", "y")]:
-            ax[ax_idx].scatter(inputs[f"hit_{ax_x}"][batch_idx][hit_particle_valid],
-                            inputs[f"hit_{ax_y}"][batch_idx][hit_particle_valid],
-                            color="black", s=1.0, alpha=0.5)
-
-            for i in range(targets["particle_valid"][batch_idx].shape[-1]):
-                if not targets["particle_valid"][batch_idx][i]:
-                    continue
-                
-                if not targets["particle_pt"][batch_idx][i] > 1.0:
-                    continue
-
-                particle_mask = targets["particle_hit_valid"][batch_idx][i]
-                ax[ax_idx].plot(inputs[f"hit_{ax_x}"][batch_idx][particle_mask],
-                                inputs[f"hit_{ax_y}"][batch_idx][particle_mask], alpha=0.5)
+        fig = plot_trackml_event_reconstruction(inputs, targets)
 
         fig.savefig(Path("tests/outputs/trackml/trackml_event.png"))
 
