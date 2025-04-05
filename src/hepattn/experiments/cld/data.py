@@ -95,10 +95,10 @@ class CLDDataset(Dataset):
         for input_name in self.inputs.keys():
             mask = np.full((event[f"{input_name}_position.x"].shape[0], self.num_particles), False)
             # Get the mask indices that map from hits to particles
-            mask_idxs = event[f"{input_name}_to_MCParticles_idxs"]
+            mask_idxs = event[f"{input_name}_to_particle_idxs"]
             mask[mask_idxs[:,0],mask_idxs[:,1]] = True
             # Have to transpose the mask to get mask for particles to hits
-            masks[f"MCParticles_{input_name}"] = mask.T
+            masks[f"particle_{input_name}"] = mask.T
         
         
 
