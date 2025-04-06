@@ -6,7 +6,7 @@ def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec):
 
     fig, ax = plt.subplots(1, num_axes)
     fig.set_size_inches(8 * num_axes, 8)
-    
+
     if num_axes == 1:
         ax = [ax]
     else:
@@ -39,7 +39,7 @@ def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec):
                 
                 # Muon hit
                 elif input_name == "muon":
-                    ax[ax_idx].scatter(x[mask], y[mask], color=color, marker="+", alpha=0.2)
+                    ax[ax_idx].scatter(x[mask], y[mask], color=color, marker="+", alpha=0.8)
                 
                 ax[ax_idx].set_xlabel(ax_spec["x"])
                 ax[ax_idx].set_ylabel(ax_spec["y"])
