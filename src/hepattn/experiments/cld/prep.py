@@ -137,8 +137,9 @@ field_aliases = {
     "position": "pos",
     "vertex": "vtx.pos",
     "endpoint": "end.pos",
-    "momentum": "vtx.mom",
+    # Aliases are applied in order, so string supersets must go first
     "momentumAtEndpoint": "end.mom",
+    "momentum": "vtx.mom",
 }
 
 # Specify which items we actually want to save
@@ -241,7 +242,6 @@ non_hadron_pdgid_to_class = {
     16: 7, # Neutrino
 }
 
-max_num_particles = 1600
 max_num_hits = 15000
 
 
@@ -259,7 +259,7 @@ def get_particle_class(pid, charge):
         return -1
 
 
-def prep_event(events, event_idx, namecodes, pt_cut):
+def prep_event(events, event_idx, namecodes, min_pt):
     items = {}
     
     # First build the items by combinging them into properly formatted awkward arrays
@@ -329,7 +329,7 @@ def prep_event(events, event_idx, namecodes, pt_cut):
         "Status 0": items["MCParticles"]["generatorStatus"] == 0,
         "Status 1": items["MCParticles"]["generatorStatus"] == 1,
         "Status 2": items["MCParticles"]["generatorStatus"] == 2,
-        "10 MeV": items["MCParticles"]["momentum.t"] >= pt_cut * 0.001, # Minimum pT cut is given in MeV
+        "10 MeV": items["MCParticles"]["momentum.t"] >= min_pt * 0.001, # Minimum pT cut is given in MeV
         "Electron Beam Remenant": (items["MCParticles"]["momentum.y"] == 0) & (items["MCParticles"]["PDG"] == 11),
         "Photon Beam Remenant": (items["MCParticles"]["momentum.y"] == 0) & (items["MCParticles"]["PDG"] == 22),
     }
@@ -391,7 +391,13 @@ def prep_event(events, event_idx, namecodes, pt_cut):
     return data_out
 
 
-def preprocess(in_dir: str, out_dir: str, overwrite: bool, pt_cut: float = 10.0):
+def preprocess(
+        in_dir: str,
+        out_dir: str,
+        overwrite: bool,
+        min_pt: float = 10.0,
+        max_num_particles: int = 1000
+        ):
     """Preprpocess root files into parquet files.
 
     Parameters
@@ -432,14 +438,15 @@ def preprocess(in_dir: str, out_dir: str, overwrite: bool, pt_cut: float = 10.0)
             t0 = time.time()
                 
             # Determine the name of the output event for this file, skip if it exists and overwrite is false
-            output_file = Path(out_dir) / Path(in_file.stem.replace("_condor", "") + f"_{str(event_number+1).zfill(8)}_{int(pt_cut)}.parquet")
+            event_name = in_file.stem.replace("_condor", "") + f"_{str(event_number+1).zfill(8)}_{int(min_pt)}_{max_num_particles}"
+            output_file = Path(out_dir) /  Path(f"{event_name}.parquet")
 
             if output_file.is_file() and not overwrite:
                 print(f"Skipping {output_file} as it already exists")
                 continue
             
             # Process the event to get the hit / particle data and the links between them
-            event_data = prep_event(events, event_idx, namecodes, pt_cut)
+            event_data = prep_event(events, event_idx, namecodes, min_pt)
 
             num_particles = len(event_data["particle.PDG"][0])
             num_hits = sum(len(event_data[f"{k}.type"][0]) for k in aliased_output_hits)
@@ -461,11 +468,18 @@ def preprocess(in_dir: str, out_dir: str, overwrite: bool, pt_cut: float = 10.0)
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="Convert root TTree files to binary parquet files")
-    parser.add_argument("-i", "--in_dir", dest="in_dir", type=str, required=True, help="Input directory containing ROOT files")
-    parser.add_argument("-o", "--out_dir", dest="out_dir", type=str, required=True, help="Output directory for parquet files")
-    parser.add_argument("--overwrite", action="store_true")
-    parser.add_argument("--pt_cut", type=float, help="Minimum pT cut to apply on particles, in MeV")
+
+    parser.add_argument("-i", "--in_dir", dest="in_dir", type=str, required=True,
+                        help="Input directory containing ROOT files")
+    parser.add_argument("-o", "--out_dir", dest="out_dir", type=str, required=True,
+                        help="Output directory for parquet files")
+    parser.add_argument("--overwrite", action="store_true",
+                        help="Whether to overwrite existing events or not.")
+    parser.add_argument("--min_pt", type=float,
+                        help="Minimum pT cut to apply on particles, in MeV")
+    parser.add_argument("--max_num_particles", type=int, required=False, default=1000,
+                        help="Maximum number of particles in the event for it to be saved accepted.")
 
     args = parser.parse_args()
 
-    preprocess(args.in_dir, args.out_dir, args.overwrite, args.pt_cut)
+    preprocess(args.in_dir, args.out_dir, args.overwrite, args.min_pt, args.max_num_particles)

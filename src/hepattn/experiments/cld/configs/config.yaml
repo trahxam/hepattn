@@ -1,10 +1,10 @@
 data:
   inputs:
-    # Vertex detector barrel hits
-    VXDTrackerHits:
-      - position.x
-      - position.y
-      - position.z
+    # Vtx detector barrel hits
+    vtb:
+      - pos.x
+      - pos.y
+      - pos.z
       - eDep
       - time
       - u.a
@@ -14,11 +14,11 @@ data:
       - du
       - dv
     
-    # Vertex detector endcap hits
-    VXDEndcapTrackerHits:
-      - position.x
-      - position.y
-      - position.z
+    # Vtx detector endcap hits
+    vte:
+      - pos.x
+      - pos.y
+      - pos.z
       - eDep
       - time
       - u.a
@@ -29,10 +29,10 @@ data:
       - dv
     
     # Inner tracker barrel hits
-    ITrackerHits:
-      - position.x
-      - position.y
-      - position.z
+    itb:
+      - pos.x
+      - pos.y
+      - pos.z
       - eDep
       - time
       - u.a
@@ -43,10 +43,10 @@ data:
       - dv
     
     # Inner tracker endcap hits
-    ITrackerEndcapHits:
-      - position.x
-      - position.y
-      - position.z
+    ite:
+      - pos.x
+      - pos.y
+      - pos.z
       - eDep
       - time
       - u.a
@@ -57,10 +57,10 @@ data:
       - dv
     
     # Outer tracker barrel hits
-    OTrackerHits:
-      - position.x
-      - position.y
-      - position.z
+    otb:
+      - pos.x
+      - pos.y
+      - pos.z
       - eDep
       - time
       - u.a
@@ -71,10 +71,10 @@ data:
       - dv
     
     # Outer tracker endcap hits
-    OTrackerEndcapHits:
-      - position.x
-      - position.y
-      - position.z
+    ote:
+      - pos.x
+      - pos.y
+      - pos.z
       - eDep
       - time
       - u.a
@@ -85,71 +85,71 @@ data:
       - dv
 
     # Electromagnetic calorimeter barrel hits
-    ECALBarrel:
-      - position.x
-      - position.y
-      - position.z
+    ecb:
+      - pos.x
+      - pos.y
+      - pos.z
       - energy
       - time
     
     # Electromagnetic calorimeter endcap hits
-    ECALEndcap:
-      - position.x
-      - position.y
-      - position.z
+    ece:
+      - pos.x
+      - pos.y
+      - pos.z
       - energy
       - time
     
     # Hadronic calorimeter barrel hits
-    HCALBarrel:
-      - position.x
-      - position.y
-      - position.z
+    hcb:
+      - pos.x
+      - pos.y
+      - pos.z
       - energy
       - time
     
     # Hadronic calorimeter endcap hits
-    HCALEndcap:
-      - position.x
-      - position.y
-      - position.z
+    hce:
+      - pos.x
+      - pos.y
+      - pos.z
       - energy
       - time
     
     # Hadronic calorimeter ring hits (I think?)
-    HCALOther:
-      - position.x
-      - position.y
-      - position.z
+    hco:
+      - pos.x
+      - pos.y
+      - pos.z
       - energy
       - time
 
     # Muon hits
-    MUON:
-      - position.x
-      - position.y
-      - position.z
+    muon:
+      - pos.x
+      - pos.y
+      - pos.z
       - energy
       - time
 
-  labels:
-    MCParticles:
+  targets:
+    particle:
       - PDG
       - charge
       - time
       - mass
-      - vertex.x
-      - vertex.y
-      - vertex.z
-      - endpoint.x
-      - endpoint.y
-      - endpoint.z
-      - momentum.x
-      - momentum.y
-      - momentum.z
-      - momentumAtEndpoint.x
-      - momentumAtEndpoint.y
-      - momentumAtEndpoint.z
+      - vtx.pos.x
+      - vtx.pos.y
+      - vtx.pos.z
+      - end.pos.x
+      - end.pos.y
+      - end.pos.z
+      - vtx.mom.x
+      - vtx.mom.y
+      - vtx.mom.z
+      - end.mom.x
+      - end.mom.y
+      - end.mom.z
       - spin.x
       - spin.y
       - spin.z
