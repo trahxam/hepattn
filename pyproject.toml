@@ -27,6 +27,7 @@ dependencies = [
     "lion-pytorch>=0.2.3,<0.3",
     "awkward>=2.8.1",
     "uproot>=5.6.0",
+    "h5py>=3.13.0",
     "particle>=0.25.3",
 ]
 
