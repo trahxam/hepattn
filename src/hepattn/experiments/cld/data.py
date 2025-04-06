@@ -13,7 +13,9 @@ class CLDDataset(Dataset):
         dirpath: str,
         inputs: dict,
         targets: dict,
+        merge_inputs: dict[str, list[str]] = {},
         num_events: int = -1,
+        particle_min_pt: float = 0.1,
         event_max_num_particles: int = 1000,
         random_seed: int = 42,
     ):
@@ -22,7 +24,9 @@ class CLDDataset(Dataset):
         self.dirpath = dirpath
         self.inputs = inputs
         self.targets = targets
+        self.merge_inputs = merge_inputs
         self.num_events = num_events
+        self.particle_min_pt = particle_min_pt
         self.event_max_num_particles = event_max_num_particles
         self.random_seed = random_seed
 
@@ -49,6 +53,7 @@ class CLDDataset(Dataset):
         # TODO: Clean this up, will need to be changed to support hit-particle regression
 
         inputs = {}
+        targets = {}
         input_sizes = {}
         for input_name, fields in self.inputs.items():
             field_sizes = set()
@@ -63,8 +68,8 @@ class CLDDataset(Dataset):
             input_sizes[input_name] = next(iter(field_sizes))
 
             inputs[f"{input_name}_valid"] = torch.ones((1, input_sizes[input_name]), dtype=torch.bool)
+            targets[f"{input_name}_valid"] = inputs[f"{input_name}_valid"]
 
-        targets = {}
         target_sizes = {}
         for target_name, fields in self.targets.items():
 
@@ -80,19 +85,35 @@ class CLDDataset(Dataset):
             
             assert len(field_sizes) == 1, f"Found mismatching field sizes for {target_name}"
             target_sizes[target_name] = next(iter(field_sizes))
-
+            target_valid = ak.to_numpy(event[f"{target_name}_valid"])[0]
             targets[f"{target_name}_valid"] = torch.zeros((1, self.event_max_num_particles), dtype=torch.bool)
-            targets[f"{target_name}_valid"][:,:target_sizes[target_name]] = True
+            targets[f"{target_name}_valid"][:,:target_sizes[target_name]] = torch.from_numpy(target_valid).bool()
 
         # Create the masks that link particles to hits
         for input_name in self.inputs.keys():
             num_hits = input_sizes[input_name]
             mask = np.full((num_hits, self.event_max_num_particles), False)
             # Get the mask indices that map from hits to particles
+            # We will deal with merged inputs in a moment
+            if input_name in self.merge_inputs:
+                continue
             mask_idxs = ak.to_numpy(event[f"{input_name}_to_particle_idxs"])[0]
-            mask[mask_idxs[:,0],mask_idxs[:,1]] = True
+
+            
+
+            if mask_idxs.ndim == 2:
+                mask[mask_idxs[:,0],mask_idxs[:,1]] = True
+            else:
+                print(input_name)
+                print(mask_idxs.shape)
             # Have to transpose the mask to get mask for particles to hits
-            targets[f"particle_{input_name}_mask"] = torch.from_numpy(mask.T).unsqueeze(0).bool()
+            targets[f"particle_{input_name}_valid"] = torch.from_numpy(mask.T).unsqueeze(0).bool()
+
+        # Now merge the masks for merged inputs
+        if self.merge_inputs:
+            for merged_input_name, input_names in self.merge_inputs.items():
+                merged_mask = torch.cat([targets[f"particle_{input_name}_valid"] for input_name in input_names], dim=-1)
+                targets[f"particle_{merged_input_name}_valid"] = merged_mask
         
         return inputs, targets
 
@@ -118,19 +139,56 @@ class CLDDataset(Dataset):
             event[f"{i}.{p}.u"] = event[f"{i}.{p}.x"] / (event[f"{i}.{p}.x"]**2 + event[f"{i}.{p}.y"]**2)
             event[f"{i}.{p}.v"] = event[f"{i}.{p}.y"] / (event[f"{i}.{p}.x"]**2 + event[f"{i}.{p}.y"]**2)
 
-        # Create the input hit objects - only fields that are specified in the config are sent
-        for input_name, fields in self.inputs.items():
-            add_cylindrical_coords(input_name, "pos")
-            add_conformal_coords(input_name, "pos")
-            convert_mm_to_m(input_name, "pos")
+        hits = [
+            "vtb", "vte",
+            "itb", "ite",
+            "otb", "ote",
+            "ecb", "ece",
+            "hcb", "hce", "hco",
+            "muon"
+        ]
 
-        # Create the label particle objects
-        for target_name, fields in self.targets.items():
-            for point in ["vtx", "end"]:
-                add_cylindrical_coords(target_name, f"{point}.pos")
-                add_conformal_coords(target_name, f"{point}.pos")
-                convert_mm_to_m(target_name, f"{point}.pos")
-                add_cylindrical_coords(target_name, f"{point}.mom")
+        for hit in hits:
+            # It is important to do the mm -> m conversion first, so that all other
+            # distance fields are also in m, which is required to not to cause
+            # nans in the positional encoding
+            convert_mm_to_m(hit, "pos")
+            add_cylindrical_coords(hit, "pos")
+            add_conformal_coords(hit, "pos")
+            
+
+        for point in ["vtx", "end"]:
+            convert_mm_to_m("particle", f"{point}.pos")
+            add_cylindrical_coords("particle", f"{point}.pos")
+            add_conformal_coords("particle", f"{point}.pos")
+            add_cylindrical_coords("particle", f"{point}.mom")
+
+        if self.merge_inputs:
+            # Merge inputs, first check all requested merged inputs have the same
+            # fields and that the fields are given in the same order
+            
+            for merged_input_name, input_names in self.merge_inputs.items():
+                # Make fields into tuple so its hashable
+
+                merged_input_fields = set()
+                for input_name in input_names:
+                    merged_input_fields.add(tuple(self.inputs[input_name]))
+
+                msg = "Merged inputs must all have the same fields and ordering of fields, "
+                msg += f"found {merged_input_fields} for {merged_input_name}"
+                assert len(merged_input_fields) == 1, msg
+
+                # Now actually merge the fields of each input
+                for field in next(iter(merged_input_fields)):
+                    merged_fields_arrays = []
+                    for input_name in input_names:
+                        merged_fields_arrays.append(event[f"{input_name}.{field}"])
+                    
+                    # Concatenate the fields from all of the inputs that make the merged input
+                    event[f"{merged_input_name}.{field}"] = ak.concatenate(merged_fields_arrays, axis=-1)
+
+        # Apply particle reconstructability pT cut
+        event["particle_valid"] = event["particle.vtx.mom.r"] >= self.particle_min_pt
 
         return event
     

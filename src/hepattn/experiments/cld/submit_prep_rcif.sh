@@ -26,7 +26,7 @@ OUT_DIR="/share/rcifdata/maxhart/data/cld/prepped/train/"
 
 # Python command that will be run
 # Note we specify a minimum pT cut, particles below this will be removed
-PYTORCH_CMD="python src/hepattn/experiments/cld/prep.py --in_dir $IN_DIR --out_dir $OUT_DIR --pt_cut 10"
+PYTORCH_CMD="python src/hepattn/experiments/cld/prep.py --in_dir $IN_DIR --out_dir $OUT_DIR --min_pt 10"
 
 # Pixi commnand that runs the python command inside the pixi env
 PIXI_CMD="pixi run $PYTORCH_CMD"
