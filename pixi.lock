@@ -160,6 +160,7 @@ environments:
       - pypi: https://download.pytorch.org/whl/nightly/fonttools-4.53.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://download.pytorch.org/whl/nightly/frozenlist-1.4.1-cp311-cp311-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://download.pytorch.org/whl/nightly/fsspec-2024.10.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/03/71/c99f662d4832c8835453cf3476f95daa28372023bda4aa1fca9e97c24f09/h5py-3.13.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/aa/44/afb4051adec67d014ad8bfe45a068ec21f95b1dd357411772c9a5baa0b97/hepunits-2.3.5-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/78/8c/4bfcab2d8286473b8d83ea742716f4b79290172e75f91142bc1534b05b9a/identify-2.6.8-py2.py3-none-any.whl
       - pypi: https://download.pytorch.org/whl/nightly/idna-3.10-py3-none-any.whl
@@ -1402,10 +1403,17 @@ packages:
   purls: []
   size: 30356
   timestamp: 1731939612705
+- pypi: https://files.pythonhosted.org/packages/03/71/c99f662d4832c8835453cf3476f95daa28372023bda4aa1fca9e97c24f09/h5py-3.13.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+  name: h5py
+  version: 3.13.0
+  sha256: 782ff0ac39f455f21fd1c8ebc007328f65f43d56718a89327eec76677ebf238a
+  requires_dist:
+  - numpy>=1.19.3
+  requires_python: '>=3.9'
 - pypi: .
   name: hepattn
   version: 0.1.0
-  sha256: 37d96728f7ebce6d548a68f24274b68ed580df76edac650896ad2b2746493cdb
+  sha256: 5c6502d4a1755d7f66af98f1ea60976c17ef850c66df868b5c89636db0a64186
   requires_dist:
   - packaging
   - wheel
@@ -1425,6 +1433,7 @@ packages:
   - lion-pytorch>=0.2.3,<0.3
   - awkward>=2.8.1
   - uproot>=5.6.0
+  - h5py>=3.13.0
   - particle>=0.25.3
   requires_python: ==3.11
   editable: true
