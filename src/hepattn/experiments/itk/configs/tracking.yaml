@@ -1,4 +1,4 @@
-name: itk_tracking_mini
+name: itk_tracking
 
 data:
   train_dir: /share/rcifdata/maxhart/data/itk/train/
@@ -15,12 +15,12 @@ data:
   hit_regions: [3, 4]
 
   particle_min_pt: 1.0
-  particle_max_abs_eta: 1.0
+  particle_max_abs_eta: 2.5
   particle_min_num_hits:
     pixel: 3
     strip: 3
 
-  event_max_num_particles: 1200
+  event_max_num_particles: 1600
   
   inputs:
     pixel:
@@ -84,8 +84,8 @@ model:
   model:
     class_path: hepattn.models.MaskFormer
     init_args:
-      embed_dim: &embed_dim 128
-      num_queries: 1200
+      embed_dim: &embed_dim 256
+      num_queries: 1600
       input_sort_field: phi
       
       input_nets:
@@ -151,13 +151,13 @@ model:
       encoder:
         class_path: hepattn.models.Encoder
         init_args:
-          num_layers: 4
+          num_layers: 8
           dim: *embed_dim
           attn_type: flash
           window_size: 512
           window_wrap: true
 
-      num_decoder_layers: 4
+      num_decoder_layers: 8
       decoder_layer_config:
         dim: *embed_dim
         mask_attention: true
