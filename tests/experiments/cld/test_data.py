@@ -15,12 +15,13 @@ plt.rcParams["figure.dpi"] = 300
 class TestCLDEvent:
     @pytest.fixture
     def cld_event(self):
-        config_path = Path("src/hepattn/experiments/cld/configs/config.yaml")
+        config_path = Path("src/hepattn/experiments/cld/configs/hits.yaml")
         config = yaml.safe_load(config_path.read_text())["data"]
  
 
         dirpath = "/share/rcifdata/maxhart/data/cld/prepped"
         num_events = -1
+        particle_min_pt = 0.1
         event_max_num_particles = 2000
 
         dataset = CLDDataset(
@@ -28,7 +29,9 @@ class TestCLDEvent:
             inputs=config["inputs"],
             targets=config["targets"],
             num_events=num_events,
+            particle_min_pt=particle_min_pt,
             event_max_num_particles=event_max_num_particles,
+            merge_inputs={"hit": ["ite", "itb"]}
         )
 
         return dataset[0]
