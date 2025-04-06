@@ -19,7 +19,7 @@ class CLDReconstructor(ModelWrapper):
         preds = preds["final"]
 
         hits = [
-            "sihit", "ecal", "hcal", "muon",
+            "sihit", "ecal", "hcal",
         ]
 
         pred_valid = preds["flow_valid"]["flow_valid"]
