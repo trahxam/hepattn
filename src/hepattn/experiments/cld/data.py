@@ -42,7 +42,7 @@ class CLDDataset(Dataset):
         print(f"Found {num_available_events} available events, {num_requested_events} requested, {self.num_events} used")
 
         # Allow us to select events by index
-        self.event_filenames = event_filenames[:num_events]
+        self.event_filenames = event_filenames[:self.num_events]
 
     def __len__(self):
         return int(self.num_events)
