@@ -1,4 +1,4 @@
-name: cld
+name: cld_0p1gev_rvars
 
 data:
   # Paths to preprocessed data directories
@@ -349,9 +349,9 @@ trainer:
 
 model:
   lrs_config:
-    initial: 1e-5
+    initial: 1e-4
     max: 1e-4
-    end: 1e-5
+    end: 1e-4
     pct_start: 0.05
     skip_scheduler: false
     weight_decay: 1e-5
@@ -382,18 +382,10 @@ model:
                   - pos.r
                   - pos.eta
                   - pos.phi
-                  - eDep
-                  - eDepError
-                  - u.a
-                  - u.b
-                  - v.a
-                  - v.b
-                  - du
-                  - dv
                 net:
                   class_path: hepattn.models.Dense
                   init_args:
-                    input_size: 15
+                    input_size: 7
                     output_size: *embed_dim
                 posenc:
                   class_path: hepattn.models.PositionEncoder
@@ -418,15 +410,10 @@ model:
                   - pos.r
                   - pos.eta
                   - pos.phi
-                  - pos.r
-                  - pos.eta
-                  - pos.phi
-                  - energy
-                  - energyError
                 net:
                   class_path: hepattn.models.Dense
                   init_args:
-                    input_size: 12
+                    input_size: 7
                     output_size: *embed_dim
                 posenc:
                   class_path: hepattn.models.PositionEncoder
@@ -451,15 +438,10 @@ model:
                   - pos.r
                   - pos.eta
                   - pos.phi
-                  - pos.r
-                  - pos.eta
-                  - pos.phi
-                  - energy
-                  - energyError
                 net:
                   class_path: hepattn.models.Dense
                   init_args:
-                    input_size: 12
+                    input_size: 7
                     output_size: *embed_dim
                 posenc:
                   class_path: hepattn.models.PositionEncoder
@@ -473,38 +455,38 @@ model:
                       - pos.phi
                     dim: *embed_dim
             
-            - class_path: hepattn.models.InputNet
-              init_args:
-                input_name: muon
-                fields:
-                  - pos.x
-                  - pos.y
-                  - pos.z
-                  - pos.s
-                  - pos.r
-                  - pos.eta
-                  - pos.phi
-                  - pos.r
-                  - pos.eta
-                  - pos.phi
-                  - energy
-                  - energyError
-                net:
-                  class_path: hepattn.models.Dense
-                  init_args:
-                    input_size: 12
-                    output_size: *embed_dim
-                posenc:
-                  class_path: hepattn.models.PositionEncoder
-                  init_args:
-                    input_name: muon
-                    fields:
-                      - pos.r
-                      - pos.eta
-                      - pos.phi
-                    sym_fields:
-                      - pos.phi
-                    dim: *embed_dim
+            # - class_path: hepattn.models.InputNet
+            #   init_args:
+            #     input_name: muon
+            #     fields:
+            #       - pos.x
+            #       - pos.y
+            #       - pos.z
+            #       - pos.s
+            #       - pos.r
+            #       - pos.eta
+            #       - pos.phi
+            #       - pos.r
+            #       - pos.eta
+            #       - pos.phi
+            #       - energy
+            #       - energyError
+            #     net:
+            #       class_path: hepattn.models.Dense
+            #       init_args:
+            #         input_size: 12
+            #         output_size: *embed_dim
+            #     posenc:
+            #       class_path: hepattn.models.PositionEncoder
+            #       init_args:
+            #         input_name: muon
+            #         fields:
+            #           - pos.r
+            #           - pos.eta
+            #           - pos.phi
+            #         sym_fields:
+            #           - pos.phi
+            #         dim: *embed_dim
 
       encoder:
         class_path: hepattn.models.Encoder
@@ -512,7 +494,7 @@ model:
           num_layers: 8
           dim: *embed_dim
           attn_type: flash
-          window_size: 2048
+          window_size: 512
           window_wrap: true
 
       num_decoder_layers: 8
@@ -542,7 +524,7 @@ model:
                 costs:
                   object_ce: 1.0
                 embed_dim: *embed_dim
-                null_weight: 1.0
+                null_weight: 0.1
 
             - class_path: hepattn.models.task.ObjectHitMaskTask
               init_args:

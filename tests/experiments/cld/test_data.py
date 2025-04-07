@@ -15,14 +15,34 @@ plt.rcParams["figure.dpi"] = 300
 class TestCLDEvent:
     @pytest.fixture
     def cld_event(self):
-        config_path = Path("src/hepattn/experiments/cld/configs/hits.yaml")
+        config_path = Path("src/hepattn/experiments/cld/configs/base.yaml")
         config = yaml.safe_load(config_path.read_text())["data"]
  
 
         dirpath = "/share/rcifdata/maxhart/data/cld/prepped"
         num_events = -1
         particle_min_pt = 0.1
-        event_max_num_particles = 2000
+        event_max_num_particles = 1000
+
+        merge_inputs = {
+            "sihit": [
+                "vtb",
+                "vte",
+                "itb",
+                "ite",
+                "otb",
+                "ote",
+            ],
+            "ecal": [
+                "ecb",
+                "ece"
+            ],
+            "hcal": [
+                "hcb",
+                "hce",
+                "hco",
+            ]
+        }
 
         dataset = CLDDataset(
             dirpath=dirpath,
@@ -31,11 +51,10 @@ class TestCLDEvent:
             num_events=num_events,
             particle_min_pt=particle_min_pt,
             event_max_num_particles=event_max_num_particles,
-            merge_inputs={"hit": ["ite", "itb"]}
+            merge_inputs=merge_inputs,
         )
 
         return dataset[0]
-
 
     def test_cld_event_masks(self, cld_event):
         # Some basic sanity checks on the event data
@@ -44,6 +63,56 @@ class TestCLDEvent:
         # Every valid particle should have a unique particle id
 
         # Particle id should be a long
+    
+    def test_cld_event_display_merged_inputs(self, cld_event):
+        # Plot an event display directly from dataloader with merged 
+        # inputs to verify things look correct
+        inputs, targets = cld_event
+
+        # Plot the full event with all subsytems
+        axes_spec = [
+            {
+            "x": "pos.x",
+            "y": "pos.y",
+            "input_names": [
+                "sihit",
+                "ecal",
+                "hcal",
+                "muon",
+            ]},
+            {
+            "x": "pos.z",
+            "y": "pos.y",
+            "input_names": [
+                "sihit",
+                "ecal",
+                "hcal",
+                "muon",
+            ]},
+        ]
+
+        fig = plot_cld_event_reconstruction(inputs, targets, axes_spec)
+        fig.savefig(Path("tests/outputs/cld/cld_event_full_merged.png"))
+
+        # Plot just the si tracker
+        axes_spec = [
+            {
+            "x": "pos.x",
+            "y": "pos.y",
+            "input_names": [
+                "sihit",
+            ]},
+            {
+            "x": "pos.z",
+            "y": "pos.y",
+            "input_names": [
+                "sihit",
+            ]},
+        ]
+
+        fig = plot_cld_event_reconstruction(inputs, targets, axes_spec)
+        fig.savefig(Path("tests/outputs/cld/cld_event_tracker_merged.png"))
+
         
     def test_cld_event_display(self, cld_event):
         # Plot an event display directly from dataloader to verify things look correct
