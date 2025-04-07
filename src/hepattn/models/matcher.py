@@ -89,6 +89,8 @@ class Matcher(nn.Module):
 
         # For each solver, compute the time to match the entire batch
         for solver_name, solver in solvers.items():
+            # Switch to the solver we are testing
+            self.solver = solvers[solver_name]
             t_start = time.time()
             self.compute_matching(costs)
             solver_times[solver_name] = time.time() - t_start
@@ -96,7 +98,7 @@ class Matcher(nn.Module):
         # Get the solver that was the fastest
         fastest_solver = min(solver_times, key=solver_times.get)
 
-        # Set the new solver to be the solver with the fastest mean time
+        # Set the new solver to be the solver with the fastest time for the cost batch
         self.solver = solvers[fastest_solver]
 
 
