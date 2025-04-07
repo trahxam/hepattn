@@ -17,7 +17,6 @@ class MaskFormer(nn.Module):
             tasks: nn.ModuleList,
             num_queries: int,
             embed_dim: int,
-            composite_inputs: dict[str, list[str]] = {},
             matcher: None | nn.Module = None,
             input_sort_field: str | None = None,
             ):
@@ -55,17 +54,15 @@ class MaskFormer(nn.Module):
             self.matcher = matcher
             self.num_queries = num_queries
             self.query_initial = nn.Parameter(torch.randn(num_queries, embed_dim))
-            self.composite_inputs = composite_inputs
             self.input_sort_field = input_sort_field
             
             
     def forward(self, inputs: dict[str, Tensor]) -> dict[str, Tensor]:
         # Atomic input names
-        atomic_input_names = [input_net.input_name for input_net in self.input_nets]
-        composite_input_names = list(self.composite_inputs.keys())
+        input_names = [input_net.input_name for input_net in self.input_nets]
 
-        assert "key" not in atomic_input_names, "'key' input name is reserved."
-        assert "query" not in atomic_input_names, "'query' input name is reserved."
+        assert "key" not in input_names, "'key' input name is reserved."
+        assert "query" not in input_names, "'query' input name is reserved."
     
         x = {}
 
@@ -80,26 +77,16 @@ class MaskFormer(nn.Module):
             # TODO: Clean this up
             x[f"key_is_{input_name}"] = torch.cat([
                 torch.full((inputs[i + "_valid"].shape[-1],), i == input_name) 
-                for i in atomic_input_names
+                for i in input_names
                 ], dim=-1)
-        
-        # If specified, we can group sets of inputs into a singular input
-        # For example, we can group different types of tracker hits into just a single input hit
-        # wile also embedding them seperately initially
-        if self.composite_inputs:
-            for composite_input_name, composite_input_members in self.composite_inputs.items():
-                x[f"key_is_{composite_input_name}"] = torch.concatenate([
-                    torch.full((inputs[i + "_valid"].shape[-1],), i in composite_input_members) 
-                    for i in atomic_input_names
-                    ])
 
         # Merge the input objects and he padding mask into a single set
-        x["key_embed"] = torch.concatenate([x[input_name + "_embed"] for input_name in atomic_input_names], dim=-2)
-        x["key_valid"] = torch.concatenate([x[input_name + "_valid"] for input_name in atomic_input_names], dim=-1)
+        x["key_embed"] = torch.concatenate([x[input_name + "_embed"] for input_name in input_names], dim=-2)
+        x["key_valid"] = torch.concatenate([x[input_name + "_valid"] for input_name in input_names], dim=-1)
 
         # Also merge the field being used for sorting in window attention if requested
         if self.input_sort_field is not None:
-            x[f"key_{self.input_sort_field}"] = torch.concatenate([inputs[input_name + "_" + self.input_sort_field] for input_name in atomic_input_names], dim=-1)
+            x[f"key_{self.input_sort_field}"] = torch.concatenate([inputs[input_name + "_" + self.input_sort_field] for input_name in input_names], dim=-1)
         else:
             x[f"key_{self.input_sort_field}"] = None
 
@@ -112,7 +99,7 @@ class MaskFormer(nn.Module):
 
         # Unmerge the updated features back into the separate input types
         # These are just views into the tensor that old all the merged hits
-        for input_name in atomic_input_names + composite_input_names:
+        for input_name in input_names:
             x[input_name + "_embed"] = x["key_embed"][...,x[f"key_is_{input_name}"],:]
 
         # Generate the queries that represent objects
@@ -147,8 +134,7 @@ class MaskFormer(nn.Module):
                 attn_mask = torch.full((batch_size, self.num_queries, x["key_valid"].shape[-1]), False, device=x["key_embed"].device)
 
                 for input_name, input_attn_mask in attn_masks.items():
-                    key_is_input = x[f"key_is_{input_name}"]
-                    attn_mask[...,key_is_input] = attn_mask[...,key_is_input] & input_attn_mask
+                    attn_mask[...,x[f"key_is_{input_name}"]] = input_attn_mask
 
             # If no attention masks were specified, set it to none to avoid redundant masking
             else:
@@ -158,7 +144,7 @@ class MaskFormer(nn.Module):
             x["query_embed"], x["key_embed"] = decoder_layer(x["query_embed"], x["key_embed"], attn_mask=attn_mask)
 
             # Unmerge the updated features back into the separate input types
-            for input_name in atomic_input_names + composite_input_names:
+            for input_name in input_names:
                 x[input_name + "_embed"] = x["key_embed"][...,x[f"key_is_{input_name}"],:]
 
         # Get the final outputs - we don't need to compute attention masks or update things here
