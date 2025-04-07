@@ -20,16 +20,3 @@ def read_awkward_from_hdf(file_path: str | Path, group_name: str) -> ak.Array:
         form = ak.forms.from_json(group.attrs["__form"])
         length = group.attrs["__length"]
         return ak.from_buffers(form, length, data)
-
-
-
-
-
-
-
-
-    
-
-
-
-    print(reconstituted)

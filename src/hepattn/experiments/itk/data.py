@@ -74,8 +74,6 @@ class ITkDataset(Dataset):
 
         num_particles = len(particles)
 
-        print(list(hits["pixel"].columns))
-
         # Build the input hits
         for input_name, fields in self.inputs.items():
             inputs[f"{input_name}_valid"] = torch.full((len(hits[input_name]),), True).unsqueeze(0)
