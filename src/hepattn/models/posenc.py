@@ -110,3 +110,41 @@ class PositionEncoder(nn.Module):
             encodings.append(torch.zeros_like(encodings[0])[...,:self.remainder_dim])
         encodings = torch.cat(encodings, dim=-1)
         return encodings
+    
+
+class RandomFourierFeatureEncoder(nn.Module):
+    """
+    An implementation of Gaussian Fourier positional encoding.
+
+    "Fourier Features Let Networks Learn High Frequency Functions in Low Dimensional Domains"
+    see https://arxiv.org/abs/2006.10739
+
+    Parameters
+        ----------
+        inputs : dict
+            Dictionary of inputs.
+
+        Returns
+        -------
+        torch.Tensor
+            Positional encoding of the input variables.
+    """
+    def __init__(self, input_name: str, fields: list[str], dim: int, sigma: float = 10.0, train: bool = False):
+        super().__init__()
+
+        assert dim % 2 == 0, "Embedding dimension must be divisible by 2."
+
+        self.input_name = input_name
+        self.fields = fields
+        self.dim = dim
+        self.encoding_dim = int(self.dim / 2)
+        self.B = torch.randn([len(self.fields), self.encoding_dim]) * sigma
+
+        if train:
+            self.B = nn.Parameter(self.B)
+
+    def forward(self, inputs: dict):
+        pos = torch.stack([inputs[f"{self.input_name}_{field}"] for field in self.fields], dim=-1)
+        pos_enc = torch.matmul(pos, self.B.to(pos.device))
+        pos_enc = torch.cat([torch.sin(pos_enc), torch.cos(pos_enc)], dim=-1)
+        return pos_enc
