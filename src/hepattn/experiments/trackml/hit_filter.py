@@ -1,7 +1,6 @@
 import pathlib
 
 import comet_ml  # noqa: F401
-import numpy as np
 import torch
 import torch.nn.functional as F
 from lightning import LightningModule
@@ -43,11 +42,6 @@ class HitFilter(LightningModule):
         self.logger.log_hyperparams({"trainable_params": params})
 
     def forward(self, x, labels=None, timing=False):
-        if timing:
-            start = torch.cuda.Event(enable_timing=True)
-            end = torch.cuda.Event(enable_timing=True)
-            start.record()
-
         x = self.init(x["hit"])
 
         if self.pos_enc:
@@ -55,12 +49,6 @@ class HitFilter(LightningModule):
 
         x = self.encoder(x)
         preds = self.dense(x).squeeze(-1)
-
-        if timing:
-            end.record()
-            torch.cuda.synchronize()
-            self.times.append(start.elapsed_time(end))
-            self.num_hits.append(x.shape[1])
 
         return {"hit_pred": preds}
 
@@ -126,18 +114,6 @@ class HitFilter(LightningModule):
         tn = ((~pred_true) * (~tgt)).sum()
         self.log(f"{stage}/noise_recall", tn / (~tgt).sum(), **kwargs)
         self.log(f"{stage}/noise_precision", tn / (~pred_true).sum(), **kwargs)
-
-    def on_test_epoch_end(self):
-        if self.times:
-            self.times = self.times[5:]
-            self.num_hits = self.num_hits[5:]
-            mean_time = sum(self.times) / len(self.times)
-            std_time = torch.tensor(self.times).std()
-            print(f"Average inference time: {mean_time:.2f} ms ± {std_time:.2f} ms")
-            print(len(self.times), len(self.num_hits))
-            np.save(f"times/{self.name}_times.npy", self.times)
-            np.save(f"times/{self.name}_num_hits.npy", self.num_hits)
-            print(f"Saved timing info to times/{self.name}_times.npy")
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam

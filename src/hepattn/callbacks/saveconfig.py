@@ -15,7 +15,7 @@ class Metadata(Callback):
     def setup(self, trainer: Trainer, pl_module: LightningModule, stage: str) -> None:
         if trainer.is_global_zero:
             print("-" * 80)
-            print(f"log dir:\n{trainer.log_dir}")
+            print(f"log dir: {trainer.log_dir!r}")
             print("-" * 80)
 
     def on_fit_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
