@@ -31,6 +31,7 @@ model:
       attn_type: flash
       window_size: 1024
       hybrid_norm: true
+      norm: RMSNorm
       #window_wrap: true
       #score_mod: relative_position
       #value_residual: true
