@@ -1,11 +1,7 @@
-import pathlib
-import comet_ml 
-
 from lightning.pytorch.cli import ArgsType
 from hepattn.utils.cli import CLI
 from hepattn.experiments.trackml.data import TrackMLDataModule
-from hepattn.experiments.trackml.model import TrackMLTracker
-
+from hepattn.experiments.trackml.tracker import TrackMLTracker
 
 
 def main(args: ArgsType = None) -> None:

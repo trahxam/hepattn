@@ -7,6 +7,7 @@ from hepattn.models.input import InputNet
 from hepattn.models.transformer import DropPath, Encoder, EncoderLayer, LayerScale, Residual
 from hepattn.models.decoder import MaskFormerDecoderLayer
 from hepattn.models.maskformer import MaskFormer
+from hepattn.models.hitfilter import HitFilter
 
 __all__ = [
     "Attention",
@@ -23,4 +24,5 @@ __all__ = [
     "SwiGLU",
     "MaskFormerDecoderLayer",
     "MaskFormer",
+    "HitFilter"
 ]
