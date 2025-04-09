@@ -37,7 +37,7 @@ class ModelWrapper(LightningModule):
         for layer_name, layer_losses in losses.items():
             for task_name, task_losses in layer_losses.items():
                 task_losses = losses[layer_name][task_name]
-                self.log_dict({f"{stage}_{layer_name}_{task_name}_{k}": v for k, v in task_losses.items()})
+                self.log_dict({f"{stage}/{layer_name}_{task_name}_{k}": v for k, v in task_losses.items()})
 
     def log_task_metrics(self, preds, targets, stage):
         # Log any task specific metrics
@@ -50,7 +50,7 @@ class ModelWrapper(LightningModule):
 
             # If the task returned a non-empty metrics dict, log it
             if task_metrics:
-                self.log_dict({f"{stage}_{task.name}_{k}": v for k, v in task_metrics.items()})
+                self.log_dict({f"{stage}/final_{task.name}_{k}": v for k, v in task_metrics.items()})
 
     def log_metrics(self, preds, targets, stage):
         # First log any task metrics
@@ -134,11 +134,15 @@ class ModelWrapper(LightningModule):
 
         return preds
 
-    def test_step(self, data):
-        outputs = self.model(data)
-        losses = self.model.loss(outputs, data)
+    def test_step(self, batch):
+        inputs, targets = batch
+        outputs = self.model(inputs)
+
+        # Like in validation step, we have to calculate the losses first
+        losses = self.model.loss(outputs, targets)
         preds = self.model.predict(outputs)
-        return preds, data
+
+        return inputs, outputs, targets, preds, losses
 
     def on_train_start(self):
         # Manually overwride the learning rate in case we are starting
