@@ -24,7 +24,7 @@ data:
   # Minimum number of true hits for a particle to be deemed reconstructible
   particle_min_num_hits: 3
 
-
+  # Maximum number of reconstructable particles allowed in an event
   event_max_num_particles: 1200
   
   # Define which inputs will be available to the model
@@ -41,14 +41,14 @@ data:
       - u
       - v
       # Hit local charge information
-      - "charge_frac"
-      - "leta"
-      - "lphi"
-      - "lx"
-      - "ly"
-      - "lz"
-      - "geta"
-      - "gphi"
+      - charge_frac
+      - leta
+      - lphi
+      - lx
+      - ly
+      - lz
+      - geta
+      - gphi
     
   targets:
     particle:
@@ -111,14 +111,14 @@ model:
                   - phi
                   - u
                   - v
-                  - "charge_frac"
-                  - "leta"
-                  - "lphi"
-                  - "lx"
-                  - "ly"
-                  - "lz"
-                  - "geta"
-                  - "gphi"
+                  - charge_frac
+                  - leta
+                  - lphi
+                  - lx
+                  - ly
+                  - lz
+                  - geta
+                  - gphi
                 net:
                   class_path: hepattn.models.Dense
                   init_args:
