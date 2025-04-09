@@ -27,7 +27,11 @@ class TestEvalWriter(Callback):
         self.write_layers = write_layers
 
     def setup(self, trainer: Trainer, module: LightningModule, stage: str) -> None:
+        if stage != "test":
+            return
+
         super().setup(trainer=trainer, pl_module=module, stage=stage)
+        
         self.trainer = trainer
         self.module = module
         self.dataset = trainer.datamodule.test_dataloader().dataset
@@ -43,9 +47,10 @@ class TestEvalWriter(Callback):
         # Open the handle for writing to the file
         self.file = h5py.File(self.output_path, "w")
 
-    def on_test_batch_end(self, trainer, module, batch, batch_idx, dataloader_idx):        
-        inputs, outputs, targets, preds, losses = batch
-
+    def on_test_batch_end(self, trainer, module, test_step_outputs, batch, batch_idx):    
+        inputs, targets = batch  
+        outputs, preds, losses = test_step_outputs  
+        
         # TODO: Standardise this somehow for dataloders that have a
         # batched input / do not have event names
         event_name = self.dataset.event_names[batch_idx]
@@ -96,7 +101,7 @@ class TestEvalWriter(Callback):
         self.file.close()
         print("Created output file", self.output_path)
 
-    def create_dataset(self, group, value, name):
+    def create_dataset(self, group, name, value):
         # Shouldn't need to detach as we are testing
         if isinstance(value, torch.Tensor):
             value = value.cpu().numpy()
