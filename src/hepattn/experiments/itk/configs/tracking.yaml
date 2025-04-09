@@ -1,4 +1,4 @@
-name: itk_tracking
+name: itk_tracking_test
 
 data:
   train_dir: /share/rcifdata/maxhart/data/itk/train/

@@ -38,7 +38,10 @@ nvidia-smi
 echo "Running training script..."
 
 # Python command that will be run
-PYTORCH_CMD="python src/hepattn/experiments/trackml/main.py fit --config src/hepattn/experiments/trackml/configs/tracking.yaml"
+PYTORCH_CMD="python src/hepattn/experiments/trackml/run_tracking.py fit --config src/hepattn/experiments/trackml/configs/tracking.yaml"
+
+# To do filtering instead
+# PYTORCH_CMD="python src/hepattn/experiments/trackml/run_filtering.py fit --config src/hepattn/experiments/trackml/configs/filtering.yaml"
 
 # Pixi commnand that runs the python command inside the pixi env
 PIXI_CMD="pixi run $PYTORCH_CMD"

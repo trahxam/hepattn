@@ -147,6 +147,46 @@ class ObjectValidTask(nn.Module):
         for loss_fn, loss_weight in self.losses.items():
             losses[loss_fn] = loss_weight * loss_fns[loss_fn](outputs[self.output_object + "_logit"], target, mask=None, weight=weight)
         return losses
+    
+
+class HitFilterTask(nn.Module):
+    def __init__(
+        self,
+        name: str,
+        hit_name: str,
+        target_field: str,
+        embed_dim: int,
+        threshold: float = 0.1,
+    ):
+        """ Task used for classifying whether hits belong to reconstructable objects or not. """
+        super().__init__()
+
+        self.name = name
+        self.hit_name = hit_name
+        self.target_field = target_field
+        self.embed_dim = embed_dim
+        self.threshold = threshold
+
+        # Internal
+        self.input_features = [f"{hit_name}_embed"]
+        self.net = Dense(embed_dim, 1)
+
+    def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:
+        x_logit = self.net(x[f"{self.hit_name}_embed"])
+        return {f"{self.hit_name}_logit": x_logit.squeeze(-1),}
+
+    def predict(self, outputs: dict) -> dict:
+        return {f"{self.hit_name}_{self.target_field}": outputs[f"{self.hit_name}_logit"].sigmoid() >= self.threshold}
+
+    def loss(self, outputs: dict, targets: dict) -> dict:
+        # Pick out the field that denotes whether a hit is on a reconstructable object or not
+        target = targets[f"{self.hit_name}_{self.target_field}"]
+        output = outputs[f"{self.hit_name}_logit"]
+
+        # Calculate the BCE loss with class weighting
+        weight = 1 / target.float().mean()
+        loss = nn.functional.binary_cross_entropy_with_logits(output, target.type_as(output), pos_weight=weight)
+        return {f"{self.hit_name}_bce": loss}
 
 
 class ObjectHitMaskTask(nn.Module):

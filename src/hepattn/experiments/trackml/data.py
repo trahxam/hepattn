@@ -106,11 +106,13 @@ class TrackMLDataset(Dataset):
         targets["hit_on_valid_particle"] = torch.from_numpy(hits["on_valid_particle"].to_numpy()).unsqueeze(0)
 
         # Build the regression targets
-        for feature, fields in self.targets.items():
-            for field in fields:
+        if "particle" in self.targets:
+            for field in self.targets["particle"]:
+                # Null target/particle slots are filled with nans
+                # This acts as a sanity check that we correctly mask out null slots in the loss
                 x = torch.full((self.event_max_num_particles,), torch.nan)
-                x[:num_particles] = torch.from_numpy(particles[field].to_numpy()[: self.event_max_num_particles])
-                targets[f"{feature}_{field}"] = x.unsqueeze(0)
+                x[:num_particles] = torch.from_numpy(particles[field].to_numpy()[:self.event_max_num_particles])
+                targets[f"particle_{field}"] = x.unsqueeze(0)
 
         return inputs, targets
 
@@ -158,10 +160,10 @@ class TrackMLDataset(Dataset):
         keep_particle_ids = counts[counts >= self.particle_min_num_hits].index.to_numpy()
         particles = particles[particles["particle_id"].isin(keep_particle_ids)]
 
-        # Marck which hits are on a valid / reconstructable particle, for the hit filter
+        # Mark which hits are on a valid / reconstructable particle, for the hit filter
         hits["on_valid_particle"] = hits["particle_id"].isin(particles["particle_id"])
 
-        hits = hits[hits["on_valid_particle"]]
+        # TODO: Add back truth based hit filtering
 
         # Sanity checks
         assert len(particles) != 0, "No particles remaining - loosen selection!"
