@@ -4,7 +4,6 @@ import torch
 from torch import Tensor, nn
 
 from hepattn.models.decoder import MaskFormerDecoderLayer
-from hepattn.models.matcher import Matcher
 
 
 class MaskFormer(nn.Module):
@@ -86,11 +85,10 @@ class MaskFormer(nn.Module):
 
         # Also merge the field being used for sorting in window attention if requested
         if self.input_sort_field is not None:
-            x[f"key_{self.input_sort_field}"] = torch.concatenate([inputs[input_name + "_" + self.input_sort_field] for input_name in input_names], dim=-1)
+            x[f"key_{self.input_sort_field}"] = torch.concatenate([inputs[input_name + "_" + self.input_sort_field] 
+                                                                   for input_name in input_names], dim=-1)
         else:
             x[f"key_{self.input_sort_field}"] = None
-
-        
         
         # Pass merged input hits through the encoder
         if self.encoder is not None:

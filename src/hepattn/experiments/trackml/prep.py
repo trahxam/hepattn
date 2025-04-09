@@ -59,7 +59,7 @@ def preprocess(in_dir: str, out_dir: str, overwrite: bool):
         hits_out_path = Path(out_dir) / Path(event_name + "-hits.parquet")
 
         # Check if we have already prepped the event
-        if parts_out_path.exists() & hits_out_path.exists() & (overwrite is False):
+        if parts_out_path.exists() and hits_out_path.exists() and (overwrite is False):
             print(f"Skipping {event_name} as found existing parts and hits output files")
             continue
 
