@@ -6,15 +6,16 @@ from hepattn.models.wrapper import ModelWrapper
 class TrackMLFilter(ModelWrapper):
     def __init__(
             self,
+            name: str,
             model: nn.Module,
             lrs_config: dict,
             optimizer: str = "AdamW",
         ):
-        super().__init__(model, lrs_config, optimizer)
+        super().__init__(name, model, lrs_config, optimizer)
 
     def log_compound_metrics(self, preds, targets, stage):
         pred = preds["final"]["hit_filter"]["hit_on_valid_particle"]
-        true = targets["on_valid_particle"]
+        true = targets["hit_on_valid_particle"]
 
         tp = (pred * true).sum()
         tn = ((~pred) * (~true)).sum()
