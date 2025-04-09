@@ -50,7 +50,7 @@ class CLI(LightningCLI):
         parser.add_argument("--name", default="hepformer", help="Name for this training run.")
         parser.add_argument("--compile", action="store_true", help="torch.compile.")
         parser.link_arguments("name", "trainer.logger.init_args.experiment_name")
-        # parser.link_arguments("name", "model.name")
+        parser.link_arguments("name", "model.name")
         parser.link_arguments("trainer.default_root_dir", "trainer.logger.init_args.save_dir")
 
     def before_instantiate_classes(self) -> None:

@@ -7,12 +7,13 @@ from hepattn.models.wrapper import ModelWrapper
 class CLDReconstructor(ModelWrapper):
     def __init__(
             self,
+            name: str,
             model: nn.Module,
             lrs_config: dict,
             optimizer: str = "AdamW",
             mtl: bool = False,
         ):
-        super().__init__(model, lrs_config, optimizer, mtl)
+        super().__init__(name, model, lrs_config, optimizer, mtl)
 
     def log_compound_metrics(self, preds, targets, stage):
         # Just log predictions from the final layer

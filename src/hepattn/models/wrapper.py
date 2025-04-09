@@ -9,6 +9,7 @@ from torchjd.aggregation import UPGrad
 class ModelWrapper(LightningModule):
     def __init__(
             self,
+            name: str,
             model: nn.Module,
             lrs_config: dict,
             optimizer: str = "AdamW",
@@ -18,6 +19,7 @@ class ModelWrapper(LightningModule):
 
         self.save_hyperparameters(logger=False)
 
+        self.name = name
         self.model = model
         self.optimizer = optimizer
         self.lrs_config = lrs_config
@@ -34,10 +36,18 @@ class ModelWrapper(LightningModule):
         return self.model.predict(outputs)
 
     def log_losses(self, losses, stage):
+        total_loss = 0
+
+        # Log the losses from each task from each layer
         for layer_name, layer_losses in losses.items():
             for task_name, task_losses in layer_losses.items():
                 task_losses = losses[layer_name][task_name]
-                self.log_dict({f"{stage}/{layer_name}_{task_name}_{k}": v for k, v in task_losses.items()})
+                for loss_name, loss_value in task_losses.items():
+                    self.log(f"{stage}/{layer_name}_{task_name}_{loss_name}", loss_value)
+                total_loss += loss_value
+
+        # Log the total loss
+        self.log(f"{stage}/loss", total_loss)
 
     def log_task_metrics(self, preds, targets, stage):
         # Log any task specific metrics
@@ -142,7 +152,7 @@ class ModelWrapper(LightningModule):
         losses = self.model.loss(outputs, targets)
         preds = self.model.predict(outputs)
 
-        return inputs, outputs, targets, preds, losses
+        return outputs, preds, losses
 
     def on_train_start(self):
         # Manually overwride the learning rate in case we are starting
