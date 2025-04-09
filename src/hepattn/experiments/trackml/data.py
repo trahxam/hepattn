@@ -206,20 +206,20 @@ class TrackMLDataModule(LightningDataModule):
 
     def setup(self, stage: str):
         if stage == "fit" or stage == "test":
-            self.train_dset = TrackMLDataset(dirpath=self.train_dir, num_events=self.num_train, **self.kwargs,)
+            self.train_dataset = TrackMLDataset(dirpath=self.train_dir, num_events=self.num_train, **self.kwargs,)
 
         if stage == "fit":
-            self.val_dset = TrackMLDataset(dirpath=self.val_dir, num_events=self.num_val, **self.kwargs,)
+            self.val_dataset = TrackMLDataset(dirpath=self.val_dir, num_events=self.num_val, **self.kwargs,)
 
         # Only print train/val dataset details when actually training
         if stage == "fit" and self.trainer.is_global_zero:
-            print(f"Created training dataset with {len(self.train_dset):,} events")
-            print(f"Created validation dataset with {len(self.val_dset):,} events")
+            print(f"Created training dataset with {len(self.train_dataset):,} events")
+            print(f"Created validation dataset with {len(self.val_dataset):,} events")
 
         if stage == "test":
             assert self.test_dir is not None, "No test file specified, see --data.test_dir"
-            self.test_dset = TrackMLDataset(dirpath=self.test_dir, num_events=self.num_test, trainer=self.trainer, **self.kwargs,)
-            print(f"Created test dataset with {len(self.test_dset):,} events")
+            self.test_dataset = TrackMLDataset(dirpath=self.test_dir, num_events=self.num_test, **self.kwargs,)
+            print(f"Created test dataset with {len(self.test_dataset):,} events")
 
     def get_dataloader(self, stage: str, dataset: TrackMLDataset, shuffle: bool):  # noqa: ARG002
         return DataLoader(
@@ -233,10 +233,10 @@ class TrackMLDataModule(LightningDataModule):
         )
 
     def train_dataloader(self):
-        return self.get_dataloader(dataset=self.train_dset, stage="fit", shuffle=True)
+        return self.get_dataloader(dataset=self.train_dataset, stage="fit", shuffle=True)
 
     def val_dataloader(self):
-        return self.get_dataloader(dataset=self.val_dset, stage="test", shuffle=False)
+        return self.get_dataloader(dataset=self.val_dataset, stage="test", shuffle=False)
 
     def test_dataloader(self):
-        return self.get_dataloader(dataset=self.test_dset, stage="test", shuffle=False)
+        return self.get_dataloader(dataset=self.test_dataset, stage="test", shuffle=False)
