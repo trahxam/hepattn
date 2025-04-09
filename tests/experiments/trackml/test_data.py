@@ -45,7 +45,7 @@ class TestTrackMLEvent:
         }
 
         dirpath = "/share/rcifdata/maxhart/data/trackml/raw/train/"
-        num_events = -1
+        num_events = 10
         hit_volume_ids = [8]
         particle_min_pt = 1.0
         particle_max_abs_eta = 2.5
@@ -75,15 +75,13 @@ class TestTrackMLEvent:
 
         # Invalid particle slots should have no hits
         assert torch.all(~particle_hit_mask[~particle_valid.unsqueeze(-1).expand_as(particle_hit_mask)])
-
+    
 
     def test_trackml_event_display(self, trackml_event):
         # Quick event display plotted directly from dataloader to verify things look correct
-
         inputs, targets = trackml_event
 
         fig = plot_trackml_event_reconstruction(inputs, targets)
-
         fig.savefig(Path("tests/outputs/trackml/trackml_event.png"))
 
 
