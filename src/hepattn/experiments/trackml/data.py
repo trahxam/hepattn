@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import torch
+import h5py
 
 from torch.utils.data import DataLoader, Dataset
 from lightning import LightningDataModule
@@ -26,6 +27,7 @@ class TrackMLDataset(Dataset):
         particle_max_abs_eta: float = 2.5,
         particle_min_num_hits = 3,
         event_max_num_particles = 1000,
+        hit_eval_path: str | None = None,
         ):
         super().__init__()
 
@@ -48,11 +50,17 @@ class TrackMLDataset(Dataset):
         
         # Metadata
         self.dirpath = Path(dirpath)
+        self.hit_eval_path = hit_eval_path
         self.inputs = inputs
         self.targets = targets
         self.num_events = num_events
         self.event_names = event_names[:num_events]
 
+        # Setup hit eval file if specified
+        if self.hit_eval_path:
+            self.hit_eval_file = h5py.File(self.hit_eval_path, "r")
+            print(f"Using hit eval dataset {self.hit_eval_path}")
+        
         # Hit level cuts
         self.hit_volume_ids = hit_volume_ids
 
@@ -163,12 +171,24 @@ class TrackMLDataset(Dataset):
         # Mark which hits are on a valid / reconstructable particle, for the hit filter
         hits["on_valid_particle"] = hits["particle_id"].isin(particles["particle_id"])
 
+        # If a hit eval file was specified, read in the predictions from it to use the hit filtering
+        if self.hit_eval_path:
+            # The dataset has shape (1, num_hits)
+            hit_filter_pred = self.hit_eval_file[f"{event_name}/preds/final/hit_filter/hit_on_valid_particle"][0]
+            hits = hits[hit_filter_pred]
+
         # TODO: Add back truth based hit filtering
 
         # Sanity checks
         assert len(particles) != 0, "No particles remaining - loosen selection!"
         assert len(hits) != 0, "No hits remaining - loosen selection!"
         assert particles["particle_id"].nunique() == len(particles), "Non-unique particle ids"
+
+        # Check that all hits have different phi
+        # This is necessary as the fast sorting algorithm used by pytorch can be non-stable
+        # if two values are equal, which could cause subtle bugs
+        # msg = f"Only {hits['phi'].nunique()} of the {len(hits)} have unique phi"
+        # assert hits["phi"].nunique() == len(hits), msg
 
         return hits, particles
 
@@ -206,10 +226,20 @@ class TrackMLDataModule(LightningDataModule):
 
     def setup(self, stage: str):
         if stage == "fit" or stage == "test":
-            self.train_dataset = TrackMLDataset(dirpath=self.train_dir, num_events=self.num_train, **self.kwargs,)
+            self.train_dataset = TrackMLDataset(
+                dirpath=self.train_dir,
+                num_events=self.num_train,
+                hit_eval_path=self.hit_eval_train,
+                **self.kwargs,
+                )
 
         if stage == "fit":
-            self.val_dataset = TrackMLDataset(dirpath=self.val_dir, num_events=self.num_val, **self.kwargs,)
+            self.val_dataset = TrackMLDataset(
+                dirpath=self.val_dir,
+                num_events=self.num_val,
+                hit_eval_path=self.hit_eval_val,
+                **self.kwargs,
+                )
 
         # Only print train/val dataset details when actually training
         if stage == "fit" and self.trainer.is_global_zero:
@@ -218,7 +248,13 @@ class TrackMLDataModule(LightningDataModule):
 
         if stage == "test":
             assert self.test_dir is not None, "No test file specified, see --data.test_dir"
-            self.test_dataset = TrackMLDataset(dirpath=self.test_dir, num_events=self.num_test, **self.kwargs,)
+
+            self.test_dataset = TrackMLDataset(
+                dirpath=self.test_dir,
+                num_events=self.num_test,
+                hit_eval_path=self.hit_eval_test,
+                **self.kwargs,
+                )
             print(f"Created test dataset with {len(self.test_dataset):,} events")
 
     def get_dataloader(self, stage: str, dataset: TrackMLDataset, shuffle: bool):  # noqa: ARG002

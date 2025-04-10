@@ -5,6 +5,8 @@ data:
   val_dir: /share/rcifdata/maxhart/data/trackml/prepped/train/
   test_dir: /share/rcifdata/maxhart/data/trackml/prepped/train/
 
+  hit_eval_train: /share/rcifdata/maxhart/hepattn-test/hepattn/logs/ec_eta4_20250409-T184858/ckpts/epoch=029-val_loss=0.05526_train_eval.h5
+
   num_workers: 10
   num_train: -1
   num_test: 10
@@ -13,19 +15,19 @@ data:
   # Select only hits from these detector volumes
   # pix barrel: 8, pix endcap: 7, 9 
   # See: https://competitions.codalab.org/competitions/20112
-  hit_volume_ids: [8]
+  hit_volume_ids: [7, 8, 9]
 
   # Minimum pt for a particle to be deemed reconstructible
   particle_min_pt: 1.0
 
   # Maximum absolute eta for a particle to be deemed reconstructible
-  particle_max_abs_eta: 2.5
+  particle_max_abs_eta: 4.0
 
   # Minimum number of true hits for a particle to be deemed reconstructible
   particle_min_num_hits: 3
 
   # Maximum number of reconstructable particles allowed in an event
-  event_max_num_particles: 1200
+  event_max_num_particles: 2000
   
   # Define which inputs will be available to the model
   inputs:
@@ -92,7 +94,7 @@ model:
     class_path: hepattn.models.MaskFormer
     init_args:
       embed_dim: &embed_dim 256
-      num_queries: 1200
+      num_queries: 2000
       input_sort_field: phi
       input_nets:
         class_path: torch.nn.ModuleList
