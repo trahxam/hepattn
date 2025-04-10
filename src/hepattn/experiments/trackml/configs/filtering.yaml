@@ -13,7 +13,7 @@ data:
   # Select only hits from these detector volumes
   # pix barrel: 8, pix endcap: 7, 9 
   # See: https://competitions.codalab.org/competitions/20112
-  hit_volume_ids: [8]
+  hit_volume_ids: [7, 8, 9]
 
   # Minimum pt for a particle to be deemed reconstructible
   particle_min_pt: 1.0
