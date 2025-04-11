@@ -58,7 +58,6 @@ class TrackMLDataset(Dataset):
 
         # Setup hit eval file if specified
         if self.hit_eval_path:
-            self.hit_eval_file = h5py.File(self.hit_eval_path, "r")
             print(f"Using hit eval dataset {self.hit_eval_path}")
         
         # Hit level cuts
@@ -173,9 +172,10 @@ class TrackMLDataset(Dataset):
 
         # If a hit eval file was specified, read in the predictions from it to use the hit filtering
         if self.hit_eval_path:
-            # The dataset has shape (1, num_hits)
-            hit_filter_pred = self.hit_eval_file[f"{event_name}/preds/final/hit_filter/hit_on_valid_particle"][0]
-            hits = hits[hit_filter_pred]
+            with h5py.File(self.hit_eval_path, "r") as hit_eval_file:
+                # The dataset has shape (1, num_hits)
+                hit_filter_pred = hit_eval_file[f"{event_name}/preds/final/hit_filter/hit_on_valid_particle"][0]
+                hits = hits[hit_filter_pred]
 
         # TODO: Add back truth based hit filtering
 
