@@ -81,43 +81,39 @@ class ITkDataset(Dataset):
 
             for field in fields:
                 inputs[f"{input_name}_{field}"] = torch.from_numpy(hits[input_name][field].values).unsqueeze(0).half()
-            
 
-        # Build the targets for whether a particle slot is used or not
-        targets["particle_valid"] = torch.full((self.event_max_num_particles,), False)
-        targets["particle_valid"][:len(particles)] = True
-        targets["particle_valid"] = targets["particle_valid"].unsqueeze(0)
-
-        # Build the particle regression targets
-        particle_ids = torch.from_numpy(particles["particle_id"].values).long()
-        
-        message = f"Event {idx} has {num_particles}, but limit is {self.event_max_num_particles}"
-        assert len(particle_ids) <= self.event_max_num_particles, message
-
-        # Fill in empty slots with -1s and get the IDs of the particle on each hit
-        # Important! Make sure that the null value tensor we concatenate on the end is also a long tensor,
-        # otherwise the resulting tensor will be a 32 bit int tensor which causes overflow issues as 
-        # particle_ids can be larger than the int32 max value
-        particle_ids = torch.cat([particle_ids, -1 * torch.ones(self.event_max_num_particles - len(particle_ids)).long()])
-
-        torch.set_printoptions(threshold=10000, sci_mode=False)
-
+        # Make the hit filter targets if requested
         for hit in ["pixel", "strip"]:
-            hit_particle_ids = torch.from_numpy(hits[hit]["particle_id"].values).long()
-            
+            if hit in self.targets:
+                # Create the hit filter targets
+                targets[f"{hit}_on_valid_particle"] = torch.from_numpy(hits[hit]["on_valid_particle"].to_numpy()).unsqueeze(0)
 
-            # Create the mask targets
+        if "particle" in self.targets:
+            # TODO: Check if mask target in config before doing this ?
+            # Build the targets for whether a particle slot is used or not
+            targets["particle_valid"] = torch.full((self.event_max_num_particles,), False)
+            targets["particle_valid"][:len(particles)] = True
+            targets["particle_valid"] = targets["particle_valid"].unsqueeze(0)
+
+            # Build the particle regression targets
+            particle_ids = torch.from_numpy(particles["particle_id"].values).long()
+            
+            message = f"Event {idx} has {num_particles}, but limit is {self.event_max_num_particles}"
+            assert len(particle_ids) <= self.event_max_num_particles, message
+
+            # Create the mask targets and fill in empty slots with -1s and get the IDs of the particle on each hit
+            # Important! Make sure that the padding tensor is also a long or it can cause overflow issues
+            particle_ids = torch.cat([particle_ids, -1 * torch.ones(self.event_max_num_particles - len(particle_ids)).long()])
+            hit_particle_ids = torch.from_numpy(hits[hit]["particle_id"].values).long()
             targets[f"particle_{hit}_valid"] = (particle_ids.unsqueeze(-1) == hit_particle_ids.unsqueeze(-2)).unsqueeze(0)
 
-            # Create the hit filter targets
-            targets[f"{hit}_on_valid_particle"] = torch.from_numpy(hits[hit]["on_valid_particle"].to_numpy()).unsqueeze(0)
-
-        # Build the regression targets
-        for feature, fields in self.targets.items():
-            for field in fields:
+            # Build the regression targets
+            for field in self.targets["particle"]:
+                # Null target/particle slots are filled with nans
+                # This acts as a sanity check that we correctly mask out null slots in the loss
                 x = torch.full((self.event_max_num_particles,), torch.nan)
-                x[:num_particles] = torch.from_numpy(particles[field].to_numpy()[: self.event_max_num_particles])
-                targets[f"{feature}_{field}"] = x.unsqueeze(0)
+                x[:num_particles] = torch.from_numpy(particles[field].to_numpy()[:self.event_max_num_particles])
+                targets[f"particle_{field}"] = x.unsqueeze(0)
 
         return inputs, targets
     
@@ -134,14 +130,37 @@ class ITkDataset(Dataset):
         for hit_name in hit_names:
             hits[hit_name] = pd.read_parquet(self.dirpath / Path(f"{event_name}-{hit_name}.parquet"))
 
+        cartesian_fields = {
+            "pixel": [
+                "x", "y", "z",
+                "cluster_x", "cluster_y", "cluster_z"],
+            "strip": [
+                "x", "y", "z", 
+                "cluster_x_1", "cluster_y_1", "cluster_z_1",
+                "cluster_x_2", "cluster_y_2", "cluster_z_2"],
+        }
+
+        # Scale the input coordinates to in meters so they are ~ 1
+        for hit in hit_names:
+            for field in cartesian_fields[hit]:
+                hits[hit][field] *= 0.01
+
+        charge_fields = {
+            "pixel": ["charge_count"],
+            "strip": ["charge_count_1", "charge_count_2"], 
+        }
+        
+        # Provide the logarithm of the charge as the raw charge can be O(several thousand)
+        for hit in hit_names:
+            for field in charge_fields[hit]:
+                # Make sure the charge count is not negative, or this will cause nans from the log
+                assert np.all(hits[hit][field] >= 0.0)
+                hits[hit][f"log_{field}"] = np.log(hits[hit][field] + 1.0)
+
         for k in hit_names:
             # Only include hits from the specified detector regions
             if self.hit_regions:
                 hits[k] = hits[k][hits[k]["region"].isin(self.hit_regions)]
-
-            # Scale the input coordinates to in meters so they are ~ 1
-            for coord in ["x", "y", "z"]:
-                hits[k][coord] *= 0.01
                 
             # Add extra hit fields
             hits[k]["r"] = np.sqrt(hits[k]["x"] ** 2 + hits[k]["y"] ** 2)
@@ -172,18 +191,19 @@ class ITkDataset(Dataset):
         particles = particles[particles["particle_id"] != 0]
 
         # Apply particle cut based on hit content
-        for k in hit_names:
-            hit_counts = hits[k]["particle_id"].value_counts()
+        for hit in hit_names:
+            hit_counts = hits[hit]["particle_id"].value_counts()
             keep_particle_ids = hit_counts[hit_counts >= self.particle_min_num_hits[hit_name]].index.to_numpy()
             particles = particles[particles["particle_id"].isin(keep_particle_ids)]
 
-            # Marck which hits are on a valid / reconstructable particle, for the hit filter
-            hits[k]["on_valid_particle"] = hits[k]["particle_id"].isin(particles["particle_id"])
+        for hit in hit_names:
+            # Mark which hits are on a valid / reconstructable particle, for the hit filter
+            hits[hit]["on_valid_particle"] = hits[hit]["particle_id"].isin(particles["particle_id"])
 
-            # TODO: Add back in option to have some noise hits
-            hits[k] = hits[k][hits[k]["on_valid_particle"]]
+            # TODO: Add back in option to have truth based noise filtering
+            # hits[k] = hits[k][hits[k]["on_valid_particle"]]
 
-            assert len(hits[k]) != 0, f"No {hit_name}s remaining, loosen selection"
+            assert len(hits[hit]) != 0, f"No {hit}s remaining, loosen selection"
 
         assert len(particles) != 0, "No particles remaining, loosen selection"
         assert particles["particle_id"].nunique() == len(particles), "Non-unique particle ids"
