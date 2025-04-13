@@ -1,13 +1,12 @@
+from pathlib import Path
+
+import matplotlib.pyplot as plt
 import pytest
 import torch
-import matplotlib.pyplot as plt
 
-from pathlib import Path
 from hepattn.experiments.trackml.data import TrackMLDataset
 from hepattn.experiments.trackml.plot_event import plot_trackml_event_reconstruction
 from hepattn.models.matcher import Matcher
-from hepattn.models.loss import mask_ce_costs
-
 
 plt.rcParams["figure.dpi"] = 300
 
@@ -16,32 +15,28 @@ class TestTrackMLEvent:
     @pytest.fixture
     def trackml_event(self):
         input_fields = {
-        "hit": [
-            "x",
-            "y",
-            "z",
-            "r",
-            "eta",
-            "phi",
-            "u",
-            "v",
-            "charge_frac",
-            "leta",
-            "lphi",
-            "lx",
-            "ly",
-            "lz",
-            "geta",
-            "gphi",
-        ]
+            "hit": [
+                "x",
+                "y",
+                "z",
+                "r",
+                "eta",
+                "phi",
+                "u",
+                "v",
+                "charge_frac",
+                "leta",
+                "lphi",
+                "lx",
+                "ly",
+                "lz",
+                "geta",
+                "gphi",
+            ]
         }
 
         target_fields = {
-            "particle": [
-                "pt",
-                "eta",
-                "phi"
-            ],
+            "particle": ["pt", "eta", "phi"],
         }
 
         dirpath = "/share/rcifdata/maxhart/data/trackml/raw/train/"
@@ -66,16 +61,14 @@ class TestTrackMLEvent:
 
         return dataset[0]
 
-
     def test_trackml_event_masks(self, trackml_event):
-        inputs, targets = trackml_event
+        _inputs, targets = trackml_event
 
         particle_valid = targets["particle_valid"]
         particle_hit_mask = targets["particle_hit_valid"]
 
         # Invalid particle slots should have no hits
         assert torch.all(~particle_hit_mask[~particle_valid.unsqueeze(-1).expand_as(particle_hit_mask)])
-    
 
     def test_trackml_event_display(self, trackml_event):
         # Quick event display plotted directly from dataloader to verify things look correct
@@ -84,10 +77,8 @@ class TestTrackMLEvent:
         fig = plot_trackml_event_reconstruction(inputs, targets)
         fig.savefig(Path("tests/outputs/trackml/trackml_event.png"))
 
-
-    def test_trackml_matcher(self, trackml_event):
-        # Setup the matcher
-        matcher = Matcher(
+    def test_trackml_matcher(self):
+        Matcher(
             default_solver="scipy",
             adaptive_solver=False,
         )

@@ -1,22 +1,23 @@
+from pathlib import Path
+
+import h5py
 import numpy as np
 import torch
-import h5py
-
 from lightning import Callback, LightningModule, Trainer
-from collections import defaultdict
-from pathlib import Path
 
 
 class TestEvalWriter(Callback):
     def __init__(
-            self,
-            write_inputs: bool,
-            write_outputs: bool,
-            write_preds: bool,
-            write_targets: bool,
-            write_losses: bool,
-            write_layers: list[str] = ["final"],
-            ):
+        self,
+        write_inputs: bool,
+        write_outputs: bool,
+        write_preds: bool,
+        write_targets: bool,
+        write_losses: bool,
+        write_layers: list[str] | None = None,
+    ):
+        if write_layers is None:
+            write_layers = ["final"]
         super().__init__()
 
         self.write_inputs = write_inputs
@@ -31,7 +32,7 @@ class TestEvalWriter(Callback):
             return
 
         super().setup(trainer=trainer, pl_module=pl_module, stage=stage)
-        
+
         self.trainer = trainer
         self.dataset = trainer.datamodule.test_dataloader().dataset
 
@@ -43,14 +44,14 @@ class TestEvalWriter(Callback):
         split = self.dataset.dirpath.name
         return Path(out_dir / f"{out_basename}_{split}_eval.h5")
 
-    def on_test_start(self, trainer: Trainer, module: LightningModule) -> None:
+    def on_test_start(self, trainer: Trainer, module: LightningModule) -> None:  # noqa: ARG002
         # Open the handle for writing to the file
         self.file = h5py.File(self.output_path, "w")
 
-    def on_test_batch_end(self, trainer, pl_module, test_step_outputs, batch, batch_idx):    
-        inputs, targets = batch  
-        outputs, preds, losses = test_step_outputs  
-        
+    def on_test_batch_end(self, trainer, pl_module, test_step_outputs, batch, batch_idx):  # noqa: ARG002
+        inputs, targets = batch
+        outputs, preds, losses = test_step_outputs
+
         # TODO: Standardise this somehow for dataloders that have a
         # batched input / do not have event names
         event_name = self.dataset.event_names[batch_idx]
@@ -66,12 +67,12 @@ class TestEvalWriter(Callback):
         # Items produced by model have layer/task structure
         if self.write_outputs:
             self.write_layer_task_items(sample_group, "outputs", outputs)
-        
+
         if self.write_preds:
             self.write_layer_task_items(sample_group, "preds", preds)
-        
+
         if self.write_losses:
-            self.write_layer_task_items(sample_group, "losses", losses) 
+            self.write_layer_task_items(sample_group, "losses", losses)
 
     def write_items(self, sample_group, item_name, items):
         # This will write out a dict of items that has the structure
@@ -96,7 +97,7 @@ class TestEvalWriter(Callback):
                 for name, value in task_items.items():
                     self.create_dataset(task_group, name, value)
 
-    def on_test_epoch_end(self, trainer, module):
+    def on_test_epoch_end(self, trainer, module):  # noqa: ARG002
         # Close the file handle now we are done
         self.file.close()
         print("Created output file", self.output_path)
@@ -113,5 +114,3 @@ class TestEvalWriter(Callback):
 
         # Write the data to the file
         group.create_dataset(name, data=value, compression="lzf")
-
-
