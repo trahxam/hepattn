@@ -9,7 +9,7 @@ from hepattn.models.posenc import pos_enc, pos_enc_symmetric
 def test_pos_enc():
     xs = torch.linspace(-torch.pi, torch.pi, 1000)
     dim = 128
-    out_dir = Path("tests/pe")
+    out_dir = Path("tests/outputs/posenc")
     out_dir.mkdir(exist_ok=True)
     for alpha in [10, 20, 50, 100]:
         pe = pos_enc(xs, dim, alpha)
