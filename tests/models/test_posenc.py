@@ -10,7 +10,7 @@ def test_pos_enc():
     xs = torch.linspace(-torch.pi, torch.pi, 1000)
     dim = 128
     out_dir = Path("tests/pe")
-    out_dir.mkdir(exist_ok=True)
+    out_dir.mkdir(exist_ok=True, parents=True)
     for alpha in [10, 20, 50, 100]:
         pe = pos_enc(xs, dim, alpha)
         pe_sym = pos_enc_symmetric(xs, dim, alpha)

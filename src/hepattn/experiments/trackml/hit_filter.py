@@ -42,10 +42,13 @@ class HitFilter(LightningModule):
         self.logger.log_hyperparams({"trainable_params": params})
 
     def forward(self, x, labels=None, timing=False):
+        if self.pos_enc:
+            pe = self.pos_enc(x)
+
         x = self.init(x["hit"])
 
         if self.pos_enc:
-            x += self.pos_enc(labels)
+            x += pe
 
         x = self.encoder(x)
         preds = self.dense(x).squeeze(-1)

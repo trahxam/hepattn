@@ -36,12 +36,14 @@ def get_best_epoch(config_path: Path) -> Path:
         Path to best checkpoint for the training run.
     """
     ckpt_dir = Path(config_path.parent / "ckpts")
-    print("No --ckpt_path specified, looking for best checkpoint in", ckpt_dir)
+    print(f"No --ckpt_path specified, looking for best checkpoint in {ckpt_dir.resolve()!r}")
     ckpts = list(ckpt_dir.glob("*.ckpt"))
+    if len(ckpts) == 0:
+        raise FileNotFoundError(f"No checkpoints found in {ckpt_dir.resolve()!r}")
     exp = r"(?<=loss=)(?:(?:\d+(?:\.\d*)?|\.\d+))"
     losses = [float(re.findall(exp, Path(ckpt).name)[0]) for ckpt in ckpts]
     ckpt = ckpts[np.argmin(losses)]
-    print("Using checkpoint", ckpt)
+    print(f"Using checkpoint {ckpt.resolve()!r}")
     return ckpt
 
 

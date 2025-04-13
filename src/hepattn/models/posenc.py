@@ -97,6 +97,6 @@ class PositionEncoder(nn.Module):
             pos_enc_fn = pos_enc_symmetric if var in self.SYM_VARS else pos_enc
             encodings.append(pos_enc_fn(inputs[var], self.per_input_dim, self.alpha))
         if self.remainder_dim:
-            encodings.append(torch.zeros_like(encodings[0])[:, : self.remainder_dim])
+            encodings.append(torch.zeros_like(encodings[0])[..., : self.remainder_dim])
         encodings = torch.cat(encodings, dim=-1)
         return encodings

@@ -40,5 +40,5 @@ class InferenceTimer(Callback):
         if len(self.times):
             print("-" * 80)
             print(f"Mean inference time: {self.mean_time:.2f} ± {self.std_time:.2f} ms")
-            print(f"Saved timing info to {self.times_path!r}")
+            print(f"Saved timing info to {self.times_path}")
             print("-" * 80)
