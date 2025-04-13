@@ -1,13 +1,11 @@
-import pytest
-import torch
-import matplotlib.pyplot as plt
-
 from pathlib import Path
+
+import matplotlib.pyplot as plt
+import pytest
+
 from hepattn.experiments.itk.data import ITkDataset
 from hepattn.experiments.itk.plot_event import plot_itk_event_reconstruction
 from hepattn.models.matcher import Matcher
-from hepattn.models.loss import mask_ce_costs
-
 
 plt.rcParams["figure.dpi"] = 300
 
@@ -16,35 +14,30 @@ class TestITkEvent:
     @pytest.fixture
     def itk_event(self):
         input_fields = {
-        "pixel": [
-            "x",
-            "y",
-            "z",
-            "r",
-            "eta",
-            "phi",
-            "u",
-            "v",
-        ],
-
-        "strip": [
-            "x",
-            "y",
-            "z",
-            "r",
-            "eta",
-            "phi",
-            "u",
-            "v",
-        ]
+            "pixel": [
+                "x",
+                "y",
+                "z",
+                "r",
+                "eta",
+                "phi",
+                "u",
+                "v",
+            ],
+            "strip": [
+                "x",
+                "y",
+                "z",
+                "r",
+                "eta",
+                "phi",
+                "u",
+                "v",
+            ],
         }
 
         target_fields = {
-            "particle": [
-                "pt",
-                "eta",
-                "phi"
-            ],
+            "particle": ["pt", "eta", "phi"],
         }
 
         dirpath = "/share/rcifdata/maxhart/data/itk/val"
@@ -69,18 +62,13 @@ class TestITkEvent:
 
         return dataset[0]
 
-
     def test_itk_event_masks(self, itk_event):
         # Some basic sanity checks on the event data
-        inputs, targets = itk_event
+        _inputs, _targets = itk_event
 
         # Every valid particle should have a unique particle id
 
         # Particle id should be a long
-
-
-        
-
 
     def test_itk_event_display(self, itk_event):
         # Plot an event display directly from dataloader to verify things look correct
@@ -89,10 +77,8 @@ class TestITkEvent:
         fig = plot_itk_event_reconstruction(inputs, targets)
         fig.savefig(Path("tests/outputs/itk/itk_event.png"))
 
-
-    def test_itk_matcher(self, itk_event):
-        # Setup the matcher
-        matcher = Matcher(
+    def test_itk_matcher(self):
+        Matcher(
             default_solver="scipy",
             adaptive_solver=False,
         )
