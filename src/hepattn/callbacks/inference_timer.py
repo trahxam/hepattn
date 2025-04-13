@@ -27,8 +27,7 @@ class InferenceTimer(Callback):
 
     def on_test_end(self, trainer, pl_module):
         pl_module.forward = self.old_forward
-        # Maybe should do this afterwards so we can look at how long warmup takes?
-        self.times = self.times[self.n_warm_start:]
+        self.times = self.times[5:]  # ensure warm start
         self.times = torch.tensor(self.times)
 
         if len(self.times):
@@ -48,7 +47,10 @@ class InferenceTimer(Callback):
 
     def teardown(self, trainer, pl_module, stage):  # noqa: ARG002
         if len(self.times):
+<<<<<<< HEAD
+=======
             print("-" * 80)
             print(f"Mean inference time: {self.mean_time:.2f} ± {self.std_time:.2f} ms")
             print(f"Saved timing info to {self.times_path!r}")
+>>>>>>> upstream/main
             print("-" * 80)
