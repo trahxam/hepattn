@@ -1,5 +1,7 @@
+import math
+
 import torch
-from torch import nn
+from torch import Tensor, nn
 
 
 def get_omegas(alpha, dim, **kwargs):
@@ -111,40 +113,25 @@ class PositionEncoder(nn.Module):
         return encodings
 
 
-class RandomFourierFeatureEncoder(nn.Module):
+class PositionEncoderRandom(nn.Module):
     """
     An implementation of Gaussian Fourier positional encoding.
 
     "Fourier Features Let Networks Learn High Frequency Functions in Low Dimensional Domains"
     see https://arxiv.org/abs/2006.10739
-
-    Parameters
-        ----------
-        inputs : dict
-            Dictionary of inputs.
-
-        Returns
-        -------
-        torch.Tensor
-            Positional encoding of the input variables.
     """
 
-    def __init__(self, input_name: str, fields: list[str], dim: int, sigma: float = 10.0, train: bool = False):
+    def __init__(self, input_name: str, dim: int, variables: list[str], scale: float = 1) -> None:
         super().__init__()
-
-        assert dim % 2 == 0, "Embedding dimension must be divisible by 2."
-
+        assert scale > 0
+        assert dim % 2 == 0, "Dimension must be even"
         self.input_name = input_name
-        self.fields = fields
-        self.dim = dim
-        self.encoding_dim = int(self.dim / 2)
-        self.B = torch.randn([len(self.fields), self.encoding_dim]) * sigma
+        self.variables = variables
+        self.gaussian_matrix = torch.nn.parameter.Buffer(scale * torch.randn((len(variables), dim // 2)))
+        self.pi = torch.tensor(math.pi)
 
-        if train:
-            self.B = nn.Parameter(self.B)
-
-    def forward(self, inputs: dict):
-        pos = torch.stack([inputs[f"{self.input_name}_{field}"] for field in self.fields], dim=-1)
-        pos_enc = torch.matmul(pos, self.B.to(pos.device))
-        pos_enc = torch.cat([torch.sin(pos_enc), torch.cos(pos_enc)], dim=-1)
-        return pos_enc
+    def forward(self, xs: dict[str, Tensor]) -> Tensor:
+        xs = torch.cat([xs[f"{self.input_name}_{f}"].unsqueeze(-1) for f in self.variables], dim=-1)
+        xs = 2 * self.pi * xs
+        xs @= self.gaussian_matrix
+        return torch.cat([torch.sin(xs), torch.cos(xs)], dim=-1)
