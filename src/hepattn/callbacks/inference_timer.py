@@ -1,8 +1,8 @@
+import warnings
 from pathlib import Path
 
 import numpy as np
 import torch
-import warnings
 from lightning import Callback
 
 from hepattn.utils.cuda_timer import cuda_timer
@@ -34,10 +34,7 @@ class InferenceTimer(Callback):
             self.mean_time = self.times.mean().item()
             self.std_time = self.times.std().item()
         else:
-            warnings.warn(
-                f"Inference timer did not get enough steps to clear " + \
-                f"the warm start period of {self.n_warm_start} steps"
-                )
+            warnings.warn("Inference timer did not get enough steps to clear " + f"the warm start period of {self.n_warm_start} steps")
 
         self.times_path = Path(trainer.log_dir) / "times"
         self.times_path.mkdir(parents=True, exist_ok=True)
@@ -47,10 +44,7 @@ class InferenceTimer(Callback):
 
     def teardown(self, trainer, pl_module, stage):  # noqa: ARG002
         if len(self.times):
-<<<<<<< HEAD
-=======
             print("-" * 80)
             print(f"Mean inference time: {self.mean_time:.2f} ± {self.std_time:.2f} ms")
             print(f"Saved timing info to {self.times_path!r}")
->>>>>>> upstream/main
             print("-" * 80)
