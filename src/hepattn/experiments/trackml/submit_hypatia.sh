@@ -15,17 +15,17 @@
 
 # requesting 4 V100 GPU
 # (remove the "v100:" if you don't care what GPU)
-#SBATCH --gres=gpu:l40s:1
+#SBATCH --gres=gpu:a100:1
 
 # note! this needs to match --trainer.devices!
 #SBATCH --ntasks-per-node=1
 
 # number of cpus per task
 # useful if you don't have exclusive access to the node
-#SBATCH --cpus-per-task=20
+#SBATCH --cpus-per-task=15
 
 # request enough memory
-#SBATCH --mem=150G
+#SBATCH --mem=50G
 
 # mail on failures
 ##SBATCH --mail-user=sam.van.stroud@cern.ch
