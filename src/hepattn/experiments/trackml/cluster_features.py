@@ -259,6 +259,4 @@ def append_cell_features(hits: DF, cells: DF, detector_config: str) -> DF:
 
     hits = augment_hit_features(hits, cells, detector_proc=load_detector(Path(detector_config))[1])
 
-    hits["u"] = hits["x"] / (hits["x"] ** 2 + hits["y"] ** 2)
-    hits["v"] = hits["y"] / (hits["x"] ** 2 + hits["y"] ** 2)
     return hits
