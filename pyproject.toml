@@ -22,12 +22,8 @@ dependencies = [
     "jsonargparse[signatures]>=4.34.0,<5",
     #"flash-attn @ https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.6cxx11abiTRUE-cp311-cp311-linux_x86_64.whl",
     #"torch==2.6.0", # using nightly, see below
-    "lion-pytorch>=0.2.3,<0.3"
-    #"flash-attn==2.7.4.post1",
-    #"torch==2.6.0",
-    "torchjd>=0.5.0",
-    "flash-attn @ https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.6cxx11abiTRUE-cp311-cp311-linux_x86_64.whl",
     "lion-pytorch>=0.2.3,<0.3",
+    "torchjd>=0.5.0",
     "awkward>=2.8.1",
     "uproot>=5.6.0",
     "h5py>=3.13.0",
