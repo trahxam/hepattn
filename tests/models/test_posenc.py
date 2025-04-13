@@ -45,7 +45,7 @@ def test_pos_enc():
 
 
 def test_pos_enc_class():
-    posenc = PositionEncoder(["x", "y", "z"], 128, alpha=100)
+    posenc = PositionEncoder(["x", "y", "z"], dim=128, alpha=100)
     x = y = z = torch.randn(1, 100, 1)
     inputs = {"x": x, "y": y, "z": z}
     out = posenc(inputs)

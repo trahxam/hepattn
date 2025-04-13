@@ -98,7 +98,7 @@ class EncoderLayer(nn.Module):
     def __init__(
         self,
         dim: int,
-        depth: int,
+        depth: int = 0,
         norm: str | None = None,
         layer_scale: float | None = None,
         drop_path: float = 0.0,
@@ -215,7 +215,7 @@ class Encoder(nn.Module):
         if x_sort_value is not None:
             x_sort_idx = torch.argsort(x_sort_value, axis=-1)
             x = torch.gather(x, -2, x_sort_idx.unsqueeze(-1).expand_as(x))
-        
+
         # Initialise sliding window mask
         if self.mask_mod is None and self.attn_type != "flash" and self.window_size:
             self.q_len = torch.tensor([1], device=x.device)

@@ -61,7 +61,7 @@ def pos_enc(xs, dim, alpha=1000):
 
 
 class PositionEncoder(nn.Module):
-    def __init__(self, input_name: str, fields: list[str], sym_fields: list[str], dim: int, alpha=1000):
+    def __init__(self, input_name: str, fields: list[str], dim: int, sym_fields: list[str] | None = None, alpha=1000):
         """Positional encoder.
 
         Parameters
@@ -81,7 +81,7 @@ class PositionEncoder(nn.Module):
 
         self.input_name = input_name
         self.fields = fields
-        self.sym_fields = sym_fields
+        self.sym_fields = sym_fields or []
         self.dim = dim
         self.alpha = alpha
 
