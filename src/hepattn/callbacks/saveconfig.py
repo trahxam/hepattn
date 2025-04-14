@@ -54,7 +54,8 @@ class Metadata(Callback):
         if hasattr(trainer, "timestamp"):
             meta["timestamp"] = trainer.timestamp
 
-        if logger := pl_module.logger:
+        logger = pl_module.logger
+        if logger:
             logger.log_hyperparams(meta)
 
         meta_path = log_dir / "metadata.yaml"

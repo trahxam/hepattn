@@ -75,6 +75,26 @@ trainer:
     init_args:
       project_name: trackml_tracking
 
+  callbacks:
+    - class_path: hepattn.callbacks.Compile
+    - class_path: hepattn.callbacks.InferenceTimer
+    - class_path: hepattn.callbacks.Metadata
+    - class_path: hepattn.callbacks.Checkpoint
+      init_args:
+        monitor: val/loss
+    - class_path: hepattn.callbacks.PredictionWriter
+      init_args:
+        write_inputs: false
+        write_outputs: true
+        write_preds: true
+        write_targets: true
+        write_losses: false
+    - class_path: lightning.pytorch.callbacks.ModelSummary
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+    - class_path: lightning.pytorch.callbacks.TQDMProgressBar
+      init_args:
+        refresh_rate: 50
+
 model:
   optimizer: adamw
 

@@ -1,4 +1,4 @@
-name: reg34_eta4_pt1_allvars
+name: region34_eta4_pt1
 
 data:
   train_dir: /share/rcifdata/maxhart/data/itk/train/
@@ -173,7 +173,7 @@ trainer:
   logger:
     class_path: lightning.pytorch.loggers.CometLogger
     init_args:
-      project_name: itk_filtering
+      project: itk_filtering
 
   callbacks:
     - class_path: hepattn.callbacks.Compile
@@ -182,7 +182,7 @@ trainer:
     - class_path: hepattn.callbacks.Checkpoint
       init_args:
         monitor: val/loss
-    - class_path: hepattn.callbacks.TestEvalWriter
+    - class_path: hepattn.callbacks.PredictionWriter
       init_args:
         write_inputs: false
         write_outputs: false

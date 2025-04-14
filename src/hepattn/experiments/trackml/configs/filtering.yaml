@@ -1,4 +1,4 @@
-name: ec_eta4
+name: layers12_dim256_regions789_eta4_pt1
 
 data:
   train_dir: /share/rcifdata/maxhart/data/trackml/prepped/train/
@@ -7,7 +7,7 @@ data:
 
   num_workers: 10
   num_train: -1
-  num_test: 20
+  num_test: -1
   num_val: -1
   
   # Select only hits from these detector volumes
@@ -69,7 +69,7 @@ trainer:
   logger:
     class_path: lightning.pytorch.loggers.CometLogger
     init_args:
-      project: trackml_filtering
+      project_name: trackml_filtering
 
   callbacks:
     - class_path: hepattn.callbacks.Compile
@@ -78,7 +78,7 @@ trainer:
     - class_path: hepattn.callbacks.Checkpoint
       init_args:
         monitor: val/loss
-    - class_path: hepattn.callbacks.TestEvalWriter
+    - class_path: hepattn.callbacks.PredictionWriter
       init_args:
         write_inputs: false
         write_outputs: false
