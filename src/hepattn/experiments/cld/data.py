@@ -1,10 +1,10 @@
-from pathlib import Path
-
-import awkward as ak
 import numpy as np
+from pathlib import Path
 import torch
-from lightning import LightningDataModule
+import awkward as ak
+
 from torch.utils.data import DataLoader, Dataset
+from lightning import LightningDataModule
 
 
 class CLDDataset(Dataset):
@@ -13,14 +13,16 @@ class CLDDataset(Dataset):
         dirpath: str,
         inputs: dict,
         targets: dict,
-        merge_inputs: dict[str, list[str]] | None = None,
+        merge_inputs: dict[str, list[str]] = {},
         num_events: int = -1,
         particle_min_pt: float = 0.1,
+        charged_particle_min_num_hits: dict[str, int] = {},
+        charged_particle_max_num_hits: dict[str, int] = {},
+        neutral_particle_min_num_hits: dict[str, int] = {},
+        neutral_particle_max_num_hits: dict[str, int] = {},
         event_max_num_particles: int = 1000,
         random_seed: int = 42,
     ):
-        if merge_inputs is None:
-            merge_inputs = {}
         super().__init__()
 
         self.dirpath = dirpath
@@ -29,11 +31,15 @@ class CLDDataset(Dataset):
         self.merge_inputs = merge_inputs
         self.num_events = num_events
         self.particle_min_pt = particle_min_pt
+        self.charged_particle_min_num_hits = charged_particle_min_num_hits
+        self.charged_particle_max_num_hits = charged_particle_max_num_hits
+        self.neutral_particle_min_num_hits = neutral_particle_min_num_hits
+        self.neutral_particle_max_num_hits = neutral_particle_max_num_hits
         self.event_max_num_particles = event_max_num_particles
         self.random_seed = random_seed
 
         # Global random state initialisation
-        np.random.seed(random_seed)  # noqa: NPY002
+        np.random.seed(random_seed)
 
         # Setup the number of events that will be used
         event_filenames = list(Path(self.dirpath).glob("*reco*.parquet"))
@@ -44,11 +50,11 @@ class CLDDataset(Dataset):
         print(f"Found {num_available_events} available events, {num_requested_events} requested, {self.num_events} used")
 
         # Allow us to select events by index
-        self.event_filenames = event_filenames[: self.num_events]
+        self.event_filenames = event_filenames[:self.num_events]
 
     def __len__(self):
         return int(self.num_events)
-
+    
     def __getitem__(self, idx):
         event = self.load_event(idx)
 
@@ -64,34 +70,17 @@ class CLDDataset(Dataset):
                 assert np.all(~np.isnan(x))
                 field_size = len(x)
                 inputs[f"{input_name}_{field}"] = torch.from_numpy(x).unsqueeze(0).half()
+                x = inputs[f"{input_name}_{field}"]
                 field_sizes.add(field_size)
-
+            
             assert len(field_sizes) == 1, f"Found mismatching field sizes for {input_name}"
             input_sizes[input_name] = next(iter(field_sizes))
 
             inputs[f"{input_name}_valid"] = torch.ones((1, input_sizes[input_name]), dtype=torch.bool)
             targets[f"{input_name}_valid"] = inputs[f"{input_name}_valid"]
 
-        target_sizes = {}
-        for target_name, fields in self.targets.items():
-            field_sizes = set()
-            for field in fields:
-                x = ak.to_numpy(event[f"{target_name}.{field}"])[0]
-                field_size = len(x)
-                assert np.all(~np.isnan(x))
-                x_padding = np.full(self.event_max_num_particles - field_size, np.nan)
-                x = np.concatenate((x, x_padding), axis=-1)
-                targets[f"{target_name}_{field}"] = torch.from_numpy(x).unsqueeze(0).half()
-                field_sizes.add(field_size)
-
-            assert len(field_sizes) == 1, f"Found mismatching field sizes for {target_name}"
-            target_sizes[target_name] = next(iter(field_sizes))
-            target_valid = ak.to_numpy(event[f"{target_name}_valid"])[0]
-            targets[f"{target_name}_valid"] = torch.zeros((1, self.event_max_num_particles), dtype=torch.bool)
-            targets[f"{target_name}_valid"][:, : target_sizes[target_name]] = torch.from_numpy(target_valid).bool()
-
         # Create the masks that link particles to hits
-        for input_name in self.inputs:
+        for input_name in self.inputs.keys():
             num_hits = input_sizes[input_name]
             mask = np.full((num_hits, self.event_max_num_particles), False)
             # Get the mask indices that map from hits to particles
@@ -100,8 +89,10 @@ class CLDDataset(Dataset):
                 continue
             mask_idxs = ak.to_numpy(event[f"{input_name}_to_particle_idxs"])[0]
 
+            
+
             if mask_idxs.ndim == 2:
-                mask[mask_idxs[:, 0], mask_idxs[:, 1]] = True
+                mask[mask_idxs[:,0],mask_idxs[:,1]] = True
             else:
                 print(input_name)
                 print(mask_idxs.shape)
@@ -113,6 +104,40 @@ class CLDDataset(Dataset):
             for merged_input_name, input_names in self.merge_inputs.items():
                 merged_mask = torch.cat([targets[f"particle_{input_name}_valid"] for input_name in input_names], dim=-1)
                 targets[f"particle_{merged_input_name}_valid"] = merged_mask
+
+
+        target_sizes = {}
+        for target_name, fields in self.targets.items():
+
+            field_sizes = set()
+            for field in fields:
+                x = ak.to_numpy(event[f"{target_name}.{field}"])[0]
+                field_size = len(x)
+                assert np.all(~np.isnan(x))
+                x_padding = np.full(self.event_max_num_particles - field_size, np.nan)
+                x = np.concatenate((x, x_padding), axis=-1)
+                targets[f"{target_name}_{field}"] = torch.from_numpy(x).unsqueeze(0).half()
+                field_sizes.add(field_size)
+            
+            assert len(field_sizes) == 1, f"Found mismatching field sizes for {target_name}"
+            target_sizes[target_name] = next(iter(field_sizes))
+            target_valid = ak.to_numpy(event[f"{target_name}_valid"])[0]
+            targets[f"{target_name}_valid"] = torch.zeros((1, self.event_max_num_particles), dtype=torch.bool)
+            targets[f"{target_name}_valid"][:,:target_sizes[target_name]] = torch.from_numpy(target_valid).bool()
+
+        # Now apply the reconstructability requirements
+        charged_particles = torch.nan_to_num(targets["particle_isCharged"], 0).long().bool()[0]
+
+        for hit_name, min_hits in self.charged_particle_min_num_hits.items():
+            particle_num_hits = targets[f"particle_{hit_name}_valid"].float().sum(-1)
+            charged_and_insufficient_hits = charged_particles & (particle_num_hits <= min_hits)
+            targets["particle_valid"] = targets["particle_valid"] & (~charged_and_insufficient_hits)
+        
+        for input_name in self.inputs.keys():
+            targets[f"particle_{input_name}_valid"] = targets[f"particle_{input_name}_valid"] & targets["particle_valid"].unsqueeze(-1)
+            targets[f"{input_name}_valid"] = inputs[f"{input_name}_valid"]
+
+        # TODO: Apply neutral selection also
 
         return inputs, targets
 
@@ -126,19 +151,26 @@ class CLDDataset(Dataset):
 
         def add_cylindrical_coords(i, p):
             # Add standard tracking cylindrical coordinates
-            event[f"{i}.{p}.r"] = np.sqrt(event[f"{i}.{p}.x"] ** 2 + event[f"{i}.{p}.y"] ** 2)
-            event[f"{i}.{p}.s"] = np.sqrt(event[f"{i}.{p}.x"] ** 2 + event[f"{i}.{p}.y"] ** 2 + event[f"{i}.{p}.z"] ** 2)
+            event[f"{i}.{p}.r"] = np.sqrt(event[f"{i}.{p}.x"]**2 + event[f"{i}.{p}.y"]**2)
+            event[f"{i}.{p}.s"] = np.sqrt(event[f"{i}.{p}.x"]**2 + event[f"{i}.{p}.y"]**2 + event[f"{i}.{p}.z"]**2)
             event[f"{i}.{p}.theta"] = np.arccos(event[f"{i}.{p}.z"] / event[f"{i}.{p}.s"])
-            event[f"{i}.{p}.eta"] = np.arctanh(event[f"{i}.{p}.z"] / event[f"{i}.{p}.s"])
+            event[f"{i}.{p}.eta"] = -np.log(np.tan(event[f"{i}.{p}.theta"] / 2))
             event[f"{i}.{p}.phi"] = np.arctan2(event[f"{i}.{p}.y"], event[f"{i}.{p}.x"])
-
+        
         def add_conformal_coords(i, p):
             # Conformal tracking coordinates
             # https://indico.cern.ch/event/658267/papers/2813728/files/8362-Leogrande.pdf
-            event[f"{i}.{p}.u"] = event[f"{i}.{p}.x"] / (event[f"{i}.{p}.x"] ** 2 + event[f"{i}.{p}.y"] ** 2)
-            event[f"{i}.{p}.v"] = event[f"{i}.{p}.y"] / (event[f"{i}.{p}.x"] ** 2 + event[f"{i}.{p}.y"] ** 2)
+            event[f"{i}.{p}.u"] = event[f"{i}.{p}.x"] / (event[f"{i}.{p}.x"]**2 + event[f"{i}.{p}.y"]**2)
+            event[f"{i}.{p}.v"] = event[f"{i}.{p}.y"] / (event[f"{i}.{p}.x"]**2 + event[f"{i}.{p}.y"]**2)
 
-        hits = ["vtb", "vte", "itb", "ite", "otb", "ote", "ecb", "ece", "hcb", "hce", "hco", "muon"]
+        hits = [
+            "vtb", "vte",
+            "itb", "ite",
+            "otb", "ote",
+            "ecb", "ece",
+            "hcb", "hce", "hco",
+            "muon"
+        ]
 
         for hit in hits:
             # It is important to do the mm -> m conversion first, so that all other
@@ -147,6 +179,7 @@ class CLDDataset(Dataset):
             convert_mm_to_m(hit, "pos")
             add_cylindrical_coords(hit, "pos")
             add_conformal_coords(hit, "pos")
+            
 
         for point in ["vtx", "end"]:
             convert_mm_to_m("particle", f"{point}.pos")
@@ -157,11 +190,13 @@ class CLDDataset(Dataset):
         if self.merge_inputs:
             # Merge inputs, first check all requested merged inputs have the same
             # fields and that the fields are given in the same order
-
+            
             for merged_input_name, input_names in self.merge_inputs.items():
                 # Make fields into tuple so its hashable
+
                 merged_input_fields = set()
-                merged_input_fields.update(tuple(self.inputs[input_name]) for input_name in input_names)
+                for input_name in input_names:
+                    merged_input_fields.add(tuple(self.inputs[input_name]))
 
                 msg = "Merged inputs must all have the same fields and ordering of fields, "
                 msg += f"found {merged_input_fields} for {merged_input_name}"
@@ -169,16 +204,22 @@ class CLDDataset(Dataset):
 
                 # Now actually merge the fields of each input
                 for field in next(iter(merged_input_fields)):
-                    merged_fields_arrays = [event[f"{input_name}.{field}"] for input_name in input_names]
-
+                    merged_fields_arrays = []
+                    for input_name in input_names:
+                        merged_fields_arrays.append(event[f"{input_name}.{field}"])
+                    
                     # Concatenate the fields from all of the inputs that make the merged input
                     event[f"{merged_input_name}.{field}"] = ak.concatenate(merged_fields_arrays, axis=-1)
 
         # Apply particle reconstructability pT cut
         event["particle_valid"] = event["particle.vtx.mom.r"] >= self.particle_min_pt
 
-        return event
+        # Add extra labels for particles
+        event["particle.isCharged"] = np.abs(event["particle.charge"]) > 0
+        event["particle.isNeutral"] = ~event["particle.isCharged"]
 
+        return event
+    
 
 class CLDDataModule(LightningDataModule):
     def __init__(
@@ -207,10 +248,10 @@ class CLDDataModule(LightningDataModule):
 
     def setup(self, stage: str):
         if stage == "fit" or stage == "test":
-            self.train_dset = CLDDataset(dirpath=self.train_dir, num_events=self.num_train, **self.kwargs)
+            self.train_dset = CLDDataset(dirpath=self.train_dir, num_events=self.num_train, **self.kwargs,)
 
         if stage == "fit":
-            self.val_dset = CLDDataset(dirpath=self.val_dir, num_events=self.num_val, **self.kwargs)
+            self.val_dset = CLDDataset(dirpath=self.val_dir, num_events=self.num_val, **self.kwargs,)
 
         # Only print train/val dataset details when actually training
         if stage == "fit" and self.trainer.is_global_zero:
@@ -219,7 +260,7 @@ class CLDDataModule(LightningDataModule):
 
         if stage == "test":
             assert self.test_dir is not None, "No test file specified, see --data.test_dir"
-            self.test_dset = CLDDataset(dirpath=self.test_dir, num_events=self.num_test, trainer=self.trainer, **self.kwargs)
+            self.test_dset = CLDDataset(dirpath=self.test_dir, num_events=self.num_test, trainer=self.trainer, **self.kwargs,)
             print(f"Created test dataset with {len(self.test_dset):,} events")
 
     def get_dataloader(self, stage: str, dataset: CLDDataset, shuffle: bool):  # noqa: ARG002

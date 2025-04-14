@@ -18,6 +18,11 @@ data:
   # Number of query slots / particles to generate per event
   event_max_num_particles: &num_particles 256
 
+  charged_particle_min_num_hits:
+    sihit: 8
+  charged_particle_max_num_hits:
+    sihit: 20
+
   merge_inputs:
     sihit:
       - vtb
