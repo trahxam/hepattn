@@ -96,20 +96,23 @@ class ObjectValidTask(Task):
         return {self.output_object + "_valid": outputs[self.output_object + "_logit"].sigmoid() >= threshold}
 
     def cost(self, outputs, targets):
+        output = outputs[self.output_object + "_logit"]
+        target = targets[self.target_object + "_valid"].type_as(output)
         costs = {}
         for cost_fn, cost_weight in self.costs.items():
-            costs[cost_fn] = cost_weight * cost_fns[cost_fn](outputs[self.output_object + "_logit"], targets[self.target_object + "_valid"].float())
+            costs[cost_fn] = cost_weight * cost_fns[cost_fn](output, target)
             # Set the costs of invalid objects to be (basically) inf
             costs[cost_fn][~targets[self.target_object + "_valid"].unsqueeze(-2).expand_as(costs[cost_fn])] = 1e6
         return costs
 
     def loss(self, outputs, targets):
         losses = {}
-        target = targets[self.target_object + "_valid"].float()
+        output = outputs[self.output_object + "_logit"]
+        target = targets[self.target_object + "_valid"].type_as(output)
         weight = target + self.null_weight * (1 - target)
         # Calculate the loss from each specified loss function.
         for loss_fn, loss_weight in self.losses.items():
-            losses[loss_fn] = loss_weight * loss_fns[loss_fn](outputs[self.output_object + "_logit"], target, mask=None, weight=weight)
+            losses[loss_fn] = loss_weight * loss_fns[loss_fn](output, target, mask=None, weight=weight)
         return losses
 
 
@@ -144,12 +147,12 @@ class HitFilterTask(Task):
 
     def loss(self, outputs: dict, targets: dict) -> dict:
         # Pick out the field that denotes whether a hit is on a reconstructable object or not
-        target = targets[f"{self.hit_name}_{self.target_field}"]
         output = outputs[f"{self.hit_name}_logit"]
+        target = targets[f"{self.hit_name}_{self.target_field}"].type_as(output)
 
         # Calculate the BCE loss with class weighting
         weight = 1 / target.float().mean()
-        loss = nn.functional.binary_cross_entropy_with_logits(output, target.type_as(output), pos_weight=weight)
+        loss = nn.functional.binary_cross_entropy_with_logits(output, target, pos_weight=weight)
         return {f"{self.hit_name}_bce": loss}
 
 
@@ -211,18 +214,21 @@ class ObjectHitMaskTask(Task):
         return {self.output_object_hit + "_valid": outputs[self.output_object_hit + "_logit"].sigmoid() >= threshold}
 
     def cost(self, outputs, targets):
+        output = outputs[self.output_object_hit + "_logit"]
+        target = targets[self.target_object_hit + "_valid"].type_as(output)
+
         costs = {}
         for cost_fn, cost_weight in self.costs.items():
-            costs[cost_fn] = cost_weight * cost_fns[cost_fn](
-                outputs[self.output_object_hit + "_logit"], targets[self.target_object_hit + "_valid"].float()
-            )
+            costs[cost_fn] = cost_weight * cost_fns[cost_fn](output, target)
 
             # Set the costs of invalid objects to be (basically) inf
             costs[cost_fn][~targets[self.target_object + "_valid"].unsqueeze(-2).expand_as(costs[cost_fn])] = 1e6
         return costs
 
     def loss(self, outputs, targets):
-        target = targets[self.target_object_hit + "_valid"].float()
+        output = outputs[self.output_object_hit + "_logit"]
+        target = targets[self.target_object_hit + "_valid"].type_as(output)
+
         # Build a padding mask for object-hit pairs
         hit_pad = targets[self.input_hit + "_valid"].unsqueeze(-2).expand_as(target)
         object_pad = targets[self.target_object + "_valid"].unsqueeze(-1).expand_as(target)
@@ -234,7 +240,7 @@ class ObjectHitMaskTask(Task):
 
         losses = {}
         for loss_fn, loss_weight in self.losses.items():
-            loss = loss_fns[loss_fn](outputs[self.output_object_hit + "_logit"], target, mask=object_hit_mask, weight=weight)
+            loss = loss_fns[loss_fn](output, target, mask=object_hit_mask, weight=weight)
             losses[loss_fn] = loss_weight * loss
         return losses
 
@@ -455,10 +461,6 @@ class ObjectHitRegressionTask(RegressionTask):
         # If padding data is provided, use it to zero out predictions for any hit slots that are not valid
         if pads is not None:
             # Shape of padding goes BM -> B1M -> B1M1 -> BNMD
-            x_object_hit = x_object_hit * pads[self.input_hit + "_valid"].unsqueeze(-2).unsqueeze(-1).expand_as(x_object_hit).float()
+            pad = pads[self.input_hit + "_valid"].unsqueeze(-2).unsqueeze(-1).expand_as(x_object_hit).as_type(x_object_hit)
+            x_object_hit = x_object_hit * pad
         return x_object_hit
-
-
-
-
-
