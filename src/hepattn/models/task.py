@@ -14,7 +14,7 @@ class ObjectValidTask(nn.Module):
         target_object: str,
         losses: dict[str, float],
         costs: dict[str, float],
-        embed_dim: int,
+        dim: int,
         null_weight: float = 1.0,
     ):
         """Task used for classifying whether object candidates / seeds should be
@@ -36,7 +36,7 @@ class ObjectValidTask(nn.Module):
         costs : dict[str, float]
             Dict specifying which costs to use. Keys denote the cost function name,
             whiel value denotes cost weight.
-        embed_dim : int
+        dim : int
             Embedding dimension of the input features.
         null_weight : float
             Weight applied to the null class in the loss. Useful if many instances of
@@ -50,13 +50,13 @@ class ObjectValidTask(nn.Module):
         self.target_object = target_object
         self.losses = losses
         self.costs = costs
-        self.embed_dim = embed_dim
+        self.dim = dim
         self.null_weight = null_weight
 
         # Internal
         self.inputs = [input_object + "_embed"]
         self.outputs = [output_object + "_logit"]
-        self.net = Dense(embed_dim, 1)
+        self.net = Dense(dim, 1)
 
     def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:
         """Yields a probability denoting whether the model thinks whether an object
@@ -152,7 +152,7 @@ class HitFilterTask(nn.Module):
         name: str,
         hit_name: str,
         target_field: str,
-        embed_dim: int,
+        dim: int,
         threshold: float = 0.1,
     ):
         """Task used for classifying whether hits belong to reconstructable objects or not."""
@@ -161,12 +161,12 @@ class HitFilterTask(nn.Module):
         self.name = name
         self.hit_name = hit_name
         self.target_field = target_field
-        self.embed_dim = embed_dim
+        self.dim = dim
         self.threshold = threshold
 
         # Internal
         self.input_features = [f"{hit_name}_embed"]
-        self.net = Dense(embed_dim, 1)
+        self.net = Dense(dim, 1)
 
     def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:
         x_logit = self.net(x[f"{self.hit_name}_embed"])
@@ -196,7 +196,7 @@ class ObjectHitMaskTask(nn.Module):
         target_object: str,
         losses: dict[str, float],
         costs: dict[str, float],
-        embed_dim: int,
+        dim: int,
         null_weight: float = 1.0,
     ):
         """Takes a set of input hits and input objects and classifies whether each
@@ -222,7 +222,7 @@ class ObjectHitMaskTask(nn.Module):
         costs : dict[str, float]
             Dict specifying which costs to use. Keys denote the cost function name,
             whiel value denotes cost weight.
-        embed_dim : int
+        dim : int
             Embedding dimension of the input features.
         null_weight : float
             Weight applied to the null class in the loss. Useful if many instances of
@@ -237,15 +237,15 @@ class ObjectHitMaskTask(nn.Module):
         self.target_object = target_object
         self.losses = losses
         self.costs = costs
-        self.embed_dim = embed_dim
+        self.dim = dim
         self.null_weight = null_weight
 
         self.output_object_hit = output_object + "_" + input_hit
         self.target_object_hit = target_object + "_" + input_hit
         self.inputs = [input_object + "_embed", input_hit + "_embed"]
         self.outputs = [self.output_object_hit + "_logit"]
-        self.hit_net = Dense(embed_dim, embed_dim)
-        self.object_net = Dense(embed_dim, embed_dim)
+        self.hit_net = Dense(dim, dim)
+        self.object_net = Dense(dim, dim)
 
     def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:
         # Produce new task-specific embeddings for the hits and objects

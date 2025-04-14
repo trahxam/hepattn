@@ -93,7 +93,7 @@ model:
   model:
     class_path: hepattn.models.MaskFormer
     init_args:
-      embed_dim: &embed_dim 256
+      dim: &dim 256
       num_queries: 2000
       input_sort_field: phi
       input_nets:
@@ -125,7 +125,7 @@ model:
                   class_path: hepattn.models.Dense
                   init_args:
                     input_size: 16
-                    output_size: *embed_dim
+                    output_size: *dim
                 posenc:
                   class_path: hepattn.models.PositionEncoder
                   init_args:
@@ -136,18 +136,18 @@ model:
                       - phi
                     sym_fields:
                       - phi
-                    dim: *embed_dim
+                    dim: *dim
       encoder:
         class_path: hepattn.models.Encoder
         init_args:
           num_layers: 12
-          dim: *embed_dim
+          dim: *dim
           attn_type: flash
           window_size: 512
           window_wrap: true
       num_decoder_layers: 8
       decoder_layer_config:
-        dim: *embed_dim
+        dim: *dim
         mask_attention: true
       tasks:
         class_path: torch.nn.ModuleList
@@ -164,7 +164,7 @@ model:
                   object_ce: 1.0
                 costs:
                   object_ce: 1.0
-                embed_dim: *embed_dim
+                dim: *dim
                 null_weight: 1.0
             - class_path: hepattn.models.task.ObjectHitMaskTask
               init_args:
@@ -182,7 +182,7 @@ model:
                   mask_ce: 100.0
                   #mask_dice: 2.0
                   #mask_focal: 50.0
-                embed_dim: *embed_dim
+                dim: *dim
                 null_weight: 1.0
       matcher:
         class_path: hepattn.models.matcher.Matcher

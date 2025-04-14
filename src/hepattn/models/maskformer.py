@@ -13,7 +13,7 @@ class MaskFormer(nn.Module):
         num_decoder_layers: int,
         tasks: nn.ModuleList,
         num_queries: int,
-        embed_dim: int,
+        dim: int,
         matcher: nn.Module | None = None,
         input_sort_field: str | None = None,
     ):
@@ -37,7 +37,7 @@ class MaskFormer(nn.Module):
             A module used to match predictions to targets (e.g., using the Hungarian algorithm) for loss computation.
         num_queries : int
             The number of object-level queries to initialize and decode.
-        embed_dim : int
+        dim : int
             The dimensionality of the query and key embeddings.
         input_sort_field : str or None, optional
             An optional key used to sort the input objects (e.g., for windowed attention).
@@ -50,7 +50,7 @@ class MaskFormer(nn.Module):
         self.tasks = tasks
         self.matcher = matcher
         self.num_queries = num_queries
-        self.query_initial = nn.Parameter(torch.randn(num_queries, embed_dim))
+        self.query_initial = nn.Parameter(torch.randn(num_queries, dim))
         self.input_sort_field = input_sort_field
 
     def forward(self, inputs: dict[str, Tensor]) -> dict[str, Tensor]:  # noqa: C901, PLR0912

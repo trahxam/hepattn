@@ -178,7 +178,7 @@ model:
                   class_path: hepattn.models.Dense
                   init_args:
                     input_size: 34
-                    output_size: &embed_dim 256
+                    output_size: &dim 256
                 posenc:
                   class_path: hepattn.models.PositionEncoder
                   init_args:
@@ -189,13 +189,13 @@ model:
                       - phi
                     sym_fields:
                       - phi
-                    dim: *embed_dim
+                    dim: *dim
 
       encoder:
         class_path: hepattn.models.Encoder
         init_args:
           num_layers: 12
-          dim: *embed_dim
+          dim: *dim
           attn_type: flash
           window_size: 1024
           window_wrap: true
@@ -211,5 +211,5 @@ model:
                 name: pixel_filter
                 hit_name: pixel
                 target_field: on_valid_particle
-                embed_dim: *embed_dim
+                dim: *dim
                 threshold: 0.1
