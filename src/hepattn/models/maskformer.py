@@ -114,14 +114,15 @@ class MaskFormer(nn.Module):
 
                 # Here we check if each task has an attention mask to contribute, then after
                 # we fill in any attention masks for any features that did not get an attention mask
-                if hasattr(task, "attn_mask"):
-                    for input_name, attn_mask in task.attn_mask(task_outputs).items():
-                        # We only want to mask an attention slot if every task agrees the slots should be masked
-                        # so we only mask if both the existing and new attention mask are masked
-                        if input_name in attn_masks:
-                            attn_masks[input_name] &= attn_mask
-                        else:
-                            attn_masks[input_name] = attn_mask
+                task_attn_masks = task.attn_mask(task_outputs)
+
+                for input_name, attn_mask in task_attn_masks.items():
+                    # We only want to mask an attention slot if every task agrees the slots should be masked
+                    # so we only mask if both the existing and new attention mask are masked
+                    if input_name in attn_masks:
+                        attn_masks[input_name] &= attn_mask
+                    else:
+                        attn_masks[input_name] = attn_mask
 
             # Fill in attention masks for features that did not get one specified by any task
             if attn_masks:
@@ -188,10 +189,6 @@ class MaskFormer(nn.Module):
             layer_costs = None
             # Get the cost contribution from each of the tasks
             for task in self.tasks:
-                # If the task has no cost to contribute then skip it
-                if not hasattr(task, "cost"):
-                    continue
-
                 # Only use the cost from the final set of predictions
                 task_costs = task.cost(layer_outputs[task.name], targets)
 
