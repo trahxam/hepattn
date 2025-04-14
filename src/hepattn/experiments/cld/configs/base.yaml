@@ -334,6 +334,8 @@ data:
       - spin.z
       - colorFlow.a
       - colorFlow.b
+      - isCharged
+      - isNeutral
 
 # Training stuff here
 trainer:
