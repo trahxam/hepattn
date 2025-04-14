@@ -6,7 +6,7 @@ import torch
 from lightning import Callback, LightningModule, Trainer
 
 
-class TestEvalWriter(Callback):
+class PredictionWriter(Callback):
     def __init__(
         self,
         write_inputs: bool,
