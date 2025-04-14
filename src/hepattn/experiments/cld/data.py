@@ -122,7 +122,7 @@ class CLDDataset(Dataset):
         def convert_mm_to_m(i, p):
             # Convert a spatial coordinate from mm to m inplace
             for coord in ["x", "y", "z"]:
-                event[f"{i}.{p}.{coord}"] *= 0.001
+                event[f"{i}.{p}.{coord}"] = 0.001 * event[f"{i}.{p}.{coord}"]
 
         def add_cylindrical_coords(i, p):
             # Add standard tracking cylindrical coordinates
@@ -160,7 +160,6 @@ class CLDDataset(Dataset):
 
             for merged_input_name, input_names in self.merge_inputs.items():
                 # Make fields into tuple so its hashable
-
                 merged_input_fields = set()
                 merged_input_fields.update(tuple(self.inputs[input_name]) for input_name in input_names)
 

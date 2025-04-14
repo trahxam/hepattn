@@ -517,7 +517,7 @@ model:
                 costs:
                   object_ce: 1.0
                 dim: *dim
-                null_weight: 0.1
+                null_weight: 1.0
 
             - class_path: hepattn.models.task.ObjectHitMaskTask
               init_args:
