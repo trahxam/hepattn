@@ -9,7 +9,9 @@ from functools import partial
 import torch
 from torch import Tensor, nn
 
-from hepattn.models import Attention, Dense, LayerNorm
+from hepattn.models.attention import Attention
+from hepattn.models.dense import Dense
+from hepattn.models.norm import LayerNorm
 from hepattn.models.transformer import Residual
 
 

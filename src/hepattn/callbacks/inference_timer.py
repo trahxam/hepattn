@@ -2,7 +2,6 @@ from pathlib import Path
 
 import numpy as np
 import torch
-import warnings
 from lightning import Callback
 
 from hepattn.utils.cuda_timer import cuda_timer
@@ -34,10 +33,7 @@ class InferenceTimer(Callback):
             self.mean_time = self.times.mean().item()
             self.std_time = self.times.std().item()
         else:
-            warnings.warn(
-                f"Inference timer did not get enough steps to clear " + \
-                f"the warm start period of {self.n_warm_start} steps"
-                )
+            raise ValueError("No times recorded.")
 
         self.times_path = Path(trainer.log_dir) / "times"
         self.times_path.mkdir(parents=True, exist_ok=True)
