@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from flash_attn import flash_attn_func
+from flash_attn import flash_attn_func, flash_attn_varlen_func
 from torch import BoolTensor, Tensor, nn
 from torch.nn.attention.flex_attention import BlockMask, _score_mod_signature, flex_attention
 
@@ -10,7 +10,19 @@ ATTN_TYPES = {
     "torch": F.scaled_dot_product_attention,
     "flex": flex_attention,
     "flash": flash_attn_func,
+    "flash-varlen": flash_attn_varlen_func,
 }
+
+VARLEN_ATTN_TYPES = [
+    # TODO: Implement kv masking for torch
+    # "torch",
+    "flash-varlen",
+]
+
+ATTN_MASK_ATTN_TYPES = [
+    "torch",
+    "flex",
+]
 
 
 class Attention(nn.Module):
@@ -58,12 +70,12 @@ class Attention(nn.Module):
 
     def separate_heads(self, x: Tensor, num_heads: int) -> Tensor:
         x = x.unflatten(-1, (num_heads, -1))  # B S D -> B S H Dh
-        if self.attn_type != "flash":
+        if self.attn_type not in ["flash", "flash-varlen"]:
             x = x.transpose(-3, -2)  # B S H Dh -> B H S Dh
         return x
 
     def recombine_heads(self, x: Tensor) -> Tensor:
-        if self.attn_type != "flash":
+        if self.attn_type not in ["flash", "flash-varlen"]:
             x = x.transpose(-3, -2)  # B H S Dh -> B S H Dh
         return x.flatten(-2)  # B S H Dh -> B S D
 
@@ -72,6 +84,8 @@ class Attention(nn.Module):
         q: Tensor,
         k: Tensor | None = None,
         v: Tensor | None = None,
+        q_mask: BoolTensor | None = None,
+        kv_mask: BoolTensor | None = None,
         attn_mask: BlockMask | BoolTensor | None = None,
         score_mod: _score_mod_signature | None = None,
         initial_values: dict | None = None,
@@ -106,7 +120,7 @@ class Attention(nn.Module):
             if self.attn_type != "flash":
                 mix = mix.transpose(-2, -3)
 
-        # Input projections
+        # Input projections, shape is (batch, seq, dim)
         q = self.q_proj(q)
         k = self.k_proj(k)
         v = self.v_proj(v)
@@ -117,7 +131,7 @@ class Attention(nn.Module):
             k = self.k_norm(k)
             v = self.v_norm(v)
 
-        # Separate into heads
+        # Separate into heads, output shape is (batch, head, seq, head_dim)
         q = self.separate_heads(q, self.num_heads)
         k = self.separate_heads(k, self.num_heads)
         v = self.separate_heads(v, self.num_heads)
@@ -129,16 +143,70 @@ class Attention(nn.Module):
             else:
                 v = v * mix + initial_values["v"] * (1.0 - mix)
 
+        # Check that the specified attention backend actualy supports kv masking / jagged inputs
+        if kv_mask is not None:
+            msg = f"Only the backends {VARLEN_ATTN_TYPES} support kv masking"
+            assert self.attn_type in VARLEN_ATTN_TYPES, msg
+
+        if attn_mask is not None:
+            msg = f"Only the backends {ATTN_MASK_ATTN_TYPES} support attention masking"
+            assert self.attn_type in ATTN_MASK_ATTN_TYPES, msg
+
         # Fused attention
         if self.attn_type == "flex":
             out = self.attn(q, k, v, block_mask=attn_mask, score_mod=score_mod)
+
         elif self.attn_type == "torch":
             # Have to expand the attention mask so that it is broadcasted over the head dimension
             if attn_mask is not None:
                 attn_mask = attn_mask.unsqueeze(-3)
+
             out = self.attn(q, k, v, attn_mask=attn_mask)
+
         elif self.attn_type == "flash":
             out = self.attn(q, k, v, window_size=self.window_size)
+            
+        elif self.attn_type == "flash-varlen":
+            # TODO: Implement a packed version for the self attention case
+
+            assert q_mask is None, "query mask not currently supported"
+            q_mask = torch.full((q.shape[0], q.shape[1]), True, dtype=torch.bool, device=q.device)
+
+            # If no kv mask is provided, all kv are valid
+            if kv_mask is None:
+                kv_mask = torch.full((k.shape[0], k.shape[1]), True, dtype=torch.bool, device=q.device)
+
+            q_lens = q_mask.sum(dim=1, dtype=torch.int32)
+            kv_lens = kv_mask.sum(dim=1, dtype=torch.int32)
+
+            # q has shape (B, S, H, Dh)
+            H = q.shape[-2]
+            Dh = q.shape[-1]
+            B = q.shape[0]
+
+            max_seqlen_q = q.shape[-3]
+            max_seqlen_k = k.shape[-3]
+
+            q_flat = q[q_mask].reshape(-1, H, Dh)
+            k_flat = k[kv_mask].reshape(-1, H, Dh)
+            v_flat = v[kv_mask].reshape(-1, H, Dh)
+
+            cu_seqlens_q = torch.nn.functional.pad(q_lens.cumsum(dim=0, dtype=torch.int32), (1, 0))
+            cu_seqlens_k = torch.nn.functional.pad(kv_lens.cumsum(dim=0, dtype=torch.int32), (1, 0))
+
+            out = self.attn(
+                q_flat,
+                k_flat,
+                v_flat,
+                cu_seqlens_q,
+                cu_seqlens_k,
+                max_seqlen_q,
+                max_seqlen_k,
+                )
+            
+            # Reshape to (B, S, H, Dh)
+            out = out.reshape(B, max_seqlen_q, H, Dh)
+
         else:
             raise ValueError(f"Invalid attention type: {self.attn_type}")
 

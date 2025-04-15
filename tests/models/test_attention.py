@@ -14,7 +14,7 @@ torch.manual_seed(42)
 @pytest.mark.parametrize("dim", [128])
 @pytest.mark.parametrize("num_heads", [8])
 @pytest.mark.parametrize("bias", [True, False])
-@pytest.mark.parametrize("attn_type", ["torch", "flash", "flex"])
+@pytest.mark.parametrize("attn_type", ["torch", "flash", "flex", "flash-varlen"])
 def test_attention_consistency(batch_size, seq_len, dim, num_heads, bias, attn_type):
     # Generate random input tensors
     q = torch.randn(batch_size, seq_len, dim, dtype=torch.float16, device="cuda")
@@ -95,9 +95,11 @@ def test_local_attention():
     mask_mod = sliding_window_mask(window_size)
     q_len = q.shape[-2]
     # block_mask = create_block_mask(mask_mod, B=None, H=None, Q_LEN=q_len, KV_LEN=q_len, device=q.device)  # noqa: ERA001
-    mask = create_mask(mask_mod, 1, 1, q_len, q_len, device=q.device)
+    mask = create_mask(mask_mod, 1, None, q_len, q_len, device=q.device)
     # out_flex = attn_flex(q, k, v, attn_mask=block_mask)  # noqa: ERA001
-    out_spda = attn_spda(q, k, v, attn_mask=mask)
+    # Squeeze operation is required as for SPDA attention we assume mask is the same accross heads
+    # TODO: Standardise this accross the different backends
+    out_spda = attn_spda(q, k, v, attn_mask=mask.squeeze(1))
     out_flash = attn_flash(q, k, v)
 
     # Compare outputs
@@ -118,7 +120,7 @@ def test_flex_dynamic():
         assert out.shape == x.shape
 
 
-@pytest.mark.parametrize("attn_type", ["torch", "flash", "flex"])
+@pytest.mark.parametrize("attn_type", ["torch", "flash", "flex", "flash-varlen"])
 def test_cross_attention(attn_type):
     # Generate random input tensors
     q = torch.randn(1, 128, 128, dtype=torch.float16, device="cuda")
