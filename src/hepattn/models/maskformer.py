@@ -145,8 +145,6 @@ class MaskFormer(nn.Module):
             # Update the keys and queries
             x["query_embed"], x["key_embed"] = decoder_layer(x["query_embed"], x["key_embed"], attn_mask=attn_mask)
 
-
-
             # Unmerge the updated features back into the separate input types
             for input_name in input_names:
                 x[input_name + "_embed"] = x["key_embed"][..., x[f"key_is_{input_name}"], :]
@@ -178,7 +176,7 @@ class MaskFormer(nn.Module):
 
         return preds
 
-    def loss(self, outputs: dict, targets: dict) -> dict:  # noqa: C901
+    def loss(self, outputs: dict, targets: dict) -> dict:
         """Computes the loss between the forward pass of the model and the data / targets.
         It first computes the cost / loss between each of the predicted and true tracks in each ROI
         and then uses the Hungarian algorihtm to perform an optimal bipartite matching. The model

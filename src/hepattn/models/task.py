@@ -1,7 +1,7 @@
+from abc import ABC, abstractmethod
+
 import torch
 from torch import Tensor, nn
-from typing import Dict
-from abc import ABC, abstractmethod
 
 from hepattn.models.dense import Dense
 from hepattn.models.loss import cost_fns, loss_fns
@@ -12,26 +12,23 @@ class Task(nn.Module, ABC):
         super().__init__()
 
     @abstractmethod
-    def forward(self, x: Dict[str, Tensor]) -> Dict[str, Tensor]:
+    def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:
         """Compute the forward pass of the task."""
-        pass
 
     @abstractmethod
-    def predict(self, outputs: Dict[str, Tensor], **kwargs) -> Dict[str, Tensor]:
+    def predict(self, outputs: dict[str, Tensor], **kwargs) -> dict[str, Tensor]:
         """Return predictions from model outputs."""
-        pass
 
     @abstractmethod
-    def loss(self, outputs: Dict[str, Tensor], targets: Dict[str, Tensor]) -> Dict[str, Tensor]:
+    def loss(self, outputs: dict[str, Tensor], targets: dict[str, Tensor]) -> dict[str, Tensor]:
         """Compute loss between outputs and targets."""
-        pass
 
-    def cost(self, outputs: Dict[str, Tensor], targets: Dict[str, Tensor], **kwargs) -> Dict[str, Tensor]:
+    def cost(self, outputs: dict[str, Tensor], targets: dict[str, Tensor], **kwargs) -> dict[str, Tensor]:
         return {}
-    
+
     def attn_mask(self, outputs, **kwargs):
         return {}
-    
+
 
 class ObjectValidTask(Task):
     def __init__(
@@ -264,7 +261,7 @@ class RegressionTask(Task):
         self.k = len(fields)
         # For standard regression number of DoFs is just the number of targets
         self.ndofs = self.k
-    
+
     def forward(self, x: dict[str, Tensor], pads: None | dict[str, Tensor] = None) -> dict[str, Tensor]:
         # For a standard regression task, the raw network output is the final prediction
         latent = self.latent(x, pads=pads)
@@ -273,7 +270,7 @@ class RegressionTask(Task):
     def predict(self, outputs):
         # Split the regression vectior into the separate fields
         latent = outputs[self.output_object + "_regr"]
-        return {self.output_object + "_" + field: latent[...,i] for i, field in enumerate(self.fields)}
+        return {self.output_object + "_" + field: latent[..., i] for i, field in enumerate(self.fields)}
 
     def loss(self, outputs, data):
         targets = torch.stack([data[self.target_object + "_" + field] for field in self.fields], dim=-1)
@@ -317,7 +314,7 @@ class GaussianRegressionTask(Task):
         self.loss_weight = loss_weight
         self.k = len(fields)
         # For multivaraite gaussian case we have extra DoFs from the variance and covariance terms
-        self.ndofs = self.k + int(self.k*(self.k+1)/2)
+        self.ndofs = self.k + int(self.k * (self.k + 1) / 2)
 
     def forward(self, x: dict[str, Tensor], pads: None | dict[str, Tensor] = None) -> dict[str, Tensor]:
         latent = self.latent(x, pads=pads)
@@ -325,20 +322,16 @@ class GaussianRegressionTask(Task):
         triu_idx = torch.triu_indices(k, k, device=latent.device)
 
         # Mean vector
-        mu = latent[...,:k]
+        mu = latent[..., :k]
         # Upper-diagonal Cholesky decomposition of the precision matrix
         U = torch.zeros(latent.size()[:-1] + torch.Size((k, k)), device=latent.device)
-        U[...,triu_idx[0,:],triu_idx[1,:]] = latent[...,k:]
+        U[..., triu_idx[0, :], triu_idx[1, :]] = latent[..., k:]
 
         Ubar = U.clone()
         # Make sure the diagonal entries are positive (as variance is always positive)
-        Ubar[...,torch.arange(k),torch.arange(k)] = torch.exp(U[...,torch.arange(k),torch.arange(k)])
+        Ubar[..., torch.arange(k), torch.arange(k)] = torch.exp(U[..., torch.arange(k), torch.arange(k)])
 
-        return {
-            self.output_object + "_mu": mu,
-            self.output_object + "_U": U,
-            self.output_object + "_Ubar": Ubar
-        }
+        return {self.output_object + "_mu": mu, self.output_object + "_U": U, self.output_object + "_Ubar": Ubar}
 
     def predict(self, outputs):
         preds = outputs
@@ -349,13 +342,14 @@ class GaussianRegressionTask(Task):
 
         # Get the predicted mean for each field
         for i, field in enumerate(self.fields):
-            preds[self.output_object + "_" + field] = mu[...,i]
+            preds[self.output_object + "_" + field] = mu[..., i]
 
         # Get the predicted precision for each field and the predicted covariance / coprecision
         for i, field_i in enumerate(self.field):
             for j, field_j in enumerate(self.fields):
-                if i > j: continue
-                preds[field_i + "_" + field_j + "_prec"] = precs[...,i,j]
+                if i > j:
+                    continue
+                preds[field_i + "_" + field_j + "_prec"] = precs[..., i, j]
 
         return preds
 
@@ -388,10 +382,10 @@ class GaussianRegressionTask(Task):
 
         metrics = {}
         for i, field in enumerate(self.fields):
-            metrics[field + "_rmse"] = torch.sqrt(torch.mean(torch.square(errors[...,i][valid_mask])))
+            metrics[field + "_rmse"] = torch.sqrt(torch.mean(torch.square(errors[..., i][valid_mask])))
             # The mean and standard deviation of the pulls to check predictions are calibrated
-            metrics[field + "_pull_mean"] = torch.mean(z[...,i][valid_mask])
-            metrics[field + "_pull_std"] = torch.std(z[...,i][valid_mask])
+            metrics[field + "_pull_mean"] = torch.mean(z[..., i][valid_mask])
+            metrics[field + "_pull_std"] = torch.std(z[..., i][valid_mask])
 
         return metrics
 
@@ -451,12 +445,12 @@ class ObjectHitRegressionTask(RegressionTask):
         x_object = self.object_net(x[self.input_object + "_embed"])
         x_hit = self.hit_net(x[self.input_hit + "_embed"])
 
-        x_object = x_object.reshape(x_object.size()[:-1] + torch.Size((self.ndofs, self.embed_dim_per_dof))) # Shape BNDE
-        x_hit = x_hit.reshape(x_hit.size()[:-1] + torch.Size((self.ndofs, self.embed_dim_per_dof))) # Shape BMDE
+        x_object = x_object.reshape(x_object.size()[:-1] + torch.Size((self.ndofs, self.embed_dim_per_dof)))  # Shape BNDE
+        x_hit = x_hit.reshape(x_hit.size()[:-1] + torch.Size((self.ndofs, self.embed_dim_per_dof)))  # Shape BMDE
 
         # Take the dot product between the hits and objects over the last embedding dimension so we are left
         # with just a scalar for each degree of freedom
-        x_object_hit = torch.einsum("...nie,...mie->...nmi", x_object, x_hit) # Shape BNMD
+        x_object_hit = torch.einsum("...nie,...mie->...nmi", x_object, x_hit)  # Shape BNMD
 
         # If padding data is provided, use it to zero out predictions for any hit slots that are not valid
         if pads is not None:

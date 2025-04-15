@@ -1,71 +1,55 @@
+import time
 from argparse import ArgumentParser
 from pathlib import Path
-from particle.pdgid import is_hadron
 
 import awkward as ak
 import numpy as np
 import uproot
-import time
-
+from particle.pdgid import is_hadron
 
 # Specify the names of items / objects we want to save
 item_names = [
     "MCParticles",
-
     "VXDTrackerHits",
     "VXDEndcapTrackerHits",
     "ITrackerHits",
     "ITrackerEndcapHits",
     "OTrackerHits",
     "OTrackerEndcapHits",
-
     "VertexBarrelCollection",
     "VertexEndcapCollection",
     "InnerTrackerBarrelCollection",
     "InnerTrackerEndcapCollection",
     "OuterTrackerBarrelCollection",
     "OuterTrackerEndcapCollection",
-
     "ECALBarrel",
     "ECALEndcap",
     "HCALBarrel",
     "HCALEndcap",
     "HCALOther",
     "MUON",
-
     "ECalBarrelCollection",
     "ECalEndcapCollection",
     "HCalBarrelCollection",
     "HCalEndcapCollection",
     "HCalRingCollection",
-
     "ECalBarrelCollectionContributions",
     "ECalEndcapCollectionContributions",
     "HCalBarrelCollectionContributions",
     "HCalEndcapCollectionContributions",
     "HCalRingCollectionContributions",
-    ]
+]
 
 # Specify the masks/links to build that use bidirectional truth links
 relations_links = {
     "VXDTrackerHitRelations": [
         ("VXDTrackerHits", "VertexBarrelCollection"),
     ],
-    "VXDEndcapTrackerHitRelations": [
-        ("VXDEndcapTrackerHits", "VertexEndcapCollection")
-    ],
-    "InnerTrackerBarrelHitsRelations": [
-        ("ITrackerHits", "InnerTrackerBarrelCollection")
-    ],
-    "InnerTrackerEndcapHitsRelations": [
-        ("ITrackerEndcapHits", "InnerTrackerEndcapCollection")
-    ],
-    "OuterTrackerBarrelHitsRelations": [
-        ("OTrackerHits", "OuterTrackerBarrelCollection")
-    ],
-    "OuterTrackerEndcapHitsRelations": [
-        ("OTrackerEndcapHits", "OuterTrackerEndcapCollection")
-    ],
+    "VXDEndcapTrackerHitRelations": [("VXDEndcapTrackerHits", "VertexEndcapCollection")],
+    "InnerTrackerBarrelHitsRelations": [("ITrackerHits", "InnerTrackerBarrelCollection")],
+    "InnerTrackerEndcapHitsRelations": [("ITrackerEndcapHits", "InnerTrackerEndcapCollection")],
+    "OuterTrackerBarrelHitsRelations": [("OTrackerHits", "OuterTrackerBarrelCollection")],
+    "OuterTrackerEndcapHitsRelations": [("OTrackerEndcapHits", "OuterTrackerEndcapCollection")],
     "CalohitMCTruthLink": [
         ("ECALBarrel", "MCParticles"),
         ("ECALEndcap", "MCParticles"),
@@ -91,7 +75,6 @@ particle_links = [
     "InnerTrackerEndcapCollection",
     "OuterTrackerBarrelCollection",
     "OuterTrackerEndcapCollection",
-
     "ECalBarrelCollectionContributions",
     "ECalEndcapCollectionContributions",
     "HCalBarrelCollectionContributions",
@@ -111,26 +94,22 @@ mask_joins = [
 
 object_aliases = {
     "MCParticles": "particle",
-
-    "VXDTrackerHits": "vtb", # Vertex tracker barrel
-    "VXDEndcapTrackerHits": "vte", # Vertex tracker endcap
-    "ITrackerHits": "itb", # Inner tracker barrel, etc
+    "VXDTrackerHits": "vtb",  # Vertex tracker barrel
+    "VXDEndcapTrackerHits": "vte",  # Vertex tracker endcap
+    "ITrackerHits": "itb",  # Inner tracker barrel, etc
     "ITrackerEndcapHits": "ite",
     "OTrackerHits": "otb",
     "OTrackerEndcapHits": "ote",
-
-    "ECALBarrel": "ecb", # Electronic calorimeter barrel
+    "ECALBarrel": "ecb",  # Electronic calorimeter barrel
     "ECALEndcap": "ece",
     "HCALBarrel": "hcb",
     "HCALEndcap": "hce",
-    "HCALOther": "hco", # Hadronic calorimeter other
+    "HCALOther": "hco",  # Hadronic calorimeter other
     "MUON": "muon",
-
     "InnerTrackerBarrelCollection": "itb_particle",
     "InnerTrackerEndcapCollection": "ite_particle",
     "OuterTrackerBarrelCollection": "otb_particle",
     "OuterTrackerEndcapCollection": "ote_particle",
-    
 }
 
 field_aliases = {
@@ -145,14 +124,12 @@ field_aliases = {
 # Specify which items we actually want to save
 output_items = [
     "MCParticles",
-
     "VXDTrackerHits",
     "VXDEndcapTrackerHits",
     "ITrackerHits",
     "ITrackerEndcapHits",
     "OTrackerHits",
     "OTrackerEndcapHits",
-
     "ECALBarrel",
     "ECALEndcap",
     "HCALBarrel",
@@ -186,7 +163,6 @@ output_masks = [
     ("ITrackerEndcapHits", "MCParticles"),
     ("OTrackerHits", "MCParticles"),
     ("OTrackerEndcapHits", "MCParticles"),
-
     ("ECALBarrel", "MCParticles"),
     ("ECALEndcap", "MCParticles"),
     ("HCALBarrel", "MCParticles"),
@@ -198,20 +174,17 @@ output_masks = [
 # Specify which items we actually want to save
 aliased_output_items = [
     "particle",
-
     "vtb",
     "vte",
     "itb",
     "ite",
     "otb",
     "ote",
-
     "ecb",
     "ece",
     "hcb",
     "hce",
     "hco",
-    
     "muon",
 ]
 
@@ -222,13 +195,11 @@ aliased_output_hits = [
     "ite",
     "otb",
     "ote",
-
     "ecb",
     "ece",
     "hcb",
     "hce",
     "hco",
-    
     "muon",
 ]
 
@@ -240,7 +211,6 @@ aliased_output_masks = [
     ("ite", "particle"),
     ("otb", "particle"),
     ("ote", "particle"),
-
     ("ecb", "particle"),
     ("ebe", "particle"),
     ("hcb", "particle"),
@@ -250,13 +220,13 @@ aliased_output_masks = [
 ]
 
 non_hadron_pdgid_to_class = {
-    22: 3, # Photon
-    11: 4, # Electron
-    12: 7, # Neutrino
-    13: 5, # Muon
-    14: 7, # Neutrino
-    15: 6, # Tau
-    16: 7, # Neutrino
+    22: 3,  # Photon
+    11: 4,  # Electron
+    12: 7,  # Neutrino
+    13: 5,  # Muon
+    14: 7,  # Neutrino
+    15: 6,  # Tau
+    16: 7,  # Neutrino
 }
 
 max_num_hits = 15000
@@ -267,22 +237,20 @@ def get_particle_class(pid, charge):
         if charge == 0:
             # Neutral hadron
             return 0
-        else:
-            # Charged hadron
-            return 1
-    elif np.abs(pid) in non_hadron_pdgid_to_class:
+        # Charged hadron
+        return 1
+    if np.abs(pid) in non_hadron_pdgid_to_class:
         return non_hadron_pdgid_to_class[np.abs(pid)]
-    else:
-        return -1
+    return -1
 
 
 def prep_event(events, event_idx, namecodes, min_pt, verbose):
     items = {}
-    
+
     # First build the items by combinging them into properly formatted awkward arrays
     for item_name in item_names:
         # Convert to sane format
-        x = events[item_name].array(entry_start=event_idx, entry_stop=event_idx+1)[0]
+        x = events[item_name].array(entry_start=event_idx, entry_stop=event_idx + 1)[0]
         x = ak.zip({field.replace(f"{item_name}.", ""): x[field] for field in x.fields}, depth_limit=1)
         items[item_name] = x
 
@@ -299,25 +267,25 @@ def prep_event(events, event_idx, namecodes, min_pt, verbose):
 
     # First build the masks that use bidirectional truth links
     for relation, links in relations_links.items():
-        link_src_cid = events[f"_{relation}_from/_{relation}_from.collectionID"].array(entry_start=event_idx, entry_stop=event_idx+1)[0]
-        link_src_idx = events[f"_{relation}_from/_{relation}_from.index"].array(entry_start=event_idx, entry_stop=event_idx+1)[0]
+        link_src_cid = events[f"_{relation}_from/_{relation}_from.collectionID"].array(entry_start=event_idx, entry_stop=event_idx + 1)[0]
+        link_src_idx = events[f"_{relation}_from/_{relation}_from.index"].array(entry_start=event_idx, entry_stop=event_idx + 1)[0]
 
-        link_tgt_cid = events[f"_{relation}_to/_{relation}_to.collectionID"].array(entry_start=event_idx, entry_stop=event_idx+1)[0]
-        link_tgt_idx = events[f"_{relation}_to/_{relation}_to.index"].array(entry_start=event_idx, entry_stop=event_idx+1)[0]
+        link_tgt_cid = events[f"_{relation}_to/_{relation}_to.collectionID"].array(entry_start=event_idx, entry_stop=event_idx + 1)[0]
+        link_tgt_idx = events[f"_{relation}_to/_{relation}_to.index"].array(entry_start=event_idx, entry_stop=event_idx + 1)[0]
 
         for src, tgt in links:
             link_mask = (namecodes[src] == link_src_cid) & (namecodes[tgt] == link_tgt_cid)
             num_src = len(items[src])
             num_tgt = len(items[tgt])
-            
+
             mask = np.full((num_src, num_tgt), False)
-            mask[link_src_idx[link_mask],link_tgt_idx[link_mask]] = True
-            masks[(src, tgt)] = mask
+            mask[link_src_idx[link_mask], link_tgt_idx[link_mask]] = True
+            masks[src, tgt] = mask
 
     # Now build the masks that use a single particle link
     for src in particle_links:
-        tgt_cids = events[f"_{src}_particle/_{src}_particle.collectionID"].array(entry_start=event_idx, entry_stop=event_idx+1)[0]
-        tgt_idxs = events[f"_{src}_particle/_{src}_particle.index"].array(entry_start=event_idx, entry_stop=event_idx+1)[0]
+        tgt_cids = events[f"_{src}_particle/_{src}_particle.collectionID"].array(entry_start=event_idx, entry_stop=event_idx + 1)[0]
+        tgt_idxs = events[f"_{src}_particle/_{src}_particle.index"].array(entry_start=event_idx, entry_stop=event_idx + 1)[0]
 
         tgt = "MCParticles"
 
@@ -328,23 +296,23 @@ def prep_event(events, event_idx, namecodes, min_pt, verbose):
         num_tgt = len(items[tgt])
 
         mask = np.full((num_src, num_tgt), False)
-        mask[np.arange(num_src),tgt_idxs] = True
-        masks[(src, tgt)] = mask
+        mask[np.arange(num_src), tgt_idxs] = True
+        masks[src, tgt] = mask
 
     # Join together existing masks to make new masks
     for src, link, tgt in mask_joins:
-        src_link_mask = masks[(src, link)]
-        link_tgt_mask = masks[(link, tgt)]
+        src_link_mask = masks[src, link]
+        link_tgt_mask = masks[link, tgt]
 
-        masks[(src, tgt)] = np.dot(src_link_mask, link_tgt_mask)
-    
+        masks[src, tgt] = np.dot(src_link_mask, link_tgt_mask)
+
     # Count number of hits on a particle, and vice-versa, which is needed for hit based cuts
     for src, tgt in output_masks:
-        mask = masks[((src, tgt))]
+        mask = masks[src, tgt]
         items[src][f"num_{tgt}"] = mask.sum(-1)
         items[tgt][f"num_{src}"] = mask.sum(-2)
-    
-    items["MCParticles"]["momentum.t"] = np.sqrt(items["MCParticles"]["momentum.x"]**2 + items["MCParticles"]["momentum.y"]**2)
+
+    items["MCParticles"]["momentum.t"] = np.sqrt(items["MCParticles"]["momentum.x"] ** 2 + items["MCParticles"]["momentum.y"] ** 2)
 
     # Now apply any cuts to the items
     # Name some cuts for convenience
@@ -353,10 +321,8 @@ def prep_event(events, event_idx, namecodes, min_pt, verbose):
         "Status 0": items["MCParticles"]["generatorStatus"] == 0,
         "Status 1": items["MCParticles"]["generatorStatus"] == 1,
         "Status 2": items["MCParticles"]["generatorStatus"] == 2,
-
         # Apply pT cut, min_pt is given in MeV, momentum.t is in GeV
         "Good Momentum": items["MCParticles"]["momentum.t"] >= min_pt * 0.001,
-
         # Remove particles which are beam background
         # TODO: Need to check if we should include this instead, might be the case we should include, see:
         # https://indico.cern.ch/event/656491/contributions/2939124/attachments/1629649/2597052/Pairs_voutsi.pdf
@@ -396,9 +362,7 @@ def prep_event(events, event_idx, namecodes, min_pt, verbose):
             print(f"Applying cut {cut_name}: size {cut_size}, pre {pre_cut_size}, post {post_cut_size}")
 
     # Keep only particles that have status codes 1 or 2, and that are not beam remenants
-    item_cuts = {
-        "MCParticles": particle_cut_final
-    }
+    item_cuts = {"MCParticles": particle_cut_final}
 
     # Apply cuts to the items
     for item_name in item_names:
@@ -406,15 +370,15 @@ def prep_event(events, event_idx, namecodes, min_pt, verbose):
             items[item_name] = items[item_name][item_cuts[item_name]]
 
     # Apply cuts to the masks
-    for src, tgt in masks.keys():
+    for src, tgt in masks:
         if src in item_cuts:
-            masks[(src, tgt)] = masks[(src, tgt)][item_cuts[src],:]
+            masks[src, tgt] = masks[src, tgt][item_cuts[src], :]
         if tgt in item_cuts:
-            masks[(src, tgt)] = masks[(src, tgt)][:,item_cuts[tgt]]
+            masks[src, tgt] = masks[src, tgt][:, item_cuts[tgt]]
 
     # Recount now we have applied cuts
     for src, tgt in output_masks:
-        mask = masks[((src, tgt))]
+        mask = masks[src, tgt]
         items[src][f"num_{tgt}"] = mask.sum(-1)
         items[tgt][f"num_{src}"] = mask.sum(-2)
 
@@ -423,11 +387,11 @@ def prep_event(events, event_idx, namecodes, min_pt, verbose):
     for item_name in output_items:
         for field in items[item_name].fields:
             data_out[f"{item_name}.{field}"] = ak.to_numpy(items[item_name][field])
-    
+
     # Keep only the masks we want to save
     # Save them in sparse format to save space
     for src, tgt in output_masks:
-        data_out[f"{src}_to_{tgt}_idxs"] = np.argwhere(masks[(src, tgt)])
+        data_out[f"{src}_to_{tgt}_idxs"] = np.argwhere(masks[src, tgt])
 
     for k, v in data_out.items():
         if v.dtype == np.uint64:
@@ -435,7 +399,7 @@ def prep_event(events, event_idx, namecodes, min_pt, verbose):
 
     # Build they key alias map
     key_alias_map = {}
-    for key in data_out.keys():
+    for key in data_out:
         aliased_key = key
 
         for name, alias in object_aliases.items():
@@ -448,22 +412,22 @@ def prep_event(events, event_idx, namecodes, min_pt, verbose):
 
     # Apply the alias map
     data_out_aliased = {}
-    for key in data_out.keys():
+    for key in data_out:
         data_out_aliased[key_alias_map[key]] = data_out[key]
-    
+
     data_out = ak.Array({key: [value] for key, value in data_out_aliased.items()})
 
     return data_out
 
 
 def preprocess(
-        in_dir: str,
-        out_dir: str,
-        overwrite: bool,
-        min_pt: float = 10.0,
-        max_num_particles: int = 1000,
-        verbose: bool = False,
-        ):
+    in_dir: str,
+    out_dir: str,
+    overwrite: bool,
+    min_pt: float = 10.0,
+    max_num_particles: int = 1000,
+    verbose: bool = False,
+):
     """Preprpocess root files into parquet files.
 
     Parameters
@@ -492,8 +456,7 @@ def preprocess(
 
         codenames = {}
         namecodes = {}
-        for code, name in zip(metadata["events___idTable/m_collectionIDs"].array()[0],
-                              metadata["events___idTable/m_names"].array()[0],):
+        for code, name in zip(metadata["events___idTable/m_collectionIDs"].array()[0], metadata["events___idTable/m_names"].array()[0], strict=False):
             codenames[code] = name
             namecodes[name] = code
 
@@ -504,15 +467,15 @@ def preprocess(
 
         for event_idx, event_number in enumerate(event_numbers):
             t0 = time.time()
-                
+
             # Determine the name of the output event for this file, skip if it exists and overwrite is false
-            event_name = in_file.stem.replace("_condor", "") + f"_{str(event_number+1).zfill(8)}_{int(min_pt)}_{max_num_particles}"
-            output_file = Path(out_dir) /  Path(f"{event_name}.parquet")
+            event_name = in_file.stem.replace("_condor", "") + f"_{str(event_number + 1).zfill(8)}_{int(min_pt)}_{max_num_particles}"
+            output_file = Path(out_dir) / Path(f"{event_name}.parquet")
 
             if output_file.is_file() and not overwrite:
                 print(f"Skipping {output_file} as it already exists")
                 continue
-            
+
             # Process the event to get the hit / particle data and the links between them
             event_data = prep_event(events, event_idx, namecodes, min_pt, verbose)
 
@@ -522,7 +485,7 @@ def preprocess(
             if num_particles > max_num_particles:
                 print(f"Skipping {in_file} as has {num_particles} partcles")
                 continue
-            
+
             if num_hits > max_num_hits:
                 print(f"Skipping {in_file} as has {num_hits} hits")
                 continue
@@ -540,18 +503,14 @@ def preprocess(
 if __name__ == "__main__":
     parser = ArgumentParser(description="Convert root TTree files to binary parquet files")
 
-    parser.add_argument("-i", "--in_dir", dest="in_dir", type=str, required=True,
-                        help="Input directory containing ROOT files")
-    parser.add_argument("-o", "--out_dir", dest="out_dir", type=str, required=True,
-                        help="Output directory for parquet files")
-    parser.add_argument("--overwrite", action="store_true",
-                        help="Whether to overwrite existing events or not.")
-    parser.add_argument("--min_pt", type=float, required=False, default=10,
-                        help="Minimum pT cut to apply on particles, in MeV")
-    parser.add_argument("--max_num_particles", type=int, required=False, default=256,
-                        help="Maximum number of particles in the event for it to be saved accepted.")
-    parser.add_argument("--verbose", action="store_true",
-                        help="Whether to print extra info or not.")
+    parser.add_argument("-i", "--in_dir", dest="in_dir", type=str, required=True, help="Input directory containing ROOT files")
+    parser.add_argument("-o", "--out_dir", dest="out_dir", type=str, required=True, help="Output directory for parquet files")
+    parser.add_argument("--overwrite", action="store_true", help="Whether to overwrite existing events or not.")
+    parser.add_argument("--min_pt", type=float, required=False, default=10, help="Minimum pT cut to apply on particles, in MeV")
+    parser.add_argument(
+        "--max_num_particles", type=int, required=False, default=256, help="Maximum number of particles in the event for it to be saved accepted."
+    )
+    parser.add_argument("--verbose", action="store_true", help="Whether to print extra info or not.")
 
     args = parser.parse_args()
 

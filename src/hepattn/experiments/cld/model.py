@@ -1,18 +1,18 @@
 import torch
-import torch.nn as nn
+from torch import nn
 
 from hepattn.models.wrapper import ModelWrapper
 
 
 class CLDReconstructor(ModelWrapper):
     def __init__(
-            self,
-            name: str,
-            model: nn.Module,
-            lrs_config: dict,
-            optimizer: str = "AdamW",
-            mtl: bool = False,
-        ):
+        self,
+        name: str,
+        model: nn.Module,
+        lrs_config: dict,
+        optimizer: str = "AdamW",
+        mtl: bool = False,
+    ):
         super().__init__(name, model, lrs_config, optimizer, mtl)
 
     def log_custom_metrics(self, preds, targets, stage):
@@ -20,7 +20,10 @@ class CLDReconstructor(ModelWrapper):
         preds = preds["final"]
 
         hits = [
-            "sihit", "ecal", "hcal", "vtb",
+            "sihit",
+            "ecal",
+            "hcal",
+            "vtb",
         ]
 
         # TODO: Support batching
@@ -35,7 +38,7 @@ class CLDReconstructor(ModelWrapper):
             # Set the masks of any flow slots that are not used as null
             pred_hit_masks = preds[f"flow_{hit}_assignment"][f"flow_{hit}_valid"][0]
             true_hit_masks = targets[f"particle_{hit}_valid"][0]
-            
+
             # Mask out hits that are not on a valid object slot
             pred_hit_masks = pred_hit_masks & pred_valid.unsqueeze(-1)
             true_hit_masks = true_hit_masks & true_valid.unsqueeze(-1)
@@ -53,7 +56,7 @@ class CLDReconstructor(ModelWrapper):
             # Calculate the efficiency and purity at differnt matching working points
             for wp in [0.5, 0.75, 1.0]:
                 both_valid = true_valid & pred_valid
-                
+
                 # Whether a truth object is efficient
                 effs = ((hit_tp / hit_t) >= wp) & both_valid
 
@@ -79,4 +82,3 @@ class CLDReconstructor(ModelWrapper):
 
                 self.log(f"{stage}/num_flows", torch.mean(pred_num.float()))
                 self.log(f"{stage}/num_parts", torch.mean(true_num.float()))
-

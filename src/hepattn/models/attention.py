@@ -178,7 +178,7 @@ class Attention(nn.Module):
 
         elif self.attn_type == "flash":
             out = self.attn(q, k, v, window_size=self.window_size)
-            
+
         elif self.attn_type == "flash-varlen":
             # TODO: Implement a packed version for the self attention case
 
@@ -216,8 +216,8 @@ class Attention(nn.Module):
                 max_seqlen_q,
                 max_seqlen_k,
                 window_size=self.window_size,
-                )
-            
+            )
+
             # Reshape to (B, S, H, Dh)
             out = out.reshape(B, max_seqlen_q, H, Dh)
 

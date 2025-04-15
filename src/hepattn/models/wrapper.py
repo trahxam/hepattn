@@ -163,8 +163,7 @@ class ModelWrapper(LightningModule):
             # Get a list of the features that are used by all of the tasks
             layer_feature_names = set()
             for task in self.model.tasks:
-                for input_feature in task.inputs:
-                    layer_feature_names.add(input_feature)
+                layer_feature_names.update(task.inputs)
 
             # Remove any duplicate features that are used by multiple tasks
             layer_features = [outputs[layer_name][feature_name] for feature_name in layer_feature_names]
