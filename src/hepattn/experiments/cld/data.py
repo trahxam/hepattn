@@ -20,7 +20,9 @@ class CLDDataset(Dataset):
         charged_particle_max_num_hits: dict[str, int] = {},
         neutral_particle_min_num_hits: dict[str, int] = {},
         neutral_particle_max_num_hits: dict[str, int] = {},
-        event_max_num_particles: int = 1000,
+        include_neutrals: bool = True,
+        truth_filter_hits: list[str] = [],
+        event_max_num_particles: int = 256,
         random_seed: int = 42,
     ):
         super().__init__()
@@ -35,6 +37,8 @@ class CLDDataset(Dataset):
         self.charged_particle_max_num_hits = charged_particle_max_num_hits
         self.neutral_particle_min_num_hits = neutral_particle_min_num_hits
         self.neutral_particle_max_num_hits = neutral_particle_max_num_hits
+        self.include_neutrals = include_neutrals
+        self.truth_filter_hits = truth_filter_hits
         self.event_max_num_particles = event_max_num_particles
         self.random_seed = random_seed
 
@@ -137,6 +141,18 @@ class CLDDataset(Dataset):
             targets[f"particle_{input_name}_valid"] = targets[f"particle_{input_name}_valid"] & targets["particle_valid"].unsqueeze(-1)
             targets[f"{input_name}_valid"] = inputs[f"{input_name}_valid"]
 
+        for input_name in self.truth_filter_hits:
+            hit_on_valid_particle = targets[f"particle_{input_name}_valid"].any(-2)[0]
+
+            targets[f"particle_{input_name}_valid"] = targets[f"particle_{input_name}_valid"][:,:,hit_on_valid_particle]
+
+ 
+            inputs[f"{input_name}_valid"] = inputs[f"{input_name}_valid"][:,hit_on_valid_particle]
+            for field in self.inputs[input_name]:
+                inputs[f"{input_name}_{field}"] = inputs[f"{input_name}_{field}"][:,hit_on_valid_particle]
+            targets[f"{input_name}_valid"] = inputs[f"{input_name}_valid"]
+
+
         # TODO: Apply neutral selection also
 
         return inputs, targets
@@ -217,6 +233,9 @@ class CLDDataset(Dataset):
         # Add extra labels for particles
         event["particle.isCharged"] = np.abs(event["particle.charge"]) > 0
         event["particle.isNeutral"] = ~event["particle.isCharged"]
+
+        if not self.include_neutrals:
+            event["particle_valid"] = event["particle_valid"] & event["particle.isCharged"] 
 
         return event
     

@@ -16,6 +16,7 @@ class MaskFormer(nn.Module):
         dim: int,
         matcher: nn.Module | None = None,
         input_sort_field: str | None = None,
+        record_intermediate_embeddings: bool = False,
     ):
         """
         Initializes the MaskFormer model, which is a modular transformer-style architecture designed
@@ -52,6 +53,7 @@ class MaskFormer(nn.Module):
         self.num_queries = num_queries
         self.query_initial = nn.Parameter(torch.randn(num_queries, dim))
         self.input_sort_field = input_sort_field
+        self.record_intermediate_embeddings = record_intermediate_embeddings
 
     def forward(self, inputs: dict[str, Tensor]) -> dict[str, Tensor]:  # noqa: C901, PLR0912
         # Atomic input names
@@ -110,7 +112,12 @@ class MaskFormer(nn.Module):
             for task in self.tasks:
                 # Get the outputs of the task given the current embeddings and record them
                 task_outputs = task(x)
+
                 outputs[f"layer_{layer_index}"][task.name] = task_outputs
+
+                if self.record_intermediate_embeddings:
+                    for input_embed in task.inputs:
+                        outputs[f"layer_{layer_index}"][input_embed] = x[input_embed].clone()
 
                 # Here we check if each task has an attention mask to contribute, then after
                 # we fill in any attention masks for any features that did not get an attention mask
@@ -137,6 +144,8 @@ class MaskFormer(nn.Module):
 
             # Update the keys and queries
             x["query_embed"], x["key_embed"] = decoder_layer(x["query_embed"], x["key_embed"], attn_mask=attn_mask)
+
+
 
             # Unmerge the updated features back into the separate input types
             for input_name in input_names:

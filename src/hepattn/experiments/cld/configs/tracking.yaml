@@ -1,4 +1,4 @@
-name: tracking_100mev
+name: tracking_500mev_tf_charged_rff
 
 data:
   # Paths to preprocessed data directories
@@ -13,7 +13,7 @@ data:
   num_val: 10
 
   # Minimum pT for a particle to be deemed reconstructve in GeV
-  particle_min_pt: 0.1
+  particle_min_pt: 0.5
 
   # Number of query slots / particles to generate per event
   event_max_num_particles: &num_particles 256
@@ -24,6 +24,11 @@ data:
 
   charged_particle_max_num_hits:
     sihit: 18
+
+  include_neutrals: false
+
+  truth_filter_hits:
+    - sihit
 
   merge_inputs:
     sihit:
@@ -305,16 +310,26 @@ model:
                     input_size: 13
                     output_size: *dim
                 posenc:
-                  class_path: hepattn.models.PositionEncoder
+                  class_path: hepattn.models.FourierPositionEncoder
                   init_args:
                     input_name: sihit
                     fields:
                       - pos.r
                       - pos.eta
                       - pos.phi
-                    sym_fields:
-                      - pos.phi
                     dim: *dim
+
+                # posenc:
+                #   class_path: hepattn.models.PositionEncoder
+                #   init_args:
+                #     input_name: sihit
+                #     fields:
+                #       - pos.r
+                #       - pos.eta
+                #       - pos.phi
+                #     sym_fields:
+                #       - pos.phi
+                #     dim: *dim
 
       encoder:
         class_path: hepattn.models.Encoder

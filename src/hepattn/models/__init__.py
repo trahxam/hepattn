@@ -6,7 +6,7 @@ from hepattn.models.hitfilter import HitFilter
 from hepattn.models.input import InputNet
 from hepattn.models.maskformer import MaskFormer
 from hepattn.models.norm import LayerNorm, RMSNorm
-from hepattn.models.posenc import PositionEncoder
+from hepattn.models.posenc import PositionEncoder, FourierPositionEncoder
 from hepattn.models.transformer import DropPath, Encoder, EncoderLayer, LayerScale, Residual
 
 __all__ = [
@@ -22,6 +22,7 @@ __all__ = [
     "MaskFormer",
     "MaskFormerDecoderLayer",
     "PositionEncoder",
+    "FourierPositionEncoder",
     "RMSNorm",
     "Residual",
     "SwiGLU",

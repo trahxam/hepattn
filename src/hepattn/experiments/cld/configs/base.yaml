@@ -1,4 +1,4 @@
-name: 100mev_full
+name: 12enc_12dec_256dim_pt100mev_lion_mtl
 
 data:
   # Paths to preprocessed data directories
@@ -22,6 +22,11 @@ data:
     sihit: 8
   charged_particle_max_num_hits:
     sihit: 20
+
+  truth_filter_hits:
+    - sihit
+    - ecal
+    - hcal
 
   merge_inputs:
     sihit:
@@ -345,7 +350,7 @@ trainer:
   precision: bf16-mixed
   log_every_n_steps: 10
   default_root_dir: logs
-  gradient_clip_val: 0.1
+  # gradient_clip_val: 0.1
   enable_progress_bar: True
 
   # Specify loggers here
@@ -355,7 +360,6 @@ trainer:
       project_name: cld
 
   callbacks:
-    - class_path: hepattn.callbacks.Compile
     - class_path: hepattn.callbacks.InferenceTimer
     - class_path: hepattn.callbacks.Metadata
     - class_path: hepattn.callbacks.Checkpoint
@@ -375,15 +379,15 @@ trainer:
         refresh_rate: 50
 
 model:
+  optimizer: lion
+
   lrs_config:
     initial: 1e-5
     max: 1e-4
     end: 1e-5
-    pct_start: 0.05
+    pct_start: 0.01
     skip_scheduler: false
     weight_decay: 1e-5
-  
-  optimizer: adamw
   
   mtl: false
 
@@ -393,6 +397,8 @@ model:
       dim: &dim 256
       num_queries: *num_particles
       input_sort_field: pos.phi
+
+      record_intermediate_embeddings: false
       
       input_nets:
         class_path: torch.nn.ModuleList
