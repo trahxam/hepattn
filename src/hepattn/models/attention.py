@@ -24,6 +24,17 @@ ATTN_MASK_ATTN_TYPES = [
     "flex",
 ]
 
+WINDOW_ATTN_TYPES = [
+    "flash",
+    "flash-varlen",
+]
+
+# For now basically just defines which attention types expect (B, S, H, Dh) instead of (B, H, S, Dh)
+FLASH_ATTN_TYPES = [
+    "flash",
+    "flash-varlen",
+]
+
 
 class Attention(nn.Module):
     def __init__(
@@ -34,13 +45,14 @@ class Attention(nn.Module):
         attn_type: str = "torch",
         torch_compile: bool = False,
         window_size: int | None = None,
+        query_window_size: int | None = None,
         value_residual: bool = False,
         qkv_norm: bool = False,
     ) -> None:
         super().__init__()
         assert dim % num_heads == 0, "num_heads must divide dim."
         assert attn_type in ATTN_TYPES, f"Invalid attention type: {attn_type}"
-        assert window_size is None or attn_type == "flash", "Window size can only be specified for flash attention"
+        assert window_size is None or attn_type in WINDOW_ATTN_TYPES, f"Window size can only be specified for {WINDOW_ATTN_TYPES}"
 
         self.dim = dim
         self.num_heads = num_heads
@@ -50,7 +62,8 @@ class Attention(nn.Module):
         self.value_residual = value_residual
         self.qkv_norm = qkv_norm
 
-        if attn_type == "flash":
+        if attn_type in FLASH_ATTN_TYPES:
+            # TODO: Will need to change when supporting window with flex
             self.window_size = (window_size // 2, window_size // 2) if window_size is not None else (-1, -1)
         if torch_compile or attn_type == "flex":
             self.attn = torch.compile(self.attn, dynamic=True)
@@ -70,12 +83,12 @@ class Attention(nn.Module):
 
     def separate_heads(self, x: Tensor, num_heads: int) -> Tensor:
         x = x.unflatten(-1, (num_heads, -1))  # B S D -> B S H Dh
-        if self.attn_type not in ["flash", "flash-varlen"]:
+        if self.attn_type not in FLASH_ATTN_TYPES:
             x = x.transpose(-3, -2)  # B S H Dh -> B H S Dh
         return x
 
     def recombine_heads(self, x: Tensor) -> Tensor:
-        if self.attn_type not in ["flash", "flash-varlen"]:
+        if self.attn_type not in FLASH_ATTN_TYPES:
             x = x.transpose(-3, -2)  # B H S Dh -> B S H Dh
         return x.flatten(-2)  # B S H Dh -> B S D
 
@@ -117,7 +130,7 @@ class Attention(nn.Module):
         if self.value_residual:
             mix = self.value_residual_mix(q)
             mix = mix.unsqueeze(-1)
-            if self.attn_type != "flash":
+            if self.attn_type not in FLASH_ATTN_TYPES:
                 mix = mix.transpose(-2, -3)
 
         # Input projections, shape is (batch, seq, dim)
@@ -202,6 +215,7 @@ class Attention(nn.Module):
                 cu_seqlens_k,
                 max_seqlen_q,
                 max_seqlen_k,
+                window_size=self.window_size,
                 )
             
             # Reshape to (B, S, H, Dh)
