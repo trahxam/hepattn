@@ -14,12 +14,18 @@ torch.manual_seed(42)
 @pytest.mark.parametrize("dim", [128])
 @pytest.mark.parametrize("num_heads", [8])
 @pytest.mark.parametrize("bias", [True, False])
+@pytest.mark.parametrize("kv_mask", [True, False])
 @pytest.mark.parametrize("attn_type", ["torch", "flash", "flex", "flash-varlen"])
-def test_attention_consistency(batch_size, seq_len, dim, num_heads, bias, attn_type):
+def test_attention_consistency(batch_size, seq_len, dim, num_heads, bias, kv_mask, attn_type):
     # Generate random input tensors
     q = torch.randn(batch_size, seq_len, dim, dtype=torch.float16, device="cuda")
     k = torch.randn(batch_size, seq_len, dim, dtype=torch.float16, device="cuda")
     v = torch.randn(batch_size, seq_len, dim, dtype=torch.float16, device="cuda")
+
+    if kv_mask and attn_type in ["torch", "flash-varlen"]:
+        key_padding_mask = torch.randn(batch_size, seq_len, dtype=torch.float16, device="cuda") >= 0.0
+    else:
+        key_padding_mask = None
 
     # Initialize attention layers
     attention_layer = Attention(dim=dim, num_heads=num_heads, bias=bias, attn_type=attn_type).cuda().half()
@@ -37,8 +43,8 @@ def test_attention_consistency(batch_size, seq_len, dim, num_heads, bias, attn_t
         attention_layer.out_proj.bias.data = mha_layer.out_proj.bias
 
     # Compute outputs
-    custom_out = attention_layer(q, k, v)
-    mha_out, _ = mha_layer(q, k, v)
+    custom_out = attention_layer(q, k, v, kv_mask=key_padding_mask)
+    mha_out, _ = mha_layer(q, k, v, key_padding_mask=key_padding_mask)
 
     # Compare outputs
     torch.testing.assert_close(custom_out, mha_out, atol=1e-3, rtol=1e-3)
@@ -98,8 +104,9 @@ def test_local_attention():
     mask = create_mask(mask_mod, 1, None, q_len, q_len, device=q.device)
     # out_flex = attn_flex(q, k, v, attn_mask=block_mask)  # noqa: ERA001
     # Squeeze operation is required as for SPDA attention we assume mask is the same accross heads
-    # TODO: Standardise this accross the different backends
-    out_spda = attn_spda(q, k, v, attn_mask=mask.squeeze(1))
+    # TODO: Standardise this accross the different backends, both for whether it should brodcast the
+    # shape over heads and whether it should assume masks are true for valid slots or not
+    out_spda = attn_spda(q, k, v, attn_mask=~mask.squeeze(1))
     out_flash = attn_flash(q, k, v)
 
     # Compare outputs

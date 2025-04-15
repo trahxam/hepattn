@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from flash_attn import flash_attn_func, flash_attn_varlen_func
-from torch import BoolTensor, Tensor, nn
+from torch import BoolTensor, Tensor, Size, nn
 from torch.nn.attention.flex_attention import BlockMask, _score_mod_signature, flex_attention
 
 from hepattn.models.norm import LayerNorm
@@ -14,8 +14,7 @@ ATTN_TYPES = {
 }
 
 VARLEN_ATTN_TYPES = [
-    # TODO: Implement kv masking for torch
-    # "torch",
+    "torch",
     "flash-varlen",
 ]
 
@@ -34,6 +33,39 @@ FLASH_ATTN_TYPES = [
     "flash",
     "flash-varlen",
 ]
+
+
+def merge_masks(
+    q_mask: BoolTensor | None,
+    kv_mask: BoolTensor | None,
+    attn_mask: BoolTensor | None,
+    q_shape: Size,
+    k_shape: Size,
+    device: torch.device,
+) -> BoolTensor:
+    """Create a full attention mask which incoporates the padding information.
+    Taken from https://gitlab.cern.ch/atlas-flavor-tagging-tools/algorithms/salt/-/blob/main/salt/models/attention.py?ref_type=heads
+
+    Using pytorch transformer convention:
+        False: Real node
+        True:  Zero padded
+    """
+    # Create the full mask which combines the attention and padding masks
+    merged_mask = None
+
+    # If either pad mask exists, create
+    if q_mask is not None or kv_mask is not None:
+        if q_mask is None:
+            q_mask = torch.full(q_shape[:-1], False, device=device)
+        if kv_mask is None:
+            kv_mask = torch.full(k_shape[:-1], False, device=device)
+        merged_mask = q_mask.unsqueeze(-1) | kv_mask.unsqueeze(-2)
+
+    # If attention mask exists then it must be included
+    if attn_mask is not None:
+        merged_mask = attn_mask if merged_mask is None else attn_mask | merged_mask
+
+    return merged_mask
 
 
 class Attention(nn.Module):
@@ -125,6 +157,17 @@ class Attention(nn.Module):
         k = k if k is not None else q
         v = v if v is not None else q
 
+        # Check that the specified attention backend actualy supports kv masking / jagged inputs
+        if kv_mask is not None:
+            msg = f"Only the backends {VARLEN_ATTN_TYPES} support kv masking"
+            assert self.attn_type in VARLEN_ATTN_TYPES, msg
+
+        if attn_mask is not None:
+            msg = f"Only the backends {ATTN_MASK_ATTN_TYPES} support attention masking"
+            assert self.attn_type in ATTN_MASK_ATTN_TYPES, msg
+
+        attn_mask = merge_masks(q_mask, kv_mask, attn_mask, q.shape, k.shape, q.device)
+
         # Mix for value residual
         mix = None
         if self.value_residual:
@@ -156,15 +199,6 @@ class Attention(nn.Module):
             else:
                 v = v * mix + initial_values["v"] * (1.0 - mix)
 
-        # Check that the specified attention backend actualy supports kv masking / jagged inputs
-        if kv_mask is not None:
-            msg = f"Only the backends {VARLEN_ATTN_TYPES} support kv masking"
-            assert self.attn_type in VARLEN_ATTN_TYPES, msg
-
-        if attn_mask is not None:
-            msg = f"Only the backends {ATTN_MASK_ATTN_TYPES} support attention masking"
-            assert self.attn_type in ATTN_MASK_ATTN_TYPES, msg
-
         # Fused attention
         if self.attn_type == "flex":
             out = self.attn(q, k, v, block_mask=attn_mask, score_mod=score_mod)
@@ -172,7 +206,8 @@ class Attention(nn.Module):
         elif self.attn_type == "torch":
             # Have to expand the attention mask so that it is broadcasted over the head dimension
             if attn_mask is not None:
-                attn_mask = attn_mask.unsqueeze(-3)
+                # In functional SDPA, attn mask is TRUE for valid slots ...
+                attn_mask = ~attn_mask.unsqueeze(-3)
 
             out = self.attn(q, k, v, attn_mask=attn_mask)
 
@@ -183,14 +218,14 @@ class Attention(nn.Module):
             # TODO: Implement a packed version for the self attention case
 
             assert q_mask is None, "query mask not currently supported"
-            q_mask = torch.full((q.shape[0], q.shape[1]), True, dtype=torch.bool, device=q.device)
+            q_mask = torch.full((q.shape[0], q.shape[1]), False, dtype=torch.bool, device=q.device)
 
             # If no kv mask is provided, all kv are valid
             if kv_mask is None:
-                kv_mask = torch.full((k.shape[0], k.shape[1]), True, dtype=torch.bool, device=q.device)
+                kv_mask = torch.full((k.shape[0], k.shape[1]), False, dtype=torch.bool, device=q.device)
 
-            q_lens = q_mask.sum(dim=1, dtype=torch.int32)
-            kv_lens = kv_mask.sum(dim=1, dtype=torch.int32)
+            q_lens = (~q_mask).sum(dim=1, dtype=torch.int32)
+            kv_lens = (~kv_mask).sum(dim=1, dtype=torch.int32)
 
             # q has shape (B, S, H, Dh)
             H = q.shape[-2]
@@ -200,9 +235,9 @@ class Attention(nn.Module):
             max_seqlen_q = q.shape[-3]
             max_seqlen_k = k.shape[-3]
 
-            q_flat = q[q_mask].reshape(-1, H, Dh)
-            k_flat = k[kv_mask].reshape(-1, H, Dh)
-            v_flat = v[kv_mask].reshape(-1, H, Dh)
+            q_flat = q[~q_mask].reshape(-1, H, Dh)
+            k_flat = k[~kv_mask].reshape(-1, H, Dh)
+            v_flat = v[~kv_mask].reshape(-1, H, Dh)
 
             cu_seqlens_q = torch.nn.functional.pad(q_lens.cumsum(dim=0, dtype=torch.int32), (1, 0))
             cu_seqlens_k = torch.nn.functional.pad(kv_lens.cumsum(dim=0, dtype=torch.int32), (1, 0))
