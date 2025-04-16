@@ -5,6 +5,7 @@ import numpy as np
 import torch
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader, Dataset
+from torch.nn.utils.rnn import pad_sequence
 
 
 class CLDDataset(Dataset):
@@ -16,11 +17,12 @@ class CLDDataset(Dataset):
         merge_inputs: dict[str, list[str]] = {},
         num_events: int = -1,
         particle_min_pt: float = 0.1,
+        include_neutral: bool = True,
+        include_charged: bool = True,
         charged_particle_min_num_hits: dict[str, int] = {},
         charged_particle_max_num_hits: dict[str, int] = {},
         neutral_particle_min_num_hits: dict[str, int] = {},
         neutral_particle_max_num_hits: dict[str, int] = {},
-        include_neutrals: bool = True,
         truth_filter_hits: list[str] = [],
         event_max_num_particles: int = 256,
         random_seed: int = 42,
@@ -33,11 +35,12 @@ class CLDDataset(Dataset):
         self.merge_inputs = merge_inputs
         self.num_events = num_events
         self.particle_min_pt = particle_min_pt
+        self.include_neutral = include_neutral
+        self.include_charged = include_charged
         self.charged_particle_min_num_hits = charged_particle_min_num_hits
         self.charged_particle_max_num_hits = charged_particle_max_num_hits
         self.neutral_particle_min_num_hits = neutral_particle_min_num_hits
         self.neutral_particle_max_num_hits = neutral_particle_max_num_hits
-        self.include_neutrals = include_neutrals
         self.truth_filter_hits = truth_filter_hits
         self.event_max_num_particles = event_max_num_particles
         self.random_seed = random_seed
@@ -58,101 +61,16 @@ class CLDDataset(Dataset):
 
     def __len__(self):
         return int(self.num_events)
-
-    def __getitem__(self, idx):
-        event = self.load_event(idx)
-
-        # TODO: Clean this up, will need to be changed to support hit-particle regression
-
-        inputs = {}
-        targets = {}
-        input_sizes = {}
-        for input_name, fields in self.inputs.items():
-            field_sizes = set()
-            for field in fields:
-                x = ak.to_numpy(event[f"{input_name}.{field}"])[0]
-                assert np.all(~np.isnan(x))
-                field_size = len(x)
-                inputs[f"{input_name}_{field}"] = torch.from_numpy(x).unsqueeze(0).half()
-                x = inputs[f"{input_name}_{field}"]
-                field_sizes.add(field_size)
-
-            assert len(field_sizes) == 1, f"Found mismatching field sizes for {input_name}"
-            input_sizes[input_name] = next(iter(field_sizes))
-
-            inputs[f"{input_name}_valid"] = torch.ones((1, input_sizes[input_name]), dtype=torch.bool)
-            targets[f"{input_name}_valid"] = inputs[f"{input_name}_valid"]
-
-        # Create the masks that link particles to hits
-        for input_name in self.inputs.keys():
-            num_hits = input_sizes[input_name]
-            mask = np.full((num_hits, self.event_max_num_particles), False)
-            # Get the mask indices that map from hits to particles
-            # We will deal with merged inputs in a moment
-            if input_name in self.merge_inputs:
-                continue
-            mask_idxs = ak.to_numpy(event[f"{input_name}_to_particle_idxs"])[0]
-
-            if mask_idxs.ndim == 2:
-                mask[mask_idxs[:, 0], mask_idxs[:, 1]] = True
-            else:
-                print(input_name)
-                print(mask_idxs.shape)
-            # Have to transpose the mask to get mask for particles to hits
-            targets[f"particle_{input_name}_valid"] = torch.from_numpy(mask.T).unsqueeze(0).bool()
-
-        # Now merge the masks for merged inputs
-        if self.merge_inputs:
-            for merged_input_name, input_names in self.merge_inputs.items():
-                merged_mask = torch.cat([targets[f"particle_{input_name}_valid"] for input_name in input_names], dim=-1)
-                targets[f"particle_{merged_input_name}_valid"] = merged_mask
-
-        target_sizes = {}
-        for target_name, fields in self.targets.items():
-            field_sizes = set()
-            for field in fields:
-                x = ak.to_numpy(event[f"{target_name}.{field}"])[0]
-                field_size = len(x)
-                assert np.all(~np.isnan(x))
-                x_padding = np.full(self.event_max_num_particles - field_size, np.nan)
-                x = np.concatenate((x, x_padding), axis=-1)
-                targets[f"{target_name}_{field}"] = torch.from_numpy(x).unsqueeze(0).half()
-                field_sizes.add(field_size)
-
-            assert len(field_sizes) == 1, f"Found mismatching field sizes for {target_name}"
-            target_sizes[target_name] = next(iter(field_sizes))
-            target_valid = ak.to_numpy(event[f"{target_name}_valid"])[0]
-            targets[f"{target_name}_valid"] = torch.zeros((1, self.event_max_num_particles), dtype=torch.bool)
-            targets[f"{target_name}_valid"][:, : target_sizes[target_name]] = torch.from_numpy(target_valid).bool()
-
-        # Now apply the reconstructability requirements
-        charged_particles = torch.nan_to_num(targets["particle_isCharged"], 0).long().bool()[0]
-
-        for hit_name, min_hits in self.charged_particle_min_num_hits.items():
-            particle_num_hits = targets[f"particle_{hit_name}_valid"].float().sum(-1)
-            charged_and_insufficient_hits = charged_particles & (particle_num_hits <= min_hits)
-            targets["particle_valid"] = targets["particle_valid"] & (~charged_and_insufficient_hits)
-
-        for input_name in self.inputs.keys():
-            targets[f"particle_{input_name}_valid"] = targets[f"particle_{input_name}_valid"] & targets["particle_valid"].unsqueeze(-1)
-            targets[f"{input_name}_valid"] = inputs[f"{input_name}_valid"]
-
-        for input_name in self.truth_filter_hits:
-            hit_on_valid_particle = targets[f"particle_{input_name}_valid"].any(-2)[0]
-
-            targets[f"particle_{input_name}_valid"] = targets[f"particle_{input_name}_valid"][:, :, hit_on_valid_particle]
-
-            inputs[f"{input_name}_valid"] = inputs[f"{input_name}_valid"][:, hit_on_valid_particle]
-            for field in self.inputs[input_name]:
-                inputs[f"{input_name}_{field}"] = inputs[f"{input_name}_{field}"][:, hit_on_valid_particle]
-            targets[f"{input_name}_valid"] = inputs[f"{input_name}_valid"]
-
-        # TODO: Apply neutral selection also
-
-        return inputs, targets
-
+    
     def load_event(self, idx):
-        event = ak.from_parquet(self.event_filenames[idx])
+        """ Loads a single CLD event from a preprocessed parquet file. """
+
+        event_raw = ak.from_parquet(self.event_filenames[idx])
+
+        # First unpack from awkward parquet format to dict of numpy arrays
+        event = {}
+        for key in event_raw.fields:
+            event[key] = ak.to_numpy(event_raw[key])[0]
 
         def convert_mm_to_m(i, p):
             # Convert a spatial coordinate from mm to m inplace
@@ -169,33 +87,31 @@ class CLDDataset(Dataset):
 
         def add_conformal_coords(i, p):
             # Conformal tracking coordinates
-            # https://indico.cern.ch/event/658267/papers/2813728/files/8362-Leogrande.pdf
             event[f"{i}.{p}.u"] = event[f"{i}.{p}.x"] / (event[f"{i}.{p}.x"] ** 2 + event[f"{i}.{p}.y"] ** 2)
             event[f"{i}.{p}.v"] = event[f"{i}.{p}.y"] / (event[f"{i}.{p}.x"] ** 2 + event[f"{i}.{p}.y"] ** 2)
 
         hits = ["vtb", "vte", "itb", "ite", "otb", "ote", "ecb", "ece", "hcb", "hce", "hco", "muon"]
 
+        # Add extra coordinates to the hits
         for hit in hits:
             # It is important to do the mm -> m conversion first, so that all other
-            # distance fields are also in m, which is required to not to cause
-            # nans in the positional encoding
+            # distance fields are also in m, which is required to not to cause nans in the positional encoding
             convert_mm_to_m(hit, "pos")
             add_cylindrical_coords(hit, "pos")
             add_conformal_coords(hit, "pos")
 
+        # Add extra coordinates to the start and end points of particles
         for point in ["vtx", "end"]:
             convert_mm_to_m("particle", f"{point}.pos")
             add_cylindrical_coords("particle", f"{point}.pos")
             add_conformal_coords("particle", f"{point}.pos")
             add_cylindrical_coords("particle", f"{point}.mom")
 
+        # Merge inputs, first check all requested merged inputs have the same
+        # fields and that the fields are given in the same order
         if self.merge_inputs:
-            # Merge inputs, first check all requested merged inputs have the same
-            # fields and that the fields are given in the same order
-
             for merged_input_name, input_names in self.merge_inputs.items():
                 # Make fields into tuple so its hashable
-
                 merged_input_fields = set()
                 merged_input_fields.update(tuple(self.inputs[input_name]) for input_name in input_names)
 
@@ -203,26 +119,131 @@ class CLDDataset(Dataset):
                 msg += f"found {merged_input_fields} for {merged_input_name}"
                 assert len(merged_input_fields) == 1, msg
 
-                # Now actually merge the fields of each input
+                # Concatenate the fields from all of the inputs that make the merged input
                 for field in next(iter(merged_input_fields)):
-                    merged_fields_arrays = []
-                    for input_name in input_names:
-                        merged_fields_arrays.append(event[f"{input_name}.{field}"])
+                    event[f"{merged_input_name}.{field}"] = np.concatenate([event[f"{input_name}.{field}"]
+                                                                            for input_name in input_names], axis=-1)
 
-                    # Concatenate the fields from all of the inputs that make the merged input
-                    event[f"{merged_input_name}.{field}"] = ak.concatenate(merged_fields_arrays, axis=-1)
+        # Particle count includes invaliud particles, since the linking indices were built
+        # before any of these particle selections were made
+        event["particle_valid"] = np.full_like(event["particle.PDG"], True, np.bool)
+        num_particles = len(event["particle_valid"])
 
-        # Apply particle reconstructability pT cut
-        event["particle_valid"] = event["particle.vtx.mom.r"] >= self.particle_min_pt
+        # Now we will construct the masks that link particles to hits
+        for hit in hits:
+            num_hits = len(event[f"{hit}.type"])
+            mask = np.full((num_hits, num_particles), False)
 
+            # Has shape (num hit-particle links, 2)
+            mask_idxs = event[f"{hit}_to_particle_idxs"]
+
+            # Get the mask indices that map from hits to particles
+            # Check there are actually some hits present
+            if num_hits > 0:
+                # Check that there is at least one particle to link
+                # Indices link hits to particles, so have to transpose to get particles to hits
+                if len(mask_idxs) > 0:
+                    mask[mask_idxs[:, 0], mask_idxs[:, 1]] = True
+            
+            event[f"particle_{hit}_valid"] = mask.T
+
+        # Merge together any masks
+        if self.merge_inputs:
+            for merged_input_name, input_names in self.merge_inputs.items():
+                event[f"particle_{merged_input_name}_valid"] = np.concatenate([event[f"particle_{hit}_valid"] 
+                                                                               for hit in input_names], axis=-1)
+                
         # Add extra labels for particles
         event["particle.isCharged"] = np.abs(event["particle.charge"]) > 0
         event["particle.isNeutral"] = ~event["particle.isCharged"]
 
-        if not self.include_neutrals:
-            event["particle_valid"] = event["particle_valid"] & event["particle.isCharged"]
+        # Set which particles we deem to be targets / reconstructable          
+        particle_cuts = {"min_pt": event["particle.vtx.mom.r"] >= self.particle_min_pt}
 
-        return event
+        if not self.include_charged:
+            particle_cuts["notCharged"] = ~event["particle.isCharged"]
+
+        if not self.include_neutral:
+            particle_cuts["notNeutral"] = ~event["particle.isNeutral"]
+
+        # Now we have built the masks, we can apply hit/counting based cuts
+        for hit_name, min_num_hits in self.charged_particle_min_num_hits.items():
+            particle_cuts[f"charged_min_{hit_name}"] = ~(event["particle.isCharged"] & (event[f"particle_{hit_name}_valid"].sum(-1) < min_num_hits))
+
+        for hit_name, max_num_hits in self.charged_particle_max_num_hits.items():
+            particle_cuts[f"charged_max_{hit_name}"] = ~(event["particle.isCharged"] & (event[f"particle_{hit_name}_valid"].sum(-1) > max_num_hits))
+
+        for hit_name, min_num_hits in self.neutral_particle_min_num_hits.items():
+            particle_cuts[f"neutral_min_{hit_name}"] = ~(event["particle.isNeutral"] & (event[f"particle_{hit_name}_valid"].sum(-1) < min_num_hits))
+
+        for hit_name, max_num_hits in self.neutral_particle_max_num_hits.items():
+            particle_cuts[f"neutral_max_{hit_name}"] = ~(event["particle.isNeutral"] & (event[f"particle_{hit_name}_valid"].sum(-1) > max_num_hits))
+        
+        # Apply the particle cuts
+        for cut_name, cut_mask in particle_cuts.items():
+            event["particle_valid"] = event["particle_valid"] & cut_mask
+        
+        # Remove any mask slots for invalid particles
+        for input_name in self.inputs.keys():
+            event[f"particle_{input_name}_valid"]  = event[f"particle_{input_name}_valid"] & event["particle_valid"][:,np.newaxis]
+
+        # Pick out the inputs that have actually been requested
+        inputs = {}
+        for input_name, fields in self.inputs.items():
+            inputs[f"{input_name}_valid"] = ~np.isnan(event[f"{input_name}.type"])
+            for field in fields:
+                inputs[f"{input_name}_{field}"] = event[f"{input_name}.{field}"]
+
+        # Now pick out the targets
+        targets = {}
+        for target_name, fields in self.targets.items():
+            targets[f"{target_name}_valid"] = event[f"{target_name}_valid"]
+            for field in fields:
+                targets[f"{target_name}_{field}"] = event[f"{target_name}.{field}"]
+
+        return inputs, targets
+
+    def __getitem__(self, idx):
+        inputs, targets = self.load_event(idx)
+
+        # Convert to a torch tensor of the correct dtype and add the batch dimension
+        inputs_out = {}
+        for input_name, fields in self.inputs.items():
+            inputs_out[f"{input_name}_valid"] = torch.from_numpy(inputs[f"{input_name}_valid"]).bool().unsqueeze(0)
+            for field in fields:
+                inputs_out[f"{input_name}_{field}"] = torch.from_numpy(inputs[f"{input_name}_{field}"]).half().unsqueeze(0)
+
+        targets_out = {}
+        for target_name, fields in self.targets.items():
+            targets_out[f"{target_name}_valid"] = torch.from_numpy(targets[f"{target_name}_valid"]).bool().unsqueeze(0)
+            for field in fields:
+                targets_out[f"{target_name}_{field}"] = torch.from_numpy(targets[f"{target_name}_{field}"]).half().unsqueeze(0)
+
+        return inputs_out,  targets_out
+
+
+def collate_fn(batch, dataset_inputs, dataset_targets):
+    inputs, targets = zip(*batch)
+
+    batched_inputs = {}
+    for input_name, fields in dataset_inputs.items():
+        key = f"{input_name}_valid"
+        batched_inputs[key] = pad_sequence([x[key].squeeze(0) for x in inputs], batch_first=True, padding_value=False)
+
+        for field in fields:
+            key = f"{input_name}_{field}"
+            batched_inputs[key] = pad_sequence([x[key].squeeze(0) for x in inputs], batch_first=True, padding_value=0.0)
+
+    batched_targets = {}
+    for target_name, fields in dataset_targets.items():
+        key = f"{target_name}_valid"
+        batched_targets[key] = pad_sequence([x[key].squeeze(0) for x in targets], batch_first=True, padding_value=False)
+
+        for field in fields:
+            key = f"{target_name}_{field}"
+            batched_targets[key] = pad_sequence([x[key].squeeze(0) for x in targets], batch_first=True, padding_value=torch.nan)
+
+    return batched_inputs, batched_targets
 
 
 class CLDDataModule(LightningDataModule):
@@ -234,6 +255,7 @@ class CLDDataModule(LightningDataModule):
         num_train: int,
         num_val: int,
         num_test: int,
+        batch_size: int = 1,
         test_dir: str | None = None,
         pin_memory: bool = True,
         **kwargs,
@@ -247,6 +269,7 @@ class CLDDataModule(LightningDataModule):
         self.num_train = num_train
         self.num_val = num_val
         self.num_test = num_test
+        self.batch_size = batch_size
         self.pin_memory = pin_memory
         self.kwargs = kwargs
 
@@ -270,7 +293,7 @@ class CLDDataModule(LightningDataModule):
     def get_dataloader(self, stage: str, dataset: CLDDataset, shuffle: bool):  # noqa: ARG002
         return DataLoader(
             dataset=dataset,
-            batch_size=None,
+            batch_size=self.batch_size,
             collate_fn=None,
             sampler=None,
             num_workers=self.num_workers,

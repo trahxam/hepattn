@@ -16,10 +16,10 @@ class TestCLDEvent:
         config_path = Path("src/hepattn/experiments/cld/configs/base.yaml")
         config = yaml.safe_load(config_path.read_text())["data"]
 
-        dirpath = "/share/rcifdata/maxhart/data/cld/prepped"
-        num_events = -1
+        dirpath = "/share/rcifdata/maxhart/data/cld/prepped/train"
+        num_events = 10
         particle_min_pt = 0.1
-        event_max_num_particles = 1000
+        event_max_num_particles = 256
 
         merge_inputs = {
             "sihit": [
@@ -44,6 +44,8 @@ class TestCLDEvent:
             targets=config["targets"],
             num_events=num_events,
             particle_min_pt=particle_min_pt,
+            charged_particle_min_num_hits={"sihit": 10},
+            charged_particle_max_num_hits={"sihit": 20},
             event_max_num_particles=event_max_num_particles,
             merge_inputs=merge_inputs,
         )
