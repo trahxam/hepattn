@@ -5,27 +5,44 @@ from torch.nn.attention.flex_attention import create_mask
 
 from hepattn.flex.sliding_window import sliding_window_mask
 from hepattn.models import Attention
+from hepattn.models.attention import VARLEN_ATTN_TYPES, ATTN_MASK_ATTN_TYPES, WINDOW_ATTN_TYPES
 
 torch.manual_seed(42)
 
 
-@pytest.mark.parametrize("batch_size", [1, 4])
-@pytest.mark.parametrize("seq_len", [8])
+# Choose primes so we don't get accidental broadcasting
+# NOTE: We need enough keys/queries such that it is improbable that an entire k/q slot is masked
+# if that happens then nans are produced
+@pytest.mark.parametrize("batch_size", [1, 9])
+@pytest.mark.parametrize("q_len", [100])
+@pytest.mark.parametrize("kv_len", [None, 100, 150])
 @pytest.mark.parametrize("dim", [128])
 @pytest.mark.parametrize("num_heads", [8])
-@pytest.mark.parametrize("bias", [True, False])
-@pytest.mark.parametrize("kv_mask", [True, False])
+@pytest.mark.parametrize("bias", [False, True])
+@pytest.mark.parametrize("kv_masking", [False, True])
+@pytest.mark.parametrize("attn_masking", [False, True])
 @pytest.mark.parametrize("attn_type", ["torch", "flash", "flex", "flash-varlen"])
-def test_attention_consistency(batch_size, seq_len, dim, num_heads, bias, kv_mask, attn_type):
+def test_attention_consistency(batch_size, dim, num_heads, bias, q_len, kv_len, attn_masking, kv_masking, attn_type):
     # Generate random input tensors
-    q = torch.randn(batch_size, seq_len, dim, dtype=torch.float16, device="cuda")
-    k = torch.randn(batch_size, seq_len, dim, dtype=torch.float16, device="cuda")
-    v = torch.randn(batch_size, seq_len, dim, dtype=torch.float16, device="cuda")
-
-    if kv_mask and attn_type in ["torch", "flash-varlen"]:
-        key_padding_mask = torch.randn(batch_size, seq_len, dtype=torch.float16, device="cuda") >= 0.0
+    q = torch.randn(batch_size, q_len, dim, dtype=torch.float16, device="cuda")
+    
+    # If kv_len is none, test self attenttion
+    if kv_len:
+        k = torch.randn(batch_size, kv_len, dim, dtype=torch.float16, device="cuda")
+        v = torch.randn(batch_size, kv_len, dim, dtype=torch.float16, device="cuda")
     else:
-        key_padding_mask = None
+        k = q
+        v = q
+
+    if kv_masking and attn_type in VARLEN_ATTN_TYPES:
+        kv_mask = torch.randn(batch_size, k.shape[-2], dtype=torch.float16, device="cuda") >= 0.0
+    else:
+        kv_mask = None
+
+    if attn_masking and attn_type in ATTN_MASK_ATTN_TYPES:
+        attn_mask = torch.randn(batch_size, q.shape[-2], k.shape[-2], dtype=torch.float16, device="cuda") >= 0.0
+    else:
+        attn_mask = None
 
     # Initialize attention layers
     attention_layer = Attention(dim=dim, num_heads=num_heads, bias=bias, attn_type=attn_type).cuda().half()
@@ -36,6 +53,7 @@ def test_attention_consistency(batch_size, seq_len, dim, num_heads, bias, kv_mas
     attention_layer.k_proj.weight.data = mha_layer.in_proj_weight[dim : 2 * dim, :]
     attention_layer.v_proj.weight.data = mha_layer.in_proj_weight[2 * dim :, :]
     attention_layer.out_proj.weight.data = mha_layer.out_proj.weight
+
     if bias:
         attention_layer.q_proj.bias.data = mha_layer.in_proj_bias[:dim]
         attention_layer.k_proj.bias.data = mha_layer.in_proj_bias[dim : 2 * dim]
@@ -43,8 +61,21 @@ def test_attention_consistency(batch_size, seq_len, dim, num_heads, bias, kv_mas
         attention_layer.out_proj.bias.data = mha_layer.out_proj.bias
 
     # Compute outputs
-    custom_out = attention_layer(q, k, v, kv_mask=key_padding_mask)
-    mha_out, _ = mha_layer(q, k, v, key_padding_mask=key_padding_mask)
+    custom_out = attention_layer(q, k, v, kv_mask=kv_mask, attn_mask=attn_mask)
+    
+    # Torch MHA expects (batch * heads, num_q, num_k) for attention mask, so have to repeat
+    # It also expects the masking convention to be backwards
+    if attn_mask is not None:
+        torch_attn_mask = ~attn_mask.repeat_interleave(num_heads, dim=0)
+    else:
+        torch_attn_mask = None
+
+    if kv_mask is not None:
+        torch_kv_mask = ~kv_mask
+    else:
+        torch_kv_mask = None
+
+    mha_out, _ = mha_layer(q, k, v, key_padding_mask=torch_kv_mask, attn_mask=torch_attn_mask)
 
     # Compare outputs
     torch.testing.assert_close(custom_out, mha_out, atol=1e-3, rtol=1e-3)
@@ -106,7 +137,7 @@ def test_local_attention():
     # Squeeze operation is required as for SPDA attention we assume mask is the same accross heads
     # TODO: Standardise this accross the different backends, both for whether it should brodcast the
     # shape over heads and whether it should assume masks are true for valid slots or not
-    out_spda = attn_spda(q, k, v, attn_mask=~mask.squeeze(1))
+    out_spda = attn_spda(q, k, v, attn_mask=mask.squeeze(1))
     out_flash = attn_flash(q, k, v)
 
     # Compare outputs
