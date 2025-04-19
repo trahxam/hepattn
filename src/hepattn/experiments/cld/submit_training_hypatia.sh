@@ -31,13 +31,13 @@ cd /share/rcifdata/maxhart/hepattn-test/hepattn/
 echo "Moved dir, now in: ${PWD}"
 
 # Set tmpdir
-export TMPDIR=/var/tmp/
+export TMPDIR=/share/rcifdata/maxhart/tmp/
 
 # Run the training
 echo "Running training script..."
 
 # Python command that will be run
-PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config src/hepattn/experiments/cld/configs/base.yaml"
+PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config src/hepattn/experiments/cld/configs/merged.yaml "
 
 # Pixi commnand that runs the python command inside the pixi env
 PIXI_CMD="pixi run $PYTORCH_CMD"

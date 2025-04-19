@@ -21,8 +21,8 @@ export TMPDIR=/var/tmp/
 echo "Running preprocessing script..."
 
 # Change these to wherever your data is, or get access to them
-IN_DIR="/share/rcifdata/maxhart/data/cld/raw/train/"
-OUT_DIR="/share/rcifdata/maxhart/data/cld/prepped/train/"
+IN_DIR="/share/rcifdata/maxhart/data/cld/raw/val/"
+OUT_DIR="/share/rcifdata/maxhart/data/cld/prepped/val/"
 
 # Python command that will be run
 # Note we specify a minimum pT cut, particles below this will be removed

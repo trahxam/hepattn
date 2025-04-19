@@ -1,4 +1,4 @@
-name: 12enc_12dec_256dim_pt100mev_lion_mtl
+name: CLD_25_256_test
 
 data:
   # Paths to preprocessed data directories
@@ -11,6 +11,8 @@ data:
   num_train: -1
   num_test: 10
   num_val: 10
+
+  batch_size: 10
 
   # Minimum pT for a particle to be deemed reconstructve in GeV
   particle_min_pt: 0.1
@@ -297,7 +299,7 @@ model:
         init_args:
           num_layers: 8
           dim: *dim
-          attn_type: flash
+          attn_type: flash-varlen
           window_size: 1024
           window_wrap: true
 

@@ -3,9 +3,11 @@ from pathlib import Path
 import awkward as ak
 import numpy as np
 import torch
+import torch.nn.functional as F
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader, Dataset
 from torch.nn.utils.rnn import pad_sequence
+from torch import Size
 
 
 class CLDDataset(Dataset):
@@ -111,16 +113,10 @@ class CLDDataset(Dataset):
         # fields and that the fields are given in the same order
         if self.merge_inputs:
             for merged_input_name, input_names in self.merge_inputs.items():
-                # Make fields into tuple so its hashable
-                merged_input_fields = set()
-                merged_input_fields.update(tuple(self.inputs[input_name]) for input_name in input_names)
-
-                msg = "Merged inputs must all have the same fields and ordering of fields, "
-                msg += f"found {merged_input_fields} for {merged_input_name}"
-                assert len(merged_input_fields) == 1, msg
+                merged_input_fields = self.inputs[merged_input_name]
 
                 # Concatenate the fields from all of the inputs that make the merged input
-                for field in next(iter(merged_input_fields)):
+                for field in merged_input_fields:
                     event[f"{merged_input_name}.{field}"] = np.concatenate([event[f"{input_name}.{field}"]
                                                                             for input_name in input_names], axis=-1)
 
@@ -208,42 +204,91 @@ class CLDDataset(Dataset):
 
         # Convert to a torch tensor of the correct dtype and add the batch dimension
         inputs_out = {}
+        targets_out = {}
         for input_name, fields in self.inputs.items():
             inputs_out[f"{input_name}_valid"] = torch.from_numpy(inputs[f"{input_name}_valid"]).bool().unsqueeze(0)
+            # Some tasks might require to know hit padding info for loss masking
+            targets_out[f"{input_name}_valid"] = inputs_out[f"{input_name}_valid"]
             for field in fields:
                 inputs_out[f"{input_name}_{field}"] = torch.from_numpy(inputs[f"{input_name}_{field}"]).half().unsqueeze(0)
 
-        targets_out = {}
         for target_name, fields in self.targets.items():
             targets_out[f"{target_name}_valid"] = torch.from_numpy(targets[f"{target_name}_valid"]).bool().unsqueeze(0)
             for field in fields:
                 targets_out[f"{target_name}_{field}"] = torch.from_numpy(targets[f"{target_name}_{field}"]).half().unsqueeze(0)
 
         return inputs_out,  targets_out
+    
 
+def pad_to_size(x: torch.Tensor, d: tuple, value) -> torch.Tensor:
+    """
+    Pads the tensor x on the right side of each dimension to match the size given in d.
+    
+    Args:
+        x (torch.Tensor): Input tensor of any shape.
+        d (tuple): Target size for each dimension (must have same length as x.dim()).
 
-def collate_fn(batch, dataset_inputs, dataset_targets):
-    inputs, targets = zip(*batch)
+    Returns:
+        torch.Tensor: Padded tensor with shape == d.
+    """
+    if len(d) != x.dim():
+        raise ValueError(f"Target size must match input tensor dimensions: {x.shape} vs {d}")
 
-    batched_inputs = {}
-    for input_name, fields in dataset_inputs.items():
-        key = f"{input_name}_valid"
-        batched_inputs[key] = pad_sequence([x[key].squeeze(0) for x in inputs], batch_first=True, padding_value=False)
+    padding = []
+    for i in reversed(range(x.dim())):
+        pad_len = d[i] - x.size(i)
+        if pad_len < 0:
+            raise ValueError(f"Cannot pad dimension {i} from {x.size(i)} to {d[i]} (target smaller than current).")
+        padding.extend([0, pad_len])  # (left, right) padding — pad only on the right
 
-        for field in fields:
-            key = f"{input_name}_{field}"
-            batched_inputs[key] = pad_sequence([x[key].squeeze(0) for x in inputs], batch_first=True, padding_value=0.0)
+    return F.pad(x, padding, value=value)
+    
 
-    batched_targets = {}
-    for target_name, fields in dataset_targets.items():
-        key = f"{target_name}_valid"
-        batched_targets[key] = pad_sequence([x[key].squeeze(0) for x in targets], batch_first=True, padding_value=False)
+def pad_and_concat(items, target_size, pad_value):
+    return torch.cat([pad_to_size(item, (1,) + target_size, pad_value) for item in items], dim=0)
+    
 
-        for field in fields:
-            key = f"{target_name}_{field}"
-            batched_targets[key] = pad_sequence([x[key].squeeze(0) for x in targets], batch_first=True, padding_value=torch.nan)
+class CLDCollator():
+    def __init__(self, dataset_inputs, dataset_targets, max_num_obj):
+        self.dataset_inputs = dataset_inputs
+        self.dataset_targets = dataset_targets
+        self.max_num_obj = max_num_obj
 
-    return batched_inputs, batched_targets
+    def __call__(self, batch):
+        inputs, targets = zip(*batch)
+
+        hit_max_sizes = {}
+        for input_name in self.dataset_inputs.keys():
+            hit_max_sizes[input_name] = max([event[f"{input_name}_valid"].shape[-1] for event in inputs])
+
+        batched_inputs = {}
+        batched_targets = {}
+        for input_name, fields in self.dataset_inputs.items():
+            k = f"{input_name}_valid"
+            batched_inputs[k] = pad_and_concat([i[k] for i in inputs], (hit_max_sizes[input_name],), False)
+
+            # Some tasks might require to know hit padding info for loss masking
+            batched_targets[k] = batched_inputs[k]
+            
+            for field in fields:
+                k = f"{input_name}_{field}"
+                batched_inputs[k] = pad_and_concat([i[k] for i in inputs], (hit_max_sizes[input_name],), 0.0)
+        
+        for target_name, fields in self.dataset_targets.items():
+            if target_name == "particle":
+                size = (self.max_num_obj,)
+            else:
+                hit = target_name.split("_")[1]
+                size = (self.max_num_obj, hit_max_sizes[hit])
+            
+            k = f"{target_name}_valid"
+            batched_targets[k] = pad_and_concat([i[k] for i in targets], size, False)
+
+            for field in fields:
+                k = f"{target_name}_{field}"
+                batched_targets[k] = pad_and_concat([i[k] for i in targets], size, torch.nan)
+
+        return batched_inputs, batched_targets
 
 
 class CLDDataModule(LightningDataModule):
@@ -281,20 +326,20 @@ class CLDDataModule(LightningDataModule):
             self.val_dset = CLDDataset(dirpath=self.val_dir, num_events=self.num_val, **self.kwargs)
 
         # Only print train/val dataset details when actually training
-        if stage == "fit" and self.trainer.is_global_zero:
+        if stage == "fit":
             print(f"Created training dataset with {len(self.train_dset):,} events")
             print(f"Created validation dataset with {len(self.val_dset):,} events")
 
         if stage == "test":
             assert self.test_dir is not None, "No test file specified, see --data.test_dir"
-            self.test_dset = CLDDataset(dirpath=self.test_dir, num_events=self.num_test, trainer=self.trainer, **self.kwargs)
+            self.test_dset = CLDDataset(dirpath=self.test_dir, num_events=self.num_test, **self.kwargs)
             print(f"Created test dataset with {len(self.test_dset):,} events")
 
     def get_dataloader(self, stage: str, dataset: CLDDataset, shuffle: bool):  # noqa: ARG002
         return DataLoader(
             dataset=dataset,
             batch_size=self.batch_size,
-            collate_fn=None,
+            collate_fn=CLDCollator(dataset.inputs, dataset.targets, dataset.event_max_num_particles),
             sampler=None,
             num_workers=self.num_workers,
             shuffle=shuffle,
