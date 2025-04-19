@@ -6,8 +6,6 @@ import torch
 import torch.nn.functional as F
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader, Dataset
-from torch.nn.utils.rnn import pad_sequence
-from torch import Size
 
 
 class CLDDataset(Dataset):
@@ -63,9 +61,9 @@ class CLDDataset(Dataset):
 
     def __len__(self):
         return int(self.num_events)
-    
+
     def load_event(self, idx):
-        """ Loads a single CLD event from a preprocessed parquet file. """
+        """Loads a single CLD event from a preprocessed parquet file."""
 
         event_raw = ak.from_parquet(self.event_filenames[idx])
 
@@ -117,8 +115,7 @@ class CLDDataset(Dataset):
 
                 # Concatenate the fields from all of the inputs that make the merged input
                 for field in merged_input_fields:
-                    event[f"{merged_input_name}.{field}"] = np.concatenate([event[f"{input_name}.{field}"]
-                                                                            for input_name in input_names], axis=-1)
+                    event[f"{merged_input_name}.{field}"] = np.concatenate([event[f"{input_name}.{field}"] for input_name in input_names], axis=-1)
 
         # Particle count includes invaliud particles, since the linking indices were built
         # before any of these particle selections were made
@@ -140,20 +137,19 @@ class CLDDataset(Dataset):
                 # Indices link hits to particles, so have to transpose to get particles to hits
                 if len(mask_idxs) > 0:
                     mask[mask_idxs[:, 0], mask_idxs[:, 1]] = True
-            
+
             event[f"particle_{hit}_valid"] = mask.T
 
         # Merge together any masks
         if self.merge_inputs:
             for merged_input_name, input_names in self.merge_inputs.items():
-                event[f"particle_{merged_input_name}_valid"] = np.concatenate([event[f"particle_{hit}_valid"] 
-                                                                               for hit in input_names], axis=-1)
-                
+                event[f"particle_{merged_input_name}_valid"] = np.concatenate([event[f"particle_{hit}_valid"] for hit in input_names], axis=-1)
+
         # Add extra labels for particles
         event["particle.isCharged"] = np.abs(event["particle.charge"]) > 0
         event["particle.isNeutral"] = ~event["particle.isCharged"]
 
-        # Set which particles we deem to be targets / reconstructable          
+        # Set which particles we deem to be targets / reconstructable
         particle_cuts = {"min_pt": event["particle.vtx.mom.r"] >= self.particle_min_pt}
 
         if not self.include_charged:
@@ -174,14 +170,14 @@ class CLDDataset(Dataset):
 
         for hit_name, max_num_hits in self.neutral_particle_max_num_hits.items():
             particle_cuts[f"neutral_max_{hit_name}"] = ~(event["particle.isNeutral"] & (event[f"particle_{hit_name}_valid"].sum(-1) > max_num_hits))
-        
+
         # Apply the particle cuts
         for cut_name, cut_mask in particle_cuts.items():
             event["particle_valid"] = event["particle_valid"] & cut_mask
-        
+
         # Remove any mask slots for invalid particles
         for input_name in self.inputs.keys():
-            event[f"particle_{input_name}_valid"]  = event[f"particle_{input_name}_valid"] & event["particle_valid"][:,np.newaxis]
+            event[f"particle_{input_name}_valid"] = event[f"particle_{input_name}_valid"] & event["particle_valid"][:, np.newaxis]
 
         # Pick out the inputs that have actually been requested
         inputs = {}
@@ -217,13 +213,13 @@ class CLDDataset(Dataset):
             for field in fields:
                 targets_out[f"{target_name}_{field}"] = torch.from_numpy(targets[f"{target_name}_{field}"]).half().unsqueeze(0)
 
-        return inputs_out,  targets_out
-    
+        return inputs_out, targets_out
+
 
 def pad_to_size(x: torch.Tensor, d: tuple, value) -> torch.Tensor:
     """
     Pads the tensor x on the right side of each dimension to match the size given in d.
-    
+
     Args:
         x (torch.Tensor): Input tensor of any shape.
         d (tuple): Target size for each dimension (must have same length as x.dim()).
@@ -242,20 +238,20 @@ def pad_to_size(x: torch.Tensor, d: tuple, value) -> torch.Tensor:
         padding.extend([0, pad_len])  # (left, right) padding — pad only on the right
 
     return F.pad(x, padding, value=value)
-    
+
 
 def pad_and_concat(items, target_size, pad_value):
     return torch.cat([pad_to_size(item, (1,) + target_size, pad_value) for item in items], dim=0)
-    
 
-class CLDCollator():
+
+class CLDCollator:
     def __init__(self, dataset_inputs, dataset_targets, max_num_obj):
         self.dataset_inputs = dataset_inputs
         self.dataset_targets = dataset_targets
         self.max_num_obj = max_num_obj
 
     def __call__(self, batch):
-        inputs, targets = zip(*batch)
+        inputs, targets = zip(*batch, strict=False)
 
         hit_max_sizes = {}
         for input_name in self.dataset_inputs.keys():
@@ -269,18 +265,18 @@ class CLDCollator():
 
             # Some tasks might require to know hit padding info for loss masking
             batched_targets[k] = batched_inputs[k]
-            
+
             for field in fields:
                 k = f"{input_name}_{field}"
                 batched_inputs[k] = pad_and_concat([i[k] for i in inputs], (hit_max_sizes[input_name],), 0.0)
-        
+
         for target_name, fields in self.dataset_targets.items():
             if target_name == "particle":
                 size = (self.max_num_obj,)
             else:
                 hit = target_name.split("_")[1]
                 size = (self.max_num_obj, hit_max_sizes[hit])
-            
+
             k = f"{target_name}_valid"
             batched_targets[k] = pad_and_concat([i[k] for i in targets], size, False)
 
