@@ -1,13 +1,13 @@
 import torch
-import torch.nn.functional as F
+from torch.nn.functional import scaled_dot_product_attention
 from flash_attn import flash_attn_func, flash_attn_varlen_func
-from torch import BoolTensor, Tensor, Size, nn
+from torch import BoolTensor, Size, Tensor, nn
 from torch.nn.attention.flex_attention import BlockMask, _score_mod_signature, flex_attention
 
 from hepattn.models.norm import LayerNorm
 
 ATTN_TYPES = {
-    "torch": F.scaled_dot_product_attention,
+    "torch": scaled_dot_product_attention,
     "flex": flex_attention,
     "flash": flash_attn_func,
     "flash-varlen": flash_attn_varlen_func,

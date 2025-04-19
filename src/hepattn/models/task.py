@@ -199,7 +199,7 @@ class ObjectHitMaskTask(Task):
         return {self.output_object_hit + "_logit": object_hit_logit}
 
     def attn_mask(self, outputs, threshold=0.1):
-        attn_mask = outputs[self.output_object_hit + "_logit"].detach().sigmoid() < threshold
+        attn_mask = outputs[self.output_object_hit + "_logit"].detach().sigmoid() > threshold
 
         # If the attn mask is completely padded for a given entry, unpad it - tested and is required (?)
         attn_mask[torch.where(torch.all(attn_mask, dim=-1))] = False

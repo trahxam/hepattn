@@ -91,7 +91,9 @@ class MaskFormer(nn.Module):
         # Pass merged input hits through the encoder
         if self.encoder is not None:
             # Note that a padded feature is a feature that is not valid!
-            x["key_embed"] = self.encoder(x["key_embed"], x.get(f"key_{self.input_sort_field}"))
+            x["key_embed"] = self.encoder(x["key_embed"], 
+                                          x_sort_value=x.get(f"key_{self.input_sort_field}"), 
+                                          kv_mask=x.get("key_valid"))
 
         # Unmerge the updated features back into the separate input types
         # These are just views into the tensor that old all the merged hits
@@ -125,15 +127,16 @@ class MaskFormer(nn.Module):
 
                 for input_name, attn_mask in task_attn_masks.items():
                     # We only want to mask an attention slot if every task agrees the slots should be masked
-                    # so we only mask if both the existing and new attention mask are masked
+                    # so we only mask if both the existing and new attention mask are masked, which means a slot is valid if
+                    # either current or new mask is valid
                     if input_name in attn_masks:
-                        attn_masks[input_name] &= attn_mask
+                        attn_masks[input_name] = attn_masks[input_name] | attn_mask
                     else:
                         attn_masks[input_name] = attn_mask
 
             # Fill in attention masks for features that did not get one specified by any task
             if attn_masks:
-                attn_mask = torch.full((batch_size, self.num_queries, x["key_valid"].shape[-1]), False, device=x["key_embed"].device)
+                attn_mask = torch.full((batch_size, self.num_queries, x["key_valid"].shape[-1]), True, device=x["key_embed"].device)
 
                 for input_name, input_attn_mask in attn_masks.items():
                     attn_mask[..., x[f"key_is_{input_name}"]] = input_attn_mask
@@ -143,7 +146,7 @@ class MaskFormer(nn.Module):
                 attn_mask = None
 
             # Update the keys and queries
-            x["query_embed"], x["key_embed"] = decoder_layer(x["query_embed"], x["key_embed"], attn_mask=attn_mask)
+            x["query_embed"], x["key_embed"] = decoder_layer(x["query_embed"], x["key_embed"], attn_mask=attn_mask, kv_mask=x.get("key_valid"))
 
             # Unmerge the updated features back into the separate input types
             for input_name in input_names:
