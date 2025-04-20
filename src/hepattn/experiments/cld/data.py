@@ -179,6 +179,19 @@ class CLDDataset(Dataset):
         for input_name in self.inputs.keys():
             event[f"particle_{input_name}_valid"] = event[f"particle_{input_name}_valid"] & event["particle_valid"][:, np.newaxis]
 
+        # Do truth hit filtering if specified
+        for input_name in self.truth_filter_hits:
+            # Get hits that have no valid particles on them
+            mask = event[f"particle_{input_name}_valid"].sum(-2) > 0
+            
+            # First drop noise hits from inputs
+            for field in self.inputs[input_name]:
+                event[f"{input_name}.{field}"] = event[f"{input_name}.{field}"][mask]
+            
+            # Also drop noise hits from the target masks
+            if f"particle_{input_name}" in self.targets:
+                event[f"particle_{input_name}_valid"] = event[f"particle_{input_name}_valid"][:, mask]
+
         # Pick out the inputs that have actually been requested
         inputs = {}
         for input_name, fields in self.inputs.items():

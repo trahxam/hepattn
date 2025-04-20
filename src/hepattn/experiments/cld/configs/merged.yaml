@@ -1,4 +1,4 @@
-name: CLD_25_256_test
+name: CLD_10_256_charged_tf
 
 data:
   # Paths to preprocessed data directories
@@ -15,7 +15,7 @@ data:
   batch_size: 10
 
   # Minimum pT for a particle to be deemed reconstructve in GeV
-  particle_min_pt: 0.1
+  particle_min_pt: 0.5
 
   # Number of query slots / particles to generate per event
   event_max_num_particles: &num_particles 256
@@ -24,6 +24,9 @@ data:
     sihit: 8
   charged_particle_max_num_hits:
     sihit: 20
+
+  include_charged: true
+  include_neutral: false
 
   truth_filter_hits:
     - sihit
@@ -150,8 +153,10 @@ trainer:
   precision: bf16-mixed
   log_every_n_steps: 10
   default_root_dir: logs
-  # gradient_clip_val: 0.1
+  gradient_clip_val: 0.1
+  accumulate_grad_batches: 1
   enable_progress_bar: True
+
 
   # Specify loggers here
   logger:
@@ -174,6 +179,7 @@ trainer:
         write_losses: false
     - class_path: lightning.pytorch.callbacks.ModelSummary
     - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+    - class_path: lightning.pytorch.callbacks.DeviceStatsMonitor
     - class_path: lightning.pytorch.callbacks.TQDMProgressBar
       init_args:
         refresh_rate: 50
