@@ -90,10 +90,10 @@ class ObjectValidTask(Task):
 
     def predict(self, outputs, threshold=0.5):
         # Objects that have a predicted probability aove the threshold are marked as predicted to exist
-        return {self.output_object + "_valid": outputs[self.output_object + "_logit"].sigmoid() >= threshold}
+        return {self.output_object + "_valid": outputs[self.output_object + "_logit"].detach().sigmoid() >= threshold}
 
     def cost(self, outputs, targets):
-        output = outputs[self.output_object + "_logit"]
+        output = outputs[self.output_object + "_logit"].detach()
         target = targets[self.target_object + "_valid"].type_as(output)
         costs = {}
         for cost_fn, cost_weight in self.costs.items():
@@ -140,7 +140,7 @@ class HitFilterTask(Task):
         return {f"{self.hit_name}_logit": x_logit.squeeze(-1)}
 
     def predict(self, outputs: dict) -> dict:
-        return {f"{self.hit_name}_{self.target_field}": outputs[f"{self.hit_name}_logit"].sigmoid() >= self.threshold}
+        return {f"{self.hit_name}_{self.target_field}": outputs[f"{self.hit_name}_logit"].detach().sigmoid() >= self.threshold}
 
     def loss(self, outputs: dict, targets: dict) -> dict:
         # Pick out the field that denotes whether a hit is on a reconstructable object or not
@@ -208,10 +208,10 @@ class ObjectHitMaskTask(Task):
 
     def predict(self, outputs, threshold=0.5):
         # Object-hit pairs that have a predicted probability above the threshold are predicted as being associated to one-another
-        return {self.output_object_hit + "_valid": outputs[self.output_object_hit + "_logit"].sigmoid() >= threshold}
+        return {self.output_object_hit + "_valid": outputs[self.output_object_hit + "_logit"].detach().sigmoid() >= threshold}
 
     def cost(self, outputs, targets):
-        output = outputs[self.output_object_hit + "_logit"]
+        output = outputs[self.output_object_hit + "_logit"].detach()
         target = targets[self.target_object_hit + "_valid"].type_as(output)
 
         costs = {}
