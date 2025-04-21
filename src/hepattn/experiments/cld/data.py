@@ -23,6 +23,8 @@ class CLDDataset(Dataset):
         charged_particle_max_num_hits: dict[str, int] = {},
         neutral_particle_min_num_hits: dict[str, int] = {},
         neutral_particle_max_num_hits: dict[str, int] = {},
+        particle_max_hit_deflection_deta: dict[str, float] = {},
+        particle_max_hit_deflection_dphi: dict[str, float] = {},
         truth_filter_hits: list[str] = [],
         event_max_num_particles: int = 256,
         random_seed: int = 42,
@@ -41,6 +43,8 @@ class CLDDataset(Dataset):
         self.charged_particle_max_num_hits = charged_particle_max_num_hits
         self.neutral_particle_min_num_hits = neutral_particle_min_num_hits
         self.neutral_particle_max_num_hits = neutral_particle_max_num_hits
+        self.particle_max_hit_deflection_deta = particle_max_hit_deflection_deta
+        self.particle_max_hit_deflection_dphi = particle_max_hit_deflection_dphi
         self.truth_filter_hits = truth_filter_hits
         self.event_max_num_particles = event_max_num_particles
         self.random_seed = random_seed
@@ -153,10 +157,10 @@ class CLDDataset(Dataset):
         particle_cuts = {"min_pt": event["particle.vtx.mom.r"] >= self.particle_min_pt}
 
         if not self.include_charged:
-            particle_cuts["notCharged"] = ~event["particle.isCharged"]
+            particle_cuts["not_charged"] = ~event["particle.isCharged"]
 
         if not self.include_neutral:
-            particle_cuts["notNeutral"] = ~event["particle.isNeutral"]
+            particle_cuts["not_neutral"] = ~event["particle.isNeutral"]
 
         # Now we have built the masks, we can apply hit/counting based cuts
         for hit_name, min_num_hits in self.charged_particle_min_num_hits.items():
@@ -170,6 +174,28 @@ class CLDDataset(Dataset):
 
         for hit_name, max_num_hits in self.neutral_particle_max_num_hits.items():
             particle_cuts[f"neutral_max_{hit_name}"] = ~(event["particle.isNeutral"] & (event[f"particle_{hit_name}_valid"].sum(-1) > max_num_hits))
+        
+        # Apply hit deflection based cuts
+        # If two hits that are subsequent in time have a difference in eta/phi larger than some maximum,
+        # then any particles on this hit are cut
+        for hit_name, max_deta in self.particle_max_hit_deflection_deta.items():
+            mask = event[f"particle_{hit_name}_valid"]
+            eta = np.ma.masked_array(mask * event[f"{hit_name}.pos.eta"][..., None, :], mask=~mask)        
+            time = np.ma.masked_array(mask * event[f"{hit_name}.time"][..., None, :], mask=~mask)
+            idx = np.ma.argsort(time, axis=-1)
+            eta_sorted = np.take_along_axis(eta, idx, axis=-1)
+            deta = np.ma.diff(eta_sorted, axis=-1)
+            particle_cuts[f"hit_deflection_eta"] = np.ma.all(np.abs(deta) < max_deta, axis=-1)
+
+        # Now also apply the hit deflection cut in phi
+        for hit_name, max_dphi in self.particle_max_hit_deflection_dphi.items():
+            mask = event[f"particle_{hit_name}_valid"]
+            phi = np.ma.masked_array(mask * event[f"{hit_name}.pos.phi"][..., None, :], mask=~mask)        
+            time = np.ma.masked_array(mask * event[f"{hit_name}.time"][..., None, :], mask=~mask)
+            idx = np.ma.argsort(time, axis=-1)
+            phi_sorted = np.take_along_axis(phi, idx, axis=-1)
+            dphi = np.ma.diff(phi_sorted, axis=-1)
+            particle_cuts[f"hit_deflection_phi"] = np.ma.all(np.abs(dphi) < max_dphi, axis=-1)
 
         # Apply the particle cuts
         for cut_name, cut_mask in particle_cuts.items():
@@ -181,8 +207,9 @@ class CLDDataset(Dataset):
 
         # Do truth hit filtering if specified
         for input_name in self.truth_filter_hits:
-            # Get hits that have no valid particles on them
-            mask = event[f"particle_{input_name}_valid"].sum(-2) > 0
+            
+            # Get hits that are not noise
+            mask = event[f"particle_{input_name}_valid"].any(-2)
             
             # First drop noise hits from inputs
             for field in self.inputs[input_name]:
@@ -191,6 +218,11 @@ class CLDDataset(Dataset):
             # Also drop noise hits from the target masks
             if f"particle_{input_name}" in self.targets:
                 event[f"particle_{input_name}_valid"] = event[f"particle_{input_name}_valid"][:, mask]
+
+        # Check that there are no noise hits if we specified this
+        for input_name in self.truth_filter_hits:
+            if f"particle_{input_name}" in self.targets:
+                assert np.all(event[f"particle_{input_name}_valid"].sum(-2) > 0)
 
         # Pick out the inputs that have actually been requested
         inputs = {}
@@ -226,6 +258,7 @@ class CLDDataset(Dataset):
             for field in fields:
                 targets_out[f"{target_name}_{field}"] = torch.from_numpy(targets[f"{target_name}_{field}"]).half().unsqueeze(0)
 
+
         return inputs_out, targets_out
 
 
@@ -240,6 +273,7 @@ def pad_to_size(x: torch.Tensor, d: tuple, value) -> torch.Tensor:
     Returns:
         torch.Tensor: Padded tensor with shape == d.
     """
+    print(x.shape, d, "kdkdkdk")
     if len(d) != x.dim():
         raise ValueError(f"Target size must match input tensor dimensions: {x.shape} vs {d}")
 
@@ -250,10 +284,13 @@ def pad_to_size(x: torch.Tensor, d: tuple, value) -> torch.Tensor:
             raise ValueError(f"Cannot pad dimension {i} from {x.size(i)} to {d[i]} (target smaller than current).")
         padding.extend([0, pad_len])  # (left, right) padding — pad only on the right
 
+    
+
     return F.pad(x, padding, value=value)
 
 
 def pad_and_concat(items, target_size, pad_value):
+    
     return torch.cat([pad_to_size(item, (1,) + target_size, pad_value) for item in items], dim=0)
 
 
@@ -284,6 +321,7 @@ class CLDCollator:
                 batched_inputs[k] = pad_and_concat([i[k] for i in inputs], (hit_max_sizes[input_name],), 0.0)
 
         for target_name, fields in self.dataset_targets.items():
+            print(target_name)
             if target_name == "particle":
                 size = (self.max_num_obj,)
             else:
