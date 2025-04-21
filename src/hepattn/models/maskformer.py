@@ -111,6 +111,8 @@ class MaskFormer(nn.Module):
             outputs[f"layer_{layer_index}"] = {}
 
             attn_masks = {}
+            query_mask = None
+
             for task in self.tasks:
                 # Get the outputs of the task given the current embeddings and record them
                 task_outputs = task(x)
@@ -133,6 +135,15 @@ class MaskFormer(nn.Module):
                         attn_masks[input_name] = attn_masks[input_name] | attn_mask
                     else:
                         attn_masks[input_name] = attn_mask
+                
+                # Now do same but for query masks
+                task_query_mask = task.query_mask(task_outputs)
+
+                if task_query_mask is not None:
+                    if query_mask is not None:
+                        query_mask = query_mask | task_query_mask
+                    else:
+                        query_mask = task_query_mask
 
             # Fill in attention masks for features that did not get one specified by any task
             if attn_masks:
@@ -146,7 +157,7 @@ class MaskFormer(nn.Module):
                 attn_mask = None
 
             # Update the keys and queries
-            x["query_embed"], x["key_embed"] = decoder_layer(x["query_embed"], x["key_embed"], attn_mask=attn_mask, kv_mask=x.get("key_valid"))
+            x["query_embed"], x["key_embed"] = decoder_layer(x["query_embed"], x["key_embed"], attn_mask=attn_mask, q_mask=query_mask, kv_mask=x.get("key_valid"))
 
             # Unmerge the updated features back into the separate input types
             for input_name in input_names:

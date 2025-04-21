@@ -52,8 +52,8 @@ class MaskFormerDecoderLayer(nn.Module):
             attn_mask = None
 
         # Update query/object embeddings with the key/hit embeddings
-        q = self.q_ca(q, k=kv, v=kv, attn_mask=attn_mask, kv_mask=kv_mask)
-        q = self.q_sa(q)
+        q = self.q_ca(q, k=kv, v=kv, attn_mask=attn_mask, q_mask=q_mask, kv_mask=kv_mask)
+        q = self.q_sa(q, q_mask=q_mask)
         q = self.q_dense(q)
 
         # Update key/hit embeddings with the query/object embeddings
@@ -62,7 +62,7 @@ class MaskFormerDecoderLayer(nn.Module):
                 # Index from the back so we are batch shape agnostic
                 attn_mask = attn_mask.transpose(-2, -1)
 
-            kv = self.kv_ca(kv, k=q, v=q, attn_mask=attn_mask, kv_mask=q_mask)
+            kv = self.kv_ca(kv, k=q, v=q, attn_mask=attn_mask, q_mask=kv_mask, kv_mask=q_mask)
             kv = self.kv_dense(kv)
 
         return q, kv

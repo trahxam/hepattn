@@ -28,6 +28,12 @@ class Task(nn.Module, ABC):
 
     def attn_mask(self, outputs, **kwargs):
         return {}
+    
+    def key_mask(self, outputs, **kwargs):
+        return {}
+    
+    def query_mask(self, outputs, **kwargs):
+        return None
 
 
 class ObjectValidTask(Task):
@@ -41,6 +47,7 @@ class ObjectValidTask(Task):
         costs: dict[str, float],
         dim: int,
         null_weight: float = 1.0,
+        mask_queries: bool = False,
     ):
         """Task used for classifying whether object candidates / seeds should be
         taken as reconstructed / pred objects or not.
@@ -77,6 +84,7 @@ class ObjectValidTask(Task):
         self.costs = costs
         self.dim = dim
         self.null_weight = null_weight
+        self.mask_queries = mask_queries
 
         # Internal
         self.inputs = [input_object + "_embed"]
@@ -111,6 +119,12 @@ class ObjectValidTask(Task):
         for loss_fn, loss_weight in self.losses.items():
             losses[loss_fn] = loss_weight * loss_fns[loss_fn](output, target, mask=None, weight=weight)
         return losses
+    
+    def query_mask(self, outputs, threshold=0.1):
+        if not self.mask_queries:
+            return None
+        
+        return outputs[self.output_object + "_logit"].detach().sigmoid() >= threshold
 
 
 class HitFilterTask(Task):
@@ -121,6 +135,7 @@ class HitFilterTask(Task):
         target_field: str,
         dim: int,
         threshold: float = 0.1,
+        mask_keys: bool = False,
     ):
         """Task used for classifying whether hits belong to reconstructable objects or not."""
         super().__init__()
@@ -130,6 +145,7 @@ class HitFilterTask(Task):
         self.target_field = target_field
         self.dim = dim
         self.threshold = threshold
+        self.mask_keys = mask_keys
 
         # Internal
         self.input_objects = [f"{hit_name}_embed"]
@@ -151,6 +167,12 @@ class HitFilterTask(Task):
         weight = 1 / target.float().mean()
         loss = nn.functional.binary_cross_entropy_with_logits(output, target, pos_weight=weight)
         return {f"{self.hit_name}_bce": loss}
+    
+    def key_mask(self, outputs, threshold=0.1):
+        if not self.mask_keys:
+            return {}
+        
+        return {self.hit_name: outputs[f"{self.hit_name}_logit"].detach().sigmoid() >= threshold}
 
 
 class ObjectHitMaskTask(Task):
@@ -165,6 +187,7 @@ class ObjectHitMaskTask(Task):
         costs: dict[str, float],
         dim: int,
         null_weight: float = 1.0,
+        mask_attn: bool = True,
     ):
         super().__init__()
 
@@ -177,6 +200,7 @@ class ObjectHitMaskTask(Task):
         self.costs = costs
         self.dim = dim
         self.null_weight = null_weight
+        self.mask_attn = mask_attn
 
         self.output_object_hit = output_object + "_" + input_hit
         self.target_object_hit = target_object + "_" + input_hit
@@ -199,9 +223,13 @@ class ObjectHitMaskTask(Task):
         return {self.output_object_hit + "_logit": object_hit_logit}
 
     def attn_mask(self, outputs, threshold=0.1):
-        attn_mask = outputs[self.output_object_hit + "_logit"].detach().sigmoid() > threshold
+        if not self.mask_attn:
+            return {}
+        
+        attn_mask = outputs[self.output_object_hit + "_logit"].detach().sigmoid() >= threshold
 
         # If the attn mask is completely padded for a given entry, unpad it - tested and is required (?)
+        # TODO: See if the query masking stops this from being necessary
         attn_mask[torch.where(torch.all(attn_mask, dim=-1))] = False
 
         return {self.input_hit: attn_mask}
