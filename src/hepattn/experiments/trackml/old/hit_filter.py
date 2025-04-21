@@ -41,7 +41,7 @@ class HitFilter(LightningModule):
         params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         self.logger.log_hyperparams({"trainable_params": params})
 
-    def forward(self, x, labels=None, timing=False):  # noqa: ARG002
+    def forward(self, x, labels=None, timing=False):
         if self.pos_enc:
             pe = self.pos_enc(x)
 

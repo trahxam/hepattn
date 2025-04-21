@@ -355,7 +355,7 @@ def prep_event(events, event_idx, namecodes, min_pt, verbose):
         cut_mask = particle_cuts[cut_name]
         cut_size = np.sum(cut_mask)
         pre_cut_size = np.sum(particle_cut_final)
-        particle_cut_final = particle_cut_final & cut_mask
+        particle_cut_final &= cut_mask
         post_cut_size = np.sum(particle_cut_final)
 
         if verbose:
@@ -412,8 +412,8 @@ def prep_event(events, event_idx, namecodes, min_pt, verbose):
 
     # Apply the alias map
     data_out_aliased = {}
-    for key in data_out:
-        data_out_aliased[key_alias_map[key]] = data_out[key]
+    for key, value in data_out:
+        data_out_aliased[key_alias_map[key]] = value
 
     data_out = ak.Array({key: [value] for key, value in data_out_aliased.items()})
 
@@ -461,7 +461,7 @@ def preprocess(
             namecodes[name] = code
 
         # Get the event numbers that will be used to identify each event
-        events_key = [k for k in file.keys() if "events" in k][0]
+        events_key = next(k for k in file if "events" in k)
         events = file[events_key]
         event_numbers = ak.to_numpy(ak.flatten(events["EventHeader/EventHeader.eventNumber"].array()))
 

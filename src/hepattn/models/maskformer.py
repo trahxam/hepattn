@@ -55,7 +55,7 @@ class MaskFormer(nn.Module):
         self.input_sort_field = input_sort_field
         self.record_intermediate_embeddings = record_intermediate_embeddings
 
-    def forward(self, inputs: dict[str, Tensor]) -> dict[str, Tensor]:  # noqa: C901, PLR0912
+    def forward(self, inputs: dict[str, Tensor]) -> dict[str, Tensor]:
         # Atomic input names
         input_names = [input_net.input_name for input_net in self.input_nets]
 
@@ -91,9 +91,7 @@ class MaskFormer(nn.Module):
         # Pass merged input hits through the encoder
         if self.encoder is not None:
             # Note that a padded feature is a feature that is not valid!
-            x["key_embed"] = self.encoder(x["key_embed"], 
-                                          x_sort_value=x.get(f"key_{self.input_sort_field}"), 
-                                          kv_mask=x.get("key_valid"))
+            x["key_embed"] = self.encoder(x["key_embed"], x_sort_value=x.get(f"key_{self.input_sort_field}"), kv_mask=x.get("key_valid"))
 
         # Unmerge the updated features back into the separate input types
         # These are just views into the tensor that old all the merged hits
@@ -132,18 +130,15 @@ class MaskFormer(nn.Module):
                     # so we only mask if both the existing and new attention mask are masked, which means a slot is valid if
                     # either current or new mask is valid
                     if input_name in attn_masks:
-                        attn_masks[input_name] = attn_masks[input_name] | attn_mask
+                        attn_masks[input_name] |= attn_mask
                     else:
                         attn_masks[input_name] = attn_mask
-                
+
                 # Now do same but for query masks
                 task_query_mask = task.query_mask(task_outputs)
 
                 if task_query_mask is not None:
-                    if query_mask is not None:
-                        query_mask = query_mask | task_query_mask
-                    else:
-                        query_mask = task_query_mask
+                    query_mask = query_mask | task_query_mask if query_mask is not None else task_query_mask
 
             # Fill in attention masks for features that did not get one specified by any task
             if attn_masks:
@@ -157,7 +152,9 @@ class MaskFormer(nn.Module):
                 attn_mask = None
 
             # Update the keys and queries
-            x["query_embed"], x["key_embed"] = decoder_layer(x["query_embed"], x["key_embed"], attn_mask=attn_mask, q_mask=query_mask, kv_mask=x.get("key_valid"))
+            x["query_embed"], x["key_embed"] = decoder_layer(
+                x["query_embed"], x["key_embed"], attn_mask=attn_mask, q_mask=query_mask, kv_mask=x.get("key_valid")
+            )
 
             # Unmerge the updated features back into the separate input types
             for input_name in input_names:

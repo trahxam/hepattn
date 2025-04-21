@@ -185,8 +185,8 @@ class TrackMLDataset(Dataset):
         # Check that all hits have different phi
         # This is necessary as the fast sorting algorithm used by pytorch can be non-stable
         # if two values are equal, which could cause subtle bugs
-        # msg = f"Only {hits['phi'].nunique()} of the {len(hits)} have unique phi"
-        # assert hits["phi"].nunique() == len(hits), msg
+        # msg = f"Only {hits['phi'].nunique()} of the {len(hits)} have unique phi" # noqa: ERA001
+        # assert hits["phi"].nunique() == len(hits), msg # noqa: ERA001
 
         return hits, particles
 
@@ -255,7 +255,7 @@ class TrackMLDataModule(LightningDataModule):
             )
             print(f"Created test dataset with {len(self.test_dataset):,} events")
 
-    def get_dataloader(self, stage: str, dataset: TrackMLDataset, shuffle: bool):  # noqa: ARG002
+    def get_dataloader(self, stage: str, dataset: TrackMLDataset, shuffle: bool):
         return DataLoader(
             dataset=dataset,
             batch_size=None,

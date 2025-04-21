@@ -28,10 +28,10 @@ class Task(nn.Module, ABC):
 
     def attn_mask(self, outputs, **kwargs):
         return {}
-    
+
     def key_mask(self, outputs, **kwargs):
         return {}
-    
+
     def query_mask(self, outputs, **kwargs):
         return None
 
@@ -119,11 +119,11 @@ class ObjectValidTask(Task):
         for loss_fn, loss_weight in self.losses.items():
             losses[loss_fn] = loss_weight * loss_fns[loss_fn](output, target, mask=None, weight=weight)
         return losses
-    
+
     def query_mask(self, outputs, threshold=0.1):
         if not self.mask_queries:
             return None
-        
+
         return outputs[self.output_object + "_logit"].detach().sigmoid() >= threshold
 
 
@@ -167,11 +167,11 @@ class HitFilterTask(Task):
         weight = 1 / target.float().mean()
         loss = nn.functional.binary_cross_entropy_with_logits(output, target, pos_weight=weight)
         return {f"{self.hit_name}_bce": loss}
-    
+
     def key_mask(self, outputs, threshold=0.1):
         if not self.mask_keys:
             return {}
-        
+
         return {self.hit_name: outputs[f"{self.hit_name}_logit"].detach().sigmoid() >= threshold}
 
 
@@ -225,7 +225,7 @@ class ObjectHitMaskTask(Task):
     def attn_mask(self, outputs, threshold=0.1):
         if not self.mask_attn:
             return {}
-        
+
         attn_mask = outputs[self.output_object_hit + "_logit"].detach().sigmoid() >= threshold
 
         # If the attn mask is completely padded for a given entry, unpad it - tested and is required (?)
@@ -268,221 +268,3 @@ class ObjectHitMaskTask(Task):
             loss = loss_fns[loss_fn](output, target, mask=object_hit_mask, weight=weight)
             losses[loss_fn] = loss_weight * loss
         return losses
-
-
-class RegressionTask(Task):
-    def __init__(
-        self,
-        name: str,
-        output_object: str,
-        target_object: str,
-        fields: list[str],
-        loss_weight: float,
-    ):
-        super().__init__()
-
-        self.name = name
-        self.output_object = output_object
-        self.target_object = target_object
-        self.fields = fields
-        self.loss_weight = loss_weight
-        self.k = len(fields)
-        # For standard regression number of DoFs is just the number of targets
-        self.ndofs = self.k
-
-    def forward(self, x: dict[str, Tensor], pads: None | dict[str, Tensor] = None) -> dict[str, Tensor]:
-        # For a standard regression task, the raw network output is the final prediction
-        latent = self.latent(x, pads=pads)
-        return {self.output_object + "_regr": latent}
-
-    def predict(self, outputs):
-        # Split the regression vectior into the separate fields
-        latent = outputs[self.output_object + "_regr"]
-        return {self.output_object + "_" + field: latent[..., i] for i, field in enumerate(self.fields)}
-
-    def loss(self, outputs, data):
-        targets = torch.stack([data[self.target_object + "_" + field] for field in self.fields], dim=-1)
-        loss = torch.nn.functional.smooth_l1_loss(outputs[self.output_object + "_regr"], targets, reduction="none")
-
-        # Compute average loss over all the features
-        loss = torch.mean(loss, dim=-1)
-        # Compute the regression loss only for valid objects
-        loss = loss[data[self.target_object + "_valid"]]
-        # Take the average loss and apply the task weight
-        return {"smooth_l1": self.loss_weight * loss.mean()}
-
-    def metrics(self, preds, data):
-        metrics = {}
-        for field in self.fields:
-            # Get the error between the prediction and target for this field
-            err = preds[self.output_object + "_" + field] - data[self.target_object + "_" + field]
-            # Select the error only for valid objects
-            err = err[data[self.target_object + "_valid"]]
-            # Compute the RMSE and log it
-            metrics[field + "_rmse"] = torch.sqrt(torch.mean(torch.square(err)))
-
-        return metrics
-
-
-class GaussianRegressionTask(Task):
-    def __init__(
-        self,
-        name: str,
-        output_object: str,
-        target_object: str,
-        fields: list[str],
-        loss_weight: float,
-    ):
-        super().__init__()
-
-        self.name = name
-        self.output_object = output_object
-        self.target_object = target_object
-        self.fields = fields
-        self.loss_weight = loss_weight
-        self.k = len(fields)
-        # For multivaraite gaussian case we have extra DoFs from the variance and covariance terms
-        self.ndofs = self.k + int(self.k * (self.k + 1) / 2)
-
-    def forward(self, x: dict[str, Tensor], pads: None | dict[str, Tensor] = None) -> dict[str, Tensor]:
-        latent = self.latent(x, pads=pads)
-        k = self.k
-        triu_idx = torch.triu_indices(k, k, device=latent.device)
-
-        # Mean vector
-        mu = latent[..., :k]
-        # Upper-diagonal Cholesky decomposition of the precision matrix
-        U = torch.zeros(latent.size()[:-1] + torch.Size((k, k)), device=latent.device)
-        U[..., triu_idx[0, :], triu_idx[1, :]] = latent[..., k:]
-
-        Ubar = U.clone()
-        # Make sure the diagonal entries are positive (as variance is always positive)
-        Ubar[..., torch.arange(k), torch.arange(k)] = torch.exp(U[..., torch.arange(k), torch.arange(k)])
-
-        return {self.output_object + "_mu": mu, self.output_object + "_U": U, self.output_object + "_Ubar": Ubar}
-
-    def predict(self, outputs):
-        preds = outputs
-        Ubar = outputs[self.target_object + "_Ubar"]
-
-        # Calculate the precision matrix
-        precs = torch.einsum("...kj,...kl->...jl", Ubar, Ubar)
-
-        # Get the predicted mean for each field
-        for i, field in enumerate(self.fields):
-            preds[self.output_object + "_" + field] = mu[..., i]
-
-        # Get the predicted precision for each field and the predicted covariance / coprecision
-        for i, field_i in enumerate(self.field):
-            for j, field_j in enumerate(self.fields):
-                if i > j:
-                    continue
-                preds[field_i + "_" + field_j + "_prec"] = precs[..., i, j]
-
-        return preds
-
-    def loss(self, outputs, data):
-        targets = torch.stack([data[self.target_object + "_" + field] for field in self.fields], dim=-1)
-
-        # Compute the standardised score vector between the targets and the predicted distribution paramaters
-        z = torch.einsum("...ij,...j->...i", outputs[self.output_object + "_Ubar"], targets - outputs[self.output_object + "_mu"])
-        # Compute the NLL from the score vector
-        zsq = torch.einsum("...i,...i->...", z, z)
-        jac = torch.sum(torch.diagonal(outputs[self.output_object + "_U"], offset=0, dim1=-2, dim2=-1), dim=-1)
-        nll = -0.5 * zsq + jac
-
-        # Only compute NLL for valid objects or object-hit pairs
-        nll = nll[data[self.target_object + "_valid"]]
-        # Take the average and apply the task weight
-        nll = -self.loss_weight * nll.mean()
-
-        return {"nll": nll}
-
-    def metrics(self, preds, data):
-        targets = torch.stack([data[self.target_object + "_" + field] for field in self.fields], dim=-1)
-        errors = targets - preds[self.name + "_mu"]
-
-        # Project back to the standard normal
-        z = torch.einsum("...ij,...j->...i", preds[self.name + "_Ubar"], errors)
-
-        # Select only values that havea valid target
-        valid_mask = data[self.target_object + "_valid"]
-
-        metrics = {}
-        for i, field in enumerate(self.fields):
-            metrics[field + "_rmse"] = torch.sqrt(torch.mean(torch.square(errors[..., i][valid_mask])))
-            # The mean and standard deviation of the pulls to check predictions are calibrated
-            metrics[field + "_pull_mean"] = torch.mean(z[..., i][valid_mask])
-            metrics[field + "_pull_std"] = torch.std(z[..., i][valid_mask])
-
-        return metrics
-
-
-class ObjectRegressionTask(RegressionTask):
-    def __init__(
-        self,
-        name: str,
-        input_object: str,
-        output_object: str,
-        target_object: str,
-        fields: list[str],
-        loss_weight: float,
-        embed_dim: int,
-    ):
-        super().__init__(name, output_object, target_object, fields, loss_weight)
-
-        self.input_object = input_object
-
-        self.input_objects = [input_object + "_embed"]
-        self.output_objects = [output_object + "_regr"]
-        self.embed_dim = embed_dim
-        self.net = Dense(self.embed_dim, self.ndofs)
-
-    def latent(self, x: dict[str, Tensor], pads: None | dict[str, Tensor] = None) -> Tensor:
-        return self.net(x[self.input_object + "_embed"])
-
-
-class ObjectHitRegressionTask(RegressionTask):
-    def __init__(
-        self,
-        name: str,
-        input_object: str,
-        input_hit: str,
-        output_object_hit: str,
-        target_object_hit: str,
-        fields: list[str],
-        loss_weight: float,
-        embed_dim: int,
-    ):
-        super().__init__(name, output_object_hit, target_object_hit, fields, loss_weight)
-
-        self.input_object = input_object
-        self.input_hit = input_hit
-
-        self.input_objects = [input_object + "_embed", input_hit + "_embed"]
-        self.output_objects = [output_object_hit + "_regr"]
-
-        # The embedding dimension is split up equally between each degree of freedom
-        self.embed_dim = embed_dim
-        self.embed_dim_per_dof = self.embed_dim // self.ndofs
-        self.object_net = Dense(self.embed_dim, self.embed_dim_per_dof * self.ndofs)
-        self.hit_net = Dense(self.embed_dim, self.embed_dim_per_dof * self.ndofs)
-
-    def latent(self, x: dict[str, Tensor], pads: None | dict[str, Tensor] = None) -> Tensor:
-        # Embed the hits and objects and reshape so we have a separate embedding for each DoF
-        x_object = self.object_net(x[self.input_object + "_embed"])
-        x_hit = self.hit_net(x[self.input_hit + "_embed"])
-
-        x_object = x_object.reshape(x_object.size()[:-1] + torch.Size((self.ndofs, self.embed_dim_per_dof)))  # Shape BNDE
-        x_hit = x_hit.reshape(x_hit.size()[:-1] + torch.Size((self.ndofs, self.embed_dim_per_dof)))  # Shape BMDE
-
-        # Take the dot product between the hits and objects over the last embedding dimension so we are left
-        # with just a scalar for each degree of freedom
-        x_object_hit = torch.einsum("...nie,...mie->...nmi", x_object, x_hit)  # Shape BNMD
-
-        # If padding data is provided, use it to zero out predictions for any hit slots that are not valid
-        if pads is not None:
-            # Shape of padding goes BM -> B1M -> B1M1 -> BNMD
-            pad = pads[self.input_hit + "_valid"].unsqueeze(-2).unsqueeze(-1).expand_as(x_object_hit).as_type(x_object_hit)
-            x_object_hit = x_object_hit * pad
-        return x_object_hit

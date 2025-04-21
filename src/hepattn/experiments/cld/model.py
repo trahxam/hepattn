@@ -40,8 +40,8 @@ class CLDReconstructor(ModelWrapper):
             true_hit_masks = targets[f"particle_{hit}_valid"][0]
 
             # Mask out hits that are not on a valid object slot
-            pred_hit_masks = pred_hit_masks & pred_valid.unsqueeze(-1)
-            true_hit_masks = true_hit_masks & true_valid.unsqueeze(-1)
+            pred_hit_masks &= pred_valid.unsqueeze(-1)
+            true_hit_masks &= true_valid.unsqueeze(-1)
 
             # Calculate the true/false positive rates between the predicted and true masks
             # Number of hits that were correctly assigned to the flow

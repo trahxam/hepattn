@@ -1,8 +1,8 @@
 import torch
-from torch.nn.functional import scaled_dot_product_attention
 from flash_attn import flash_attn_func, flash_attn_varlen_func
 from torch import BoolTensor, Size, Tensor, nn
 from torch.nn.attention.flex_attention import BlockMask, _score_mod_signature, flex_attention
+from torch.nn.functional import scaled_dot_product_attention
 
 from hepattn.models.norm import LayerNorm
 
@@ -62,10 +62,7 @@ def merge_masks(
 
     # If attention mask exists then it must be included
     if attn_mask is not None:
-        if merged_mask is not None:
-            merged_mask = attn_mask & merged_mask
-        else:
-            merged_mask = attn_mask
+        merged_mask = attn_mask & merged_mask if merged_mask is not None else attn_mask
 
     return merged_mask
 
@@ -233,16 +230,16 @@ class Attention(nn.Module):
             kv_lens = (kv_mask).sum(dim=1, dtype=torch.int32)
 
             # q has shape (B, S, H, Dh)
-            H = q.shape[-2]
-            Dh = q.shape[-1]
-            B = q.shape[0]
+            num_heads = q.shape[-2]
+            dim_head = q.shape[-1]
+            batch_size = q.shape[0]
 
             max_seqlen_q = q.shape[-3]
             max_seqlen_k = k.shape[-3]
 
-            q_flat = q[q_mask].reshape(-1, H, Dh)
-            k_flat = k[kv_mask].reshape(-1, H, Dh)
-            v_flat = v[kv_mask].reshape(-1, H, Dh)
+            q_flat = q[q_mask].reshape(-1, num_heads, dim_head)
+            k_flat = k[kv_mask].reshape(-1, num_heads, dim_head)
+            v_flat = v[kv_mask].reshape(-1, num_heads, dim_head)
 
             cu_seqlens_q = torch.nn.functional.pad(q_lens.cumsum(dim=0, dtype=torch.int32), (1, 0))
             cu_seqlens_k = torch.nn.functional.pad(kv_lens.cumsum(dim=0, dtype=torch.int32), (1, 0))
@@ -259,7 +256,7 @@ class Attention(nn.Module):
             )
 
             # Reshape to (B, S, H, Dh)
-            out = out.reshape(B, max_seqlen_q, H, Dh)
+            out = out.reshape(batch_size, max_seqlen_q, num_heads, dim_head)
 
         else:
             raise ValueError(f"Invalid attention type: {self.attn_type}")

@@ -36,11 +36,11 @@ data:
       - ite
       - otb
       - ote
-    
+
     ecal:
       - ecb
       - ece
-    
+
     hcal:
       - hcb
       - hce
@@ -67,7 +67,7 @@ data:
       - v.b
       - du
       - dv
-    
+
     # Vtx detector endcap hits
     vte:
       - type
@@ -88,7 +88,7 @@ data:
       - v.b
       - du
       - dv
-    
+
     # Inner tracker barrel hits
     itb:
       - type
@@ -109,7 +109,7 @@ data:
       - v.b
       - du
       - dv
-    
+
     # Inner tracker endcap hits
     ite:
       - type
@@ -130,7 +130,7 @@ data:
       - v.b
       - du
       - dv
-    
+
     # Outer tracker barrel hits
     otb:
       - type
@@ -151,7 +151,7 @@ data:
       - v.b
       - du
       - dv
-    
+
     # Outer tracker endcap hits
     ote:
       - type
@@ -186,7 +186,7 @@ data:
       - energy
       - energyError
       - time
-    
+
     # Electromagnetic calorimeter endcap hits
     ece:
       - type
@@ -200,7 +200,7 @@ data:
       - energy
       - energyError
       - time
-    
+
     # Hadronic calorimeter barrel hits
     hcb:
       - type
@@ -214,7 +214,7 @@ data:
       - energy
       - energyError
       - time
-    
+
     # Hadronic calorimeter endcap hits
     hce:
       - type
@@ -228,23 +228,9 @@ data:
       - energy
       - energyError
       - time
-    
+
     # Hadronic calorimeter ring hits (I think?)
     hco:
-      - type
-      - pos.x
-      - pos.y
-      - pos.z
-      - pos.s
-      - pos.r
-      - pos.eta
-      - pos.phi
-      - energy
-      - energyError
-      - time
-
-    # Muon hits
-    muon:
       - type
       - pos.x
       - pos.y
@@ -289,7 +275,7 @@ data:
       - energy
       - energyError
       - time
-    
+
     hcal:
       - type
       - pos.x
@@ -359,7 +345,7 @@ data:
     particle_ecb: []
 
     particle_ece: []
-    
+
     particle_ecal: []
 
     particle_hcb: []
@@ -371,7 +357,7 @@ data:
     particle_hcal: []
 
     particle_muon: []
-    
+
 # Training stuff here
 trainer:
   max_epochs: 25
@@ -418,7 +404,7 @@ model:
     pct_start: 0.01
     skip_scheduler: false
     weight_decay: 1e-5
-  
+
   mtl: false
 
   model:
@@ -429,7 +415,7 @@ model:
       input_sort_field: pos.phi
 
       record_intermediate_embeddings: false
-      
+
       input_nets:
         class_path: torch.nn.ModuleList
         init_args:
@@ -597,7 +583,7 @@ model:
                   #mask_focal: 50.0
                 dim: *dim
                 null_weight: 1.0
-            
+
             - class_path: hepattn.models.task.ObjectHitMaskTask
               init_args:
                 name: flow_hcal_assignment

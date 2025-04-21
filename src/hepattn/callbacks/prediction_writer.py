@@ -44,11 +44,11 @@ class PredictionWriter(Callback):
         split = self.dataset.dirpath.name
         return Path(out_dir / f"{out_basename}_{split}_eval.h5")
 
-    def on_test_start(self, trainer: Trainer, module: LightningModule) -> None:  # noqa: ARG002
+    def on_test_start(self, trainer: Trainer, module: LightningModule) -> None:
         # Open the handle for writing to the file
         self.file = h5py.File(self.output_path, "w")
 
-    def on_test_batch_end(self, trainer, pl_module, test_step_outputs, batch, batch_idx):  # noqa: ARG002
+    def on_test_batch_end(self, trainer, pl_module, test_step_outputs, batch, batch_idx):
         inputs, targets = batch
         outputs, preds, losses = test_step_outputs
 
@@ -97,7 +97,7 @@ class PredictionWriter(Callback):
                 for name, value in task_items.items():
                     self.create_dataset(task_group, name, value)
 
-    def on_test_epoch_end(self, trainer, module):  # noqa: ARG002
+    def on_test_epoch_end(self, trainer, module):
         # Close the file handle now we are done
         self.file.close()
         print("Created output file", self.output_path)

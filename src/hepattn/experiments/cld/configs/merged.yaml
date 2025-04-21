@@ -28,7 +28,7 @@ data:
 
   particle_max_hit_deflection_deta:
     sihit: 1.0
-  
+
   particle_max_hit_deflection_dphi:
     sihit: 1.0
 
@@ -49,11 +49,11 @@ data:
       - ite
       - otb
       - ote
-    
+
     ecal:
       - ecb
       - ece
-    
+
     hcal:
       - hcb
       - hce
@@ -92,7 +92,7 @@ data:
       - energy
       - energyError
       - time
-    
+
     hcal:
       - type
       - pos.x
@@ -146,7 +146,7 @@ data:
       - isNeutral
 
     particle_sihit: []
-    
+
     particle_ecal: []
 
     particle_hcal: []
@@ -202,7 +202,7 @@ model:
     pct_start: 0.01
     skip_scheduler: false
     weight_decay: 1e-5
-  
+
   mtl: false
 
   model:
@@ -213,7 +213,7 @@ model:
       input_sort_field: pos.phi
 
       record_intermediate_embeddings: false
-      
+
       input_nets:
         class_path: torch.nn.ModuleList
         init_args:
@@ -382,7 +382,7 @@ model:
                   #mask_focal: 50.0
                 dim: *dim
                 null_weight: 1.0
-            
+
             - class_path: hepattn.models.task.ObjectHitMaskTask
               init_args:
                 name: flow_hcal_assignment

@@ -1,11 +1,11 @@
 from pathlib import Path
-import torch.nn.functional as F
+
 import matplotlib.pyplot as plt
 import pytest
-import yaml
 import torch
+import yaml
 
-from hepattn.experiments.cld.data import CLDDataset, CLDDataModule, pad_to_size
+from hepattn.experiments.cld.data import CLDDataModule, pad_to_size
 from hepattn.experiments.cld.plot_event import plot_cld_event_reconstruction
 
 plt.rcParams["figure.dpi"] = 300
@@ -25,11 +25,7 @@ def test_padding_2d_tensor():
     x = torch.tensor([[1, 2], [3, 4]])
     d = (3, 4)
     padded = pad_to_size(x, d, value=0)
-    expected = torch.tensor([
-        [1, 2, 0, 0],
-        [3, 4, 0, 0],
-        [0, 0, 0, 0]
-    ])
+    expected = torch.tensor([[1, 2, 0, 0], [3, 4, 0, 0], [0, 0, 0, 0]])
     assert torch.equal(padded, expected)
     assert padded.shape == torch.Size(d)
 
@@ -89,31 +85,29 @@ class TestCLDDataModule:
 
         return datamodule
 
-
     def test_cld_masks(self, cld_datamodule):
         dataloader = cld_datamodule.train_dataloader()
         dataset = dataloader.dataset
         data_iterator = iter(dataloader)
 
-        for i in range(10):
+        for _i in range(10):
             inputs, targets = next(data_iterator)
 
             # Valid particles should have no nan fields
             for field in dataset.targets["particle"]:
-                assert torch.all((~torch.isnan(targets[f"particle_{field}"][targets["particle_valid"]])))
-
+                assert torch.all(~torch.isnan(targets[f"particle_{field}"][targets["particle_valid"]]))
 
             for hit in ["sihit", "ecal", "hcal", "muon"]:
                 # Any invalid particle slot should have no mask entries
                 mask = targets[f"particle_{hit}_valid"]
                 particles_num_hits = mask.sum(-1)
 
-                valid_particles = targets["particle_valid"]
+                targets["particle_valid"]
                 invalid_particles = ~targets["particle_valid"]
 
                 # Invalid particles should have no hits
                 assert torch.all((particles_num_hits[invalid_particles]) == 0)
-                
+
                 # Check that the truth filtering does indeed remove all of the hits
                 if hit in dataset.truth_filter_hits:
                     hit_with_no_particle = targets[f"particle_{hit}_valid"].sum(-2) == 0
@@ -130,12 +124,6 @@ class TestCLDDataModule:
 
                     # All valid hits
 
-
-
-
-
-        
-
     def test_cld_event_display_merged_inputs(self, cld_datamodule):
         # Plot an event display directly from dataloader with merged
         # inputs to verify things look correct
@@ -144,7 +132,7 @@ class TestCLDDataModule:
 
         data_iterator = iter(train_dataloader)
 
-        for i in range(1):
+        for _i in range(1):
             batch = next(data_iterator)
 
             inputs, targets = batch

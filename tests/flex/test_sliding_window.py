@@ -1,5 +1,6 @@
-import torch
 from pathlib import Path
+
+import torch
 
 from hepattn.flex import sliding_window_mask, sliding_window_mask_wrapped
 from hepattn.flex.utils import visualize_attention_scores

@@ -5,7 +5,7 @@ from torch.nn.attention.flex_attention import create_mask
 
 from hepattn.flex.sliding_window import sliding_window_mask
 from hepattn.models import Attention
-from hepattn.models.attention import VARLEN_ATTN_TYPES, ATTN_MASK_ATTN_TYPES, WINDOW_ATTN_TYPES
+from hepattn.models.attention import ATTN_MASK_ATTN_TYPES, VARLEN_ATTN_TYPES
 
 torch.manual_seed(42)
 
@@ -25,7 +25,7 @@ torch.manual_seed(42)
 def test_attention_consistency(batch_size, dim, num_heads, bias, q_len, kv_len, attn_masking, kv_masking, attn_type):
     # Generate random input tensors
     q = torch.randn(batch_size, q_len, dim, dtype=torch.float16, device="cuda")
-    
+
     # If kv_len is none, test self attenttion
     if kv_len:
         k = torch.randn(batch_size, kv_len, dim, dtype=torch.float16, device="cuda")
@@ -62,18 +62,12 @@ def test_attention_consistency(batch_size, dim, num_heads, bias, q_len, kv_len, 
 
     # Compute outputs
     custom_out = attention_layer(q, k, v, kv_mask=kv_mask, attn_mask=attn_mask)
-    
+
     # Torch MHA expects (batch * heads, num_q, num_k) for attention mask, so have to repeat
     # It also expects the masking convention to be backwards
-    if attn_mask is not None:
-        torch_attn_mask = ~attn_mask.repeat_interleave(num_heads, dim=0)
-    else:
-        torch_attn_mask = None
+    torch_attn_mask = ~attn_mask.repeat_interleave(num_heads, dim=0) if attn_mask is not None else None
 
-    if kv_mask is not None:
-        torch_kv_mask = ~kv_mask
-    else:
-        torch_kv_mask = None
+    torch_kv_mask = ~kv_mask if kv_mask is not None else None
 
     mha_out, _ = mha_layer(q, k, v, key_padding_mask=torch_kv_mask, attn_mask=torch_attn_mask)
 

@@ -14,7 +14,6 @@ def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec):
     cycler = [colormap(i) for i in range(colormap.N)]
 
     batch_idx = torch.argmax(reconstruction["particle_valid"].sum(-1))
-    num_particles = reconstruction["particle_valid"][batch_idx].sum()
 
     sihit_names = ["vtb", "vte", "itb", "ite", "otb", "ote", "sihit"]
 

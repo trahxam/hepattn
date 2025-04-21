@@ -21,7 +21,7 @@ data:
     pixel: 3
 
   event_max_num_particles: 10000
-  
+
   inputs:
     pixel:
       # TrackML style global coordinates derived from x/y/z
@@ -37,8 +37,8 @@ data:
 
       # Cluster x/y/z
       - cluster_x
-      - cluster_y 
-      - cluster_z 
+      - cluster_y
+      - cluster_z
 
       # Module info
       - barrel_endcap
@@ -115,7 +115,7 @@ trainer:
     - class_path: lightning.pytorch.callbacks.TQDMProgressBar
       init_args:
         refresh_rate: 50
-    
+
 model:
   optimizer: adamw
 
@@ -150,8 +150,8 @@ model:
                   - u
                   - v
                   - cluster_x
-                  - cluster_y 
-                  - cluster_z 
+                  - cluster_y
+                  - cluster_z
                   - barrel_endcap
                   - layer_disk
                   - eta_module

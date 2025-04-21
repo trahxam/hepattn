@@ -14,21 +14,37 @@ class CLDDataset(Dataset):
         dirpath: str,
         inputs: dict,
         targets: dict,
-        merge_inputs: dict[str, list[str]] = {},
+        merge_inputs: dict[str, list[str]] | None = None,
         num_events: int = -1,
         particle_min_pt: float = 0.1,
         include_neutral: bool = True,
         include_charged: bool = True,
-        charged_particle_min_num_hits: dict[str, int] = {},
-        charged_particle_max_num_hits: dict[str, int] = {},
-        neutral_particle_min_num_hits: dict[str, int] = {},
-        neutral_particle_max_num_hits: dict[str, int] = {},
-        particle_max_hit_deflection_deta: dict[str, float] = {},
-        particle_max_hit_deflection_dphi: dict[str, float] = {},
-        truth_filter_hits: list[str] = [],
+        charged_particle_min_num_hits: dict[str, int] | None = None,
+        charged_particle_max_num_hits: dict[str, int] | None = None,
+        neutral_particle_min_num_hits: dict[str, int] | None = None,
+        neutral_particle_max_num_hits: dict[str, int] | None = None,
+        particle_max_hit_deflection_deta: dict[str, float] | None = None,
+        particle_max_hit_deflection_dphi: dict[str, float] | None = None,
+        truth_filter_hits: list[str] | None = None,
         event_max_num_particles: int = 256,
         random_seed: int = 42,
     ):
+        if truth_filter_hits is None:
+            truth_filter_hits = []
+        if particle_max_hit_deflection_dphi is None:
+            particle_max_hit_deflection_dphi = {}
+        if particle_max_hit_deflection_deta is None:
+            particle_max_hit_deflection_deta = {}
+        if neutral_particle_max_num_hits is None:
+            neutral_particle_max_num_hits = {}
+        if neutral_particle_min_num_hits is None:
+            neutral_particle_min_num_hits = {}
+        if charged_particle_max_num_hits is None:
+            charged_particle_max_num_hits = {}
+        if charged_particle_min_num_hits is None:
+            charged_particle_min_num_hits = {}
+        if merge_inputs is None:
+            merge_inputs = {}
         super().__init__()
 
         self.dirpath = dirpath
@@ -50,7 +66,7 @@ class CLDDataset(Dataset):
         self.random_seed = random_seed
 
         # Global random state initialisation
-        np.random.seed(random_seed)
+        np.random.default_rng(42)
 
         # Setup the number of events that will be used
         event_filenames = list(Path(self.dirpath).glob("*reco*.parquet"))
@@ -79,7 +95,7 @@ class CLDDataset(Dataset):
         def convert_mm_to_m(i, p):
             # Convert a spatial coordinate from mm to m inplace
             for coord in ["x", "y", "z"]:
-                event[f"{i}.{p}.{coord}"] = 0.001 * event[f"{i}.{p}.{coord}"]
+                event[f"{i}.{p}.{coord}"] *= 0.001
 
         def add_cylindrical_coords(i, p):
             # Add standard tracking cylindrical coordinates
@@ -135,12 +151,10 @@ class CLDDataset(Dataset):
             mask_idxs = event[f"{hit}_to_particle_idxs"]
 
             # Get the mask indices that map from hits to particles
-            # Check there are actually some hits present
-            if num_hits > 0:
-                # Check that there is at least one particle to link
-                # Indices link hits to particles, so have to transpose to get particles to hits
-                if len(mask_idxs) > 0:
-                    mask[mask_idxs[:, 0], mask_idxs[:, 1]] = True
+            # Check there are actually some hits present and there is at least one particle to link
+            # Indices link hits to particles, so have to transpose to get particles to hits
+            if num_hits > 0 and len(mask_idxs) > 0:
+                mask[mask_idxs[:, 0], mask_idxs[:, 1]] = True
 
             event[f"particle_{hit}_valid"] = mask.T
 
@@ -174,47 +188,46 @@ class CLDDataset(Dataset):
 
         for hit_name, max_num_hits in self.neutral_particle_max_num_hits.items():
             particle_cuts[f"neutral_max_{hit_name}"] = ~(event["particle.isNeutral"] & (event[f"particle_{hit_name}_valid"].sum(-1) > max_num_hits))
-        
+
         # Apply hit deflection based cuts
         # If two hits that are subsequent in time have a difference in eta/phi larger than some maximum,
         # then any particles on this hit are cut
         for hit_name, max_deta in self.particle_max_hit_deflection_deta.items():
             mask = event[f"particle_{hit_name}_valid"]
-            eta = np.ma.masked_array(mask * event[f"{hit_name}.pos.eta"][..., None, :], mask=~mask)        
+            eta = np.ma.masked_array(mask * event[f"{hit_name}.pos.eta"][..., None, :], mask=~mask)
             time = np.ma.masked_array(mask * event[f"{hit_name}.time"][..., None, :], mask=~mask)
             idx = np.ma.argsort(time, axis=-1)
             eta_sorted = np.take_along_axis(eta, idx, axis=-1)
             deta = np.ma.diff(eta_sorted, axis=-1)
-            particle_cuts[f"hit_deflection_eta"] = np.ma.all(np.abs(deta) < max_deta, axis=-1)
+            particle_cuts["hit_deflection_eta"] = np.ma.all(np.abs(deta) < max_deta, axis=-1)
 
         # Now also apply the hit deflection cut in phi
         for hit_name, max_dphi in self.particle_max_hit_deflection_dphi.items():
             mask = event[f"particle_{hit_name}_valid"]
-            phi = np.ma.masked_array(mask * event[f"{hit_name}.pos.phi"][..., None, :], mask=~mask)        
+            phi = np.ma.masked_array(mask * event[f"{hit_name}.pos.phi"][..., None, :], mask=~mask)
             time = np.ma.masked_array(mask * event[f"{hit_name}.time"][..., None, :], mask=~mask)
             idx = np.ma.argsort(time, axis=-1)
             phi_sorted = np.take_along_axis(phi, idx, axis=-1)
             dphi = np.ma.diff(phi_sorted, axis=-1)
-            particle_cuts[f"hit_deflection_phi"] = np.ma.all(np.abs(dphi) < max_dphi, axis=-1)
+            particle_cuts["hit_deflection_phi"] = np.ma.all(np.abs(dphi) < max_dphi, axis=-1)
 
         # Apply the particle cuts
-        for cut_name, cut_mask in particle_cuts.items():
-            event["particle_valid"] = event["particle_valid"] & cut_mask
+        for cut_mask in particle_cuts.values():
+            event["particle_valid"] &= cut_mask
 
         # Remove any mask slots for invalid particles
-        for input_name in self.inputs.keys():
-            event[f"particle_{input_name}_valid"] = event[f"particle_{input_name}_valid"] & event["particle_valid"][:, np.newaxis]
+        for input_name in self.inputs:
+            event[f"particle_{input_name}_valid"] &= event["particle_valid"][:, np.newaxis]
 
         # Do truth hit filtering if specified
         for input_name in self.truth_filter_hits:
-            
             # Get hits that are not noise
             mask = event[f"particle_{input_name}_valid"].any(-2)
-            
+
             # First drop noise hits from inputs
             for field in self.inputs[input_name]:
                 event[f"{input_name}.{field}"] = event[f"{input_name}.{field}"][mask]
-            
+
             # Also drop noise hits from the target masks
             if f"particle_{input_name}" in self.targets:
                 event[f"particle_{input_name}_valid"] = event[f"particle_{input_name}_valid"][:, mask]
@@ -258,7 +271,6 @@ class CLDDataset(Dataset):
             for field in fields:
                 targets_out[f"{target_name}_{field}"] = torch.from_numpy(targets[f"{target_name}_{field}"]).half().unsqueeze(0)
 
-
         return inputs_out, targets_out
 
 
@@ -273,7 +285,7 @@ def pad_to_size(x: torch.Tensor, d: tuple, value) -> torch.Tensor:
     Returns:
         torch.Tensor: Padded tensor with shape == d.
     """
-    print(x.shape, d, "kdkdkdk")
+
     if len(d) != x.dim():
         raise ValueError(f"Target size must match input tensor dimensions: {x.shape} vs {d}")
 
@@ -284,14 +296,11 @@ def pad_to_size(x: torch.Tensor, d: tuple, value) -> torch.Tensor:
             raise ValueError(f"Cannot pad dimension {i} from {x.size(i)} to {d[i]} (target smaller than current).")
         padding.extend([0, pad_len])  # (left, right) padding — pad only on the right
 
-    
-
     return F.pad(x, padding, value=value)
 
 
 def pad_and_concat(items, target_size, pad_value):
-    
-    return torch.cat([pad_to_size(item, (1,) + target_size, pad_value) for item in items], dim=0)
+    return torch.cat([pad_to_size(item, (1, *target_size), pad_value) for item in items], dim=0)
 
 
 class CLDCollator:
@@ -304,8 +313,8 @@ class CLDCollator:
         inputs, targets = zip(*batch, strict=False)
 
         hit_max_sizes = {}
-        for input_name in self.dataset_inputs.keys():
-            hit_max_sizes[input_name] = max([event[f"{input_name}_valid"].shape[-1] for event in inputs])
+        for input_name in self.dataset_inputs:
+            hit_max_sizes[input_name] = max(event[f"{input_name}_valid"].shape[-1] for event in inputs)
 
         batched_inputs = {}
         batched_targets = {}
@@ -321,7 +330,6 @@ class CLDCollator:
                 batched_inputs[k] = pad_and_concat([i[k] for i in inputs], (hit_max_sizes[input_name],), 0.0)
 
         for target_name, fields in self.dataset_targets.items():
-            print(target_name)
             if target_name == "particle":
                 size = (self.max_num_obj,)
             else:
@@ -382,7 +390,7 @@ class CLDDataModule(LightningDataModule):
             self.test_dset = CLDDataset(dirpath=self.test_dir, num_events=self.num_test, **self.kwargs)
             print(f"Created test dataset with {len(self.test_dset):,} events")
 
-    def get_dataloader(self, stage: str, dataset: CLDDataset, shuffle: bool):  # noqa: ARG002
+    def get_dataloader(self, stage: str, dataset: CLDDataset, shuffle: bool):
         return DataLoader(
             dataset=dataset,
             batch_size=self.batch_size,

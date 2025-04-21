@@ -57,7 +57,7 @@ data:
       - v.b
       - du
       - dv
-    
+
     # Vtx detector endcap hits
     vte:
       - type
@@ -80,7 +80,7 @@ data:
       - v.b
       - du
       - dv
-    
+
     # Inner tracker barrel hits
     itb:
       - type
@@ -103,7 +103,7 @@ data:
       - v.b
       - du
       - dv
-    
+
     # Inner tracker endcap hits
     ite:
       - type
@@ -126,7 +126,7 @@ data:
       - v.b
       - du
       - dv
-    
+
     # Outer tracker barrel hits
     otb:
       - type
@@ -149,7 +149,7 @@ data:
       - v.b
       - du
       - dv
-    
+
     # Outer tracker endcap hits
     ote:
       - type
@@ -246,9 +246,9 @@ model:
     pct_start: 0.05
     skip_scheduler: false
     weight_decay: 1e-5
-  
+
   optimizer: adamw
-  
+
   mtl: false
 
   model:
@@ -257,7 +257,7 @@ model:
       dim: &dim 256
       num_queries: *num_particles
       input_sort_field: pos.phi
-      
+
       input_nets:
         class_path: torch.nn.ModuleList
         init_args:
@@ -351,4 +351,3 @@ model:
                   #mask_focal: 50.0
                 dim: *dim
                 null_weight: 1.0
-    

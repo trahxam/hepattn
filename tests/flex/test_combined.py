@@ -17,7 +17,7 @@ def test_combined_mods(device="cpu"):
     score_mod = relative_position_wrapped(q_len)
     q_len = torch.tensor([24])
     query = make_tensor(q_len[0])
-    
+
     out_dir = Path(__file__).parent.parent / Path("outputs/flex")
     out_dir.mkdir(exist_ok=True)
     path = out_dir / "combined.png"

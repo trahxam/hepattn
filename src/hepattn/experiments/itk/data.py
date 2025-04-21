@@ -256,7 +256,7 @@ class ITkDataModule(LightningDataModule):
             self.test_dset = ITkDataset(dirpath=self.test_dir, num_events=self.num_test, trainer=self.trainer, **self.kwargs)
             print(f"Created test dataset with {len(self.test_dset):,} events")
 
-    def get_dataloader(self, stage: str, dataset: ITkDataset, shuffle: bool):  # noqa: ARG002
+    def get_dataloader(self, stage: str, dataset: ITkDataset, shuffle: bool):
         return DataLoader(
             dataset=dataset,
             batch_size=None,

@@ -141,7 +141,10 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/pcre2-10.44-hba22ea6_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/perl-5.32.1-7_hd590300_perl5.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/python-3.11.12-h9e4cc4f_0_cpython.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/python_abi-3.11-6_cp311.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/readline-8.2-h8c095d6_2.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/ruamel.yaml-0.18.10-py311h9ecbd09_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/ruamel.yaml.clib-0.2.8-py311h9ecbd09_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/sysroot_linux-64-2.17-h0157908_18.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/tk-8.6.13-noxft_h4845f30_101.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/tzdata-2025b-h78e105d_0.conda
@@ -248,7 +251,7 @@ environments:
       - pypi: https://download.pytorch.org/whl/test/six-1.16.0-py2.py3-none-any.whl
       - pypi: https://download.pytorch.org/whl/test/sympy-1.13.3-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/32/d5/f9a850d79b0851d1d4ef6456097579a9005b31fea68726a4ae5f2d82ddd9/threadpoolctl-3.6.0-py3-none-any.whl
-      - pypi: https://download.pytorch.org/whl/test/cu126/torch-2.7.0%2Bcu126-cp311-cp311-manylinux_2_28_x86_64.whl#sha256=4e14c67aa9c6e6cdc4294329d587edcba5f6f5e17cd6f22df007207f5aa387db
+      - pypi: https://download.pytorch.org/whl/test/cu126/torch-2.7.0%2Bcu126-cp311-cp311-manylinux_2_28_x86_64.whl#sha256=f809911c9a3b2933ac3acc3a446a208292758dba0412a92dff953d03df415137
       - pypi: https://files.pythonhosted.org/packages/38/be/dd54f581838cdad7291e6d1046a3f1e1e56505710e6e90b938bf66aa3d9a/torchjd-0.5.0-py3-none-any.whl
       - pypi: https://download.pytorch.org/whl/test/torchmetrics-1.0.3-py3-none-any.whl
       - pypi: https://download.pytorch.org/whl/test/tqdm-4.66.5-py3-none-any.whl
@@ -1460,7 +1463,7 @@ packages:
 - pypi: .
   name: hepattn
   version: 0.1.0
-  sha256: 53d672a4a2b0ce4ceb7d88d12ea5dbb16827eca4e629c4a4d2a4b769424fa23a
+  sha256: 2c1d19ce234dd09d15b410b2a8061d6109d2dd3d8a13a6a25740a1f22c445a1c
   requires_dist:
   - packaging
   - wheel
@@ -3134,6 +3137,17 @@ packages:
   requires_dist:
   - six>=1.5
   requires_python: '>=2.7,!=3.0.*,!=3.1.*,!=3.2.*'
+- conda: https://conda.anaconda.org/conda-forge/linux-64/python_abi-3.11-6_cp311.conda
+  build_number: 6
+  sha256: 2ff22fffe5bb93802c1687b5c4a34b9062394b78f23cfb5c1c1ef9b635bb030e
+  md5: 37ec65e056b9964529c0e1e2697b9955
+  constrains:
+  - python 3.11.* *_cpython
+  license: BSD-3-Clause
+  license_family: BSD
+  purls: []
+  size: 6853
+  timestamp: 1743483206119
 - pypi: https://files.pythonhosted.org/packages/82/ff/5701f79317a1a03e5ee8a1bf48e7273a8445162a2774e51fc06411a67c89/pytorch_lightning-2.5.1-py3-none-any.whl
   name: pytorch-lightning
   version: 2.5.1
@@ -3313,6 +3327,35 @@ packages:
   version: 0.24.0
   sha256: e838bf2bb0b91ee67bf2b889a1a841e5ecac06dd7a2b1ef4e6151e2ce155c7ae
   requires_python: '>=3.9'
+- conda: https://conda.anaconda.org/conda-forge/linux-64/ruamel.yaml-0.18.10-py311h9ecbd09_0.conda
+  sha256: 11922e4b99d1d16a0ec18daccee4a1b83243000022d4e67ab957e15f3b4aa644
+  md5: a3188715e28c25f1404b84c702e6fdf4
+  depends:
+  - __glibc >=2.17,<3.0.a0
+  - libgcc >=13
+  - python >=3.11,<3.12.0a0
+  - python_abi 3.11.* *_cp311
+  - ruamel.yaml.clib >=0.1.2
+  license: MIT
+  license_family: MIT
+  purls:
+  - pkg:pypi/ruamel-yaml?source=hash-mapping
+  size: 273034
+  timestamp: 1736248178644
+- conda: https://conda.anaconda.org/conda-forge/linux-64/ruamel.yaml.clib-0.2.8-py311h9ecbd09_1.conda
+  sha256: e38364ad63e29ea0134b2d6661c71d78a384a6f0f0c6248a270c97a73a970de8
+  md5: e56869fca385961323e43783b89bef66
+  depends:
+  - __glibc >=2.17,<3.0.a0
+  - libgcc >=13
+  - python >=3.11,<3.12.0a0
+  - python_abi 3.11.* *_cp311
+  license: MIT
+  license_family: MIT
+  purls:
+  - pkg:pypi/ruamel-yaml-clib?source=hash-mapping
+  size: 147191
+  timestamp: 1728724593073
 - pypi: https://files.pythonhosted.org/packages/4c/5d/083181bdec4ec92a431c1291d3fff65eef3ded630a4b55eb735000ef5f3b/ruff-0.8.0-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
   name: ruff
   version: 0.8.0
@@ -3592,10 +3635,10 @@ packages:
   purls: []
   size: 3318875
   timestamp: 1699202167581
-- pypi: https://download.pytorch.org/whl/test/cu126/torch-2.7.0%2Bcu126-cp311-cp311-manylinux_2_28_x86_64.whl#sha256=4e14c67aa9c6e6cdc4294329d587edcba5f6f5e17cd6f22df007207f5aa387db
+- pypi: https://download.pytorch.org/whl/test/cu126/torch-2.7.0%2Bcu126-cp311-cp311-manylinux_2_28_x86_64.whl#sha256=f809911c9a3b2933ac3acc3a446a208292758dba0412a92dff953d03df415137
   name: torch
   version: 2.7.0+cu126
-  sha256: 4e14c67aa9c6e6cdc4294329d587edcba5f6f5e17cd6f22df007207f5aa387db
+  sha256: f809911c9a3b2933ac3acc3a446a208292758dba0412a92dff953d03df415137
   requires_dist:
   - filelock
   - typing-extensions>=4.10.0

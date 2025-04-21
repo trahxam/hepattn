@@ -21,7 +21,7 @@ data:
     strip: 3
 
   event_max_num_particles: 1600
-  
+
   inputs:
     pixel:
       - x
@@ -33,7 +33,7 @@ data:
       - phi
       - u
       - v
-    
+
     strip:
       - x
       - y
@@ -44,7 +44,7 @@ data:
       - phi
       - u
       - v
-    
+
   targets:
     particle:
       - pt
@@ -76,9 +76,9 @@ model:
     pct_start: 0.05
     skip_scheduler: false
     weight_decay: 1e-5
-  
+
   optimizer: adamw
-  
+
   mtl: false
 
   model:
@@ -87,7 +87,7 @@ model:
       dim: &dim 256
       num_queries: 1600
       input_sort_field: phi
-      
+
       input_nets:
         class_path: torch.nn.ModuleList
         init_args:
@@ -221,7 +221,3 @@ model:
                   #mask_focal: 50.0
                 dim: *dim
                 null_weight: 1.0
-      
-
-
-      
