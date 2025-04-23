@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import h5py
 import numpy as np
 import pandas as pd
 import torch
@@ -24,14 +25,22 @@ class ITkDataset(Dataset):
         particle_max_abs_eta: float = 2.5,
         particle_min_num_hits: dict[str, int] | None = None,
         event_max_num_particles=1000,
+        hit_eval_path: str | None = None,
+        append_hit_eval_output: bool = False,
+        apply_hit_eval_pred: bool = False,
     ):
         if particle_min_num_hits is None:
             particle_min_num_hits = {"pixel": 3, "strip": 6}
         super().__init__()
 
-        # Set the global random sampling seed
-        self.sampling_seed = 42
-        np.random.seed(self.sampling_seed)  # noqa: NPY002
+        if append_hit_eval_output:
+            assert hit_eval_path is not None, "A hit eval path must be specified to append hit filter outputs."
+
+        if apply_hit_eval_pred:
+            assert hit_eval_path is not None, "A hit eval path must be specified to apply hit filtering."
+
+        # Global random state initialisation
+        np.random.default_rng(42)
 
         # Get a list of event names
         event_names = [Path(file).stem.replace("-parts", "") for file in Path(dirpath).glob("*-parts.parquet")]
@@ -48,10 +57,17 @@ class ITkDataset(Dataset):
 
         # Metadata
         self.dirpath = Path(dirpath)
+        self.hit_eval_path = hit_eval_path
+        self.apply_hit_eval_pred = apply_hit_eval_pred
+        self.append_hit_eval_output = append_hit_eval_output
         self.inputs = inputs
         self.targets = targets
         self.num_events = num_events
         self.event_names = event_names[:num_events]
+
+        # Setup hit eval file if specified
+        if self.hit_eval_path:
+            print(f"Using hit eval dataset {self.hit_eval_path}")
 
         # Hit level cuts
         self.hit_regions = hit_regions
@@ -103,11 +119,14 @@ class ITkDataset(Dataset):
             message = f"Event {idx} has {num_particles}, but limit is {self.event_max_num_particles}"
             assert len(particle_ids) <= self.event_max_num_particles, message
 
-            # Create the mask targets and fill in empty slots with -1s and get the IDs of the particle on each hit
-            # Important! Make sure that the padding tensor is also a long or it can cause overflow issues
-            particle_ids = torch.cat([particle_ids, -1 * torch.ones(self.event_max_num_particles - len(particle_ids)).long()])
-            hit_particle_ids = torch.from_numpy(hits[hit]["particle_id"].values).long()
-            targets[f"particle_{hit}_valid"] = (particle_ids.unsqueeze(-1) == hit_particle_ids.unsqueeze(-2)).unsqueeze(0)
+            # TODO; This is pretty jank and we should so something more similar to what is dopne in the CLD dataloader
+            for hit in ["pixel", "strip"]:
+                if hit in self.inputs:
+                    # Create the mask targets and fill in empty slots with -1s and get the IDs of the particle on each hit
+                    # Important! Make sure that the padding tensor is also a long or it can cause overflow issues
+                    particle_ids = torch.cat([particle_ids, -1 * torch.ones(self.event_max_num_particles - len(particle_ids)).long()])
+                    hit_particle_ids = torch.from_numpy(hits[hit]["particle_id"].values).long()
+                    targets[f"particle_{hit}_valid"] = (particle_ids.unsqueeze(-1) == hit_particle_ids.unsqueeze(-2)).unsqueeze(0)
 
             # Build the regression targets
             for field in self.targets["particle"]:
@@ -197,6 +216,19 @@ class ITkDataset(Dataset):
             # Mark which hits are on a valid / reconstructable particle, for the hit filter
             hits[hit]["on_valid_particle"] = hits[hit]["particle_id"].isin(particles["particle_id"])
 
+            # If a hit eval file was specified, read in the predictions from it
+            if self.hit_eval_path:
+                with h5py.File(self.hit_eval_path, "r") as hit_eval_file:
+                    # Append the hit filter logit scores if specified
+                    if self.append_hit_eval_output:
+                        hits[hit]["filter_logit"] = hit_eval_file[f"{event_name}/outputs/final/{hit}_filter/{hit}_logit"][0]
+
+                    # If true, we drop hits based on the hit eval prediction, i.e. the pre-decided cut of the model
+                    if self.apply_hit_eval_pred:
+                        # The dataset has shape (1, num_hits)
+                        hit_filter_pred = hit_eval_file[f"{event_name}/preds/final/{hit}_filter/{hit}_on_valid_particle"][0]
+                        hits[hit] = hits[hit][hit_filter_pred]
+
             # TODO: Add back in option to have truth based noise filtering
             # hits[k] = hits[k][hits[k]["on_valid_particle"]]  # noqa: ERA001
 
@@ -241,10 +273,10 @@ class ITkDataModule(LightningDataModule):
 
     def setup(self, stage: str):
         if stage == "fit" or stage == "test":
-            self.train_dset = ITkDataset(dirpath=self.train_dir, num_events=self.num_train, **self.kwargs)
+            self.train_dset = ITkDataset(dirpath=self.train_dir, num_events=self.num_train, hit_eval_path=self.hit_eval_train, **self.kwargs)
 
         if stage == "fit":
-            self.val_dset = ITkDataset(dirpath=self.val_dir, num_events=self.num_val, **self.kwargs)
+            self.val_dset = ITkDataset(dirpath=self.val_dir, num_events=self.num_val, hit_eval_path=self.hit_eval_val,  **self.kwargs)
 
         # Only print train/val dataset details when actually training
         if stage == "fit" and self.trainer.is_global_zero:
@@ -253,7 +285,7 @@ class ITkDataModule(LightningDataModule):
 
         if stage == "test":
             assert self.test_dir is not None, "No test file specified, see --data.test_dir"
-            self.test_dset = ITkDataset(dirpath=self.test_dir, num_events=self.num_test, trainer=self.trainer, **self.kwargs)
+            self.test_dset = ITkDataset(dirpath=self.test_dir, num_events=self.num_test, hit_eval_path=self.hit_eval_test, **self.kwargs)
             print(f"Created test dataset with {len(self.test_dset):,} events")
 
     def get_dataloader(self, stage: str, dataset: ITkDataset, shuffle: bool):
