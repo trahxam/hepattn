@@ -5,6 +5,8 @@ import numpy as np
 import torch
 from lightning import Callback, LightningModule, Trainer
 
+from hepattn.utils.tensor_ndarray_types import tensor_to_numpy
+
 
 class PredictionWriter(Callback):
     def __init__(
@@ -104,13 +106,7 @@ class PredictionWriter(Callback):
 
     def create_dataset(self, group, name, value):
         # Shouldn't need to detach as we are testing
-        if isinstance(value, torch.Tensor):
-            value = value.cpu().numpy()
-
-        # Handle half precison values
-        value_type = np.dtype(value.dtype)
-        if value_type.kind == "f" and value_type.element_size() == 2:
-            value = value.astype(np.float16)
+        value = tensor_to_numpy(value)
 
         # Write the data to the file
         group.create_dataset(name, data=value, compression="lzf")
