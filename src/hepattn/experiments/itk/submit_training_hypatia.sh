@@ -39,9 +39,11 @@ echo "Running training script..."
 # Python command that will be run
 # PYTORCH_CMD="python src/hepattn/experiments/itk/run_tracking.py fit --config src/hepattn/experiments/itk/configs/tracking.yaml"
 
-# PYTORCH_CMD="python src/hepattn/experiments/itk/run_filtering.py fit --config src/hepattn/experiments/itk/configs/filtering_pixel.yaml"
+PYTORCH_CMD="python src/hepattn/experiments/itk/run_filtering.py fit --config src/hepattn/experiments/itk/configs/filtering_pixel.yaml"
 
-PYTORCH_CMD="python src/hepattn/experiments/itk/run_filtering.py fit --config /share/rcifdata/maxhart/hepattn-test/hepattn/logs/pixel_region135_eta4_pt1_20250414-T145756/config.yaml --ckpt_path /share/rcifdata/maxhart/hepattn-test/hepattn/logs/pixel_region135_eta4_pt1_20250414-T145756/ckpts/epoch=028-val_loss=0.40953.ckpt"
+# PYTORCH_CMD="python src/hepattn/experiments/itk/run_filtering.py test --config /share/rcifdata/maxhart/hepattn-test/hepattn/logs/ITk_pixel_region135_eta4_pt1_20250422-T132414/config.yaml --ckpt_path /share/rcifdata/maxhart/hepattn-test/hepattn/logs/ITk_pixel_region135_eta4_pt1_20250422-T132414/ckpts/epoch=029-val_loss=0.40065.ckpt"
+
+# PYTORCH_CMD="python src/hepattn/experiments/itk/run_filtering.py fit --config /share/rcifdata/maxhart/hepattn-test/hepattn/logs/pixel_region135_eta4_pt1_20250414-T145756/config.yaml --ckpt_path /share/rcifdata/maxhart/hepattn-test/hepattn/logs/pixel_region135_eta4_pt1_20250414-T145756/ckpts/epoch=028-val_loss=0.40953.ckpt"
 
 # Pixi commnand that runs the python command inside the pixi env
 PIXI_CMD="pixi run $PYTORCH_CMD"

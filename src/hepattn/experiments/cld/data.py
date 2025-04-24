@@ -3,9 +3,12 @@ from pathlib import Path
 import awkward as ak
 import numpy as np
 import torch
-import torch.nn.functional as F
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader, Dataset
+from torch import Tensor
+from typing import Union
+
+from hepattn.utils.tensor import pad_to_size
 
 
 class CLDDataset(Dataset):
@@ -274,32 +277,8 @@ class CLDDataset(Dataset):
         return inputs_out, targets_out
 
 
-def pad_to_size(x: torch.Tensor, d: tuple, value) -> torch.Tensor:
-    """
-    Pads the tensor x on the right side of each dimension to match the size given in d.
-
-    Args:
-        x (torch.Tensor): Input tensor of any shape.
-        d (tuple): Target size for each dimension (must have same length as x.dim()).
-
-    Returns:
-        torch.Tensor: Padded tensor with shape == d.
-    """
-
-    if len(d) != x.dim():
-        raise ValueError(f"Target size must match input tensor dimensions: {x.shape} vs {d}")
-
-    padding = []
-    for i in reversed(range(x.dim())):
-        pad_len = d[i] - x.size(i)
-        if pad_len < 0:
-            raise ValueError(f"Cannot pad dimension {i} from {x.size(i)} to {d[i]} (target smaller than current).")
-        padding.extend([0, pad_len])  # (left, right) padding — pad only on the right
-
-    return F.pad(x, padding, value=value)
-
-
-def pad_and_concat(items, target_size, pad_value):
+def pad_and_concat(items: list[Tensor], target_size: tuple[int], pad_value) -> Tensor:
+    """ Takes a list of tensors, pads them to a given size, and then concatenates them along the a new dimension at zero."""
     return torch.cat([pad_to_size(item, (1, *target_size), pad_value) for item in items], dim=0)
 
 

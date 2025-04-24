@@ -51,6 +51,16 @@ data:
       - eta
       - phi
 
+    # particle_pixel: []
+
+    # particle_strip: []
+
+    # pixel:
+    #   - on_valid_particle
+
+    # strip:
+    #   - on_valid_particle
+
 trainer:
   # Training stuff here
   max_epochs: 30
