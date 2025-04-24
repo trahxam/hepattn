@@ -8,7 +8,7 @@ from scipy.stats import binned_statistic
 from tqdm import tqdm
 
 from hepattn.experiments.itk.data import ITkDataset, ITkDataModule
-from hepattn.utils.tensor_ndarray_types import tensor_to_numpy
+from hepattn.utils.tensor import tensor_to_numpy
 
 
 # plt.rcParams["text.usetex"] = True
@@ -50,7 +50,8 @@ def main():
 
     dataset.append_hit_eval_output = True
     dataset.inputs["pixel"].append("filter_logit")
-    dataset.targets["particle"] = {"pt", "eta", "phi"}
+    dataset.targets["particle"] = ["pt", "eta", "phi"]
+    dataset.targets["particle_pixel"] = []
 
     # Define bins for particle retention rate under the nominal working point
     particle_bins = {"pt": np.linspace(0.5, 10.0, 32), "eta": np.linspace(-4, 4, 32), "phi": np.linspace(-np.pi, np.pi, 32)}
@@ -65,7 +66,7 @@ def main():
     wp_num_recon_parts_post = {wp: [] for wp in working_points}
     
     # Iterate over the events
-    for i in tqdm(range(50)):
+    for i in tqdm(range(10)):
         # Load the data from the event
         inputs, targets = dataset[i]
 
@@ -85,7 +86,7 @@ def main():
         num_recon_parts_pre.append(particle_recon_pre.sum())
 
         # Mark hits which pass the filter
-        hit_filter_pred = hit_logits.sigmoid() >= 0.1
+        hit_filter_pred = hit_logits.sigmoid() >= 0.05
 
         # The post filter mask is just the pre filter mask, but with filtered hits removed
         particle_hit_valid_post = (particle_hit_valid_pre & hit_filter_pred[None,:])

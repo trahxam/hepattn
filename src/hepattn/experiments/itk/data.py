@@ -7,6 +7,8 @@ import torch
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader, Dataset
 
+from hepattn.utils.tensor import pad_to_size
+
 
 def is_valid_file(path):
     path = Path(path)
@@ -82,61 +84,6 @@ class ITkDataset(Dataset):
 
     def __len__(self):
         return int(self.num_events)
-
-    def __getitem__(self, idx):
-        inputs = {}
-        targets = {}
-
-        # Load the event
-        hits, particles = self.load_event(idx)
-
-        num_particles = len(particles)
-
-        # Build the input hits
-        for input_name, fields in self.inputs.items():
-            inputs[f"{input_name}_valid"] = torch.full((len(hits[input_name]),), True).unsqueeze(0)
-            targets[f"{input_name}_valid"] = inputs[f"{input_name}_valid"]
-
-            for field in fields:
-                inputs[f"{input_name}_{field}"] = torch.from_numpy(hits[input_name][field].values).unsqueeze(0).half()
-
-        # Make the hit filter targets if requested
-        for hit in ["pixel", "strip"]:
-            if hit in self.targets:
-                # Create the hit filter targets
-                targets[f"{hit}_on_valid_particle"] = torch.from_numpy(hits[hit]["on_valid_particle"].to_numpy()).unsqueeze(0)
-
-        if "particle" in self.targets:
-            # TODO: Check if mask target in config before doing this ?
-            # Build the targets for whether a particle slot is used or not
-            targets["particle_valid"] = torch.full((self.event_max_num_particles,), False)
-            targets["particle_valid"][: len(particles)] = True
-            targets["particle_valid"] = targets["particle_valid"].unsqueeze(0)
-
-            # Build the particle regression targets
-            particle_ids = torch.from_numpy(particles["particle_id"].values).long()
-
-            message = f"Event {idx} has {num_particles}, but limit is {self.event_max_num_particles}"
-            assert len(particle_ids) <= self.event_max_num_particles, message
-
-            # TODO; This is pretty jank and we should so something more similar to what is dopne in the CLD dataloader
-            for hit in ["pixel", "strip"]:
-                if hit in self.inputs:
-                    # Create the mask targets and fill in empty slots with -1s and get the IDs of the particle on each hit
-                    # Important! Make sure that the padding tensor is also a long or it can cause overflow issues
-                    particle_ids = torch.cat([particle_ids, -1 * torch.ones(self.event_max_num_particles - len(particle_ids)).long()])
-                    hit_particle_ids = torch.from_numpy(hits[hit]["particle_id"].values).long()
-                    targets[f"particle_{hit}_valid"] = (particle_ids.unsqueeze(-1) == hit_particle_ids.unsqueeze(-2)).unsqueeze(0)
-
-            # Build the regression targets
-            for field in self.targets["particle"]:
-                # Null target/particle slots are filled with nans
-                # This acts as a sanity check that we correctly mask out null slots in the loss
-                x = torch.full((self.event_max_num_particles,), torch.nan)
-                x[:num_particles] = torch.from_numpy(particles[field].to_numpy()[: self.event_max_num_particles])
-                targets[f"particle_{field}"] = x.unsqueeze(0)
-
-        return inputs, targets
 
     def load_event(self, idx):
         # Load in event data
@@ -229,15 +176,71 @@ class ITkDataset(Dataset):
                         hit_filter_pred = hit_eval_file[f"{event_name}/preds/final/{hit}_filter/{hit}_on_valid_particle"][0]
                         hits[hit] = hits[hit][hit_filter_pred]
 
-            # TODO: Add back in option to have truth based noise filtering
-            # hits[k] = hits[k][hits[k]["on_valid_particle"]]  # noqa: ERA001
+        # Pack everything togrther
+        # First the hit fields
+        inputs = {}
+        for hit, fields in self.inputs.items():
+            inputs[f"{hit}_valid"] = np.ones(len(hits[hit]), dtype=bool)
 
-            assert len(hits[hit]) != 0, f"No {hit}s remaining, loosen selection"
+            for field in fields:
+                inputs[f"{hit}_{field}"] = hits[hit][field].to_numpy()
 
-        assert len(particles) != 0, "No particles remaining, loosen selection"
-        assert particles["particle_id"].nunique() == len(particles), "Non-unique particle ids"
+        # Hit filter target
+        targets = {}
+        for hit in self.inputs:
+            targets[f"{hit}_valid"] = np.ones(len(hits[hit]), dtype=bool)
+            targets[f"{hit}_on_valid_particle"] = hits[hit]["on_valid_particle"].to_numpy(dtype=bool)
 
-        return hits, particles
+        # Now build and add the masks
+        particle_ids = particles["particle_id"].to_numpy(dtype=np.int64)
+        for hit in self.inputs:
+            hit_particle_ids = hits[hit]["particle_id"].to_numpy(dtype=np.int64)
+            targets[f"particle_{hit}_valid"] = particle_ids[:,None] == hit_particle_ids[None,:]
+
+        # Now the particle fields
+        if "particle" in self.targets:
+            targets["particle_valid"] = particles["pt"].to_numpy() >= self.particle_min_pt
+            for field in self.targets["particle"]:
+                targets[f"particle_{field}"] = particles[field].to_numpy()
+
+        return inputs, targets
+    
+    def __getitem__(self, idx):
+        inputs, targets = self.load_event(idx)
+
+        # Convert to a torch tensor of the correct dtype and add the batch dimension
+        inputs_out = {}
+        targets_out = {}
+        for input_name, fields in self.inputs.items():
+            inputs_out[f"{input_name}_valid"] = torch.from_numpy(inputs[f"{input_name}_valid"]).bool().unsqueeze(0)
+            # Some tasks might require to know hit padding info for loss masking
+            targets_out[f"{input_name}_valid"] = inputs_out[f"{input_name}_valid"]
+            for field in fields:
+                inputs_out[f"{input_name}_{field}"] = torch.from_numpy(inputs[f"{input_name}_{field}"]).half().unsqueeze(0)
+
+        target_shapes = {
+            "pixel": (-1,),
+            "strip": (-1,),
+            "particle": (self.event_max_num_particles,), 
+            "particle_pixel": (self.event_max_num_particles, -1),
+            "particle_strip": (self.event_max_num_particles, -1),
+            }
+        
+        for target_name, fields in self.targets.items():
+            target_valid = torch.from_numpy(targets[f"{target_name}_valid"]).bool()
+            target_valid = pad_to_size(target_valid, target_shapes[target_name], False)
+            targets_out[f"{target_name}_valid"] = target_valid.unsqueeze(0)
+
+            for field in fields:
+                target_field = torch.from_numpy(targets[f"{target_name}_{field}"])
+                if torch.is_floating_point(target_field):
+                    target_field = pad_to_size(target_field, target_shapes[target_name], 0.0).half()
+                else:
+                    target_field = pad_to_size(target_field, target_shapes[target_name], False).bool()
+                targets_out[f"{target_name}_{field}"] = target_field.unsqueeze(0)
+
+        return inputs_out, targets_out
+
 
 
 class ITkDataModule(LightningDataModule):
