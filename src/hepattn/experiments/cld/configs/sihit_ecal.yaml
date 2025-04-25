@@ -1,4 +1,4 @@
-name: CLD_1gev_charged_tf_sihit_ecal
+name: CLD_100mev_charged_tf_sihit_ecal
 
 data:
   # Paths to preprocessed data directories
@@ -15,15 +15,22 @@ data:
   batch_size: 10
 
   # Minimum pT for a particle to be deemed reconstructve in GeV
-  particle_min_pt: 1.0
+  particle_min_pt: 0.1
 
   # Number of query slots / particles to generate per event
   event_max_num_particles: &num_particles 256
 
   charged_particle_min_num_hits:
     sihit: 8
+
   charged_particle_max_num_hits:
     sihit: 20
+
+  particle_max_hit_deflection_deta:
+    sihit: 1.0
+
+  particle_max_hit_deflection_dphi:
+    sihit: 1.0
 
   include_charged: true
   include_neutral: false
@@ -111,7 +118,7 @@ data:
 
 # Training stuff here
 trainer:
-  max_epochs: 25
+  max_epochs: 50
   accelerator: gpu
   devices: 1
   precision: bf16-mixed

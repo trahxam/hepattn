@@ -53,7 +53,9 @@ class ITkDataset(Dataset):
         if num_events > num_events_available:
             msg = f"Requested {num_events} events, but only {num_events_available} are available in the directory {dirpath}."
             raise ValueError(msg)
-
+        if num_events_available == 0:
+            msg = f"No events found in {dirpath}"
+            raise ValueError(msg)
         if num_events < 0:
             num_events = num_events_available
 
@@ -195,7 +197,7 @@ class ITkDataset(Dataset):
         particle_ids = particles["particle_id"].to_numpy(dtype=np.int64)
         for hit in self.inputs:
             hit_particle_ids = hits[hit]["particle_id"].to_numpy(dtype=np.int64)
-            targets[f"particle_{hit}_valid"] = particle_ids[:,None] == hit_particle_ids[None,:]
+            targets[f"particle_{hit}_valid"] = particle_ids[:, None] == hit_particle_ids[None, :]
 
         # Now the particle fields
         if "particle" in self.targets:
@@ -204,7 +206,7 @@ class ITkDataset(Dataset):
                 targets[f"particle_{field}"] = particles[field].to_numpy()
 
         return inputs, targets
-    
+
     def __getitem__(self, idx):
         inputs, targets = self.load_event(idx)
 
@@ -221,11 +223,11 @@ class ITkDataset(Dataset):
         target_shapes = {
             "pixel": (-1,),
             "strip": (-1,),
-            "particle": (self.event_max_num_particles,), 
+            "particle": (self.event_max_num_particles,),
             "particle_pixel": (self.event_max_num_particles, -1),
             "particle_strip": (self.event_max_num_particles, -1),
-            }
-        
+        }
+
         for target_name, fields in self.targets.items():
             target_valid = torch.from_numpy(targets[f"{target_name}_valid"]).bool()
             target_valid = pad_to_size(target_valid, target_shapes[target_name], False)
@@ -240,7 +242,6 @@ class ITkDataset(Dataset):
                 targets_out[f"{target_name}_{field}"] = target_field.unsqueeze(0)
 
         return inputs_out, targets_out
-
 
 
 class ITkDataModule(LightningDataModule):
@@ -279,7 +280,7 @@ class ITkDataModule(LightningDataModule):
             self.train_dset = ITkDataset(dirpath=self.train_dir, num_events=self.num_train, hit_eval_path=self.hit_eval_train, **self.kwargs)
 
         if stage == "fit":
-            self.val_dset = ITkDataset(dirpath=self.val_dir, num_events=self.num_val, hit_eval_path=self.hit_eval_val,  **self.kwargs)
+            self.val_dset = ITkDataset(dirpath=self.val_dir, num_events=self.num_val, hit_eval_path=self.hit_eval_val, **self.kwargs)
 
         # Only print train/val dataset details when actually training
         if stage == "fit" and self.trainer.is_global_zero:

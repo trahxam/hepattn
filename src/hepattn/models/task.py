@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod
+from typing import Literal
 
 import torch
 from torch import Tensor, nn
 
 from hepattn.models.dense import Dense
-from hepattn.models.loss import cost_fns, loss_fns
+from hepattn.models.loss import cost_fns, focal_loss, loss_fns
 
 
 class Task(nn.Module, ABC):
@@ -136,6 +137,7 @@ class HitFilterTask(Task):
         dim: int,
         threshold: float = 0.1,
         mask_keys: bool = False,
+        loss_fn: Literal["bce", "focal"] = "bce",
     ):
         """Task used for classifying whether hits belong to reconstructable objects or not."""
         super().__init__()
@@ -145,10 +147,11 @@ class HitFilterTask(Task):
         self.target_field = target_field
         self.dim = dim
         self.threshold = threshold
+        self.loss_fn = loss_fn
         self.mask_keys = mask_keys
 
         # Internal
-        self.input_objects = [f"{hit_name}_embed"]
+        self.input_features = [f"{hit_name}_embed"]
         self.net = Dense(dim, 1)
 
     def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:
@@ -156,7 +159,7 @@ class HitFilterTask(Task):
         return {f"{self.hit_name}_logit": x_logit.squeeze(-1)}
 
     def predict(self, outputs: dict) -> dict:
-        return {f"{self.hit_name}_{self.target_field}": outputs[f"{self.hit_name}_logit"].detach().sigmoid() >= self.threshold}
+        return {f"{self.hit_name}_{self.target_field}": outputs[f"{self.hit_name}_logit"].sigmoid() >= self.threshold}
 
     def loss(self, outputs: dict, targets: dict) -> dict:
         # Pick out the field that denotes whether a hit is on a reconstructable object or not
@@ -164,9 +167,15 @@ class HitFilterTask(Task):
         target = targets[f"{self.hit_name}_{self.target_field}"].type_as(output)
 
         # Calculate the BCE loss with class weighting
-        weight = 1 / target.float().mean()
-        loss = nn.functional.binary_cross_entropy_with_logits(output, target, pos_weight=weight)
-        return {f"{self.hit_name}_bce": loss}
+        if self.loss_fn == "bce":
+            weight = 1 / target.float().mean()
+            loss = nn.functional.binary_cross_entropy_with_logits(output, target, pos_weight=weight)
+        elif self.loss_fn == "focal":
+            loss = focal_loss(output, target)
+        else:
+            raise ValueError(f"Unknown loss function: {self.loss_fn}")
+
+        return {f"{self.hit_name}_{self.loss_fn}": loss}
 
     def key_mask(self, outputs, threshold=0.1):
         if not self.mask_keys:

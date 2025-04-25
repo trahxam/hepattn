@@ -4,9 +4,8 @@ import awkward as ak
 import numpy as np
 import torch
 from lightning import LightningDataModule
-from torch.utils.data import DataLoader, Dataset
 from torch import Tensor
-from typing import Union
+from torch.utils.data import DataLoader, Dataset
 
 from hepattn.utils.tensor import pad_to_size
 
@@ -278,7 +277,7 @@ class CLDDataset(Dataset):
 
 
 def pad_and_concat(items: list[Tensor], target_size: tuple[int], pad_value) -> Tensor:
-    """ Takes a list of tensors, pads them to a given size, and then concatenates them along the a new dimension at zero."""
+    """Takes a list of tensors, pads them to a given size, and then concatenates them along the a new dimension at zero."""
     return torch.cat([pad_to_size(item, (1, *target_size), pad_value) for item in items], dim=0)
 
 

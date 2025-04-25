@@ -251,7 +251,7 @@ environments:
       - pypi: https://download.pytorch.org/whl/test/six-1.16.0-py2.py3-none-any.whl
       - pypi: https://download.pytorch.org/whl/test/sympy-1.13.3-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/32/d5/f9a850d79b0851d1d4ef6456097579a9005b31fea68726a4ae5f2d82ddd9/threadpoolctl-3.6.0-py3-none-any.whl
-      - pypi: https://download.pytorch.org/whl/test/cu126/torch-2.7.0%2Bcu126-cp311-cp311-manylinux_2_28_x86_64.whl#sha256=f809911c9a3b2933ac3acc3a446a208292758dba0412a92dff953d03df415137
+      - pypi: https://download.pytorch.org/whl/test/cu126/torch-2.7.0%2Bcu126-cp311-cp311-manylinux_2_28_x86_64.whl#sha256=4e14c67aa9c6e6cdc4294329d587edcba5f6f5e17cd6f22df007207f5aa387db
       - pypi: https://files.pythonhosted.org/packages/38/be/dd54f581838cdad7291e6d1046a3f1e1e56505710e6e90b938bf66aa3d9a/torchjd-0.5.0-py3-none-any.whl
       - pypi: https://download.pytorch.org/whl/test/torchmetrics-1.0.3-py3-none-any.whl
       - pypi: https://download.pytorch.org/whl/test/tqdm-4.66.5-py3-none-any.whl
@@ -1463,7 +1463,7 @@ packages:
 - pypi: .
   name: hepattn
   version: 0.1.0
-  sha256: 2c1d19ce234dd09d15b410b2a8061d6109d2dd3d8a13a6a25740a1f22c445a1c
+  sha256: 6048ee96146f01d43005f6a38918b739529597e3d99016c0788136936e66afa6
   requires_dist:
   - packaging
   - wheel
@@ -2367,7 +2367,7 @@ packages:
   - tensorboardx>=2.2,<3.0 ; extra == 'all'
   - torchmetrics>=0.10.0,<2.0 ; extra == 'all'
   - torchvision>=0.16.0,<1.0 ; extra == 'all'
-  - deepspeed>=0.8.2,<=0.9.3 ; platform_system != 'Darwin' and platform_system != 'Windows' and extra == 'all'
+  - deepspeed>=0.8.2,<=0.9.3 ; sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'all'
   - bitsandbytes>=0.42.0,<1.0 ; sys_platform == 'darwin' and extra == 'all'
   - bitsandbytes>=0.44.0,<1.0 ; (sys_platform == 'linux' and extra == 'all') or (sys_platform == 'win32' and extra == 'all')
   - litdata>=0.2.0rc0,<1.0 ; extra == 'data'
@@ -2400,7 +2400,7 @@ packages:
   - torchmetrics>=0.7.0,<2.0 ; extra == 'dev'
   - torchvision>=0.16.0,<1.0 ; extra == 'dev'
   - uvicorn ; extra == 'dev'
-  - deepspeed>=0.8.2,<=0.9.3 ; platform_system != 'Darwin' and platform_system != 'Windows' and extra == 'dev'
+  - deepspeed>=0.8.2,<=0.9.3 ; sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'dev'
   - bitsandbytes>=0.42.0,<1.0 ; sys_platform == 'darwin' and extra == 'dev'
   - bitsandbytes>=0.44.0,<1.0 ; (sys_platform == 'linux' and extra == 'dev') or (sys_platform == 'win32' and extra == 'dev')
   - ipython[all]<9.0 ; extra == 'examples'
@@ -2419,7 +2419,7 @@ packages:
   - lightning-utilities>=0.8.0,<1.0 ; extra == 'fabric-all'
   - torchmetrics>=0.10.0,<2.0 ; extra == 'fabric-all'
   - torchvision>=0.16.0,<1.0 ; extra == 'fabric-all'
-  - deepspeed>=0.8.2,<=0.9.3 ; platform_system != 'Darwin' and platform_system != 'Windows' and extra == 'fabric-all'
+  - deepspeed>=0.8.2,<=0.9.3 ; sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'fabric-all'
   - bitsandbytes>=0.42.0,<1.0 ; sys_platform == 'darwin' and extra == 'fabric-all'
   - bitsandbytes>=0.44.0,<1.0 ; (sys_platform == 'linux' and extra == 'fabric-all') or (sys_platform == 'win32' and extra == 'fabric-all')
   - click==8.1.7 ; extra == 'fabric-dev'
@@ -2435,13 +2435,13 @@ packages:
   - torchmetrics>=0.10.0,<2.0 ; extra == 'fabric-dev'
   - torchmetrics>=0.7.0,<2.0 ; extra == 'fabric-dev'
   - torchvision>=0.16.0,<1.0 ; extra == 'fabric-dev'
-  - deepspeed>=0.8.2,<=0.9.3 ; platform_system != 'Darwin' and platform_system != 'Windows' and extra == 'fabric-dev'
+  - deepspeed>=0.8.2,<=0.9.3 ; sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'fabric-dev'
   - bitsandbytes>=0.42.0,<1.0 ; sys_platform == 'darwin' and extra == 'fabric-dev'
   - bitsandbytes>=0.44.0,<1.0 ; (sys_platform == 'linux' and extra == 'fabric-dev') or (sys_platform == 'win32' and extra == 'fabric-dev')
   - lightning-utilities>=0.8.0,<1.0 ; extra == 'fabric-examples'
   - torchmetrics>=0.10.0,<2.0 ; extra == 'fabric-examples'
   - torchvision>=0.16.0,<1.0 ; extra == 'fabric-examples'
-  - deepspeed>=0.8.2,<=0.9.3 ; platform_system != 'Darwin' and platform_system != 'Windows' and extra == 'fabric-strategies'
+  - deepspeed>=0.8.2,<=0.9.3 ; sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'fabric-strategies'
   - bitsandbytes>=0.42.0,<1.0 ; sys_platform == 'darwin' and extra == 'fabric-strategies'
   - bitsandbytes>=0.44.0,<1.0 ; (sys_platform == 'linux' and extra == 'fabric-strategies') or (sys_platform == 'win32' and extra == 'fabric-strategies')
   - click==8.1.7 ; extra == 'fabric-test'
@@ -2465,7 +2465,7 @@ packages:
   - tensorboardx>=2.2,<3.0 ; extra == 'pytorch-all'
   - torchmetrics>=0.10.0,<2.0 ; extra == 'pytorch-all'
   - torchvision>=0.16.0,<1.0 ; extra == 'pytorch-all'
-  - deepspeed>=0.8.2,<=0.9.3 ; platform_system != 'Darwin' and platform_system != 'Windows' and extra == 'pytorch-all'
+  - deepspeed>=0.8.2,<=0.9.3 ; sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'pytorch-all'
   - bitsandbytes>=0.42.0,<1.0 ; sys_platform == 'darwin' and extra == 'pytorch-all'
   - bitsandbytes>=0.44.0,<1.0 ; (sys_platform == 'linux' and extra == 'pytorch-all') or (sys_platform == 'win32' and extra == 'pytorch-all')
   - cloudpickle>=1.3,<3.0 ; extra == 'pytorch-dev'
@@ -2495,7 +2495,7 @@ packages:
   - torchmetrics>=0.10.0,<2.0 ; extra == 'pytorch-dev'
   - torchvision>=0.16.0,<1.0 ; extra == 'pytorch-dev'
   - uvicorn ; extra == 'pytorch-dev'
-  - deepspeed>=0.8.2,<=0.9.3 ; platform_system != 'Darwin' and platform_system != 'Windows' and extra == 'pytorch-dev'
+  - deepspeed>=0.8.2,<=0.9.3 ; sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'pytorch-dev'
   - bitsandbytes>=0.42.0,<1.0 ; sys_platform == 'darwin' and extra == 'pytorch-dev'
   - bitsandbytes>=0.44.0,<1.0 ; (sys_platform == 'linux' and extra == 'pytorch-dev') or (sys_platform == 'win32' and extra == 'pytorch-dev')
   - ipython[all]<9.0 ; extra == 'pytorch-examples'
@@ -2511,7 +2511,7 @@ packages:
   - tensorboardx>=2.2,<3.0 ; extra == 'pytorch-extra'
   - bitsandbytes>=0.42.0,<1.0 ; sys_platform == 'darwin' and extra == 'pytorch-extra'
   - bitsandbytes>=0.44.0,<1.0 ; (sys_platform == 'linux' and extra == 'pytorch-extra') or (sys_platform == 'win32' and extra == 'pytorch-extra')
-  - deepspeed>=0.8.2,<=0.9.3 ; platform_system != 'Darwin' and platform_system != 'Windows' and extra == 'pytorch-strategies'
+  - deepspeed>=0.8.2,<=0.9.3 ; sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'pytorch-strategies'
   - cloudpickle>=1.3,<3.0 ; extra == 'pytorch-test'
   - coverage==7.3.1 ; extra == 'pytorch-test'
   - fastapi ; extra == 'pytorch-test'
@@ -2528,7 +2528,7 @@ packages:
   - scikit-learn>0.22.1,<2.0 ; extra == 'pytorch-test'
   - tensorboard>=2.9.1,<3.0 ; extra == 'pytorch-test'
   - uvicorn ; extra == 'pytorch-test'
-  - deepspeed>=0.8.2,<=0.9.3 ; platform_system != 'Darwin' and platform_system != 'Windows' and extra == 'strategies'
+  - deepspeed>=0.8.2,<=0.9.3 ; sys_platform != 'darwin' and sys_platform != 'win32' and extra == 'strategies'
   - bitsandbytes>=0.42.0,<1.0 ; sys_platform == 'darwin' and extra == 'strategies'
   - bitsandbytes>=0.44.0,<1.0 ; (sys_platform == 'linux' and extra == 'strategies') or (sys_platform == 'win32' and extra == 'strategies')
   - click==8.1.7 ; extra == 'test'

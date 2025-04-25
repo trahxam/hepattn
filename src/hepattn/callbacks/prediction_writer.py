@@ -1,8 +1,6 @@
 from pathlib import Path
 
 import h5py
-import numpy as np
-import torch
 from lightning import Callback, LightningModule, Trainer
 
 from hepattn.utils.tensor import tensor_to_numpy
