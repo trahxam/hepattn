@@ -44,7 +44,13 @@ def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec):
 
                 # Tracker hit
                 if input_name in sihit_names:
-                    ax[ax_idx].plot(x[mask], y[mask], color=color, marker="o", alpha=0.75, linewidth=1.0, ms=2.0)
+                     # Used for sorting the hits in time when we want to plot them in order in the tracker
+                    idx = torch.argsort(inputs[f"{input_name}_time"][batch_idx][mask], dim=-1)
+                    
+                    ax[ax_idx].plot(x[mask][idx], y[mask][idx], color=color, marker="o", alpha=0.75, linewidth=1.0, ms=2.0)
+
+                    #if len(x[mask]) > 0:
+                    #    ax[ax_idx].text(x[mask][idx][-1], y[mask][idx][-1], str(reconstruction["particle_sihit_max_abs_deta"][batch_idx][mcparticle_idx].item()), fontsize=6)
 
                 # ECAL hit
                 elif input_name in ecal_names:

@@ -31,6 +31,11 @@ def test_plot_cld_hit_dr(cld_datamodule):
         inputs, targets = next(data_iterator)
 
         mask = targets["particle_sihit_valid"]
+        hit_r = inputs["sihit_pos.r"]
+
+        # Only consider differences for hits that are away from the IP
+        mask = mask & (hit_r[..., None, :] >= 0.25)
+        
         hit_phi = inputs["sihit_pos.phi"]
         hit_eta = inputs["sihit_pos.eta"]
         hit_time = inputs["sihit_time"]
