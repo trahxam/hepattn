@@ -69,6 +69,11 @@ class ITkDataset(Dataset):
         self.num_events = num_events
         self.event_names = event_names[:num_events]
 
+        # Sample ID is an integer that can uniquely identify each event/sample, used for picking out events during eval etc
+        self.sample_ids = np.array([int(name.split("event")[-1]) for name in self.event_names], dtype=np.int64)
+        self.sample_ids_to_event_names = {self.sample_ids[i]: str(self.event_names[i]) for i in range(len(self.sample_ids))}
+        self.event_names_to_sample_ids = {v: k for k, v in self.sample_ids_to_event_names.items()}
+
         # Setup hit eval file if specified
         if self.hit_eval_path:
             print(f"Using hit eval dataset {self.hit_eval_path}")
@@ -87,9 +92,10 @@ class ITkDataset(Dataset):
     def __len__(self):
         return int(self.num_events)
 
-    def load_event(self, idx):
+    def load_event(self, sample_id):
+        event_name = self.sample_ids_to_event_names[sample_id]
+
         # Load in event data
-        event_name = self.event_names[idx]
         hit_names = list(self.inputs.keys())
 
         # Load the particles
@@ -170,12 +176,12 @@ class ITkDataset(Dataset):
                 with h5py.File(self.hit_eval_path, "r") as hit_eval_file:
                     # Append the hit filter logit scores if specified
                     if self.append_hit_eval_output:
-                        hits[hit]["filter_logit"] = hit_eval_file[f"{event_name}/outputs/final/{hit}_filter/{hit}_logit"][0]
+                        hits[hit]["filter_logit"] = hit_eval_file[f"{sample_id}/outputs/final/{hit}_filter/{hit}_logit"][0]
 
                     # If true, we drop hits based on the hit eval prediction, i.e. the pre-decided cut of the model
                     if self.apply_hit_eval_pred:
                         # The dataset has shape (1, num_hits)
-                        hit_filter_pred = hit_eval_file[f"{event_name}/preds/final/{hit}_filter/{hit}_on_valid_particle"][0]
+                        hit_filter_pred = hit_eval_file[f"{sample_id}/preds/final/{hit}_filter/{hit}_on_valid_particle"][0]
                         hits[hit] = hits[hit][hit_filter_pred]
 
         # Pack everything togrther
@@ -205,12 +211,17 @@ class ITkDataset(Dataset):
             for field in self.targets["particle"]:
                 targets[f"particle_{field}"] = particles[field].to_numpy()
 
+        # Add metadata
+        targets["sample_id"] = sample_id
+
         return inputs, targets
 
     def __getitem__(self, idx):
-        inputs, targets = self.load_event(idx)
+        sample_id = self.sample_ids[idx]
+        inputs, targets = self.load_event(sample_id)
 
         # Convert to a torch tensor of the correct dtype and add the batch dimension
+        # First do the inputs / hits
         inputs_out = {}
         targets_out = {}
         for input_name, fields in self.inputs.items():
@@ -220,6 +231,7 @@ class ITkDataset(Dataset):
             for field in fields:
                 inputs_out[f"{input_name}_{field}"] = torch.from_numpy(inputs[f"{input_name}_{field}"]).half().unsqueeze(0)
 
+        # Now pack the targets
         target_shapes = {
             "pixel": (-1,),
             "strip": (-1,),
@@ -240,6 +252,9 @@ class ITkDataset(Dataset):
                 else:
                     target_field = pad_to_size(target_field, target_shapes[target_name], False).bool()
                 targets_out[f"{target_name}_{field}"] = target_field.unsqueeze(0)
+
+        # Now the metadata
+        targets_out["sample_id"] = torch.tensor([targets["sample_id"]], dtype=torch.int64)
 
         return inputs_out, targets_out
 

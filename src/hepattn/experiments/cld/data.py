@@ -81,13 +81,19 @@ class CLDDataset(Dataset):
         # Allow us to select events by index
         self.event_filenames = event_filenames[: self.num_events]
 
+        # Define the sample identifiers unique to each sample, uses the file name
+        # Example: reco_p8_ee_tt_ecm365_12012864_7_00000329_10_256 -> 12012864700000329
+        self.sample_ids = np.array([int("".join(str(f.stem).split("_")[-5:-2])) for f in self.event_filenames], dtype=np.int64)
+        self.sample_ids_to_event_filenames = {self.sample_ids[i]: str(self.event_filenames[i]) for i in range(len(self.sample_ids))}
+        self.event_filenames_to_sample_ids = {v: k for k, v in self.sample_ids_to_event_filenames.items()}
+
     def __len__(self):
         return int(self.num_events)
 
-    def load_event(self, idx):
+    def load_event(self, sample_id):
         """Loads a single CLD event from a preprocessed parquet file."""
-
-        event_raw = ak.from_parquet(self.event_filenames[idx])
+        event_filename = self.sample_ids_to_event_filenames[sample_id]
+        event_raw = ak.from_parquet(event_filename)
 
         # First unpack from awkward parquet format to dict of numpy arrays
         event = {}
@@ -109,6 +115,7 @@ class CLDDataset(Dataset):
 
         def add_conformal_coords(i, p):
             # Conformal tracking coordinates
+            event[f"{i}.{p}.c"] = 1 / (event[f"{i}.{p}.x"] ** 2 + event[f"{i}.{p}.y"] ** 2)
             event[f"{i}.{p}.u"] = event[f"{i}.{p}.x"] / (event[f"{i}.{p}.x"] ** 2 + event[f"{i}.{p}.y"] ** 2)
             event[f"{i}.{p}.v"] = event[f"{i}.{p}.y"] / (event[f"{i}.{p}.x"] ** 2 + event[f"{i}.{p}.y"] ** 2)
 
@@ -196,21 +203,22 @@ class CLDDataset(Dataset):
         # then any particles on this hit are cut
         for hit_name, max_deta in self.particle_max_hit_deflection_deta.items():
             mask = event[f"particle_{hit_name}_valid"]
+            r = event[f"{hit_name}.pos.r"][..., None, :]
+            mask = mask & (r >= 0.25)
             eta = np.ma.masked_array(mask * event[f"{hit_name}.pos.eta"][..., None, :], mask=~mask)
             time = np.ma.masked_array(mask * event[f"{hit_name}.time"][..., None, :], mask=~mask)
-            idx = np.ma.argsort(time, axis=-1)
-            eta_sorted = np.take_along_axis(eta, idx, axis=-1)
-            deta = np.ma.diff(eta_sorted, axis=-1)
-            particle_cuts["hit_deflection_eta"] = np.ma.all(np.abs(deta) < max_deta, axis=-1)
+            deta = np.ma.diff(np.take_along_axis(eta, np.ma.argsort(time, axis=-1), axis=-1), axis=-1)
+            event[f"particle.{hit_name}_max_abs_deta"] = np.ma.max(np.abs(deta), axis=-1)
+            particle_cuts["hit_deflection_eta"] = event[f"particle.{hit_name}_max_abs_deta"] < max_deta
 
         # Now also apply the hit deflection cut in phi
         for hit_name, max_dphi in self.particle_max_hit_deflection_dphi.items():
             mask = event[f"particle_{hit_name}_valid"]
+            r = event[f"{hit_name}.pos.r"][..., None, :]
+            mask = mask & (r >= 0.25)
             phi = np.ma.masked_array(mask * event[f"{hit_name}.pos.phi"][..., None, :], mask=~mask)
             time = np.ma.masked_array(mask * event[f"{hit_name}.time"][..., None, :], mask=~mask)
-            idx = np.ma.argsort(time, axis=-1)
-            phi_sorted = np.take_along_axis(phi, idx, axis=-1)
-            dphi = np.ma.diff(phi_sorted, axis=-1)
+            dphi = np.ma.diff(np.take_along_axis(phi, np.ma.argsort(time, axis=-1), axis=-1), axis=-1)
             particle_cuts["hit_deflection_phi"] = np.ma.all(np.abs(dphi) < max_dphi, axis=-1)
 
         # Apply the particle cuts
@@ -234,29 +242,43 @@ class CLDDataset(Dataset):
             if f"particle_{input_name}" in self.targets:
                 event[f"particle_{input_name}_valid"] = event[f"particle_{input_name}_valid"][:, mask]
 
+        # Event level info
+        event[f"event_num_particles"] = event["particle_valid"].sum()
+
+        for input_name in self.inputs:
+            event[f"event_num_{input_name}"] = ~np.isnan(event[f"{input_name}.type"]).sum()
+
         # Check that there are no noise hits if we specified this
         for input_name in self.truth_filter_hits:
             if f"particle_{input_name}" in self.targets:
                 assert np.all(event[f"particle_{input_name}_valid"].sum(-2) > 0)
 
+        # Calculate some truth particle summary stats
+        for hit in hits + list(self.merge_inputs.keys()):
+            event[f"particle.num_{hit}"] = event[f"particle_{hit}_valid"].sum(-1)
+
         # Pick out the inputs that have actually been requested
         inputs = {}
+        targets = {}
         for input_name, fields in self.inputs.items():
             inputs[f"{input_name}_valid"] = ~np.isnan(event[f"{input_name}.type"])
+            targets[f"{input_name}_valid"] = inputs[f"{input_name}_valid"]
             for field in fields:
                 inputs[f"{input_name}_{field}"] = event[f"{input_name}.{field}"]
 
         # Now pick out the targets
-        targets = {}
         for target_name, fields in self.targets.items():
             targets[f"{target_name}_valid"] = event[f"{target_name}_valid"]
             for field in fields:
                 targets[f"{target_name}_{field}"] = event[f"{target_name}.{field}"]
 
+        # Add any metadata
+        targets["sample_id"] = self.event_filenames_to_sample_ids[str(event_filename)]
+
         return inputs, targets
 
     def __getitem__(self, idx):
-        inputs, targets = self.load_event(idx)
+        inputs, targets = self.load_event(self.sample_ids[idx])
 
         # Convert to a torch tensor of the correct dtype and add the batch dimension
         inputs_out = {}
@@ -268,10 +290,14 @@ class CLDDataset(Dataset):
             for field in fields:
                 inputs_out[f"{input_name}_{field}"] = torch.from_numpy(inputs[f"{input_name}_{field}"]).half().unsqueeze(0)
 
+        # Convert the targets
         for target_name, fields in self.targets.items():
             targets_out[f"{target_name}_valid"] = torch.from_numpy(targets[f"{target_name}_valid"]).bool().unsqueeze(0)
             for field in fields:
                 targets_out[f"{target_name}_{field}"] = torch.from_numpy(targets[f"{target_name}_{field}"]).half().unsqueeze(0)
+
+        # Convert the metedata
+        targets_out["sample_id"] = torch.tensor([targets["sample_id"]], dtype=torch.int64)
 
         return inputs_out, targets_out
 
@@ -315,11 +341,14 @@ class CLDCollator:
                 size = (self.max_num_obj, hit_max_sizes[hit])
 
             k = f"{target_name}_valid"
-            batched_targets[k] = pad_and_concat([i[k] for i in targets], size, False)
+            batched_targets[k] = pad_and_concat([t[k] for t in targets], size, False)
 
             for field in fields:
                 k = f"{target_name}_{field}"
-                batched_targets[k] = pad_and_concat([i[k] for i in targets], size, torch.nan)
+                batched_targets[k] = pad_and_concat([t[k] for t in targets], size, torch.nan)
+
+        # Batch the metadata
+        batched_targets["sample_id"] = torch.cat([t["sample_id"] for t in targets], dim=-1)
 
         return batched_inputs, batched_targets
 
