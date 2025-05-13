@@ -4,10 +4,13 @@ import awkward as ak
 import numpy as np
 import torch
 from lightning import LightningDataModule
+from lightning import seed_everything
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
+from scipy.sparse import csr_matrix, csr_array
 
-from hepattn.utils.tensor import pad_to_size
+from hepattn.utils.tensor_tools import pad_to_size
+from hepattn.utils.array_tools import masked_diff_last_axis, masked_angle_diff_last_axis
 
 
 class CLDDataset(Dataset):
@@ -25,18 +28,21 @@ class CLDDataset(Dataset):
         charged_particle_max_num_hits: dict[str, int] | None = None,
         neutral_particle_min_num_hits: dict[str, int] | None = None,
         neutral_particle_max_num_hits: dict[str, int] | None = None,
-        particle_max_hit_deflection_deta: dict[str, float] | None = None,
-        particle_max_hit_deflection_dphi: dict[str, float] | None = None,
+        particle_hit_min_p_ratio: dict[str, float] | None = None,
+        particle_hit_deflection_cuts: dict[str, dict] | None = None,
+        particle_hit_separation_cuts: dict[str, dict] | None = None,
         truth_filter_hits: list[str] | None = None,
         event_max_num_particles: int = 256,
         random_seed: int = 42,
     ):
         if truth_filter_hits is None:
             truth_filter_hits = []
-        if particle_max_hit_deflection_dphi is None:
-            particle_max_hit_deflection_dphi = {}
-        if particle_max_hit_deflection_deta is None:
-            particle_max_hit_deflection_deta = {}
+        if particle_hit_min_p_ratio is None:
+            particle_hit_min_p_ratio = {}
+        if particle_hit_deflection_cuts is None:
+            particle_hit_deflection_cuts = {}
+        if particle_hit_separation_cuts is None:
+            particle_hit_separation_cuts = {}
         if neutral_particle_max_num_hits is None:
             neutral_particle_max_num_hits = {}
         if neutral_particle_min_num_hits is None:
@@ -61,17 +67,19 @@ class CLDDataset(Dataset):
         self.charged_particle_max_num_hits = charged_particle_max_num_hits
         self.neutral_particle_min_num_hits = neutral_particle_min_num_hits
         self.neutral_particle_max_num_hits = neutral_particle_max_num_hits
-        self.particle_max_hit_deflection_deta = particle_max_hit_deflection_deta
-        self.particle_max_hit_deflection_dphi = particle_max_hit_deflection_dphi
+        self.particle_hit_min_p_ratio = particle_hit_min_p_ratio
+        self.particle_hit_deflection_cuts = particle_hit_deflection_cuts
+        self.particle_hit_separation_cuts = particle_hit_separation_cuts
         self.truth_filter_hits = truth_filter_hits
         self.event_max_num_particles = event_max_num_particles
         self.random_seed = random_seed
 
         # Global random state initialisation
         np.random.default_rng(42)
+        seed_everything(42, workers=True)
 
         # Setup the number of events that will be used
-        event_filenames = list(Path(self.dirpath).glob("*reco*.parquet"))
+        event_filenames = list(Path(self.dirpath).rglob("*reco*.npz"))
         num_available_events = len(event_filenames)
         num_requested_events = num_available_events if num_events == -1 else num_events
         self.num_events = min(num_available_events, num_requested_events)
@@ -81,9 +89,16 @@ class CLDDataset(Dataset):
         # Allow us to select events by index
         self.event_filenames = event_filenames[: self.num_events]
 
+        def event_filenames_to_sample_id(event_filename):
+            id_parts = str(event_filename.stem).split("_")
+            job_id = id_parts[-3]
+            proc_id = id_parts[-2]
+            event_id = id_parts[-1]
+            return int(job_id + proc_id.zfill(4) + event_id.zfill(4))
+
         # Define the sample identifiers unique to each sample, uses the file name
-        # Example: reco_p8_ee_tt_ecm365_12012864_7_00000329_10_256 -> 12012864700000329
-        self.sample_ids = np.array([int("".join(str(f.stem).split("_")[-5:-2])) for f in self.event_filenames], dtype=np.int64)
+        # Example: reco_p8_ee_tt_ecm365_12012864_7_329 -> 1201286470329
+        self.sample_ids = np.array([event_filenames_to_sample_id(f) for f in self.event_filenames], dtype=np.int64)
         self.sample_ids_to_event_filenames = {self.sample_ids[i]: str(self.event_filenames[i]) for i in range(len(self.sample_ids))}
         self.event_filenames_to_sample_ids = {v: k for k, v in self.sample_ids_to_event_filenames.items()}
 
@@ -91,24 +106,25 @@ class CLDDataset(Dataset):
         return int(self.num_events)
 
     def load_event(self, sample_id):
-        """Loads a single CLD event from a preprocessed parquet file."""
+        """Loads a single CLD event from a preprocessed npz file."""
         event_filename = self.sample_ids_to_event_filenames[sample_id]
-        event_raw = ak.from_parquet(event_filename)
 
-        # First unpack from awkward parquet format to dict of numpy arrays
-        event = {}
-        for key in event_raw.fields:
-            event[key] = ak.to_numpy(event_raw[key])[0]
+        # Load the event
+        with np.load(event_filename, allow_pickle=True) as archive:
+            event = {key: archive[key] for key in archive.files}
+
+        #for k, v in event.items():
+        #    print(k, v.shape)
 
         def convert_mm_to_m(i, p):
             # Convert a spatial coordinate from mm to m inplace
             for coord in ["x", "y", "z"]:
-                event[f"{i}.{p}.{coord}"] *= 0.001
+                event[f"{i}.{p}.{coord}"] = 0.001 * event[f"{i}.{p}.{coord}"]
 
         def add_cylindrical_coords(i, p):
             # Add standard tracking cylindrical coordinates
             event[f"{i}.{p}.r"] = np.sqrt(event[f"{i}.{p}.x"] ** 2 + event[f"{i}.{p}.y"] ** 2)
-            event[f"{i}.{p}.s"] = np.sqrt(event[f"{i}.{p}.x"] ** 2 + event[f"{i}.{p}.y"] ** 2 + event[f"{i}.{p}.z"] ** 2)
+            event[f"{i}.{p}.s"] = np.sqrt(event[f"{i}.{p}.x"] ** 2 + event[f"{i}.{p}.y"] ** 2 + event[f"{i}.{p}.z"] ** 2)            
             event[f"{i}.{p}.theta"] = np.arccos(event[f"{i}.{p}.z"] / event[f"{i}.{p}.s"])
             event[f"{i}.{p}.eta"] = -np.log(np.tan(event[f"{i}.{p}.theta"] / 2))
             event[f"{i}.{p}.phi"] = np.arctan2(event[f"{i}.{p}.y"], event[f"{i}.{p}.x"])
@@ -119,22 +135,62 @@ class CLDDataset(Dataset):
             event[f"{i}.{p}.u"] = event[f"{i}.{p}.x"] / (event[f"{i}.{p}.x"] ** 2 + event[f"{i}.{p}.y"] ** 2)
             event[f"{i}.{p}.v"] = event[f"{i}.{p}.y"] / (event[f"{i}.{p}.x"] ** 2 + event[f"{i}.{p}.y"] ** 2)
 
-        hits = ["vtb", "vte", "itb", "ite", "otb", "ote", "ecb", "ece", "hcb", "hce", "hco", "muon"]
+        def add_log_energy(i):
+            event[f"{i}.log_energy"] = np.log(1000 * event[f"{i}.energy"])
 
-        # Add extra coordinates to the hits
-        for hit in hits:
-            # It is important to do the mm -> m conversion first, so that all other
-            # distance fields are also in m, which is required to not to cause nans in the positional encoding
-            convert_mm_to_m(hit, "pos")
-            add_cylindrical_coords(hit, "pos")
-            add_conformal_coords(hit, "pos")
+        # Atomic input types
+        trkr_hits = ["vtb", "vte", "itb", "ite", "otb", "ote"]
+        calo_hits = [ "ecb", "ece", "hcb", "hce", "hco", "msb", "mse"]
+        hits = trkr_hits + calo_hits
 
-        # Add extra coordinates to the start and end points of particles
-        for point in ["vtx", "end"]:
-            convert_mm_to_m("particle", f"{point}.pos")
-            add_cylindrical_coords("particle", f"{point}.pos")
-            add_conformal_coords("particle", f"{point}.pos")
-            add_cylindrical_coords("particle", f"{point}.mom")
+        trkr_cols = [f"{hit}_col" for hit in trkr_hits]
+        calo_cols = [f"{hit}_col" for hit in calo_hits]
+        cols = trkr_cols + calo_cols
+
+        calo_cons = [f"{hit}_con" for hit in calo_hits]
+        cons = calo_cons
+
+        items = hits + cols + cons
+
+        # Make sure everything is sorted in time
+        item_orderings = {}
+        for item in items:
+            if f"{item}.time" in event:
+                item_orderings[item] = np.argsort(event[f"{item}.time"])
+
+        # It is important to do the mm -> m conversion first, so that all other
+        # distance fields are also in m, which is required to not to cause nans in the positional encoding
+        # Add extra coordinates for tracker + hit positions
+        for item in hits + cols:
+            convert_mm_to_m(item, "pos")
+            add_cylindrical_coords(item, "pos")
+            add_conformal_coords(item, "pos")
+
+        # Add extra coords for calo contribution step positions
+        for item in calo_cons:
+            convert_mm_to_m(item, "step_pos")
+            add_cylindrical_coords(item, "step_pos")
+            add_conformal_coords(item, "step_pos")
+
+        # Add the log of the energy, useful for training over large dynamic range
+        for item in calo_hits:
+            add_log_energy(item)
+
+        # Add extra coordinates for tracker collection momenta
+        for item in trkr_cols:
+            add_cylindrical_coords(item, f"mom")
+
+        # Add extra coordinates to the start and and positions and momenta for particles
+        particle_pos_fields = ["vtx"]
+        particle_mom_fields = ["mom"]
+        
+        for field in particle_pos_fields:
+            convert_mm_to_m("particle", field)
+            add_cylindrical_coords("particle", field)
+            add_conformal_coords("particle", field)
+        
+        for field in particle_mom_fields:
+            add_cylindrical_coords("particle", field)
 
         # Merge inputs, first check all requested merged inputs have the same
         # fields and that the fields are given in the same order
@@ -151,39 +207,105 @@ class CLDDataset(Dataset):
         event["particle_valid"] = np.full_like(event["particle.PDG"], True, np.bool)
         num_particles = len(event["particle_valid"])
 
+        particle_hit_masks = [("particle", hit) for hit in hits]
+        masks = particle_hit_masks
+
+        def load_csr_mask(src, tgt):
+            data = (event[f"{src}_to_{tgt}_data"], event[f"{src}_to_{tgt}_indices"], event[f"{src}_to_{tgt}_indptr"])
+            shape = tuple(event[f"{src}_to_{tgt}_shape"])
+            return csr_matrix(data, shape, dtype=bool)
+
         # Now we will construct the masks that link particles to hits
-        for hit in hits:
-            num_hits = len(event[f"{hit}.type"])
-            mask = np.full((num_hits, num_particles), False)
+        for src, tgt in masks:
+            mask_csr = load_csr_mask(src, tgt)
+            mask_dense = np.array(mask_csr.todense())
+            event[f"{src}_{tgt}_valid"] = mask_dense
 
-            # Has shape (num hit-particle links, 2)
-            mask_idxs = event[f"{hit}_to_particle_idxs"]
+        col_fields = ["pos.x", "pos.y", "pos.z", "mom.x", "mom.y", "mom.z"]
+        con_fields = ["energy"]
 
-            # Get the mask indices that map from hits to particles
-            # Check there are actually some hits present and there is at least one particle to link
-            # Indices link hits to particles, so have to transpose to get particles to hits
-            if num_hits > 0 and len(mask_idxs) > 0:
-                mask[mask_idxs[:, 0], mask_idxs[:, 1]] = True
+        particle_trkrhit_fields = {("particle", f"{hit}_col", hit): col_fields for hit in trkr_hits}
+        particle_calohit_fields = {("particle", f"{hit}_con", hit): con_fields for hit in calo_hits}
+        particle_hit_fields = particle_trkrhit_fields | particle_calohit_fields
 
-            event[f"particle_{hit}_valid"] = mask.T
+        for (src, link, tgt), fields in particle_hit_fields.items():
+            src_link_csr = load_csr_mask(src, link)
+            link_tgt_csr = load_csr_mask(link, tgt)
+
+            for field in fields:
+                link_csr = csr_array(event[f"{link}.{field}"])
+
+                # This performs the (sparse) contraction A[i,j]b[j]C[j,k]
+                src_tgt_field_csr = src_link_csr.multiply(link_csr).dot(link_tgt_csr)
+                src_tgt_field_dense = np.array(src_tgt_field_csr.todense())
+                event[f"{src}_{tgt}.{field}"] = src_tgt_field_dense
 
         # Merge together any masks
         if self.merge_inputs:
             for merged_input_name, input_names in self.merge_inputs.items():
                 event[f"particle_{merged_input_name}_valid"] = np.concatenate([event[f"particle_{hit}_valid"] for hit in input_names], axis=-1)
 
+                if f"particle_{merged_input_name}" in self.targets:
+                    for field in self.targets[f"particle_{merged_input_name}"]:
+                        event[f"particle_{merged_input_name}.{field}"] = np.concatenate([event[f"particle_{hit}.{field}"] for hit in input_names], axis=-1)
+
         # Add extra labels for particles
         event["particle.isCharged"] = np.abs(event["particle.charge"]) > 0
         event["particle.isNeutral"] = ~event["particle.isCharged"]
 
         # Set which particles we deem to be targets / reconstructable
-        particle_cuts = {"min_pt": event["particle.vtx.mom.r"] >= self.particle_min_pt}
+        particle_cuts = {"min_pt": event["particle.mom.r"] >= self.particle_min_pt}
 
         if not self.include_charged:
             particle_cuts["not_charged"] = ~event["particle.isCharged"]
 
         if not self.include_neutral:
             particle_cuts["not_neutral"] = ~event["particle.isNeutral"]
+
+        for item_name, min_ratio in self.particle_hit_min_p_ratio.items():
+            mask = event[f"particle_{item_name}_valid"]
+
+            px = np.ma.masked_array(event[f"particle_{item_name}.mom.x"], mask=~mask)
+            py = np.ma.masked_array(event[f"particle_{item_name}.mom.y"], mask=~mask)
+            pz = np.ma.masked_array(event[f"particle_{item_name}.mom.z"], mask=~mask)
+
+            p = np.sqrt(px**2 + py**2 + pz**2)
+            item_mean_p_ratio = p / p.mean(-1)[...,None]
+
+            event[f"particle_{item_name}_valid"] = event[f"particle_{item_name}_valid"] & (item_mean_p_ratio >= min_ratio).filled(False)
+        
+        # Apply hit cuts based on angular deflection
+        for item_name, cut in self.particle_hit_deflection_cuts.items():
+            for _ in range(cut["num_passes"]):
+                mask = event[f"particle_{item_name}_valid"]
+
+                px = np.ma.masked_array(event[f"particle_{item_name}.mom.x"], mask=~mask)
+                py = np.ma.masked_array(event[f"particle_{item_name}.mom.y"], mask=~mask)
+                pz = np.ma.masked_array(event[f"particle_{item_name}.mom.z"], mask=~mask)
+                # t = np.ma.masked_array(event[f"particle_{item_name}.time"], mask=~mask)
+
+                angle_diff = masked_angle_diff_last_axis(px, py, pz, ~mask).filled(0.0)
+
+                event[f"particle_{item_name}_valid"] = event[f"particle_{item_name}_valid"] & (angle_diff <= cut["max_angle"])
+        
+        # Apply hit cuts based on distance between consecutive hits on particles
+        for item_name, cut in self.particle_hit_separation_cuts.items():
+            for _ in range(cut["num_passes"]):
+                mask = event[f"particle_{item_name}_valid"]
+
+                x = np.ma.masked_array(mask * event[f"{item_name}.pos.x"][..., None, :], mask=~mask)
+                y = np.ma.masked_array(mask * event[f"{item_name}.pos.y"][..., None, :], mask=~mask)
+                z = np.ma.masked_array(mask * event[f"{item_name}.pos.z"][..., None, :], mask=~mask)
+                t = np.ma.masked_array(mask * event[f"{item_name}.time"][..., None, :], mask=~mask)
+
+                dx = masked_diff_last_axis(x)
+                dy = masked_diff_last_axis(y)
+                dz = masked_diff_last_axis(z)
+
+                dr = np.ma.sqrt(dx**2 + dy**2 + dz**2).filled(0.0)
+
+                # event[f"particle_valid"] = event[f"particle_valid"] & (dr <= max_dist).all(-1)
+                event[f"particle_{item_name}_valid"] = event[f"particle_{item_name}_valid"] & (dr <= cut["max_dist"])
 
         # Now we have built the masks, we can apply hit/counting based cuts
         for hit_name, min_num_hits in self.charged_particle_min_num_hits.items():
@@ -198,29 +320,6 @@ class CLDDataset(Dataset):
         for hit_name, max_num_hits in self.neutral_particle_max_num_hits.items():
             particle_cuts[f"neutral_max_{hit_name}"] = ~(event["particle.isNeutral"] & (event[f"particle_{hit_name}_valid"].sum(-1) > max_num_hits))
 
-        # Apply hit deflection based cuts
-        # If two hits that are subsequent in time have a difference in eta/phi larger than some maximum,
-        # then any particles on this hit are cut
-        for hit_name, max_deta in self.particle_max_hit_deflection_deta.items():
-            mask = event[f"particle_{hit_name}_valid"]
-            r = event[f"{hit_name}.pos.r"][..., None, :]
-            mask = mask & (r >= 0.25)
-            eta = np.ma.masked_array(mask * event[f"{hit_name}.pos.eta"][..., None, :], mask=~mask)
-            time = np.ma.masked_array(mask * event[f"{hit_name}.time"][..., None, :], mask=~mask)
-            deta = np.ma.diff(np.take_along_axis(eta, np.ma.argsort(time, axis=-1), axis=-1), axis=-1)
-            event[f"particle.{hit_name}_max_abs_deta"] = np.ma.max(np.abs(deta), axis=-1)
-            particle_cuts["hit_deflection_eta"] = event[f"particle.{hit_name}_max_abs_deta"] < max_deta
-
-        # Now also apply the hit deflection cut in phi
-        for hit_name, max_dphi in self.particle_max_hit_deflection_dphi.items():
-            mask = event[f"particle_{hit_name}_valid"]
-            r = event[f"{hit_name}.pos.r"][..., None, :]
-            mask = mask & (r >= 0.25)
-            phi = np.ma.masked_array(mask * event[f"{hit_name}.pos.phi"][..., None, :], mask=~mask)
-            time = np.ma.masked_array(mask * event[f"{hit_name}.time"][..., None, :], mask=~mask)
-            dphi = np.ma.diff(np.take_along_axis(phi, np.ma.argsort(time, axis=-1), axis=-1), axis=-1)
-            particle_cuts["hit_deflection_phi"] = np.ma.all(np.abs(dphi) < max_dphi, axis=-1)
-
         # Apply the particle cuts
         for cut_mask in particle_cuts.values():
             event["particle_valid"] &= cut_mask
@@ -229,19 +328,36 @@ class CLDDataset(Dataset):
         for input_name in self.inputs:
             event[f"particle_{input_name}_valid"] &= event["particle_valid"][:, np.newaxis]
 
-        # Do truth hit filtering if specified
+            # Zero out any invalid particle slots for the mask regression
+            if f"particle_{input_name}" in self.targets:
+                for field in self.targets[f"particle_{input_name}"]:
+                    event[f"particle_{input_name}.{field}"] *= event["particle_valid"][:, np.newaxis].astype(np.float32)
+
+        # If specified, mark any noise hits as hits that should be dropped
+        item_cuts = {}
         for input_name in self.truth_filter_hits:
             # Get hits that are not noise
             mask = event[f"particle_{input_name}_valid"].any(-2)
 
-            # First drop noise hits from inputs
+            if input_name not in item_cuts:
+                item_cuts[input_name] = mask
+            else:
+                item_cuts[input_name] &= mask
+
+        # Do truth hit filtering if specified
+        for input_name, mask in item_cuts.items():
+            # First drop hits from inputs
             for field in self.inputs[input_name]:
                 event[f"{input_name}.{field}"] = event[f"{input_name}.{field}"][mask]
 
-            # Also drop noise hits from the target masks
+            # Also drop hits from the target masks
             if f"particle_{input_name}" in self.targets:
                 event[f"particle_{input_name}_valid"] = event[f"particle_{input_name}_valid"][:, mask]
 
+                if f"particle_{input_name}" in self.targets:
+                    for field in self.targets[f"particle_{input_name}"]:
+                            event[f"particle_{input_name}.{field}"] = event[f"particle_{input_name}.{field}"][:, mask]
+        
         # Event level info
         event[f"event_num_particles"] = event["particle_valid"].sum()
 
@@ -257,12 +373,22 @@ class CLDDataset(Dataset):
         for hit in hits + list(self.merge_inputs.keys()):
             event[f"particle.num_{hit}"] = event[f"particle_{hit}_valid"].sum(-1)
 
+        # Remove invalid particle slots
+        # Assue that particle axis is always 0, make a copy as we will also change particle_valid
+        particle_valid = np.copy(event["particle_valid"])
+        for target_name, fields in self.targets.items():
+            if "particle" in target_name:
+                event[f"{target_name}_valid"] = event[f"{target_name}_valid"][particle_valid,...]
+                for field in fields:
+                    event[f"{target_name}.{field}"] = event[f"{target_name}.{field}"][particle_valid,...]
+
         # Pick out the inputs that have actually been requested
         inputs = {}
         targets = {}
         for input_name, fields in self.inputs.items():
             inputs[f"{input_name}_valid"] = ~np.isnan(event[f"{input_name}.type"])
             targets[f"{input_name}_valid"] = inputs[f"{input_name}_valid"]
+
             for field in fields:
                 inputs[f"{input_name}_{field}"] = event[f"{input_name}.{field}"]
 
@@ -304,6 +430,16 @@ class CLDDataset(Dataset):
 
 def pad_and_concat(items: list[Tensor], target_size: tuple[int], pad_value) -> Tensor:
     """Takes a list of tensors, pads them to a given size, and then concatenates them along the a new dimension at zero."""
+    try:
+        torch.cat([pad_to_size(item, (1, *target_size), pad_value) for item in items], dim=0)
+    except Exception as e:
+        print(e)
+        print(items)
+        print(target_size)
+        print(pad_value)
+        for item in items:
+            print(item.shape)
+        return
     return torch.cat([pad_to_size(item, (1, *target_size), pad_value) for item in items], dim=0)
 
 
