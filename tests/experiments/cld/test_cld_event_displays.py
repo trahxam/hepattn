@@ -30,14 +30,10 @@ def test_cld_event_display(cld_datamodule):
     # inputs to verify things look correct
 
     test_dataloader = cld_datamodule.test_dataloader()
-    data_iterator = iter(test_dataloader)
 
     Path("tests/outputs/cld/").mkdir(parents=True, exist_ok=True)
 
     for _i in range(1):
-        # batch = next(data_iterator)
-        # inputs, targets = batch
-
         inputs, targets = test_dataloader.dataset[0]
 
         # Plot the full event with all subsytems

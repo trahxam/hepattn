@@ -6,7 +6,7 @@
 #SBATCH --export=ALL
 #SBATCH --gres=gpu:l40s:1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=12
 #SBATCH --mem=24G
 #SBATCH --output=/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/slurm_logs/slurm-%j.%x.out
 

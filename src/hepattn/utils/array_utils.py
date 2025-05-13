@@ -6,15 +6,15 @@ def masked_diff_last_axis(m: np.ma.MaskedArray) -> np.ma.MaskedArray:
     mask = m.mask
     valid = ~mask
 
-    M, N = data.shape
+    m, n = data.shape
     # Build an index array [0,1,2,…,N-1] and broadcast it to shape (M, N)
-    idxs = np.arange(N).reshape(1, N)
+    idxs = np.arange(n).reshape(1, n)
 
     # For each row, find “last valid index up to and including j”:
     last_valid = np.maximum.accumulate(np.where(valid, idxs, -1), axis=1)
 
     # Shift that right by one to get “previous valid before j”:
-    prev_idx = np.concatenate([np.full((M, 1), -1, dtype=int), last_valid[:, :-1]], axis=1)
+    prev_idx = np.concatenate([np.full((m, 1), -1, dtype=int), last_valid[:, :-1]], axis=1)
 
     # Clip negatives just for safe indexing (we’ll mask them out anyway)
     prev_idx_clipped = np.where(prev_idx < 0, 0, prev_idx)
@@ -31,11 +31,11 @@ def masked_diff_last_axis(m: np.ma.MaskedArray) -> np.ma.MaskedArray:
 def masked_angle_diff_last_axis(ax, ay, az, mask) -> np.ma.MaskedArray:
     valid = ~mask
 
-    M, N = mask.shape
-    idxs = np.arange(N).reshape(1, N)
+    m, n = mask.shape
+    idxs = np.arange(n).reshape(1, n)
 
     last_valid = np.maximum.accumulate(np.where(valid, idxs, -1), axis=1)
-    prev_idx = np.concatenate([np.full((M, 1), -1, dtype=int), last_valid[:, :-1]], axis=1)
+    prev_idx = np.concatenate([np.full((m, 1), -1, dtype=int), last_valid[:, :-1]], axis=1)
     prev_idx_clipped = np.where(prev_idx < 0, 0, prev_idx)
 
     bx = np.take_along_axis(ax, prev_idx_clipped, axis=1)

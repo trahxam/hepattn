@@ -245,7 +245,9 @@ class CLDDataset(Dataset):
 
                 if f"particle_{merged_input_name}" in self.targets:
                     for field in self.targets[f"particle_{merged_input_name}"]:
-                        event[f"particle_{merged_input_name}.{field}"] = np.concatenate([event[f"particle_{hit}.{field}"] for hit in input_names], axis=-1)
+                        event[f"particle_{merged_input_name}.{field}"] = np.concatenate(
+                            [event[f"particle_{hit}.{field}"] for hit in input_names], axis=-1
+                        )
 
         # Add extra labels for particles
         event["particle.isCharged"] = np.abs(event["particle.charge"]) > 0
@@ -354,7 +356,7 @@ class CLDDataset(Dataset):
 
                 if f"particle_{input_name}" in self.targets:
                     for field in self.targets[f"particle_{input_name}"]:
-                            event[f"particle_{input_name}.{field}"] = event[f"particle_{input_name}.{field}"][:, mask]
+                        event[f"particle_{input_name}.{field}"] = event[f"particle_{input_name}.{field}"][:, mask]
 
         # Event level info
         event["event_num_particles"] = event["particle_valid"].sum()

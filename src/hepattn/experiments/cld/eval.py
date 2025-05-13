@@ -22,7 +22,9 @@ def sigmoid(x):
 
 def main():
     config_path = Path("/share/rcifdata/maxhart/hepattn-test/hepattn/src/hepattn/experiments/cld/configs/sihit_ecal.yaml")
-    eval_path = Path("/share/rcifdata/maxhart/hepattn-test/hepattn/logs/CLD_100mev_charged_tf_sihit_ecal_20250422-T221951/ckpts/epoch=024-val_loss=2.87862_test_eval.h5")
+    eval_path = Path(
+        "/share/rcifdata/maxhart/hepattn-test/hepattn/logs/CLD_100mev_charged_tf_sihit_ecal_20250422-T221951/ckpts/epoch=024-val_loss=2.87862_test_eval.h5"
+    )
 
     # Now create the dataset
     config = yaml.safe_load(config_path.read_text())["data"]
@@ -87,7 +89,7 @@ def main():
                 flow_valid = preds["flow_valid/flow_valid"][:]
 
                 # The masks will have had the particle padding applied, but also the hit padding (since they are batched)
-                flow_hit_valid = preds[f"flow_{hit}_assignment/flow_{hit}_valid"][:, :len(hit_valid)]
+                flow_hit_valid = preds[f"flow_{hit}_assignment/flow_{hit}_valid"][:, : len(hit_valid)]
 
             particle_valid = particle_valid & (particle_hit_valid.sum(-1) > 0)
 

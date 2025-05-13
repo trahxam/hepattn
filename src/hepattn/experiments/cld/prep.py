@@ -24,28 +24,24 @@ from scipy.sparse import csr_matrix
 ###############################################################
 item_names = [
     "MCParticles",
-
     "VXDTrackerHits",
     "VXDEndcapTrackerHits",
     "ITrackerHits",
     "ITrackerEndcapHits",
     "OTrackerHits",
     "OTrackerEndcapHits",
-
     "ECALBarrel",
     "ECALEndcap",
     "HCALBarrel",
     "HCALEndcap",
     "HCALOther",
     "MUON",
-
     "VertexBarrelCollection",
     "VertexEndcapCollection",
     "InnerTrackerBarrelCollection",
     "InnerTrackerEndcapCollection",
     "OuterTrackerBarrelCollection",
     "OuterTrackerEndcapCollection",
-
     "ECalBarrelCollection",
     "ECalEndcapCollection",
     "HCalBarrelCollection",
@@ -53,7 +49,6 @@ item_names = [
     "HCalRingCollection",
     "YokeBarrelCollection",
     "YokeEndcapCollection",
-
     "ECalBarrelCollectionContributions",
     "ECalEndcapCollectionContributions",
     "HCalBarrelCollectionContributions",
@@ -72,21 +67,11 @@ relations_links = {
     "VXDTrackerHitRelations": [
         ("VXDTrackerHits", "VertexBarrelCollection"),
     ],
-    "VXDEndcapTrackerHitRelations": [
-        ("VXDEndcapTrackerHits", "VertexEndcapCollection")
-    ],
-    "InnerTrackerBarrelHitsRelations": [
-        ("ITrackerHits", "InnerTrackerBarrelCollection")
-    ],
-    "InnerTrackerEndcapHitsRelations": [
-        ("ITrackerEndcapHits", "InnerTrackerEndcapCollection")
-    ],
-    "OuterTrackerBarrelHitsRelations": [
-        ("OTrackerHits", "OuterTrackerBarrelCollection")
-    ],
-    "OuterTrackerEndcapHitsRelations": [
-        ("OTrackerEndcapHits", "OuterTrackerEndcapCollection")
-    ],
+    "VXDEndcapTrackerHitRelations": [("VXDEndcapTrackerHits", "VertexEndcapCollection")],
+    "InnerTrackerBarrelHitsRelations": [("ITrackerHits", "InnerTrackerBarrelCollection")],
+    "InnerTrackerEndcapHitsRelations": [("ITrackerEndcapHits", "InnerTrackerEndcapCollection")],
+    "OuterTrackerBarrelHitsRelations": [("OTrackerHits", "OuterTrackerBarrelCollection")],
+    "OuterTrackerEndcapHitsRelations": [("OTrackerEndcapHits", "OuterTrackerEndcapCollection")],
     "CalohitMCTruthLink": [
         ("ECALBarrel", "MCParticles"),
         ("ECALEndcap", "MCParticles"),
@@ -110,7 +95,7 @@ relations_links = {
         ("MUON", "HCalRingCollection"),
         ("MUON", "YokeBarrelCollection"),
         ("MUON", "YokeEndcapCollection"),
-    ]
+    ],
 }
 
 # Specify masks/links which use start/end indexing to specify linkage
@@ -132,7 +117,6 @@ particle_links = [
     "InnerTrackerEndcapCollection",
     "OuterTrackerBarrelCollection",
     "OuterTrackerEndcapCollection",
-
     "ECalBarrelCollectionContributions",
     "ECalEndcapCollectionContributions",
     "HCalBarrelCollectionContributions",
@@ -153,13 +137,11 @@ mask_joins = [
     ("ITrackerEndcapHits", "InnerTrackerEndcapCollection", "MCParticles"),
     ("OTrackerHits", "OuterTrackerBarrelCollection", "MCParticles"),
     ("OTrackerEndcapHits", "OuterTrackerEndcapCollection", "MCParticles"),
-
     ("ECALBarrel", "ECalBarrelCollection", "ECalBarrelCollectionContributions"),
     ("ECALEndcap", "ECalEndcapCollection", "ECalEndcapCollectionContributions"),
     ("HCALBarrel", "HCalBarrelCollection", "HCalBarrelCollectionContributions"),
     ("HCALEndcap", "HCalEndcapCollection", "HCalEndcapCollectionContributions"),
     ("HCALOther", "HCalRingCollection", "HCalRingCollectionContributions"),
-
     ("MUON", "YokeBarrelCollection", "YokeBarrelCollectionContributions"),
     ("MUON", "YokeEndcapCollection", "YokeEndcapCollectionContributions"),
 ]
@@ -205,14 +187,12 @@ item_aliases = {
     "MUON": "muon",
     "MUONBarrel": "msb",
     "MUONEndcap": "mse",
-
     "VertexBarrelCollection": "vtb_col",
     "VertexEndcapCollection": "vte_col",
     "InnerTrackerBarrelCollection": "itb_col",
     "InnerTrackerEndcapCollection": "ite_col",
     "OuterTrackerBarrelCollection": "otb_col",
     "OuterTrackerEndcapCollection": "ote_col",
-
     "ECalBarrelCollection": "ecb_col",
     "ECalEndcapCollection": "ece_col",
     "HCalBarrelCollection": "hcb_col",
@@ -220,7 +200,6 @@ item_aliases = {
     "HCalRingCollection": "hco_col",
     "YokeBarrelCollection": "msb_col",
     "YokeEndcapCollection": "mse_col",
-
     "ECalBarrelCollectionContributions": "ecb_con",
     "ECalEndcapCollectionContributions": "ece_con",
     "HCalBarrelCollectionContributions": "hcb_con",
@@ -238,25 +217,19 @@ field_aliases = {
     "position.x": "pos.x",
     "position.y": "pos.y",
     "position.z": "pos.z",
-
     "vertex.x": "vtx.x",
     "vertex.y": "vtx.y",
     "vertex.z": "vtx.z",
-
     "endpoint.x": "end.x",
     "endpoint.y": "end.y",
     "endpoint.z": "end.z",
-
     "momentumAtEndpoint.x": "end_mom.x",
     "momentumAtEndpoint.y": "end_mom.y",
     "momentumAtEndpoint.z": "end_mom.z",
-
     "momentum.x": "mom.x",
     "momentum.y": "mom.y",
     "momentum.z": "mom.z",
-
     "pathLegth": "pathlen",
-
     "stepPosition.x": "step_pos.x",
     "stepPosition.y": "step_pos.y",
     "stepPosition.z": "step_pos.z",
@@ -268,7 +241,6 @@ field_aliases = {
 
 output_items = [
     "particle",
-
     "vtb",
     "vte",
     "itb",
@@ -282,14 +254,12 @@ output_items = [
     "hco",
     "msb",
     "mse",
-
     "vtb_col",
     "vte_col",
     "itb_col",
     "ite_col",
     "otb_col",
     "ote_col",
-
     "ecb_col",
     "ece_col",
     "hcb_col",
@@ -297,7 +267,6 @@ output_items = [
     "hco_col",
     "msb_col",
     "mse_col",
-
     "ecb_con",
     "ece_con",
     "hcb_con",
@@ -315,7 +284,6 @@ output_masks = [
     ("ite_col", "ite"),
     ("otb_col", "otb"),
     ("ote_col", "ote"),
-
     ("ecb_col", "ecb"),
     ("ece_col", "ece"),
     ("hcb_col", "hcb"),
@@ -323,7 +291,6 @@ output_masks = [
     ("hco_col", "hco"),
     ("msb_col", "msb"),
     ("mse_col", "mse"),
-
     ("ecb_con", "ecb"),
     ("ece_con", "ece"),
     ("hcb_con", "hcb"),
@@ -331,7 +298,6 @@ output_masks = [
     ("hco_con", "hco"),
     ("msb_con", "msb"),
     ("mse_con", "mse"),
-
     ("ecb_con", "ecb_col"),
     ("ece_con", "ece_col"),
     ("hcb_con", "hcb_col"),
@@ -339,14 +305,12 @@ output_masks = [
     ("hco_con", "hco_col"),
     ("msb_con", "msb_col"),
     ("mse_con", "mse_col"),
-
     ("particle", "vtb_col"),
     ("particle", "vte_col"),
     ("particle", "itb_col"),
     ("particle", "ite_col"),
     ("particle", "otb_col"),
     ("particle", "ote_col"),
-
     ("particle", "ecb_con"),
     ("particle", "ece_con"),
     ("particle", "hcb_con"),
@@ -354,7 +318,6 @@ output_masks = [
     ("particle", "hco_con"),
     ("particle", "msb_con"),
     ("particle", "mse_con"),
-
     ("particle", "vtb"),
     ("particle", "vte"),
     ("particle", "itb"),
@@ -428,7 +391,9 @@ def preprocess_event(events, event_idx, namecodes, min_pt, verbose):
 
     # First build the masks that use bidirectional truth links
     for relation, links in relations_links.items():
-        link_src_cid = ak.to_numpy(events[f"_{relation}_from/_{relation}_from.collectionID"].array(entry_start=event_idx, entry_stop=event_idx + 1)[0])
+        link_src_cid = ak.to_numpy(
+            events[f"_{relation}_from/_{relation}_from.collectionID"].array(entry_start=event_idx, entry_stop=event_idx + 1)[0]
+        )
         link_src_idx = ak.to_numpy(events[f"_{relation}_from/_{relation}_from.index"].array(entry_start=event_idx, entry_stop=event_idx + 1)[0])
 
         link_tgt_cid = ak.to_numpy(events[f"_{relation}_to/_{relation}_to.collectionID"].array(entry_start=event_idx, entry_stop=event_idx + 1)[0])
@@ -628,7 +593,7 @@ def preprocess_event(events, event_idx, namecodes, min_pt, verbose):
     field_blacklist = [
         "contributions_begin",
         "contributions_end",
-        ]
+    ]
 
     # Now save the output items
     data_out = {}
@@ -677,8 +642,7 @@ def preprocess_file(
     min_pt: float = 10.0,
     max_num_particles: int = 1000,
     verbose: bool = False,
-    ):
-
+):
     in_file_path = in_dir / Path(filename).with_suffix(".root")
 
     print("=" * 100 + f"\nReading events from: {in_file_path}\n" + "=" * 100)
@@ -723,7 +687,9 @@ def preprocess_file(
         num_particles = len(event["particle.PDG"])
         size_mb = sum(value.nbytes for value in event.values()) / (1024 * 1024)
         num_completed_events += 1
-        print(f"Prepped event {event_name} ({num_completed_events}/{len(event_names)}) to {out_event_path}, num_particles={num_particles}, size={size_mb:.2f}Mb, time={dt:.2f}s")
+        print(
+            f"Prepped event {event_name} ({num_completed_events}/{len(event_names)}) to {out_event_path}, num_particles={num_particles}, size={size_mb:.2f}Mb, time={dt:.2f}s"
+        )
 
     print("=" * 100 + f"\nPreprocessed events in {in_file_path} and saved them to {out_folder}\n" + "=" * 100)
 
@@ -799,4 +765,4 @@ if __name__ == "__main__":
         max_num_particles=args.max_num_particles,
         verbose=args.verbose,
         parallel=args.parallel,
-        )
+    )

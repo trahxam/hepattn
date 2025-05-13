@@ -1,4 +1,4 @@
-name: CLD_10_256_TF_charged
+name: CLD_5_256_TF_neutrals
 
 data:
   # Paths to preprocessed data directories
@@ -12,7 +12,7 @@ data:
   num_test: 100
   num_val: 100
 
-  batch_size: 10
+  batch_size: 5
 
   # Minimum pT for a particle to be deemed reconstructve in GeV
   particle_min_pt: 0.01
@@ -49,7 +49,7 @@ data:
       num_passes: 8
 
   include_charged: true
-  include_neutral: false
+  include_neutral: true
 
   truth_filter_hits:
     - vtxd
@@ -105,7 +105,7 @@ data:
       - v.b
       - du
       - dv
-    
+
     trkr:
       - type
       - quality
@@ -207,7 +207,7 @@ data:
       - mom.x
       - mom.y
       - mom.z
-    
+
     particle_trkr:
       - pos.x
       - pos.y
@@ -282,9 +282,7 @@ model:
       dim: &dim 256
       num_queries: *num_particles
       input_sort_field: pos.phi
-
       record_intermediate_embeddings: false
-
       use_attn_masks: true
       use_query_masks: false
 
