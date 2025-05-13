@@ -17,6 +17,8 @@ class MaskFormer(nn.Module):
         matcher: nn.Module | None = None,
         input_sort_field: str | None = None,
         record_intermediate_embeddings: bool = False,
+        use_attn_masks: bool = True,
+        use_query_masks: bool = True,
     ):
         """
         Initializes the MaskFormer model, which is a modular transformer-style architecture designed
@@ -54,6 +56,8 @@ class MaskFormer(nn.Module):
         self.query_initial = nn.Parameter(torch.randn(num_queries, dim))
         self.input_sort_field = input_sort_field
         self.record_intermediate_embeddings = record_intermediate_embeddings
+        self.use_attn_masks = use_attn_masks
+        self.use_query_masks = use_query_masks
 
     def forward(self, inputs: dict[str, Tensor]) -> dict[str, Tensor]:
         # Atomic input names
@@ -137,11 +141,11 @@ class MaskFormer(nn.Module):
                 # Now do same but for query masks
                 task_query_mask = task.query_mask(task_outputs)
 
-                if task_query_mask is not None:
+                if task_query_mask is not None and self.use_query_masks:
                     query_mask = query_mask | task_query_mask if query_mask is not None else task_query_mask
 
             # Fill in attention masks for features that did not get one specified by any task
-            if attn_masks:
+            if attn_masks and self.use_attn_masks:
                 attn_mask = torch.full((batch_size, self.num_queries, x["key_valid"].shape[-1]), True, device=x["key_embed"].device)
 
                 for input_name, input_attn_mask in attn_masks.items():
