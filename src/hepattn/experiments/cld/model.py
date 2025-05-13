@@ -20,24 +20,25 @@ class CLDReconstructor(ModelWrapper):
         preds = preds["final"]
 
         hits = [
+            "vtxd",
+            "trkr",
             "sihit",
             "ecal",
             "hcal",
             "vtb",
+            "muon",
         ]
-
-        # TODO: Support batching
-
-        pred_valid = preds["flow_valid"]["flow_valid"][0]
-        true_valid = targets["particle_valid"][0]
 
         for hit in hits:
             if f"flow_{hit}_assignment" not in preds:
                 continue
-
+           
             # Set the masks of any flow slots that are not used as null
-            pred_hit_masks = preds[f"flow_{hit}_assignment"][f"flow_{hit}_valid"][0]
-            true_hit_masks = targets[f"particle_{hit}_valid"][0]
+            pred_hit_masks = preds[f"flow_{hit}_assignment"][f"flow_{hit}_valid"]
+            true_hit_masks = targets[f"particle_{hit}_valid"]
+
+            pred_valid = preds["flow_valid"]["flow_valid"] & (pred_hit_masks.sum(-1) > 0)
+            true_valid = targets["particle_valid"] & (true_hit_masks.sum(-1) > 0)
 
             # Mask out hits that are not on a valid object slot
             pred_hit_masks &= pred_valid.unsqueeze(-1)
@@ -67,8 +68,8 @@ class CLDReconstructor(ModelWrapper):
                 eff = effs.float().sum(-1) / true_valid.float().sum(-1)
                 pur = purs.float().sum(-1) / pred_valid.float().sum(-1)
 
-                self.log(f"{stage}/p{wp}_{hit}_eff", eff)
-                self.log(f"{stage}/p{wp}_{hit}_pur", pur)
+                self.log(f"{stage}/p{wp}_{hit}_eff", eff.mean())
+                self.log(f"{stage}/p{wp}_{hit}_pur", pur.mean())
 
                 # Log some counting info
                 pred_num = pred_valid.sum(-1)
