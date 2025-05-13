@@ -9,8 +9,8 @@ from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 from scipy.sparse import csr_matrix, csr_array
 
-from hepattn.utils.tensor_tools import pad_to_size
-from hepattn.utils.array_tools import masked_diff_last_axis, masked_angle_diff_last_axis
+from hepattn.utils.tensor_utils import pad_to_size
+from hepattn.utils.array_utils import masked_diff_last_axis, masked_angle_diff_last_axis
 
 
 class CLDDataset(Dataset):
