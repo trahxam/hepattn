@@ -1,16 +1,14 @@
 from pathlib import Path
 
-import awkward as ak
 import numpy as np
 import torch
-from lightning import LightningDataModule
-from lightning import seed_everything
+from lightning import LightningDataModule, seed_everything
+from scipy.sparse import csr_array, csr_matrix
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
-from scipy.sparse import csr_matrix, csr_array
 
+from hepattn.utils.array_utils import masked_angle_diff_last_axis, masked_diff_last_axis
 from hepattn.utils.tensor_utils import pad_to_size
-from hepattn.utils.array_utils import masked_diff_last_axis, masked_angle_diff_last_axis
 
 
 class CLDDataset(Dataset):
@@ -113,7 +111,7 @@ class CLDDataset(Dataset):
         with np.load(event_filename, allow_pickle=True) as archive:
             event = {key: archive[key] for key in archive.files}
 
-        #for k, v in event.items():
+        # for k, v in event.items():
         #    print(k, v.shape)
 
         def convert_mm_to_m(i, p):
@@ -124,7 +122,7 @@ class CLDDataset(Dataset):
         def add_cylindrical_coords(i, p):
             # Add standard tracking cylindrical coordinates
             event[f"{i}.{p}.r"] = np.sqrt(event[f"{i}.{p}.x"] ** 2 + event[f"{i}.{p}.y"] ** 2)
-            event[f"{i}.{p}.s"] = np.sqrt(event[f"{i}.{p}.x"] ** 2 + event[f"{i}.{p}.y"] ** 2 + event[f"{i}.{p}.z"] ** 2)            
+            event[f"{i}.{p}.s"] = np.sqrt(event[f"{i}.{p}.x"] ** 2 + event[f"{i}.{p}.y"] ** 2 + event[f"{i}.{p}.z"] ** 2)
             event[f"{i}.{p}.theta"] = np.arccos(event[f"{i}.{p}.z"] / event[f"{i}.{p}.s"])
             event[f"{i}.{p}.eta"] = -np.log(np.tan(event[f"{i}.{p}.theta"] / 2))
             event[f"{i}.{p}.phi"] = np.arctan2(event[f"{i}.{p}.y"], event[f"{i}.{p}.x"])
@@ -140,7 +138,7 @@ class CLDDataset(Dataset):
 
         # Atomic input types
         trkr_hits = ["vtb", "vte", "itb", "ite", "otb", "ote"]
-        calo_hits = [ "ecb", "ece", "hcb", "hce", "hco", "msb", "mse"]
+        calo_hits = ["ecb", "ece", "hcb", "hce", "hco", "msb", "mse"]
         hits = trkr_hits + calo_hits
 
         trkr_cols = [f"{hit}_col" for hit in trkr_hits]
@@ -178,17 +176,17 @@ class CLDDataset(Dataset):
 
         # Add extra coordinates for tracker collection momenta
         for item in trkr_cols:
-            add_cylindrical_coords(item, f"mom")
+            add_cylindrical_coords(item, "mom")
 
         # Add extra coordinates to the start and and positions and momenta for particles
         particle_pos_fields = ["vtx"]
         particle_mom_fields = ["mom"]
-        
+
         for field in particle_pos_fields:
             convert_mm_to_m("particle", field)
             add_cylindrical_coords("particle", field)
             add_conformal_coords("particle", field)
-        
+
         for field in particle_mom_fields:
             add_cylindrical_coords("particle", field)
 
@@ -270,10 +268,10 @@ class CLDDataset(Dataset):
             pz = np.ma.masked_array(event[f"particle_{item_name}.mom.z"], mask=~mask)
 
             p = np.sqrt(px**2 + py**2 + pz**2)
-            item_mean_p_ratio = p / p.mean(-1)[...,None]
+            item_mean_p_ratio = p / p.mean(-1)[..., None]
 
             event[f"particle_{item_name}_valid"] = event[f"particle_{item_name}_valid"] & (item_mean_p_ratio >= min_ratio).filled(False)
-        
+
         # Apply hit cuts based on angular deflection
         for item_name, cut in self.particle_hit_deflection_cuts.items():
             for _ in range(cut["num_passes"]):
@@ -287,7 +285,7 @@ class CLDDataset(Dataset):
                 angle_diff = masked_angle_diff_last_axis(px, py, pz, ~mask).filled(0.0)
 
                 event[f"particle_{item_name}_valid"] = event[f"particle_{item_name}_valid"] & (angle_diff <= cut["max_angle"])
-        
+
         # Apply hit cuts based on distance between consecutive hits on particles
         for item_name, cut in self.particle_hit_separation_cuts.items():
             for _ in range(cut["num_passes"]):
@@ -357,9 +355,9 @@ class CLDDataset(Dataset):
                 if f"particle_{input_name}" in self.targets:
                     for field in self.targets[f"particle_{input_name}"]:
                             event[f"particle_{input_name}.{field}"] = event[f"particle_{input_name}.{field}"][:, mask]
-        
+
         # Event level info
-        event[f"event_num_particles"] = event["particle_valid"].sum()
+        event["event_num_particles"] = event["particle_valid"].sum()
 
         for input_name in self.inputs:
             event[f"event_num_{input_name}"] = ~np.isnan(event[f"{input_name}.type"]).sum()
@@ -378,9 +376,9 @@ class CLDDataset(Dataset):
         particle_valid = np.copy(event["particle_valid"])
         for target_name, fields in self.targets.items():
             if "particle" in target_name:
-                event[f"{target_name}_valid"] = event[f"{target_name}_valid"][particle_valid,...]
+                event[f"{target_name}_valid"] = event[f"{target_name}_valid"][particle_valid, ...]
                 for field in fields:
-                    event[f"{target_name}.{field}"] = event[f"{target_name}.{field}"][particle_valid,...]
+                    event[f"{target_name}.{field}"] = event[f"{target_name}.{field}"][particle_valid, ...]
 
         # Pick out the inputs that have actually been requested
         inputs = {}
@@ -439,7 +437,7 @@ def pad_and_concat(items: list[Tensor], target_size: tuple[int], pad_value) -> T
         print(pad_value)
         for item in items:
             print(item.shape)
-        return
+        return None
     return torch.cat([pad_to_size(item, (1, *target_size), pad_value) for item in items], dim=0)
 
 

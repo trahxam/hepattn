@@ -51,7 +51,7 @@ def masked_angle_diff_last_axis(ax, ay, az, mask) -> np.ma.MaskedArray:
     a_mag = np.ma.sqrt(ax**2 + ay**2 + az**2)
     b_mag = np.ma.sqrt(bx**2 + by**2 + bz**2)
 
-    costheta = (ax*bx + ay*by + az*bz) / (a_mag * b_mag)
+    costheta = (ax * bx + ay * by + az * bz) / (a_mag * b_mag)
     theta = np.ma.arccos(costheta)
 
     return theta

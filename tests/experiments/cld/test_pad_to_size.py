@@ -1,12 +1,9 @@
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pytest
 import torch
-import yaml
 
-from hepattn.experiments.cld.data import CLDDataModule, pad_to_size
-from hepattn.experiments.cld.plot_event import plot_cld_event_reconstruction
+from hepattn.experiments.cld.data import pad_to_size
 
 plt.rcParams["figure.dpi"] = 300
 

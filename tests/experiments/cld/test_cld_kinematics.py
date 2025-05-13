@@ -6,7 +6,7 @@ import pytest
 import yaml
 
 from hepattn.experiments.cld.data import CLDDataModule
-from hepattn.utils.array_utils import masked_diff_last_axis, masked_angle_diff_last_axis
+from hepattn.utils.array_utils import masked_angle_diff_last_axis
 
 plt.rcParams["figure.dpi"] = 300
 
@@ -45,12 +45,12 @@ def test_plot_cld_hit_coords(cld_datamodule):
         ax[1].hist(phi, bins=np.linspace(-np.pi, np.pi, 64), label=item_name, density=True, histtype="step")
         ax[2].hist(theta, bins=np.linspace(0, np.pi, 64), label=item_name, density=True, histtype="step")
         ax[3].hist(eta, bins=np.linspace(-4, 4, 64), label=item_name, density=True, histtype="step")
-    
+
     ax[0].set_xlabel(r"$r$")
     ax[1].set_xlabel(r"$\phi$")
     ax[2].set_xlabel(r"$\theta$")
     ax[3].set_xlabel(r"$\eta$")
-    
+
     ax[0].set_xscale("log")
     ax[0].set_yscale("log")
     ax[1].set_yscale("log")
@@ -86,7 +86,7 @@ def test_plot_cld_trkr_momentum(cld_datamodule):
 
             p = np.sqrt(px**2 + py**2 + pz**2)
             particle_mean_trkr_p = np.ma.masked_array(p, mask=~mask).mean(-1)
-            normed_p = p / particle_mean_trkr_p[...,None]
+            normed_p = p / particle_mean_trkr_p[..., None]
 
             ax[0].hist(normed_p[mask], bins=np.linspace(0, 1.6, 24), histtype="step", label=item_name.upper())
             ax[1].hist(normed_p[mask], bins=np.linspace(0.99, 1.01, 24), histtype="step", label=item_name.upper())
@@ -102,7 +102,7 @@ def test_plot_cld_trkr_momentum(cld_datamodule):
 
         ax[2].set_yscale("log")
         ax[2].legend(fontsize=8)
-        
+
         fig.tight_layout()
         fig.savefig(Path("tests/outputs/cld/cld_particle_trkr_mom.png"))
 
@@ -120,9 +120,9 @@ def test_plot_cld_trkr_momentum(cld_datamodule):
             for i in range(len(mask)):
                 angle_diffs.append(masked_angle_diff_last_axis(px[i], py[i], pz[i], ~mask[i])[mask[i]])
 
-            ax[0].hist(np.concatenate(angle_diffs), bins=np.linspace(0.0, np.pi/2, 64), histtype="step")
+            ax[0].hist(np.concatenate(angle_diffs), bins=np.linspace(0.0, np.pi / 2, 64), histtype="step")
             ax[1].hist(np.concatenate(angle_diffs), bins=np.linspace(0.0, 0.1, 64), histtype="step")
-        
+
         ax[0].set_yscale("log")
         ax[1].set_yscale("log")
 
@@ -145,7 +145,6 @@ def test_plot_cld_calo_energy(cld_datamodule):
 
         particle_ecal_energy = targets["particle_ecal_energy"]
         particle_hcal_energy = targets["particle_hcal_energy"]
-
 
         fig, ax = plt.subplots(1, 1)
         fig.set_size_inches(8, 3)
@@ -175,7 +174,7 @@ def test_plot_cld_calo_energy(cld_datamodule):
 
         hcal_hit_e = inputs["hcal_energy"] * 1000
         hcal_sum_e = np.nan_to_num(particle_hcal_energy).sum(-2) * 1000
-        
+
         bins = (np.logspace(0.5, 2.5, 128), np.logspace(-1, 1, 128))
 
         ax[0].hist2d(ecal_hit_e.flatten(), ecal_sum_e.flatten(), bins=bins)
@@ -189,7 +188,7 @@ def test_plot_cld_calo_energy(cld_datamodule):
         bins = (np.logspace(1, 2.5, 128), np.logspace(-1, 1, 128))
 
         ax[1].hist2d(hcal_hit_e.flatten(), hcal_sum_e.flatten(), bins=bins)
-        
+
         ax[1].set_xscale("log")
         ax[1].set_yscale("log")
 
@@ -218,7 +217,7 @@ def test_plot_cld_calo_energy(cld_datamodule):
 
         ax.hist(ecal_ratio, bins=np.linspace(0, 80, 128), histtype="step")
 
-        #ax.set_xscale("log")
+        # ax.set_xscale("log")
         ax.set_yscale("log")
 
         ax.set_xlabel("ECAL Hit / Sum of Contributions Ratio")
@@ -238,7 +237,7 @@ def test_plot_cld_calo_energy(cld_datamodule):
         for cut, label in [
             ((ecal_ratio > 0.0) & (ecal_ratio < 25.0), "0-25"),
             ((ecal_ratio > 25.0) & (ecal_ratio < 40.0), "25-40"),
-            ((ecal_ratio > 40.0) & (ecal_ratio < 80.0), "40-80"),]:
+            ((ecal_ratio > 40.0) & (ecal_ratio < 80.0), "40-80")]:
 
             ax[0].scatter(ecal_x[cut], ecal_y[cut], alpha=0.5, s=0.05, label=label)
             ax[1].scatter(ecal_z[cut], ecal_y[cut], alpha=0.5, s=0.05, label=label)
@@ -255,7 +254,8 @@ def test_plot_cld_calo_energy(cld_datamodule):
         fig.tight_layout()
         fig.savefig(Path("tests/outputs/cld/cld_calo_ratio_coords_cut.png"))
 
-"""
+
+r"""
 
 
 def test_plot_cld_hit_distance(cld_datamodule):

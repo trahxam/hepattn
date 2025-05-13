@@ -13,8 +13,8 @@ def plot_hist_to_ax(ax, values, bins, value_errors=None, color="cornflowerblue",
             ax.fill_between(px, py - pe, py + pe, color=color, alpha=0.1, ec="none")
 
         if vertical_lines and bin_idx < len(bins) - 2:
-            px = np.array([bins[bin_idx+1], bins[bin_idx+1]])
-            py = np.array([values[bin_idx], values[bin_idx+1]])
+            px = np.array([bins[bin_idx + 1], bins[bin_idx + 1]])
+            py = np.array([values[bin_idx], values[bin_idx + 1]])
             ax.plot(px, py, color=color, linewidth=1.0)
 
 

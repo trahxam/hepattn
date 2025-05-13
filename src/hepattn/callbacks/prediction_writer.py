@@ -83,7 +83,7 @@ class PredictionWriter(Callback):
         # sample_id/inputs/pixel_x
         items_group = sample_group.create_group(item_name)
         for name, value in items.items():
-            self.create_dataset(items_group, name, value[idx][None,...])
+            self.create_dataset(items_group, name, value[idx][None, ...])
 
     def write_layer_task_items(self, sample_group, item_name, items, idx):
         items_group = sample_group.create_group(item_name)
@@ -98,7 +98,7 @@ class PredictionWriter(Callback):
             for task_name, task_items in layer_items.items():
                 task_group = layer_group.create_group(task_name)
                 for name, value in task_items.items():
-                    self.create_dataset(task_group, name, value[idx][None,...])
+                    self.create_dataset(task_group, name, value[idx][None, ...])
 
     def on_test_epoch_end(self, trainer, module):
         # Close the file handle now we are done

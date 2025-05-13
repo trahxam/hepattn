@@ -5,7 +5,7 @@ import pytest
 import torch
 import yaml
 
-from hepattn.experiments.cld.data import CLDDataModule, pad_to_size
+from hepattn.experiments.cld.data import CLDDataModule
 from hepattn.experiments.cld.plot_event import plot_cld_event_reconstruction
 
 plt.rcParams["figure.dpi"] = 300
@@ -39,7 +39,6 @@ def test_cld_event_display(cld_datamodule):
         # inputs, targets = batch
 
         inputs, targets = test_dataloader.dataset[0]
-
 
         # Plot the full event with all subsytems
         axes_spec = [
@@ -121,4 +120,3 @@ def test_cld_event_display(cld_datamodule):
 
         fig = plot_cld_event_reconstruction(inputs, targets, axes_spec)
         fig.savefig(Path("tests/outputs/cld/cld_event_vtxd.png"))
-

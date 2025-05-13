@@ -1,13 +1,13 @@
+import os
 import time
+from argparse import ArgumentParser
+from pathlib import Path
+
 import awkward as ak
 import numpy as np
 import uproot
-import os
-
-from argparse import ArgumentParser
-from pathlib import Path
-from scipy.sparse import csr_matrix, csr_array
 from particle.pdgid import is_hadron
+from scipy.sparse import csr_matrix
 
 # Overall process:
 # Read in specified items and format into regular arrays
@@ -224,7 +224,7 @@ item_aliases = {
     "ECalBarrelCollectionContributions": "ecb_con",
     "ECalEndcapCollectionContributions": "ece_con",
     "HCalBarrelCollectionContributions": "hcb_con",
-    "HCalEndcapCollectionContributions": 'hce_con',
+    "HCalEndcapCollectionContributions": "hce_con",
     "HCalRingCollectionContributions": "hco_con",
     "YokeBarrelCollectionContributions": "msb_con",
     "YokeEndcapCollectionContributions": "mse_con",
@@ -242,7 +242,7 @@ field_aliases = {
     "vertex.x": "vtx.x",
     "vertex.y": "vtx.y",
     "vertex.z": "vtx.z",
-    
+
     "endpoint.x": "end.x",
     "endpoint.y": "end.y",
     "endpoint.z": "end.z",
@@ -301,7 +301,7 @@ output_items = [
     "ecb_con",
     "ece_con",
     "hcb_con",
-    'hce_con',
+    "hce_con",
     "hco_con",
     "msb_con",
     "mse_con",
@@ -408,7 +408,7 @@ def preprocess_event(events, event_idx, namecodes, min_pt, verbose):
     pids = items["MCParticles"]["PDG"]
     charges = items["MCParticles"]["charge"]
 
-    separator = "\n" + "="*64 + "\n"
+    separator = "\n" + "=" * 64 + "\n"
 
     # This is actually quite slow since we make use of scikit-hep particle, so we do it in preprocessing
     # Would be better if we can get a comprehensive list of every hadron pdgid
@@ -442,7 +442,7 @@ def preprocess_event(events, event_idx, namecodes, min_pt, verbose):
             mask = np.full((num_src, num_tgt), False)
             mask[link_src_idx[link_mask], link_tgt_idx[link_mask]] = True
             masks[src, tgt] = mask
-    
+
     # Now build masks that use start/end indices
     for src, tgt in start_end_links:
         # The source has the indices that index into the target
@@ -569,8 +569,8 @@ def preprocess_event(events, event_idx, namecodes, min_pt, verbose):
             masks[src, tgt] = masks[src, tgt][:, item_cuts[tgt]]
 
     # Split the muon into barrel and endcap regions, first the items
-    muon_in_barrel = masks[("MUON", "YokeBarrelCollection")].any(-1)
-    muon_in_endcap = masks[("MUON", "YokeEndcapCollection")].any(-1)
+    muon_in_barrel = masks["MUON", "YokeBarrelCollection"].any(-1)
+    muon_in_endcap = masks["MUON", "YokeEndcapCollection"].any(-1)
 
     items["MUONBarrel"] = items["MUON"][muon_in_barrel]
     items["MUONEndcap"] = items["MUON"][muon_in_endcap]
@@ -582,12 +582,12 @@ def preprocess_event(events, event_idx, namecodes, min_pt, verbose):
     mask_keys = list(masks.keys())
     for src, tgt in mask_keys:
         if src == "MUON":
-            masks[("MUONBarrel", tgt)] = masks[(src, tgt)][muon_in_barrel,:]
-            masks[("MUONEndcap", tgt)] = masks[(src, tgt)][muon_in_endcap,:]
+            masks["MUONBarrel", tgt] = masks[src, tgt][muon_in_barrel, :]
+            masks["MUONEndcap", tgt] = masks[src, tgt][muon_in_endcap, :]
 
         if tgt == "MUON":
-            masks[(src, "MUONBarrel")] = masks[(src, tgt)][:,muon_in_barrel]
-            masks[(src, "MUONEndcap")] = masks[(src, tgt)][:,muon_in_endcap]
+            masks[src, "MUONBarrel"] = masks[src, tgt][:, muon_in_barrel]
+            masks[src, "MUONEndcap"] = masks[src, tgt][:, muon_in_endcap]
 
     # Alias items and their fields
     aliased_items = {}
@@ -598,7 +598,7 @@ def preprocess_event(events, event_idx, namecodes, min_pt, verbose):
             aliased_item_name = item_name
 
         aliased_items[aliased_item_name] = {}
-        
+
         for field_name in items[item_name].fields:
             if field_name in field_aliases:
                 aliased_field_name = field_aliases[field_name]
@@ -609,7 +609,7 @@ def preprocess_event(events, event_idx, namecodes, min_pt, verbose):
 
             if verbose:
                 print(f"Aliased item {item_name}/{field_name} -> {aliased_item_name}/{aliased_field_name}")
-    
+
     if verbose:
         print(separator)
 
@@ -617,7 +617,7 @@ def preprocess_event(events, event_idx, namecodes, min_pt, verbose):
     aliased_masks = {}
     for src, tgt in masks:
         # For now just assume all items are using an alias
-        aliased_masks[(item_aliases[src], item_aliases[tgt])] = masks[(src, tgt)]
+        aliased_masks[item_aliases[src], item_aliases[tgt]] = masks[src, tgt]
 
         if verbose:
             print(f"Aliased mask ({src}, {tgt}) -> ({item_aliases[src]}, {item_aliases[tgt]})")
@@ -681,7 +681,7 @@ def preprocess_file(
 
     in_file_path = in_dir / Path(filename).with_suffix(".root")
 
-    print("="*100 + f"\nReading events from: {in_file_path}\n" + "="*100)
+    print("=" * 100 + f"\nReading events from: {in_file_path}\n" + "=" * 100)
     file = uproot.open(in_file_path)
 
     # First read the metadata that is gives the codes to map between tree names and collections IDs
@@ -708,7 +708,7 @@ def preprocess_file(
     completed_event_names = [f.stem for f in out_folder.glob("*.npz")]
     uncompleted_event_names = list(set(event_names) - set(completed_event_names))
     num_completed_events = len(completed_event_names)
-    print(f"Found {len(completed_event_names)} completed events in {out_folder}\n" + "="*100)
+    print(f"Found {len(completed_event_names)} completed events in {out_folder}\n" + "=" * 100)
 
     # Iterate over each event in the file
     for event_name in uncompleted_event_names:
@@ -721,11 +721,11 @@ def preprocess_file(
 
         dt = time.time() - t0
         num_particles = len(event["particle.PDG"])
-        size_mb =  sum(value.nbytes for value in event.values()) / (1024 * 1024)
+        size_mb = sum(value.nbytes for value in event.values()) / (1024 * 1024)
         num_completed_events += 1
         print(f"Prepped event {event_name} ({num_completed_events}/{len(event_names)}) to {out_event_path}, num_particles={num_particles}, size={size_mb:.2f}Mb, time={dt:.2f}s")
 
-    print("="*100 + f"\nPreprocessed events in {in_file_path} and saved them to {out_folder}\n" + "="*100)
+    print("=" * 100 + f"\nPreprocessed events in {in_file_path} and saved them to {out_folder}\n" + "=" * 100)
 
 
 def preprocess_files(in_dir: str, out_dir: str, overwrite: bool, parallel: bool = False, **kwargs):
@@ -746,7 +746,7 @@ def preprocess_files(in_dir: str, out_dir: str, overwrite: bool, parallel: bool 
 
     filenames = [path.stem for path in in_dir.glob("*.root")]
 
-    print("="*100)
+    print("=" * 100)
     print(f"Found {len(filenames)} files in {in_dir}")
 
     completed_filenames = []
@@ -762,7 +762,7 @@ def preprocess_files(in_dir: str, out_dir: str, overwrite: bool, parallel: bool 
         target_filenames = filenames
     else:
         target_filenames = uncompleted_filenames
-    
+
     print(f"Found {len(completed_filenames)} completed files in {out_dir}")
     print(f"Set to prep {len(uncompleted_filenames)} files")
 
@@ -772,7 +772,7 @@ def preprocess_files(in_dir: str, out_dir: str, overwrite: bool, parallel: bool 
         target_filenames = [f for i, f in enumerate(target_filenames) if i % ntasks == task_id]
         print(f"Task {task_id} has been allocated {len(target_filenames)} files")
 
-    print("="*100)
+    print("=" * 100)
 
     for filename in target_filenames:
         preprocess_file(in_dir, out_dir, filename)

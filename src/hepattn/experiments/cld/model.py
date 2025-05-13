@@ -32,7 +32,7 @@ class CLDReconstructor(ModelWrapper):
         for hit in hits:
             if f"flow_{hit}_assignment" not in preds:
                 continue
-           
+
             # Set the masks of any flow slots that are not used as null
             pred_hit_masks = preds[f"flow_{hit}_assignment"][f"flow_{hit}_valid"]
             true_hit_masks = targets[f"particle_{hit}_valid"]

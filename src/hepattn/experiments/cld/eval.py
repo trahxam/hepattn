@@ -1,15 +1,14 @@
 from pathlib import Path
 
+import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import yaml
-import h5py
 from scipy.stats import binned_statistic
 from tqdm import tqdm
 
 from hepattn.experiments.cld.data import CLDDataset
-from hepattn.utils.eval_plots import plot_hist_to_ax, bayesian_binomial_error
-
+from hepattn.utils.eval_plots import bayesian_binomial_error, plot_hist_to_ax
 
 plt.rcParams["text.usetex"] = False
 plt.rcParams["figure.dpi"] = 300
@@ -18,19 +17,18 @@ plt.rcParams["figure.constrained_layout.use"] = True
 
 
 def sigmoid(x):
-    return 1/(1 + np.exp(-np.clip(x, -10, 10)))
-
+    return 1 / (1 + np.exp(-np.clip(x, -10, 10)))
 
 
 def main():
     config_path = Path("/share/rcifdata/maxhart/hepattn-test/hepattn/src/hepattn/experiments/cld/configs/sihit_ecal.yaml")
     eval_path = Path("/share/rcifdata/maxhart/hepattn-test/hepattn/logs/CLD_100mev_charged_tf_sihit_ecal_20250422-T221951/ckpts/epoch=024-val_loss=2.87862_test_eval.h5")
-    
+
     # Now create the dataset
     config = yaml.safe_load(config_path.read_text())["data"]
 
     config["dirpath"] = Path("/share/rcifdata/maxhart/data/cld/prepped/test/")
-    
+
     # Remve keys that are normally for the datamodule
     config_del_keys = [
         "train_dir",
@@ -50,8 +48,8 @@ def main():
 
     plot_specs = {
         "vtx.mom.r": ("Vertex $p_T$ [GeV]", np.geomspace(0.1, 100.0, 32), "log"),
-        "vtx.mom.eta": ("Vertex $\eta$", np.linspace(-4, 4, 32), "linear"),
-        "vtx.mom.phi": ("Vertex $\phi$", np.linspace(-np.pi, np.pi, 32), "linear"),
+        "vtx.mom.eta": (r"Vertex $\eta$", np.linspace(-4, 4, 32), "linear"),
+        "vtx.mom.phi": (r"Vertex $\phi$", np.linspace(-np.pi, np.pi, 32), "linear"),
         "vtx.pos.r": ("Vertex $r_0$ [m]", np.linspace(0.0, 0.1, 32), "linear"),
         "vtx.pos.z": ("Vertex $z_0$ [m]", np.linspace(-0.1, 0.1, 32), "linear"),
         "num_sihit": ("Number of Silicon Hits", np.arange(6, 24) + 0.5, "linear"),
@@ -59,7 +57,7 @@ def main():
     }
 
     hits = ["sihit", "ecal"]
-    
+
     particle_total_valid = {hit: {field: np.zeros(len(plot_specs[field][1]) - 1) for field in plot_specs} for hit in hits}
     particle_total_eff = {hit: {field: np.zeros(len(plot_specs[field][1]) - 1) for field in plot_specs} for hit in hits}
 
@@ -79,7 +77,7 @@ def main():
             # particle / object padding that was used for the model to both the particles and the masks
             particle_pad_size = dataset.event_max_num_particles - len(targets["particle_valid"])
             particle_valid = np.pad(targets["particle_valid"], ((0, particle_pad_size),), constant_values=False)
-            
+
             particle_hit_valid = np.pad(targets[f"particle_{hit}_valid"], ((0, particle_pad_size), (0, 0)), constant_values=False)
 
             # Load the eval file
@@ -89,7 +87,7 @@ def main():
                 flow_valid = preds["flow_valid/flow_valid"][:]
 
                 # The masks will have had the particle padding applied, but also the hit padding (since they are batched)
-                flow_hit_valid = preds[f"flow_{hit}_assignment/flow_{hit}_valid"][:,:len(hit_valid)]
+                flow_hit_valid = preds[f"flow_{hit}_assignment/flow_{hit}_valid"][:, :len(hit_valid)]
 
             particle_valid = particle_valid & (particle_hit_valid.sum(-1) > 0)
 
@@ -116,7 +114,7 @@ def main():
     plot_save_dir = Path(__file__).resolve().parent / Path("eval_plots")
 
     hit_aliases = {"sihit": "SiHit Assignment", "ecal": "ECAL Assignment"}
-    
+
     # Now plot everything
     for hit in hits:
         for field, (alias, bins, scale) in plot_specs.items():
@@ -139,7 +137,7 @@ def main():
             ax.set_xscale(scale)
             ax.legend()
             ax.grid(zorder=0, alpha=0.25, linestyle="--")
-            
+
             fig.savefig(plot_save_dir / Path(f"part_{hit}_eff_{field}.png"))
 
             # Plot distributions of truth quantities
@@ -154,7 +152,7 @@ def main():
             ax.set_yscale("log")
             ax.legend()
             ax.grid(zorder=0, alpha=0.25, linestyle="--")
-            
+
             fig.savefig(plot_save_dir / Path(f"part_{hit}_{field}.png"))
 
 

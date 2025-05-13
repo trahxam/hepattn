@@ -5,7 +5,7 @@ import pytest
 import torch
 import yaml
 
-from hepattn.experiments.cld.data import CLDDataModule, pad_to_size
+from hepattn.experiments.cld.data import CLDDataModule
 from hepattn.experiments.cld.plot_event import plot_cld_event_reconstruction
 
 plt.rcParams["figure.dpi"] = 300
@@ -102,7 +102,7 @@ class TestCLDDataModule:
                     ],
                 },
             ]
-            
+
             fig = plot_cld_event_reconstruction(inputs, targets, axes_spec)
             fig.savefig(Path("tests/outputs/cld/cld_event_sihit_etaphi.png"))
 
@@ -115,17 +115,17 @@ class TestCLDDataModule:
                     ],
                 },
             ]
-            
+
             fig = plot_cld_event_reconstruction(inputs, targets, axes_spec)
             fig.savefig(Path("tests/outputs/cld/cld_event_sihit_uv.png"))
 
-            axes_spec = [{"x": "pos.c", "y": "pos.eta", "input_names": ["sihit",],},]
-            
+            axes_spec = [{"x": "pos.c", "y": "pos.eta", "input_names": ["sihit"]}]
+
             fig = plot_cld_event_reconstruction(inputs, targets, axes_spec)
             fig.savefig(Path("tests/outputs/cld/cld_event_sihit_ceta.png"))
 
-            axes_spec = [{"x": "pos.r", "y": "pos.eta", "input_names": ["sihit",],},]
-            
+            axes_spec = [{"x": "pos.r", "y": "pos.eta", "input_names": ["sihit"]}]
+
             fig = plot_cld_event_reconstruction(inputs, targets, axes_spec)
             fig.savefig(Path("tests/outputs/cld/cld_event_sihit_reta.png"))
 
@@ -176,4 +176,3 @@ class TestCLDDataModule:
 
             fig = plot_cld_event_reconstruction(inputs, targets, axes_spec)
             fig.savefig(Path("tests/outputs/cld/cld_event_tracker.png"))
-

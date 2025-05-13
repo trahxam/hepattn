@@ -1,15 +1,14 @@
 from pathlib import Path
 
+import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import yaml
-import h5py
 from scipy.stats import binned_statistic
 from tqdm import tqdm
 
 from hepattn.experiments.itk.data import ITkDataset
-from hepattn.utils.eval_plots import plot_hist_to_ax, bayesian_binomial_error
-
+from hepattn.utils.eval_plots import bayesian_binomial_error, plot_hist_to_ax
 
 plt.rcParams["figure.dpi"] = 300
 plt.rcParams["font.size"] = 8
@@ -17,7 +16,7 @@ plt.rcParams["figure.constrained_layout.use"] = True
 
 
 def sigmoid(x):
-    return 1/(1 + np.exp(-np.clip(x, -10, 10)))
+    return 1 / (1 + np.exp(-np.clip(x, -10, 10)))
 
 
 def main():
@@ -51,7 +50,7 @@ def main():
 
     # Give the test eval file we are evaluating and setup the file
     hit_eval_path = "/share/rcifdata/maxhart/hepattn-test/hepattn/logs/ITk_pixel_region135_eta4_900mev_20250428-T091926/ckpts/epoch=061-val_loss=0.43928_test_eval.h5"
-    
+
     # Define bins for particle retention rate under the nominal working point
     particle_bins = {"pt": np.linspace(0.5, 10.0, 32), "eta": np.linspace(-4, 4, 32), "phi": np.linspace(-np.pi, np.pi, 32)}
     particle_pre_counts = {field: np.zeros(len(particle_bins[field]) - 1) for field in particle_bins}
@@ -65,7 +64,7 @@ def main():
     wp_num_recon_parts_post = {wp: [] for wp in working_points}
 
     hit = "pixel"
-    
+
     # Working point that is used for the bulk plots
     nominal_wp = 0.05
 
@@ -73,7 +72,7 @@ def main():
     for idx in tqdm(range(100)):
         # Load the data from the event
         sample_id = dataset.sample_ids[idx]
-        
+
         # Note we are using load event, so evenerying is numpy arrays that are unbatched
         inputs, targets = dataset.load_event(sample_id)
 
