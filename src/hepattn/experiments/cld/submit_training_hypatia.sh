@@ -8,7 +8,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=24G
-#SBATCH --output=/share/rcifdata/maxhart/hepattn-test/hepattn/src/hepattn/experiments/cld/slurm_logs/slurm-%j.%x.out
+#SBATCH --output=/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/slurm_logs/slurm-%j.%x.out
 
 
 # Comet variables
@@ -27,7 +27,7 @@ echo "nvidia-smi:"
 nvidia-smi
 
 # Move to workdir
-cd /share/rcifdata/maxhart/hepattn-test/hepattn/
+cd /share/rcifdata/maxhart/hepattn/
 echo "Moved dir, now in: ${PWD}"
 
 # Set tmpdir
@@ -37,14 +37,14 @@ export TMPDIR=/share/rcifdata/maxhart/tmp/
 echo "Running training script..."
 
 # Python command that will be run
-# PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config src/hepattn/experiments/cld/configs/sihit_ecal.yaml "
-PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config /share/rcifdata/maxhart/hepattn-test/hepattn/logs/CLD_500mev_charged_tf_qmask_sihit_ecal_20250420-T145336/config.yaml --ckpt_path /share/rcifdata/maxhart/hepattn-test/hepattn/logs/CLD_500mev_charged_tf_qmask_sihit_ecal_20250420-T145336/ckpts/epoch=007-val_loss=2.98038.ckpt "
+PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config src/hepattn/experiments/cld/configs/base.yaml "
+# PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config /share/rcifdata/maxhart/hepattn/logs/CLD_500mev_charged_tf_qmask_sihit_ecal_20250420-T145336/config.yaml --ckpt_path /share/rcifdata/maxhart/hepattn/logs/CLD_500mev_charged_tf_qmask_sihit_ecal_20250420-T145336/ckpts/epoch=007-val_loss=2.98038.ckpt "
 
 # Pixi commnand that runs the python command inside the pixi env
 PIXI_CMD="pixi run $PYTORCH_CMD"
 
 # Apptainer command that runs the pixi command inside the pixi apptainer image
-APPTAINER_CMD="apptainer run --nv --bind /share/rcifdata/maxhart /share/rcifdata/maxhart/hepattn-test/hepattn/pixi.sif $PIXI_CMD"
+APPTAINER_CMD="apptainer run --nv --bind /share/rcifdata/maxhart /share/rcifdata/maxhart/hepattn/pixi.sif $PIXI_CMD"
 
 # Run the final command
 echo "Running command: $APPTAINER_CMD"
