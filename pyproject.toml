@@ -28,6 +28,9 @@ dependencies = [
     "h5py>=3.13.0",
     "particle>=0.25.3",
     "scikit-learn>=1.6.1,<2",
+    "numba>=0.61.2",
+    "onnx>=1.18.0",
+    "onnxruntime>=1.22.0",
 ]
 
 [build-system]

@@ -1,0 +1,408 @@
+name: TIDE_100k_100_32trk
+
+data:
+  batch_size: 100
+  train_dir: /share/rcifdata/maxhart/data/ambi/train/
+  val_dir: /share/rcifdata/maxhart/data/ambi/train/
+  test_dir: /share/rcifdata/maxhart/data/ambi/train/
+  num_workers: 1
+  num_train: 100000
+  num_test: 10000
+  num_val: 10000
+
+  min_track_pt: 0
+  min_track_hits:
+    pix: 2
+    sct: 3
+  
+  inputs:
+    pix:
+      pad: 128
+      min: 0
+      max: 128
+      fields: 
+        # Coordinates in global frame
+        - r
+        - eta
+        - phi
+        - theta
+        - x
+        - y
+        - z
+        - u
+        - v
+        - s
+        # ROI axis location in detector coords
+        - roi_eta
+        - roi_phi
+        - roi_z0
+        # Coordinates in ROI frame
+        - deta
+        - dphi
+        - dR
+        # Module global orientation
+        - mod_norm_phi
+        - mod_norm_theta
+        # Module coordinates
+        - mod_x
+        - mod_y
+        - mod_z
+        - mod_eta
+        - mod_phi
+        # Module local coordinates
+        - mod_loc_x
+        - mod_loc_y
+        # Other stuff
+        - logcharge
+        # Pixel specific fields
+        - lshift
+        - logchargemat
+        - pitches
+    sct:
+      pad: 256
+      min: 0
+      max: 256
+      fields: 
+        # Coordinates in global frame
+        - r
+        - eta
+        - phi
+        - theta
+        - x
+        - y
+        - z
+        - u
+        - v
+        - s
+        # ROI axis location in detector coords
+        - roi_eta
+        - roi_phi
+        - roi_z0
+        # Coordinates in ROI frame
+        - deta
+        - dphi
+        - dR
+        # Module angles
+        - mod_norm_phi
+        - mod_norm_theta
+        # Module coordinates
+        - mod_x
+        - mod_y
+        - mod_z
+        - mod_loc_x
+        - mod_loc_y
+        # Other stuff
+        - logcharge
+        # SCT specific fields
+        - side
+        - width
+
+  targets:
+    sudo:
+      pad: &num_tracks 32
+      min: 0
+      max: *num_tracks
+      fields:
+        # Track paramaters in global frame
+        - pt
+        - eta
+        - phi
+        - theta
+        - z0
+        - d0
+        - q
+        - qop
+        # Track paramaters in ROI frame
+        - deta
+        - dphi
+        - dz0
+        # Pseudotrack specific params
+        - bhadpt
+    
+    sisp:
+      pad: *num_tracks
+      min: 0
+      max: *num_tracks
+      fields:
+        # Track paramaters in global frame
+        - pt
+        - eta
+        - phi
+        - z0
+        - d0
+        - q
+        - qop
+        # Track paramaters in ROI frame
+        - deta
+        - dphi
+        - dz0
+    reco:
+      pad: *num_tracks
+      min: 0
+      max: *num_tracks
+      fields:
+        # Track paramaters in global frame
+        - pt
+        - eta
+        - phi
+        - z0
+        - d0
+        - q
+        - qop
+        # Track paramaters in ROI frame
+        - deta
+        - dphi
+        - dz0
+    roi:
+      pad: none
+      min: none
+      max: none
+      fields:
+        - eta
+        - phi
+        - z0
+        - e
+
+# Training stuff here
+trainer:
+  max_epochs: 100
+  accelerator: gpu
+  devices: 1
+  precision: bf16-mixed
+  log_every_n_steps: 10
+  default_root_dir: logs
+  gradient_clip_val: 0.1
+  accumulate_grad_batches: 1
+  enable_progress_bar: True
+
+  # Specify loggers here
+  logger:
+    class_path: lightning.pytorch.loggers.CometLogger
+    init_args:
+      project_name: tide
+
+  # Specify any callback here
+  callbacks:
+    - class_path: hepattn.callbacks.Metadata
+    - class_path: hepattn.callbacks.Checkpoint
+      init_args:
+        monitor: train/loss
+        every_n_train_steps: 1000
+    - class_path: hepattn.callbacks.PredictionWriter
+      init_args:
+        write_inputs: false
+        write_outputs: false
+        write_preds: true
+        write_targets: false
+        write_losses: false
+    - class_path: lightning.pytorch.callbacks.ModelSummary
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+    - class_path: lightning.pytorch.callbacks.TQDMProgressBar
+      init_args:
+        refresh_rate: 50
+
+model:
+  optimizer: lion
+
+  lrs_config:
+    initial: 1e-5
+    max: 4e-5
+    end: 1e-5
+    pct_start: 0.01
+    skip_scheduler: false
+    weight_decay: 1e-5
+
+  mtl: false
+
+  model:
+    class_path: hepattn.models.MaskFormer
+    init_args:
+      dim: &dim 256
+      num_queries: *num_tracks
+      input_sort_field: phi
+      record_intermediate_embeddings: false
+      use_attn_masks: true
+      use_query_masks: false
+
+      input_nets:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: hepattn.models.InputNet
+              init_args:
+                input_name: pix
+                fields:
+                  # Coordinates in global frame
+                  - r
+                  - eta
+                  - phi
+                  - theta
+                  - x
+                  - y
+                  - z
+                  - u
+                  - v
+                  - s
+                  # ROI axis location in detector coords
+                  - roi_eta
+                  - roi_phi
+                  - roi_z0
+                  # Coordinates in ROI frame
+                  - deta
+                  - dphi
+                  - dR
+                  # Module global orientation
+                  - mod_norm_phi
+                  - mod_norm_theta
+                  # Module coordinates
+                  - mod_x
+                  - mod_y
+                  - mod_z
+                  - mod_eta
+                  - mod_phi
+                  # Module local coordinates
+                  - mod_loc_x
+                  - mod_loc_y
+                  # Other stuff
+                  - logcharge
+                  # Pixel specific fields
+                  - lshift
+                  - logchargemat
+                  - pitches
+                net:
+                  class_path: hepattn.models.Dense
+                  init_args:
+                    input_size: 83
+                    output_size: *dim
+                posenc:
+                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  init_args:
+                    input_name: pix
+                    dim: *dim
+                    fields:
+                      - r
+                      - deta
+                      - dphi
+                      - dR
+
+            - class_path: hepattn.models.InputNet
+              init_args:
+                input_name: sct
+                fields:
+                  # Coordinates in global frame
+                  - r
+                  - eta
+                  - phi
+                  - x
+                  - y
+                  - z
+                  - u
+                  - v
+                  - s
+                  # ROI axis location in detector coords
+                  - roi_eta
+                  - roi_phi
+                  - roi_z0
+                  # Coordinates in ROI frame
+                  - deta
+                  - dphi
+                  - dR
+                  # Module angles
+                  - mod_norm_phi
+                  - mod_norm_theta
+                  # Module coordinates
+                  - mod_x
+                  - mod_y
+                  - mod_z
+                  - mod_loc_x
+                  - mod_loc_y
+                  # Other stuff
+                  - logcharge
+                  # SCT specific fields
+                  - side
+                  - width
+                net:
+                  class_path: hepattn.models.Dense
+                  init_args:
+                    input_size: 25
+                    output_size: *dim
+                posenc:
+                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  init_args:
+                    input_name: sct
+                    dim: *dim
+                    fields:
+                      - r
+                      - deta
+                      - dphi
+                      - dR
+
+      encoder:
+        class_path: hepattn.models.Encoder
+        init_args:
+          num_layers: 8
+          dim: *dim
+          attn_type: flash-varlen
+          # window_size: 1024
+          window_wrap: false
+      
+      num_decoder_layers: 8
+      decoder_layer_config:
+        dim: *dim
+        mask_attention: true
+      
+      matcher:
+        class_path: hepattn.models.matcher.Matcher
+        init_args:
+          default_solver: scipy
+          adaptive_solver: false
+          adaptive_check_interval: 1000
+      
+      tasks:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: hepattn.models.task.ObjectValidTask
+              init_args:
+                name: pred_valid
+                input_object: query
+                output_object: pred
+                target_object: sudo
+                losses:
+                  object_ce: 1.0
+                costs:
+                  object_ce: 100.0
+                dim: *dim
+                null_weight: 1.0
+                mask_queries: false
+            
+            - class_path: hepattn.models.task.ObjectHitMaskTask
+              init_args:
+                name: pred_pix_assignment
+                input_hit: pix
+                input_object: query
+                output_object: pred
+                target_object: sudo
+                losses:
+                  mask_ce: 100.0
+                costs:
+                  mask_ce: 100.0
+                dim: *dim
+                null_weight: 1.0
+            
+            - class_path: hepattn.models.task.ObjectHitMaskTask
+              init_args:
+                name: pred_sct_assignment
+                input_hit: sct
+                input_object: query
+                output_object: pred
+                target_object: sudo
+                losses:
+                  mask_ce: 50.0
+                costs:
+                  mask_ce: 50.0
+                dim: *dim
+                null_weight: 1.0
+
+
+           
