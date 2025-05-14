@@ -21,15 +21,15 @@ def sigmoid(x):
 
 
 def main():
-    config_path = Path("/share/rcifdata/maxhart/hepattn-test/hepattn/src/hepattn/experiments/cld/configs/sihit_ecal.yaml")
+    config_path = Path("/share/rcifdata/maxhart/hepattn/logs/CLD_10_96_TF_charged_posenc_20250513-T221212/config.yaml")
     eval_path = Path(
-        "/share/rcifdata/maxhart/hepattn-test/hepattn/logs/CLD_100mev_charged_tf_sihit_ecal_20250422-T221951/ckpts/epoch=024-val_loss=2.87862_test_eval.h5"
+        "/share/rcifdata/maxhart/hepattn/logs/CLD_10_96_TF_charged_posenc_20250513-T221212/ckpts/epoch=005-train_loss=26.51508_train_eval.h5"
     )
 
     # Now create the dataset
     config = yaml.safe_load(config_path.read_text())["data"]
 
-    config["dirpath"] = Path("/share/rcifdata/maxhart/data/cld/prepped/test/")
+    config["dirpath"] = Path("/share/rcifdata/maxhart/data/cld/prepped/train/")
 
     # Remve keys that are normally for the datamodule
     config_del_keys = [
@@ -41,6 +41,7 @@ def main():
         "num_val",
         "num_workers",
         "batch_size",
+        "pin_memory",
     ]
 
     for key in config_del_keys:
@@ -49,16 +50,18 @@ def main():
     dataset = CLDDataset(**config)
 
     plot_specs = {
-        "vtx.mom.r": ("Vertex $p_T$ [GeV]", np.geomspace(0.1, 100.0, 32), "log"),
-        "vtx.mom.eta": (r"Vertex $\eta$", np.linspace(-4, 4, 32), "linear"),
-        "vtx.mom.phi": (r"Vertex $\phi$", np.linspace(-np.pi, np.pi, 32), "linear"),
-        "vtx.pos.r": ("Vertex $r_0$ [m]", np.linspace(0.0, 0.1, 32), "linear"),
-        "vtx.pos.z": ("Vertex $z_0$ [m]", np.linspace(-0.1, 0.1, 32), "linear"),
-        "num_sihit": ("Number of Silicon Hits", np.arange(6, 24) + 0.5, "linear"),
+        "mom.r": ("$p_T$ [GeV]", np.geomspace(0.01, 100.0, 32), "log"),
+        "mom.eta": (r"$\eta$", np.linspace(-4, 4, 32), "linear"),
+        "mom.phi": (r"$\phi$", np.linspace(-np.pi, np.pi, 32), "linear"),
+        "vtx.r": ("Vertex $r_0$ [m]", np.linspace(0.0, 0.05, 32), "linear"),
+        "vtx.z": ("Vertex $z_0$ [m]", np.linspace(-0.5, 0.5, 32), "linear"),
+        "num_vtxd": ("Number of Vertex Detector Hits", np.arange(0, 12) + 0.5, "linear"),
+        "num_trkr": ("Number of Tracker Hits", np.arange(0, 12) + 0.5, "linear"),
         "num_ecal": ("Number of ECAL Hits", np.geomspace(1, 10000, 32), "log"),
+        "num_hcal": ("Number of HCAL Hits", np.geomspace(1, 1000, 32), "log"),
     }
 
-    hits = ["sihit", "ecal"]
+    hits = ["vtxd", "trkr", "ecal", "hcal"]
 
     particle_total_valid = {hit: {field: np.zeros(len(plot_specs[field][1]) - 1) for field in plot_specs} for hit in hits}
     particle_total_eff = {hit: {field: np.zeros(len(plot_specs[field][1]) - 1) for field in plot_specs} for hit in hits}
@@ -69,6 +72,7 @@ def main():
     for idx in tqdm(range(1000)):
         # Load the data from the event
         sample_id = dataset.sample_ids[idx]
+
 
         inputs, targets = dataset.load_event(sample_id)
 
@@ -86,10 +90,11 @@ def main():
             with h5py.File(eval_path, "r") as eval_file:
                 preds = eval_file[f"{sample_id}/preds/final/"]
 
-                flow_valid = preds["flow_valid/flow_valid"][:]
+
+                flow_valid = preds["flow_valid/flow_valid"][0]
 
                 # The masks will have had the particle padding applied, but also the hit padding (since they are batched)
-                flow_hit_valid = preds[f"flow_{hit}_assignment/flow_{hit}_valid"][:, : len(hit_valid)]
+                flow_hit_valid = preds[f"flow_{hit}_assignment/flow_{hit}_valid"][0][:,:len(hit_valid)]
 
             particle_valid = particle_valid & (particle_hit_valid.sum(-1) > 0)
 
@@ -115,7 +120,12 @@ def main():
 
     plot_save_dir = Path(__file__).resolve().parent / Path("eval_plots")
 
-    hit_aliases = {"sihit": "SiHit Assignment", "ecal": "ECAL Assignment"}
+    hit_aliases = {
+        "vtxd": "Vertex Detector Assignment",
+        "trkr": "Tracker Assignment",
+        "ecal": "ECAL Assignment",
+        "hcal": "HCAL Assignment",
+        }
 
     # Now plot everything
     for hit in hits:

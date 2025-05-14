@@ -1,4 +1,4 @@
-name: CLD_5_256_TF_neutrals
+name: CLD_10_96_TF_charged_10MeV_10GA
 
 data:
   # Paths to preprocessed data directories
@@ -12,13 +12,13 @@ data:
   num_test: 100
   num_val: 100
 
-  batch_size: 5
+  batch_size: 10
 
   # Minimum pT for a particle to be deemed reconstructve in GeV
   particle_min_pt: 0.01
 
   # Number of query slots / particles to generate per event
-  event_max_num_particles: &num_particles 256
+  event_max_num_particles: &num_particles 96
 
   charged_particle_min_num_hits:
     vtxd: 4
@@ -49,7 +49,7 @@ data:
       num_passes: 8
 
   include_charged: true
-  include_neutral: true
+  include_neutral: false
 
   truth_filter_hits:
     - vtxd
@@ -192,6 +192,9 @@ data:
       - mom.x
       - mom.y
       - mom.z
+      - mom.r
+      - mom.eta
+      - mom.phi
       - spin.x
       - spin.y
       - spin.z
@@ -234,7 +237,7 @@ trainer:
   log_every_n_steps: 10
   default_root_dir: logs
   gradient_clip_val: 0.1
-  accumulate_grad_batches: 1
+  accumulate_grad_batches: 10
   enable_progress_bar: True
 
   # Specify loggers here
@@ -312,6 +315,18 @@ model:
                   init_args:
                     input_size: 13
                     output_size: *dim
+                posenc:
+                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  init_args:
+                    input_name: vtxd
+                    dim: *dim
+                    fields:
+                      - pos.x
+                      - pos.y
+                      - pos.z
+                      - pos.r
+                      - pos.theta
+                      - pos.phi
 
             - class_path: hepattn.models.InputNet
               init_args:
@@ -335,6 +350,18 @@ model:
                   init_args:
                     input_size: 13
                     output_size: *dim
+                posenc:
+                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  init_args:
+                    input_name: trkr
+                    dim: *dim
+                    fields:
+                      - pos.x
+                      - pos.y
+                      - pos.z
+                      - pos.r
+                      - pos.theta
+                      - pos.phi
 
             - class_path: hepattn.models.InputNet
               init_args:
@@ -353,6 +380,18 @@ model:
                   init_args:
                     input_size: 8
                     output_size: *dim
+                posenc:
+                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  init_args:
+                    input_name: ecal
+                    dim: *dim
+                    fields:
+                      - pos.x
+                      - pos.y
+                      - pos.z
+                      - pos.r
+                      - pos.theta
+                      - pos.phi
 
             - class_path: hepattn.models.InputNet
               init_args:
@@ -371,6 +410,18 @@ model:
                   init_args:
                     input_size: 8
                     output_size: *dim
+                posenc:
+                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  init_args:
+                    input_name: hcal
+                    dim: *dim
+                    fields:
+                      - pos.x
+                      - pos.y
+                      - pos.z
+                      - pos.r
+                      - pos.theta
+                      - pos.phi
 
       encoder:
         class_path: hepattn.models.Encoder
@@ -409,7 +460,7 @@ model:
                   object_ce: 100.0
                 dim: *dim
                 null_weight: 1.0
-                mask_queries: true
+                mask_queries: false
 
             - class_path: hepattn.models.task.ObjectHitMaskTask
               init_args:
