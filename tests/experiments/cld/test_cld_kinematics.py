@@ -13,7 +13,7 @@ plt.rcParams["figure.dpi"] = 300
 
 @pytest.fixture
 def cld_datamodule():
-    config_path = Path("src/hepattn/experiments/cld/configs/merged.yaml")
+    config_path = Path("src/hepattn/experiments/cld/configs/base.yaml")
     config = yaml.safe_load(config_path.read_text())["data"]
     config["num_workers"] = 0
     config["batch_size"] = 50
@@ -22,6 +22,24 @@ def cld_datamodule():
     datamodule.setup(stage="fit")
 
     return datamodule
+
+
+def test_plot_cld_hit_coords(cld_datamodule):
+    dataloader = cld_datamodule.train_dataloader()
+    data_iterator = iter(dataloader)
+
+    inputs, _ = next(data_iterator)
+
+    fig, ax = plt.subplots(4, 1)
+    fig.set_size_inches(8, 6)
+
+    particle_qtys = [
+        ("")
+    ]
+
+
+    fig.tight_layout()
+    fig.savefig(Path("tests/outputs/cld/cld_hit_coords.png"))
 
 
 def test_plot_cld_hit_coords(cld_datamodule):
@@ -255,51 +273,52 @@ def test_plot_cld_hit_distance(cld_datamodule):
     data_iterator = iter(dataloader)
     inputs, targets = next(data_iterator)
 
-    mask = targets["particle_sihit_valid"]
-
-    x = np.ma.masked_array(mask * inputs["sihit_pos.x"][..., None, :], mask=~mask)
-    y = np.ma.masked_array(mask * inputs["sihit_pos.y"][..., None, :], mask=~mask)
-    z = np.ma.masked_array(mask * inputs["sihit_pos.z"][..., None, :], mask=~mask)
-
-    t = np.ma.masked_array(mask * inputs["sihit_time"][..., None, :], mask=~mask)
-
-    dx = np.ma.diff(np.take_along_axis(x, np.ma.argsort(t, axis=-1), axis=-1), axis=-1)
-    dy = np.ma.diff(np.take_along_axis(y, np.ma.argsort(t, axis=-1), axis=-1), axis=-1)
-    dz = np.ma.diff(np.take_along_axis(z, np.ma.argsort(t, axis=-1), axis=-1), axis=-1)
-
-    dr = np.sqrt(dx**2 + dy**2 + dz**2)
-
     fig, ax = plt.subplots(1, 1)
     fig.set_size_inches(8, 3)
 
-    ax.hist(dr.flatten(), bins=np.logspace(-4, 1, 64), histtype="step")
+    for item_name in ["vtxd", "trkr"]:
+        mask = targets[f"particle_{item_name}_valid"]
+
+        x = np.ma.masked_array(mask * inputs[f"{item_name}_pos.x"][..., None, :], mask=~mask)
+        y = np.ma.masked_array(mask * inputs[f"{item_name}_pos.y"][..., None, :], mask=~mask)
+        z = np.ma.masked_array(mask * inputs[f"{item_name}_pos.z"][..., None, :], mask=~mask)
+
+        t = np.ma.masked_array(mask * inputs[f"{item_name}_time"][..., None, :], mask=~mask)
+
+        dx = np.ma.diff(np.take_along_axis(x, np.ma.argsort(t, axis=-1), axis=-1), axis=-1)
+        dy = np.ma.diff(np.take_along_axis(y, np.ma.argsort(t, axis=-1), axis=-1), axis=-1)
+        dz = np.ma.diff(np.take_along_axis(z, np.ma.argsort(t, axis=-1), axis=-1), axis=-1)
+
+        dr = np.sqrt(dx**2 + dy**2 + dz**2)
+        
+        ax.hist(dr.flatten(), bins=np.logspace(-3, 0.25, 64), histtype="step", label=item_name.upper())
 
     ax.set_xscale("log")
     ax.set_yscale("log")
+    ax.legend(fontsize=8)
 
-    ax.set_xlabel("Distance between consecutive hits")
+    ax.set_xlabel("Distance between Consecutive Hits")
     ax.set_ylabel("Count")
 
     fig.tight_layout()
-    fig.savefig(Path("tests/outputs/cld/cld_hit_dist.png"))
+    fig.savefig(Path(f"tests/outputs/cld/cld_hit_dist.png"))
 
 
 def test_plot_cld_hit_dr(cld_datamodule):
     dataloader = cld_datamodule.train_dataloader()
     data_iterator = iter(dataloader)
+    inputs, targets = next(data_iterator)
 
-    for _i in range(1):
-        inputs, targets = next(data_iterator)
-
-        mask = targets["particle_sihit_valid"]
-        hit_r = inputs["sihit_pos.r"]
+    for item_name in ["vtxd", "trkr"]:
+        mask = targets[f"particle_{item_name}_valid"]
+        hit_r = inputs[f"{item_name}_pos.r"]
 
         # Only consider differences for hits that are away from the IP
         mask = mask & (hit_r[..., None, :] >= 0.25)
 
-        hit_phi = inputs["sihit_pos.phi"]
-        hit_eta = inputs["sihit_pos.eta"]
-        hit_time = inputs["sihit_time"]
+        hit_phi = inputs[f"{item_name}_pos.phi"]
+        hit_eta = inputs[f"{item_name}_pos.eta"]
+        hit_time = inputs[f"{item_name}_time"]
 
         phi = np.ma.masked_array(mask * hit_phi[..., None, :], mask=~mask)
         eta = np.ma.masked_array(mask * hit_eta[..., None, :], mask=~mask)
@@ -318,7 +337,7 @@ def test_plot_cld_hit_dr(cld_datamodule):
         ax[1].set_yscale("log")
 
         fig.tight_layout()
-        fig.savefig(Path("tests/outputs/cld/cld_hit_std_eta_phi.png"))
+        fig.savefig(Path(f"tests/outputs/cld/cld_{item_name}_std_eta_phi.png"))
 
         idx = np.ma.argsort(time, axis=-1)
 
@@ -365,4 +384,4 @@ def test_plot_cld_hit_dr(cld_datamodule):
         ax[0, 0].set_ylabel("Count")
 
         fig.tight_layout()
-        fig.savefig(Path("tests/outputs/cld/cld_hit_deta_dphi_dr.png"))
+        fig.savefig(Path(f"tests/outputs/cld/cld_{item_name}_deta_dphi_dr.png"))
