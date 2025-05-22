@@ -114,9 +114,7 @@ def test_plot_cld_trkr_momentum(cld_datamodule):
         py = np.ma.masked_array(targets[f"particle_{item_name}_mom.y"], mask=~mask)
         pz = np.ma.masked_array(targets[f"particle_{item_name}_mom.z"], mask=~mask)
 
-        angle_diffs = []
-        for i in range(len(mask)):
-            angle_diffs.append(masked_angle_diff_last_axis(px[i], py[i], pz[i], ~mask[i])[mask[i]])
+        angle_diffs = [masked_angle_diff_last_axis(px[i], py[i], pz[i], ~mask[i])[mask[i]] for i in range(len(mask))]
 
         ax[0].hist(np.concatenate(angle_diffs), bins=np.linspace(0.0, np.pi / 2, 64), histtype="step")
         ax[1].hist(np.concatenate(angle_diffs), bins=np.linspace(0.0, 0.1, 64), histtype="step")
@@ -272,7 +270,7 @@ def test_plot_cld_hit_distance(cld_datamodule):
         dz = np.ma.diff(np.take_along_axis(z, np.ma.argsort(t, axis=-1), axis=-1), axis=-1)
 
         dr = np.sqrt(dx**2 + dy**2 + dz**2)
-        
+
         ax.hist(dr.flatten(), bins=np.logspace(-3, 0.25, 64), histtype="step", label=item_name.upper())
 
     ax.set_xscale("log")
@@ -283,7 +281,7 @@ def test_plot_cld_hit_distance(cld_datamodule):
     ax.set_ylabel("Count")
 
     fig.tight_layout()
-    fig.savefig(Path(f"tests/outputs/cld/cld_hit_dist.png"))
+    fig.savefig(Path("tests/outputs/cld/cld_hit_dist.png"))
 
 
 def test_plot_cld_hit_dr(cld_datamodule):

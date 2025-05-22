@@ -557,18 +557,12 @@ def preprocess_event(events, event_idx, namecodes, min_pt, verbose):
     # Alias items and their fields
     aliased_items = {}
     for item_name in items:
-        if item_name in item_aliases:
-            aliased_item_name = item_aliases[item_name]
-        else:
-            aliased_item_name = item_name
+        aliased_item_name = item_aliases.get(item_name, item_name)
 
         aliased_items[aliased_item_name] = {}
 
         for field_name in items[item_name].fields:
-            if field_name in field_aliases:
-                aliased_field_name = field_aliases[field_name]
-            else:
-                aliased_field_name = field_name
+            aliased_field_name = field_aliases.get(field_name, field_name)
 
             aliased_items[aliased_item_name][aliased_field_name] = items[item_name][field_name]
 
@@ -702,7 +696,7 @@ def preprocess_files(in_dir: str, out_dir: str, overwrite: bool, parallel: bool 
     in_dir : str
         Directory of input root files
     out_dir : str
-        Directory of where to save output parquet files
+        Directory of where to save output numpy files
     """
 
     num_events_per_file = 1000
@@ -715,19 +709,13 @@ def preprocess_files(in_dir: str, out_dir: str, overwrite: bool, parallel: bool 
     print("=" * 100)
     print(f"Found {len(filenames)} files in {in_dir}")
 
-    completed_filenames = []
+    completed_filenames = [filename for filename in filenames if len(list((out_dir / Path(filename)).glob("*.npz"))) == num_events_per_file]
 
     # Determine which output folders have 1000 events in, and so are complete
-    for filename in filenames:
-        if len(list((out_dir / Path(filename)).glob("*.npz"))) == num_events_per_file:
-            completed_filenames.append(filename)
 
     uncompleted_filenames = list(set(filenames) - set(completed_filenames))
 
-    if overwrite:
-        target_filenames = filenames
-    else:
-        target_filenames = uncompleted_filenames
+    target_filenames = filenames if overwrite else uncompleted_filenames
 
     print(f"Found {len(completed_filenames)} completed files in {out_dir}")
     print(f"Set to prep {len(uncompleted_filenames)} files")
@@ -745,7 +733,7 @@ def preprocess_files(in_dir: str, out_dir: str, overwrite: bool, parallel: bool 
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser(description="Convert root TTree files to binary parquet files")
+    parser = ArgumentParser(description="Convert root TTree files to numpy binary files")
 
     parser.add_argument("-i", "--in_dir", dest="in_dir", type=str, required=True, help="Input directory containing ROOT files")
     parser.add_argument("-o", "--out_dir", dest="out_dir", type=str, required=True, help="Output directory for parquet files")

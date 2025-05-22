@@ -118,9 +118,6 @@ class CLDDataset(Dataset):
         with np.load(event_filename, allow_pickle=True) as archive:
             event = {key: archive[key] for key in archive.files}
 
-        # for k, v in event.items():
-        #    print(k, v.shape)
-
         def convert_mm_to_m(i, p):
             # Convert a spatial coordinate from mm to m inplace
             for coord in ["x", "y", "z"]:
@@ -266,8 +263,8 @@ class CLDDataset(Dataset):
         event["particle.isNeutral"] = ~event["particle.isCharged"]
 
         # Compute angular isolation
-        dphi = event["particle.mom.phi"][:,None] - event["particle.mom.phi"][None,:]
-        deta = event["particle.mom.eta"][:,None] - event["particle.mom.eta"][None,:]
+        dphi = event["particle.mom.phi"][:, None] - event["particle.mom.phi"][None, :]
+        deta = event["particle.mom.eta"][:, None] - event["particle.mom.eta"][None, :]
         dR = np.sqrt(dphi**2 + deta**2)
         dR[np.arange(num_particles), np.arange(num_particles)] = np.inf
         event["particle.isolation"] = np.min(dR, axis=-1)
@@ -301,7 +298,6 @@ class CLDDataset(Dataset):
                 px = np.ma.masked_array(event[f"particle_{item_name}.mom.x"], mask=~mask)
                 py = np.ma.masked_array(event[f"particle_{item_name}.mom.y"], mask=~mask)
                 pz = np.ma.masked_array(event[f"particle_{item_name}.mom.z"], mask=~mask)
-                # t = np.ma.masked_array(event[f"particle_{item_name}.time"], mask=~mask)
 
                 angle_diff = masked_angle_diff_last_axis(px, py, pz, ~mask).filled(0.0)
 
@@ -315,7 +311,6 @@ class CLDDataset(Dataset):
                 x = np.ma.masked_array(mask * event[f"{item_name}.pos.x"][..., None, :], mask=~mask)
                 y = np.ma.masked_array(mask * event[f"{item_name}.pos.y"][..., None, :], mask=~mask)
                 z = np.ma.masked_array(mask * event[f"{item_name}.pos.z"][..., None, :], mask=~mask)
-                t = np.ma.masked_array(mask * event[f"{item_name}.time"][..., None, :], mask=~mask)
 
                 dx = masked_diff_last_axis(x)
                 dy = masked_diff_last_axis(y)
@@ -449,16 +444,6 @@ class CLDDataset(Dataset):
 
 def pad_and_concat(items: list[Tensor], target_size: tuple[int], pad_value) -> Tensor:
     """Takes a list of tensors, pads them to a given size, and then concatenates them along the a new dimension at zero."""
-    try:
-        torch.cat([pad_to_size(item, (1, *target_size), pad_value) for item in items], dim=0)
-    except Exception as e:
-        print(e)
-        print(items)
-        print(target_size)
-        print(pad_value)
-        for item in items:
-            print(item.shape)
-        return None
     return torch.cat([pad_to_size(item, (1, *target_size), pad_value) for item in items], dim=0)
 
 

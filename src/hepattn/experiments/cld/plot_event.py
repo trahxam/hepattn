@@ -15,7 +15,7 @@ def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec):
 
     batch_idx = torch.argmax(reconstruction["particle_valid"].sum(-1))
 
-    sihit_names = ["vtb", "vte", "itb", "ite", "otb", "ote", "sihit"]
+    sihit_names = ["vtb", "vte", "itb", "ite", "otb", "ote", "sihit", "vtxd", "trkr"]
 
     ecal_names = [
         "ecb",
@@ -48,9 +48,6 @@ def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec):
                     idx = torch.argsort(inputs[f"{input_name}_time"][batch_idx][mask], dim=-1)
 
                     ax[ax_idx].plot(x[mask][idx], y[mask][idx], color=color, marker="o", alpha=0.75, linewidth=1.0, ms=2.0)
-
-                    # if len(x[mask]) > 0:
-                    #    ax[ax_idx].text(x[mask][idx][-1], y[mask][idx][-1], str(reconstruction["particle_sihit_max_abs_deta"][batch_idx][mcparticle_idx].item()), fontsize=6)
 
                 # ECAL hit
                 elif input_name in ecal_names:

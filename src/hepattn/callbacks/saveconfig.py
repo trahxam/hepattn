@@ -1,10 +1,10 @@
+import os
 import socket
 from pathlib import Path
 
 import lightning as L
 import torch
 import yaml
-import os
 from lightning import Callback, LightningModule, Trainer
 from lightning.pytorch.loggers import CometLogger
 

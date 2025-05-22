@@ -2,8 +2,8 @@ from argparse import ArgumentParser
 from pathlib import Path
 
 import awkward as ak
-import uproot as up
 import numpy as np
+import uproot as up
 
 
 def get_parser():
@@ -35,7 +35,7 @@ def preprocess(in_dir: str, out_dir: str, overwrite: bool):
             continue
 
         out_file = Path(out_dir) / Path(in_file.stem).with_suffix(".parquet")
-        
+
         # Only overwrite output files if overwrite flag is true
         if out_file.exists() and not overwrite:
             print(f"Skipping {in_file} as found existing output {out_file}")
@@ -47,9 +47,9 @@ def preprocess(in_dir: str, out_dir: str, overwrite: bool):
 
         # Cluster fields that are common between pixel and SCT
         clus_fields = {
-            "id": ("id", np.int32), # A unqiue integer ID for the cluster, going from 0 -> (num clusters in ROI - 1)
-            "sihit_barcodes": ("bcodes", np.int32), # A list of barcodes of tracks that are associaed with this cluster
-            "x": ("x", np.float32), 
+            "id": ("id", np.int32),  # A unqiue integer ID for the cluster, going from 0 -> (num clusters in ROI - 1)
+            "sihit_barcodes": ("bcodes", np.int32),  # A list of barcodes of tracks that are associaed with this cluster
+            "x": ("x", np.float32),
             "y": ("y", np.float32),
             "z": ("z", np.float32),
             "layer": ("layer", np.int32),
@@ -64,11 +64,11 @@ def preprocess(in_dir: str, out_dir: str, overwrite: bool):
             "module_local_x": ("mod_loc_x", np.float32),
             "module_local_y": ("mod_loc_y", np.float32),
             }
-        
+
         # Pixel specific fields - note that it also has the common cluster fields
         pix_fields = clus_fields | {
             "NN_matrixOfCharge": ("chargemat", np.float32),
-            "NN_vectorOfPitchesY":("pitches", np.float32),
+            "NN_vectorOfPitchesY": ("pitches", np.float32),
             "NN_positions_indexX": ("sudo_loc_x", np.float32),
             "NN_positions_indexY": ("sudo_loc_y", np.float32),
             "NN_phi": ("sudo_loc_phi", np.float32),
@@ -76,7 +76,7 @@ def preprocess(in_dir: str, out_dir: str, overwrite: bool):
             "LorentzShift": ("lshift", np.float32),
             "sihit_energyDeposits": ("energydep", np.float32),
             }
-        
+
         # SCT specific fields
         sct_fields = clus_fields | {
             "side": ("side", np.float32),
@@ -84,12 +84,12 @@ def preprocess(in_dir: str, out_dir: str, overwrite: bool):
             "rdo_strip": ("strip", np.float32),
             "rdo_groupsize": ("groupsize", np.float32),
             }
-        
+
         # Track fields that are common betweeen all track collections
         trk_fields = {
-            "id": ("id", np.int32), # A unqiue integer ID for the track, going from 0 -> (num tracks in ROI - 1)
-            "barcode": ("bcode", np.int32), # A unique integer that identifies the particle corresponding to the track
-            "to_cluster_ids": ("clus_ids", np.float32), # A list of cluster IDs that are associated with this track
+            "id": ("id", np.int32),  # A unqiue integer ID for the track, going from 0 -> (num tracks in ROI - 1)
+            "barcode": ("bcode", np.int32),  # A unique integer that identifies the particle corresponding to the track
+            "to_cluster_ids": ("clus_ids", np.float32),  # A list of cluster IDs that are associated with this track
             "pt": ("pt", np.float32),
             "eta": ("eta", np.float32),
             "phi": ("phi", np.float32),
@@ -101,7 +101,7 @@ def preprocess(in_dir: str, out_dir: str, overwrite: bool):
             "charge": ("q", np.float32),
             "origin": ("origin", np.int32),
             }
-        
+
         # Pseudotrack specific fields
         sudo_fields = trk_fields | {
             "BHadronPt": ("bhadpt", np.float32),
@@ -109,19 +109,19 @@ def preprocess(in_dir: str, out_dir: str, overwrite: bool):
             "hasReco": ("hasreco", bool),
             "hasSiSP": ("hassisp", bool),
             }
-        
+
         # Tracks produced by the standard Athena reconstruction chain
         reco_fields = trk_fields
 
         # SiSp tracks that are fed into the ambi
         sisp_fields = trk_fields
-        
+
         # ROI level fields
         roi_fields = {
-            "e": ("e", np.float32), # ROI energy
-            "eta": ("eta", np.float32), # ROI axis eta
-            "phi": ("phi", np.float32), # ROI axis phi
-            "m": ("m", np.float32), # ROI mass
+            "e": ("e", np.float32),  # ROI energy
+            "eta": ("eta", np.float32),  # ROI axis eta
+            "phi": ("phi", np.float32),  # ROI axis phi
+            "m": ("m", np.float32),  # ROI mass
         }
 
         # Read the tree into memory
@@ -130,7 +130,7 @@ def preprocess(in_dir: str, out_dir: str, overwrite: bool):
 
         data_out = {}
 
-        if "NN_matrixOfCharge" in pix_fields.keys():
+        if "NN_matrixOfCharge" in pix_fields:
             # Sparsify the charge matrix to save memory
             pixel_mask = data["cluster_isPixel"].array()
             charges_dense = data["cluster_NN_matrixOfCharge"].array()[pixel_mask]
@@ -165,7 +165,7 @@ def preprocess(in_dir: str, out_dir: str, overwrite: bool):
 
         data_out = ak.zip(data_out, depth_limit=1)
 
-        print("-"*100 + "\nField name".ljust(32), "Type".ljust(32), "Bytes per ROI".ljust(32), "\n" + "-"*100)
+        print("-" * 100 + "\nField name".ljust(32), "Type".ljust(32), "Bytes per ROI".ljust(32), "\n" + "-" * 100)
         for field in data_out.fields:
             print(field.ljust(32), str(data_out[field].type).ljust(32), str(data_out[field].nbytes / (len(data_out))).ljust(32))
 

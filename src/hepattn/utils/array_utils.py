@@ -16,7 +16,7 @@ def masked_diff_last_axis(m: np.ma.MaskedArray) -> np.ma.MaskedArray:
     # Shift that right by one to get “previous valid before j”:
     prev_idx = np.concatenate([np.full((m, 1), -1, dtype=int), last_valid[:, :-1]], axis=1)
 
-    # Clip negatives just for safe indexing (we’ll mask them out anyway)
+    # Clip negatives just for safe indexing (we will mask them out anyway)
     prev_idx_clipped = np.where(prev_idx < 0, 0, prev_idx)
 
     # Gather the “previous” values and subtract

@@ -1,12 +1,13 @@
+from pathlib import Path
+
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
-import yaml
 import torch
-
+import yaml
 from tqdm import tqdm
-from pathlib import Path
 
+from scipy.stats import binned_statistic
 from hepattn.experiments.cld.data import CLDDataset
 from hepattn.experiments.cld.plot_event import plot_cld_event_reconstruction
 from hepattn.utils.eval_plots import bayesian_binomial_error, plot_hist_to_ax
@@ -58,16 +59,16 @@ def main():
 
     # Spec for event displays
     axes_spec = [
-        {"x": "pos.x", "y": "pos.y", "px": "mom.x", "py": "mom.y", "input_names": hits,},
-        {"x": "pos.z", "y": "pos.y", "px": "mom.z", "py": "mom.y", "input_names": hits,},
+        {"x": "pos.x", "y": "pos.y", "px": "mom.x", "py": "mom.y", "input_names": hits},
+        {"x": "pos.z", "y": "pos.y", "px": "mom.z", "py": "mom.y", "input_names": hits},
     ]
 
     # Which sample will be used to produce a sample event display
     display_sample_idx = 0
 
     # Get the truth data for the truth event display
-    sample_id = dataset.sample_ids[sample_idx]
-    inputs, targets = dataset[sample_idx]
+    sample_id = dataset.sample_ids[display_sample_idx]
+    inputs, targets = dataset[display_sample_idx]
 
     # Get the predictions for the reconstruction event display
     preds = {}
@@ -77,23 +78,22 @@ def main():
 
         for hit in hits:
             hit_valid = targets[f"{hit}_valid"][0]
-            preds[f"particle_{hit}_valid"] = torch.from_numpy(final_preds[f"flow_{hit}_assignment/flow_{hit}_valid"][:][:,:,:len(hit_valid)])
+            preds[f"particle_{hit}_valid"] = torch.from_numpy(final_preds[f"flow_{hit}_assignment/flow_{hit}_valid"][:][:, :, :len(hit_valid)])
 
     # Plot the event display for the truth
     fig = plot_cld_event_reconstruction(inputs, targets, axes_spec)
     fig.savefig(plot_save_dir / Path("event_display_truth.png"))
-    
+
     # Plot the event display for the reconstruction
     fig = plot_cld_event_reconstruction(inputs, preds, axes_spec)
     fig.savefig(plot_save_dir / Path("event_display_preds.png"))
-
 
     plot_specs = {
         "mom.r": ("$p_T$ [GeV]", np.geomspace(0.01, 100.0, 32), "log"),
         "mom.eta": (r"$\eta$", np.linspace(-4, 4, 32), "linear"),
         "mom.phi": (r"$\phi$", np.linspace(-np.pi, np.pi, 32), "linear"),
-        #"vtx.r": ("Vertex $r_0$ [m]", np.linspace(0.0, 0.05, 32), "linear"),
-        #"vtx.z": ("Vertex $z_0$ [m]", np.linspace(-0.5, 0.5, 32), "linear"),
+        "vtx.r": ("Vertex $r_0$ [m]", np.linspace(0.0, 0.05, 32), "linear"),
+        "vtx.z": ("Vertex $z_0$ [m]", np.linspace(-0.5, 0.5, 32), "linear"),
         "isolation": (r"$\Delta R$ Isolation", np.logspace(-4, 0, 32), "log"),
         "num_vtxd": ("Number of Vertex Detector Hits", np.arange(0, 12) + 0.5, "linear"),
         "num_trkr": ("Number of Tracker Hits", np.arange(0, 12) + 0.5, "linear"),
@@ -104,13 +104,12 @@ def main():
     particle_total_valid = {hit: {field: np.zeros(len(plot_specs[field][1]) - 1) for field in plot_specs} for hit in hits}
     particle_total_eff = {hit: {field: np.zeros(len(plot_specs[field][1]) - 1) for field in plot_specs} for hit in hits}
 
-    flow_total_valid = {hit: {field: np.zeros(len(plot_specs[field][1]) - 1) for field in plot_specs} for hit in hits}
-    flow_total_pur = {hit: {field: np.zeros(len(plot_specs[field][1]) - 1) for field in plot_specs} for hit in hits}
+    {hit: {field: np.zeros(len(plot_specs[field][1]) - 1) for field in plot_specs} for hit in hits}
+    {hit: {field: np.zeros(len(plot_specs[field][1]) - 1) for field in plot_specs} for hit in hits}
 
     for idx in tqdm(range(1000)):
         # Load the data from the event
         sample_id = dataset.sample_ids[idx]
-
 
         inputs, targets = dataset.load_event(sample_id)
 
@@ -128,11 +127,10 @@ def main():
             with h5py.File(eval_path, "r") as eval_file:
                 preds = eval_file[f"{sample_id}/preds/final/"]
 
-
                 flow_valid = preds["flow_valid/flow_valid"][0]
 
                 # The masks will have had the particle padding applied, but also the hit padding (since they are batched)
-                flow_hit_valid = preds[f"flow_{hit}_assignment/flow_{hit}_valid"][0][:,:len(hit_valid)]
+                flow_hit_valid = preds[f"flow_{hit}_assignment/flow_{hit}_valid"][0][:, :len(hit_valid)]
 
             particle_valid = particle_valid & (particle_hit_valid.sum(-1) > 0)
 
@@ -141,7 +139,6 @@ def main():
             matched = particle_valid & flow_valid & (hit_iou >= 0.75)
 
             particle_eff = particle_valid & matched
-            flow_eff = flow_valid & matched
 
             # Fill the particle histograms
             for field, (_, bins, _) in plot_specs.items():
@@ -155,8 +152,6 @@ def main():
 
                 particle_total_valid[hit][field] += num_valid
                 particle_total_eff[hit][field] += num_eff
-
-    
 
     hit_aliases = {
         "vtxd": "VTXD",
