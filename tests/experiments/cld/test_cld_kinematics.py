@@ -33,24 +33,6 @@ def test_plot_cld_hit_coords(cld_datamodule):
     fig, ax = plt.subplots(4, 1)
     fig.set_size_inches(8, 6)
 
-    particle_qtys = [
-        ("")
-    ]
-
-
-    fig.tight_layout()
-    fig.savefig(Path("tests/outputs/cld/cld_hit_coords.png"))
-
-
-def test_plot_cld_hit_coords(cld_datamodule):
-    dataloader = cld_datamodule.train_dataloader()
-    data_iterator = iter(dataloader)
-
-    inputs, _ = next(data_iterator)
-
-    fig, ax = plt.subplots(4, 1)
-    fig.set_size_inches(8, 6)
-
     for item_name in dataloader.dataset.inputs:
         r = inputs[f"{item_name}_pos.r"][inputs[f"{item_name}_valid"]]
         phi = inputs[f"{item_name}_pos.phi"][inputs[f"{item_name}_valid"]]
