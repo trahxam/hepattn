@@ -7,7 +7,7 @@ import torch
 from jsonargparse.typing import register_type
 from lightning.pytorch.cli import LightningCLI
 
-torch.set_float32_matmul_precision("medium")
+torch.set_float32_matmul_precision("high")
 
 
 # add support for converting yaml lists to tensors

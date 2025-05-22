@@ -1,4 +1,4 @@
-name: CLD_10_96_TF_charged_10MeV
+name: CLD_TRKECALHCAL_5_96_TF_charged_10MeV_F32_IOU
 
 data:
   # Paths to preprocessed data directories
@@ -12,7 +12,7 @@ data:
   num_test: 100
   num_val: 100
 
-  batch_size: 10
+  batch_size: 5
 
   precision: single
 
@@ -233,10 +233,10 @@ data:
       - mom.x
       - mom.y
       - mom.z
-
+    
     particle_ecal:
       - energy
-
+    
     particle_hcal:
       - energy
 
@@ -443,9 +443,9 @@ model:
         init_args:
           num_layers: 8
           dim: *dim
-          attn_type: flash-varlen
-          window_size: 1024
-          window_wrap: true
+          attn_type: torch
+          #window_size: 1024
+          #window_wrap: true
 
       num_decoder_layers: 8
       decoder_layer_config:
@@ -472,7 +472,7 @@ model:
                 losses:
                   object_ce: 1.0
                 costs:
-                  object_ce: 100.0
+                  object_ce: 10.0
                 dim: *dim
                 null_weight: 1.0
                 mask_queries: false
@@ -485,13 +485,9 @@ model:
                 output_object: flow
                 target_object: particle
                 losses:
-                  mask_ce: 100.0
-                  #mask_dice: 2.0
-                  #mask_focal: 100.0
+                  balanced_mask_ce: 1.0
                 costs:
-                  mask_ce: 100.0
-                  #mask_dice: 2.0
-                  #mask_focal: 50.0
+                  mask_iou: 1.0
                 dim: *dim
                 null_weight: 1.0
 
@@ -503,16 +499,12 @@ model:
                 output_object: flow
                 target_object: particle
                 losses:
-                  mask_ce: 100.0
-                  #mask_dice: 2.0
-                  #mask_focal: 100.0
+                  balanced_mask_ce: 1.0
                 costs:
-                  mask_ce: 100.0
-                  #mask_dice: 2.0
-                  #mask_focal: 50.0
+                  mask_iou: 1.0
                 dim: *dim
                 null_weight: 1.0
-
+            
             - class_path: hepattn.models.task.ObjectHitMaskTask
               init_args:
                 name: flow_ecal_assignment
@@ -521,13 +513,9 @@ model:
                 output_object: flow
                 target_object: particle
                 losses:
-                  mask_ce: 10.0
-                  #mask_dice: 2.0
-                  #mask_focal: 10.0
+                  balanced_mask_ce: 1.0
                 costs:
-                  mask_ce: 10.0
-                  #mask_dice: 2.0
-                  #mask_focal: 50.0
+                  mask_iou: 1.0
                 dim: *dim
                 null_weight: 1.0
 
@@ -539,12 +527,8 @@ model:
                 output_object: flow
                 target_object: particle
                 losses:
-                  mask_ce: 50.0
-                  #mask_dice: 2.0
-                  # mask_focal: 50.0
+                  balanced_mask_ce: 1.0
                 costs:
-                  mask_ce: 50.0
-                  #mask_dice: 2.0
-                  #mask_focal: 50.0
+                  mask_iou: 1.0
                 dim: *dim
                 null_weight: 1.0

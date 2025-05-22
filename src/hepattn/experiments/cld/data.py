@@ -32,6 +32,7 @@ class CLDDataset(Dataset):
         truth_filter_hits: list[str] | None = None,
         event_max_num_particles: int = 256,
         random_seed: int = 42,
+        precision: str = "half",
     ):
         if truth_filter_hits is None:
             truth_filter_hits = []
@@ -71,6 +72,12 @@ class CLDDataset(Dataset):
         self.truth_filter_hits = truth_filter_hits
         self.event_max_num_particles = event_max_num_particles
         self.random_seed = random_seed
+        self.precision = precision
+        self.precision_type = {
+            "half": torch.float16,
+            "single": torch.float32,
+            "double": torch.float64,
+            }[precision]
 
         # Global random state initialisation
         np.random.default_rng(42)
@@ -117,6 +124,7 @@ class CLDDataset(Dataset):
         def convert_mm_to_m(i, p):
             # Convert a spatial coordinate from mm to m inplace
             for coord in ["x", "y", "z"]:
+                event[f"{i}.{p}.{coord}_mm"] = event[f"{i}.{p}.{coord}"]
                 event[f"{i}.{p}.{coord}"] = 0.001 * event[f"{i}.{p}.{coord}"]
 
         def add_cylindrical_coords(i, p):
@@ -126,6 +134,10 @@ class CLDDataset(Dataset):
             event[f"{i}.{p}.theta"] = np.arccos(event[f"{i}.{p}.z"] / event[f"{i}.{p}.s"])
             event[f"{i}.{p}.eta"] = -np.log(np.tan(event[f"{i}.{p}.theta"] / 2))
             event[f"{i}.{p}.phi"] = np.arctan2(event[f"{i}.{p}.y"], event[f"{i}.{p}.x"])
+
+            event[f"{i}.{p}.theta_drad"] = 100 * event[f"{i}.{p}.theta"]
+            event[f"{i}.{p}.eta_drad"] = 100 * event[f"{i}.{p}.eta"]
+            event[f"{i}.{p}.phi_drad"] = 100 * event[f"{i}.{p}.phi"]
 
         def add_conformal_coords(i, p):
             # Conformal tracking coordinates
@@ -252,6 +264,13 @@ class CLDDataset(Dataset):
         # Add extra labels for particles
         event["particle.isCharged"] = np.abs(event["particle.charge"]) > 0
         event["particle.isNeutral"] = ~event["particle.isCharged"]
+
+        # Compute angular isolation
+        dphi = event["particle.mom.phi"][:,None] - event["particle.mom.phi"][None,:]
+        deta = event["particle.mom.eta"][:,None] - event["particle.mom.eta"][None,:]
+        dR = np.sqrt(dphi**2 + deta**2)
+        dR[np.arange(num_particles), np.arange(num_particles)] = np.inf
+        event["particle.isolation"] = np.min(dR, axis=-1)
 
         # Set which particles we deem to be targets / reconstructable
         particle_cuts = {"min_pt": event["particle.mom.r"] >= self.particle_min_pt}
@@ -414,13 +433,13 @@ class CLDDataset(Dataset):
             # Some tasks might require to know hit padding info for loss masking
             targets_out[f"{input_name}_valid"] = inputs_out[f"{input_name}_valid"]
             for field in fields:
-                inputs_out[f"{input_name}_{field}"] = torch.from_numpy(inputs[f"{input_name}_{field}"]).half().unsqueeze(0)
+                inputs_out[f"{input_name}_{field}"] = torch.from_numpy(inputs[f"{input_name}_{field}"]).to(self.precision_type).unsqueeze(0)
 
         # Convert the targets
         for target_name, fields in self.targets.items():
             targets_out[f"{target_name}_valid"] = torch.from_numpy(targets[f"{target_name}_valid"]).bool().unsqueeze(0)
             for field in fields:
-                targets_out[f"{target_name}_{field}"] = torch.from_numpy(targets[f"{target_name}_{field}"]).half().unsqueeze(0)
+                targets_out[f"{target_name}_{field}"] = torch.from_numpy(targets[f"{target_name}_{field}"]).to(self.precision_type).unsqueeze(0)
 
         # Convert the metedata
         targets_out["sample_id"] = torch.tensor([targets["sample_id"]], dtype=torch.int64)

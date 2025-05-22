@@ -37,7 +37,7 @@ export TMPDIR=/share/rcifdata/maxhart/tmp/
 echo "Running training script..."
 
 # Python command that will be run
-PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config src/hepattn/experiments/cld/configs/base.yaml "
+PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config src/hepattn/experiments/cld/configs/tracking.yaml "
 # PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config /share/rcifdata/maxhart/hepattn/logs/CLD_500mev_charged_tf_qmask_sihit_ecal_20250420-T145336/config.yaml --ckpt_path /share/rcifdata/maxhart/hepattn/logs/CLD_500mev_charged_tf_qmask_sihit_ecal_20250420-T145336/ckpts/epoch=007-val_loss=2.98038.ckpt "
 
 # Pixi commnand that runs the python command inside the pixi env
