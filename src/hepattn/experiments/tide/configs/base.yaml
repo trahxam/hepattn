@@ -1,14 +1,15 @@
-name: TIDE_100k_100_32trk
+name: TIDE_1M_100_32trk_F32
 
 data:
   batch_size: 100
   train_dir: /share/rcifdata/maxhart/data/ambi/train/
-  val_dir: /share/rcifdata/maxhart/data/ambi/train/
-  test_dir: /share/rcifdata/maxhart/data/ambi/train/
+  val_dir: /share/rcifdata/maxhart/data/ambi/val/
+  test_dir: /share/rcifdata/maxhart/data/ambi/val/
   num_workers: 1
-  num_train: 100000
+  num_train: 1000000
   num_test: 10000
   num_val: 10000
+  precision: single
 
   min_track_pt: 0
   min_track_hits:
@@ -165,15 +166,16 @@ data:
 
 # Training stuff here
 trainer:
-  max_epochs: 100
+  max_epochs: 10
   accelerator: gpu
   devices: 1
-  precision: bf16-mixed
+  precision: 32
   log_every_n_steps: 10
   default_root_dir: logs
   gradient_clip_val: 0.1
   accumulate_grad_batches: 1
   enable_progress_bar: True
+  val_check_interval: 1000
 
   # Specify loggers here
   logger:
@@ -206,7 +208,7 @@ model:
 
   lrs_config:
     initial: 1e-5
-    max: 4e-5
+    max: 3e-5
     end: 1e-5
     pct_start: 0.01
     skip_scheduler: false
@@ -342,9 +344,9 @@ model:
         init_args:
           num_layers: 8
           dim: *dim
-          attn_type: flash-varlen
+          attn_type: torch
           # window_size: 1024
-          window_wrap: false
+          # window_wrap: false
       
       num_decoder_layers: 8
       decoder_layer_config:

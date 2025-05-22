@@ -128,6 +128,7 @@ class ROIDataset(Dataset):
         max_roi_hit_deta: float = 0.5,
         max_roi_hit_dphi: float = 0.5,
         only_keep_perfect_rois: bool = True,
+        precision: str = "single",
     ):
         """
         A dataset which loads and stores jagged unstructured ROI data in memory and dynamically
@@ -194,6 +195,13 @@ class ROIDataset(Dataset):
         self.max_roi_hit_deta = max_roi_hit_deta
         self.max_roi_hit_dphi = max_roi_hit_dphi
         self.only_keep_perfect_rois = only_keep_perfect_rois
+        self.precision = precision
+
+        self.precision_type = {
+            "half": torch.float16,
+            "single": torch.float32,
+            "double": torch.float64,
+            }[precision]
 
         self.dirpath = Path(self.dirpath)
 
@@ -350,6 +358,11 @@ class ROIDataset(Dataset):
             if self.only_keep_perfect_rois:
                 x = x[x["roi_no_sudo_dropped"]]
 
+            # Add the sample ids
+            # File names are like user.srettie.42156221.EXT1._000195.parquet 
+            file_id = file_path.stem.split("_")[1]
+            x["sample_id"] = ak.Array([int(file_id + str(i).zfill(6)) for i in range(len(x))])
+
             post_cut_size = len(x)
             data.append(x)
             num_samples_loaded += post_cut_size
@@ -440,6 +453,7 @@ class ROIDataset(Dataset):
             batch[f"{k}_mod_norm_phi"] = np.arctan2(batch[f"{k}_mod_norm_y"], batch[f"{k}_mod_norm_x"])
             batch[f"{k}_mod_norm_theta"] = np.arccos(batch[f"{k}_mod_norm_z"])
 
+            batch[f"{k}_mod_r"] = np.sqrt(batch[f"{k}_mod_x"]**2 + batch[f"{k}_mod_y"]**2)
             batch[f"{k}_mod_s"] = np.sqrt(batch[f"{k}_mod_x"]**2 + batch[f"{k}_mod_y"]**2 + batch[f"{k}_mod_z"]**2)
             batch[f"{k}_mod_theta"] = np.arccos(batch[f"{k}_mod_z"] / batch[f"{k}_mod_s"])
             batch[f"{k}_mod_phi"] = np.arctan2(batch[f"{k}_mod_y"], batch[f"{k}_mod_x"])
@@ -543,17 +557,19 @@ class ROIDataset(Dataset):
             inputs[f"{k}_valid"] = data[f"{k}_valid"]
             targets[f"{k}_valid"] = data[f"{k}_valid"]
             for field in v["fields"]:
-                inputs[f"{k}_{field}"] = data[f"{k}_{field}"]
+                inputs[f"{k}_{field}"] = data[f"{k}_{field}"].to(self.precision_type)
 
         for k, v in self.targets.items():
             if k != "roi":
                 targets[f"{k}_valid"] = data[f"{k}_valid"]
             for field in v["fields"]:
-                targets[f"{k}_{field}"] = data[f"{k}_{field}"]
+                targets[f"{k}_{field}"] = data[f"{k}_{field}"].to(self.precision_type)
 
         for k in ["pix", "sct"]:
             for q in ["sudo", "sisp", "reco"]:
                 targets[f"{q}_{k}_valid"] = data[f"{q}_{k}_valid"]
+
+        targets["sample_id"] = torch.from_numpy(ak.to_numpy(batch["sample_id"])).to(torch.int64)
 
         return inputs, targets
 
