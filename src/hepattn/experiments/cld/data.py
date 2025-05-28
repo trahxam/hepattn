@@ -32,7 +32,7 @@ class CLDDataset(Dataset):
         truth_filter_hits: list[str] | None = None,
         event_max_num_particles: int = 256,
         random_seed: int = 42,
-        precision: str = "half",
+        precision: str | int = 16,
     ):
         if truth_filter_hits is None:
             truth_filter_hits = []
@@ -74,10 +74,11 @@ class CLDDataset(Dataset):
         self.random_seed = random_seed
         self.precision = precision
         self.precision_type = {
-            "half": torch.float16,
-            "single": torch.float32,
-            "double": torch.float64,
-            }[precision]
+            "16": torch.float16,
+            "bf16": torch.bfloat16,
+            "32": torch.float32,
+            "64": torch.float64,
+            }[str(precision)]
 
         # Global random state initialisation
         np.random.default_rng(42)

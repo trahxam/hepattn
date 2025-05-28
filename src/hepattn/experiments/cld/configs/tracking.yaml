@@ -1,4 +1,4 @@
-name: CLD_TRKECALHCAL_5_96_TF_charged_10MeV_F32_IOU
+name: CLD_TRKECALHCAL_16_96_TF_charged_10MeV_F16_manypass
 
 data:
   # Paths to preprocessed data directories
@@ -11,10 +11,10 @@ data:
   num_train: -1
   num_test: 100
   num_val: 100
+  batch_size: 16
 
-  batch_size: 5
-
-  precision: single
+  # Precision that the dataset will output floating point values at
+  precision: 16
 
   # Minimum pT for a particle to be deemed reconstructve in GeV
   particle_min_pt: 0.01
@@ -41,19 +41,19 @@ data:
   particle_hit_deflection_cuts:
     vtxd:
       max_angle: 0.25
-      num_passes: 4
+      num_passes: 8
     trkr:
       max_angle: 1.0
-      num_passes: 8
+      num_passes: 16
 
   # Cuts on maximum distance between subsequent hit
   particle_hit_separation_cuts:
     vtxd:
       max_dist: 0.1
-      num_passes: 4
+      num_passes: 8
     trkr:
       max_dist: 1.5
-      num_passes: 8
+      num_passes: 16
 
   # Whether to include charged / neutral particles as targets
   include_charged: true
@@ -248,7 +248,7 @@ trainer:
   max_epochs: 10
   accelerator: gpu
   devices: 1
-  precision: 32
+  precision: 16
   log_every_n_steps: 10
   default_root_dir: logs
   gradient_clip_val: 0.1
@@ -286,7 +286,7 @@ model:
 
   lrs_config:
     initial: 1e-5
-    max: 4e-5
+    max: 2e-5
     end: 1e-5
     pct_start: 0.01
     skip_scheduler: false
@@ -443,9 +443,9 @@ model:
         init_args:
           num_layers: 8
           dim: *dim
-          attn_type: torch
-          #window_size: 1024
-          #window_wrap: true
+          attn_type: flash-varlen
+          window_size: 1024
+          window_wrap: true
 
       num_decoder_layers: 8
       decoder_layer_config:
@@ -470,7 +470,7 @@ model:
                 output_object: flow
                 target_object: particle
                 losses:
-                  object_ce: 1.0
+                  object_ce: 0.1
                 costs:
                   object_ce: 10.0
                 dim: *dim
@@ -485,9 +485,9 @@ model:
                 output_object: flow
                 target_object: particle
                 losses:
-                  balanced_mask_ce: 1.0
+                  mask_ce: 10.0
                 costs:
-                  mask_iou: 1.0
+                  mask_ce: 10.0
                 dim: *dim
                 null_weight: 1.0
 
@@ -499,9 +499,9 @@ model:
                 output_object: flow
                 target_object: particle
                 losses:
-                  balanced_mask_ce: 1.0
+                  mask_ce: 10.0
                 costs:
-                  mask_iou: 1.0
+                  mask_ce: 10.0
                 dim: *dim
                 null_weight: 1.0
             
@@ -513,9 +513,9 @@ model:
                 output_object: flow
                 target_object: particle
                 losses:
-                  balanced_mask_ce: 1.0
+                  mask_ce: 0.5
                 costs:
-                  mask_iou: 1.0
+                  mask_ce: 0.1
                 dim: *dim
                 null_weight: 1.0
 
@@ -527,8 +527,8 @@ model:
                 output_object: flow
                 target_object: particle
                 losses:
-                  balanced_mask_ce: 1.0
+                  mask_ce: 0.5
                 costs:
-                  mask_iou: 1.0
+                  mask_ce: 0.5
                 dim: *dim
                 null_weight: 1.0
