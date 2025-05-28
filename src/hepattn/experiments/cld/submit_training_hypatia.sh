@@ -4,11 +4,11 @@
 #SBATCH -p GPU
 #SBATCH --nodes=1
 #SBATCH --export=ALL
-#SBATCH --gres=gpu:l40s:1
+#SBATCH --gres=gpu:1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=12
 #SBATCH --mem=24G
-#SBATCH --output=/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/slurm_logs/slurm-%j.%x.out
+#SBATCH --output=/home/syw24/ftag/hepattn/src/hepattn/experiments/cld/slurm_logs/slurm-%j.%x.out
 
 
 # Comet variables
@@ -27,25 +27,27 @@ echo "nvidia-smi:"
 nvidia-smi
 
 # Move to workdir
-cd /share/rcifdata/maxhart/hepattn/
+cd /home/syw24/ftag/hepattn
 echo "Moved dir, now in: ${PWD}"
 
 # Set tmpdir
-export TMPDIR=/share/rcifdata/maxhart/tmp/
+export TMPDIR=/home/syw24/tmp/
 
 # Run the training
 echo "Running training script..."
 
 # Python command that will be run
-PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config src/hepattn/experiments/cld/configs/tracking.yaml "
-# PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config /share/rcifdata/maxhart/hepattn/logs/CLD_500mev_charged_tf_qmask_sihit_ecal_20250420-T145336/config.yaml --ckpt_path /share/rcifdata/maxhart/hepattn/logs/CLD_500mev_charged_tf_qmask_sihit_ecal_20250420-T145336/ckpts/epoch=007-val_loss=2.98038.ckpt "
+# PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config src/hepattn/experiments/cld/configs/base.yaml "
+# PYTORCH_CMD="python src/hepattn/experiments/cld/main.py test --config logs/CLD_10_96_TF_charged_10MeV_10GA_20250526-T225156/config.yaml --ckpt_path logs/CLD_10_96_TF_charged_10MeV_10GA_20250526-T225156/ckpts/epoch=009-train_loss=20.88666.ckpt "
+PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config logs/CLD_10_96_TF_charged_10MeV_10GA_20250526-T225156/config.yaml --ckpt_path logs/CLD_10_96_TF_charged_10MeV_10GA_20250526-T225156/ckpts/epoch=009-train_loss=20.88666_train_eval.h5 "
 
 # Pixi commnand that runs the python command inside the pixi env
 PIXI_CMD="pixi run $PYTORCH_CMD"
 
 # Apptainer command that runs the pixi command inside the pixi apptainer image
-APPTAINER_CMD="apptainer run --nv --bind /share/rcifdata/maxhart /share/rcifdata/maxhart/hepattn/pixi.sif $PIXI_CMD"
-
+# APPTAINER_CMD="apptainer run --nv --bind /home/syw24 /home/syw24/ftag/hepattn/pixi.sif $PIXI_CMD"
+APPTAINER_CMD="apptainer run --nv --bind /home/syw24 --bind /share/rcifdata/maxhart /home/syw24/ftag/hepattn/pixi.sif $PIXI_CMD"
+  
 # Run the final command
 echo "Running command: $APPTAINER_CMD"
 $APPTAINER_CMD
