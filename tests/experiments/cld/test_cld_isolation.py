@@ -69,18 +69,18 @@ def test_plot_cld_hit_coords(cld_datamodule):
     fig, ax = plt.subplots(1, 3)
     fig.set_size_inches(12, 4)
 
-    ax[0].hist2d(torch.cat(pts),
-                 torch.cat(dphis),
-                 bins=(np.geomspace(0.1, 100.0, 32), np.geomspace(1.0, 1000 * np.pi, 32)),
-                 norm=LogNorm(vmin=1, vmax=None))
-    ax[1].hist2d(torch.cat(pts),
-                 torch.cat(detas),
-                 bins=(np.geomspace(0.1, 100.0, 32), np.geomspace(1.0, 1000 * np.pi, 32)),
-                 norm=LogNorm(vmin=1, vmax=None))
-    ax[2].hist2d(torch.cat(pts),
-                 torch.cat(isolations),
-                 bins=(np.geomspace(0.1, 100.0, 32), np.geomspace(0.1, 1000 * np.pi, 32)),
-                 norm=LogNorm(vmin=1, vmax=None))
+    ax[0].hist2d(
+        torch.cat(pts), torch.cat(dphis), bins=(np.geomspace(0.1, 100.0, 32), np.geomspace(1.0, 1000 * np.pi, 32)), norm=LogNorm(vmin=1, vmax=None)
+    )
+    ax[1].hist2d(
+        torch.cat(pts), torch.cat(detas), bins=(np.geomspace(0.1, 100.0, 32), np.geomspace(1.0, 1000 * np.pi, 32)), norm=LogNorm(vmin=1, vmax=None)
+    )
+    ax[2].hist2d(
+        torch.cat(pts),
+        torch.cat(isolations),
+        bins=(np.geomspace(0.1, 100.0, 32), np.geomspace(0.1, 1000 * np.pi, 32)),
+        norm=LogNorm(vmin=1, vmax=None),
+    )
 
     ax[0].set_xscale("log")
     ax[0].set_yscale("log")

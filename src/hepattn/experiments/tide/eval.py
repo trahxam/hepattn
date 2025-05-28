@@ -18,7 +18,6 @@ def sigmoid(x):
 
 
 def main():
-
     eval_path = Path("/share/rcifdata/maxhart/hepattn/logs/TIDE_100k_100_32trk_20250514-T142829/ckpts/epoch=092-train_loss=24.68639_train_eval.h5")
 
     pred_names = ["sudo", "sisp", "reco", "pred"]
@@ -96,7 +95,6 @@ def main():
                 true_is_eff = (scores >= score_threshold).any(-1)[true_valid]
 
                 for qty_name, _, _, bins in trk_qtys:
-
                     qty = targets[qty_name][0][true_valid]
 
                     num_all, _, _ = binned_statistic(qty, true_is_eff, statistic="count", bins=bins)
@@ -110,7 +108,6 @@ def main():
         fig.set_size_inches(8, 3)
 
         for pred_name in pred_names:
-
             freq_e = trk_eff_bins[pred_name][qty_name] / trk_all_bins[pred_name][qty_name]
 
             for bin_idx in range(len(bins) - 1):

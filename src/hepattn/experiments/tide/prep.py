@@ -47,7 +47,7 @@ sct_field_aliases = clus_field_aliases | {
     "SiWidth": "width",
     # "rdo_strip": "strip",
     # "rdo_groupsize": "groupsize",
-    }
+}
 
 ###############################################################
 # Define track-hit object field aliases
@@ -92,7 +92,7 @@ sudo_field_aliases = trk_field_aliases | {
     "isComplete": "complete",
     "hasReco": "has_reco",
     "hasSiSP": "has_sisp",
-    }
+}
 
 # Standard reconstruction track fields
 reco_field_aliases = trk_field_aliases
@@ -302,7 +302,9 @@ def preprocess_file(
 
             # Build the track-hit masks
             for field_name, field_alias in sudo_pix_field_aliases.items():
-                sudo_pix_field = build_track_hit_field(data["pseudotracks_barcode"][roi_idx], data["pixel_sihit_barcodes"][roi_idx], data[f"pixel_{field_name}"][roi_idx])
+                sudo_pix_field = build_track_hit_field(
+                    data["pseudotracks_barcode"][roi_idx], data["pixel_sihit_barcodes"][roi_idx], data[f"pixel_{field_name}"][roi_idx]
+                )
                 sudo_pix_field_csr = csr_matrix(sudo_pix_field, dtype=bool)
 
                 roi_data[f"sudo_pix_{field_alias}_data"] = sudo_pix_field_csr.data
@@ -366,7 +368,7 @@ def preprocess_files(input_dir: str, output_dir: str, overwrite: bool, parallel:
         num_tasks = int(os.environ["SLURM_ARRAY_TASK_COUNT"])
         target_file_names = [f for i, f in enumerate(target_file_names) if i % num_tasks == task_id]
         print(f"Task {task_id} has been allocated {len(target_file_names)} files")
-    
+
     # Now preprocess the files
     for file_name in target_file_names:
         preprocess_file(input_dir, output_dir, file_name, overwrite=overwrite)

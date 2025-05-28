@@ -18,7 +18,7 @@ from hepattn.utils.tensor_utils import pad_to_size
 
 
 def wrap_phi(x: Tensor) -> Tensor:
-    """ Correctly wraps an input tensor of pi angles so they lie in [0, 2pi]. """
+    """Correctly wraps an input tensor of pi angles so they lie in [0, 2pi]."""
     x = x + (x < -np.pi).astype(np.float32) * 2 * np.pi
     x = x - (x > np.pi).astype(np.float32) * 2 * np.pi
     return x
@@ -39,11 +39,10 @@ class ROIDataset(Dataset):
         roi_max_abs_eta: float = 4.0,
         roi_min_num_tracks: int = 1,
         roi_max_num_tracks: int = 32,
-        selection_pass_rate = 0.5,
+        selection_pass_rate: float = 0.5,
         precision: str = "single",
     ):
-        """
-        """
+        """ """
         super().__init__()
 
         self.sampling_seed = sampling_seed
@@ -65,7 +64,7 @@ class ROIDataset(Dataset):
             "half": torch.float16,
             "single": torch.float32,
             "double": torch.float64,
-            }[precision]
+        }[precision]
 
         self.dirpath = Path(self.dirpath)
 
@@ -94,7 +93,7 @@ class ROIDataset(Dataset):
                 roi_ids = list(file.keys())
                 total_num_rois += len(roi_ids)
                 print(f"Found {len(roi_ids)} ROIs in {file_path}, total of {total_num_rois}")
-                
+
                 for roi_id in roi_ids:
                     self.roi_id_to_file_path[roi_id] = file_path
                     self.unevaluated_roi_ids.append(roi_id)
@@ -104,20 +103,20 @@ class ROIDataset(Dataset):
                     break
 
     def __len__(self) -> int:
-        """ Returns the number of samples / ROIs that are available in the dataset after all cuts have been applied. """
+        """Returns the number of samples / ROIs that are available in the dataset after all cuts have been applied."""
         return int(self.num_samples)
-    
+
     def load_roi(self, roi_id):
         with h5py.File(self.roi_id_to_file_path[roi_id], "r") as file:
             roi = {"roi_valid": np.array([True])}
 
-            # Load some ROI info so we can check if the ROI passes basic cuts before proceeding            
+            # Load some ROI info so we can check if the ROI passes basic cuts before proceeding
             for field in ["id", "energy", "eta", "phi", "mass"]:
                 roi[f"roi_{field}"] = file[f"{roi_id}/roi_{field}"][:]
 
             # Apply any ROI-based cuts
-            roi["roi_valid"] &= (roi["roi_energy"] <= self.roi_max_energy)
-            roi["roi_valid"] &= (np.abs(roi["roi_eta"]) <= self.roi_max_abs_eta)
+            roi["roi_valid"] &= roi["roi_energy"] <= self.roi_max_energy
+            roi["roi_valid"] &= np.abs(roi["roi_eta"]) <= self.roi_max_abs_eta
 
             # If the ROI has failed the selection, return nothing
             if not roi["roi_valid"][0]:
@@ -130,9 +129,9 @@ class ROIDataset(Dataset):
                 # Convert pT to GeV
                 roi[f"{track}_pt"] = file[f"{roi_id}/{track}_pt"][:] / 1000.0
                 roi[f"{track}_valid"] = np.full_like(roi[f"{track}_pt"], True, dtype=bool)
-            
+
             # Apply pT cut to pseudotracks
-            roi["sudo_valid"] &= (roi["sudo_pt"] >= self.track_min_pt)
+            roi["sudo_valid"] &= roi["sudo_pt"] >= self.track_min_pt
 
             # Calculate the ROI reference point
             for coord in ["vx", "vy", "vz", "d0", "z0"]:
@@ -171,7 +170,7 @@ class ROIDataset(Dataset):
 
                 # Convert the mask to a dense mask and keep it
                 return np.array(csr_mat.todense())
-            
+
             for track in ["sudo", "sisp", "reco"]:
                 for hit in ["pix", "sct"]:
                     # Load the mask
@@ -182,20 +181,20 @@ class ROIDataset(Dataset):
                     roi[f"{track}_num_{hit}"] = roi[f"{track}_{hit}_valid"].sum(-1)
 
                     # Remove tracks that dont have enough hits
-                    roi[f"{track}_valid"] &= (roi[f"{track}_num_{hit}"] >= self.track_min_num_hits[hit])
+                    roi[f"{track}_valid"] &= roi[f"{track}_num_{hit}"] >= self.track_min_num_hits[hit]
 
                     # Remove tracks that failed the selection from then mask
                     roi[f"{track}_{hit}_valid"] &= roi[f"{track}_valid"][..., None]
-                
+
                 # Apply any ROI based cut that requres the track content
                 roi[f"roi_num_{track}"] = roi[f"{track}_valid"].sum(-1)
-                roi["roi_valid"] &= (roi[f"roi_num_{track}"] >= self.roi_min_num_tracks)
-                roi["roi_valid"] &= (roi[f"roi_num_{track}"] <= self.roi_max_num_tracks)
-                
+                roi["roi_valid"] &= roi[f"roi_num_{track}"] >= self.roi_min_num_tracks
+                roi["roi_valid"] &= roi[f"roi_num_{track}"] <= self.roi_max_num_tracks
+
             # If the ROI has failed the selection, return nothing
             if not roi["roi_valid"][0]:
                 return None
-        
+
             # Load the track-hit regression targets
             for field in ["loc_x", "loc_y", "phi", "theta", "energy"]:
                 try:
@@ -203,7 +202,7 @@ class ROIDataset(Dataset):
                 except ValueError as e:
                     print(e)
                     return None
-            
+
             for hit in ["pix", "sct"]:
                 # Load in hit fields
                 for suffix in ["", "_mod", "_mod_norm"]:
@@ -211,8 +210,7 @@ class ROIDataset(Dataset):
                     for coord in ["x", "y", "z"]:
                         # Convert mm to m
                         roi[f"{item}_{coord}"] = file[f"{roi_id}/{item}_{coord}"][:] / 1000.0
-                        
-                    
+
                     # Add extra hit fields
                     roi[f"{item}_r"] = np.sqrt(roi[f"{item}_x"] ** 2 + roi[f"{item}_y"] ** 2)
                     roi[f"{item}_s"] = np.sqrt(roi[f"{item}_x"] ** 2 + roi[f"{item}_y"] ** 2 + roi[f"{item}_z"] ** 2)
@@ -223,7 +221,7 @@ class ROIDataset(Dataset):
                 # Add the ROI fields onto the hit fields
                 for field in ["theta", "eta", "phi", "vx", "vy", "vz", "z0", "d0"]:
                     roi[f"{hit}_roi_{field}"] = np.full_like(roi[f"{hit}_x"], roi[f"roi_{field}"][0])
-                
+
                 # Add the relative ROI coordinates
                 for suffix in ["", "_mod", "_mod_norm"]:
                     item = hit + suffix
@@ -242,7 +240,7 @@ class ROIDataset(Dataset):
             # Add the charge and log charge for the pixel
             roi[f"pix_charge"] = file[f"{roi_id}/pix_charge"][:]
             roi[f"pix_log_charge"] = np.log(1.0 + roi[f"pix_charge"])
-        
+
             # Pixel specific fields
             for field in ["lshift", "pitches"]:
                 roi[f"pix_{field}"] = file[f"{roi_id}/pix_{field}"][:]
@@ -263,7 +261,7 @@ class ROIDataset(Dataset):
                         roi[f"{target_name}_valid"] = roi[f"{target_name}_valid"][track_valid, ...]
                         for field in fields:
                             roi[f"{target_name}_{field}"] = roi[f"{target_name}_{field}"][track_valid, ...]
-            
+
             """for k, v in roi.items():
                 if np.any(~np.isfinite(v)):
                     print(k)
@@ -359,7 +357,7 @@ class ROICollator:
 
             for field in fields:
                 k = f"{input_name}_{field}"
-                
+
                 # If the field is a vector we need to adjust the target size accordingly
                 # TODO: Make this nicer
                 if next(iter(inputs))[k].ndim == 3:
@@ -387,7 +385,7 @@ class ROICollator:
         batched_targets["sample_id"] = torch.cat([t["sample_id"] for t in targets], dim=-1)
 
         return batched_inputs, batched_targets
-    
+
 
 class ROIDataModule(LightningDataModule):
     def __init__(
@@ -402,7 +400,7 @@ class ROIDataModule(LightningDataModule):
         test_dir: str | None = None,
         **kwargs,
     ):
-        """ Lightning data module. Will iterate over the given directories
+        """Lightning data module. Will iterate over the given directories
         and read preprocessed awkward parquet files until the desired number
         samples are obtained for each dataset.
 
@@ -452,7 +450,7 @@ class ROIDataModule(LightningDataModule):
             assert self.test_dir is not None, "No test file specified, see --data.test_dir"
             self.test_dset = ROIDataset(dirpath=self.test_dir, num_samples=self.num_test, **self.kwargs)
             print(f"Created test dataset with {len(self.test_dset):,} events")
-    
+
     def get_dataloader(self, stage: str, dataset: ROIDataset, shuffle: bool):
         return DataLoader(
             dataset=dataset,
@@ -471,4 +469,3 @@ class ROIDataModule(LightningDataModule):
 
     def test_dataloader(self):
         return self.get_dataloader(dataset=self.test_dset, stage="test", shuffle=False)
-

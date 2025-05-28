@@ -78,7 +78,7 @@ class CLDDataset(Dataset):
             "bf16": torch.bfloat16,
             "32": torch.float32,
             "64": torch.float64,
-            }[str(precision)]
+        }[str(precision)]
 
         # Global random state initialisation
         np.random.default_rng(42)

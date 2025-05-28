@@ -80,7 +80,7 @@ def main():
 
         for hit in hits:
             hit_valid = targets[f"{hit}_valid"][0]
-            preds[f"particle_{hit}_valid"] = torch.from_numpy(final_preds[f"flow_{hit}_assignment/flow_{hit}_valid"][:][:, :, :len(hit_valid)])
+            preds[f"particle_{hit}_valid"] = torch.from_numpy(final_preds[f"flow_{hit}_assignment/flow_{hit}_valid"][:][:, :, : len(hit_valid)])
 
     # Plot the event display for the truth
     fig = plot_cld_event_reconstruction(inputs, targets, axes_spec)
@@ -132,7 +132,7 @@ def main():
                 flow_valid = preds["flow_valid/flow_valid"][0]
 
                 # The masks will have had the particle padding applied, but also the hit padding (since they are batched)
-                flow_hit_valid = preds[f"flow_{hit}_assignment/flow_{hit}_valid"][0][:, :len(hit_valid)]
+                flow_hit_valid = preds[f"flow_{hit}_assignment/flow_{hit}_valid"][0][:, : len(hit_valid)]
 
             particle_valid = particle_valid & (particle_hit_valid.sum(-1) > 0)
 
@@ -160,7 +160,7 @@ def main():
         "trkr": "Tracker",
         "ecal": "ECAL",
         "hcal": "HCAL",
-        }
+    }
 
     # Now plot everything
     for field, (alias, bins, scale) in plot_specs.items():

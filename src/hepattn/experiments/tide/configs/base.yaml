@@ -18,9 +18,8 @@ data:
     pix: 1
     sct: 2
 
-  roi_max_num_tracks: 1
   roi_max_num_tracks: &num_tracks 32
-  
+
   inputs:
     pix:
       # Coordinates in global frame
@@ -111,7 +110,7 @@ data:
       - dphi
       # Pseudotrack specific params
       #- bhadpt
-    
+
     sisp:
       # Track paramaters in global frame
       - pt
@@ -148,14 +147,14 @@ data:
       - eta
       - phi
       - energy
-    
+
     sudo_pix:
       - loc_x
       - loc_y
       - phi
       - theta
       - energy
-    
+
     sudo_sct: []
 
 # Training stuff here
@@ -303,19 +302,19 @@ model:
           attn_type: torch
           # window_size: 1024
           # window_wrap: false
-      
+
       num_decoder_layers: 8
       decoder_layer_config:
         dim: *dim
         mask_attention: true
-      
+
       matcher:
         class_path: hepattn.models.matcher.Matcher
         init_args:
           default_solver: scipy
           adaptive_solver: false
           adaptive_check_interval: 1000
-      
+
       tasks:
         class_path: torch.nn.ModuleList
         init_args:
@@ -333,7 +332,7 @@ model:
                 dim: *dim
                 null_weight: 1.0
                 mask_queries: false
-            
+
             - class_path: hepattn.models.task.ObjectHitMaskTask
               init_args:
                 name: pred_pix_assignment
@@ -347,7 +346,7 @@ model:
                   mask_ce: 1.0
                 dim: *dim
                 null_weight: 1.0
-            
+
             - class_path: hepattn.models.task.ObjectHitMaskTask
               init_args:
                 name: pred_sct_assignment
@@ -361,6 +360,3 @@ model:
                   mask_ce: 1.0
                 dim: *dim
                 null_weight: 1.0
-
-
-           

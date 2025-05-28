@@ -205,7 +205,7 @@ data:
       - mom.eta
       - mom.phi
       - mom.eta_drad
-      - mom.phi_drad 
+      - mom.phi_drad
       - spin.x
       - spin.y
       - spin.z
@@ -233,10 +233,10 @@ data:
       - mom.x
       - mom.y
       - mom.z
-    
+
     particle_ecal:
       - energy
-    
+
     particle_hcal:
       - energy
 
@@ -504,7 +504,7 @@ model:
                   mask_ce: 10.0
                 dim: *dim
                 null_weight: 1.0
-            
+
             - class_path: hepattn.models.task.ObjectHitMaskTask
               init_args:
                 name: flow_ecal_assignment
