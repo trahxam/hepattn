@@ -1,109 +1,26 @@
-import awkward as ak
-import numba
-import numpy as np
-import torch
-
-from lightning import LightningDataModule
-from torch.utils.data import BatchSampler, DataLoader, Dataset, RandomSampler
-from torch import Tensor
 from pathlib import Path
 
+import h5py
+import numpy as np
+import torch
+import awkward as ak
+import random
+from lightning import LightningDataModule
+from torch import Tensor
+from torch.utils.data import Dataset
+from scipy.sparse import csr_matrix
+from tqdm import tqdm
+from torch.utils.data import BatchSampler, DataLoader, Dataset, RandomSampler
 
-@numba.njit
-def fill_charge_matrices(matrices, indices, values):
-    # For each ROI in the batch
-    for i in range(len(matrices)):
-        # For each pixel cluster in the ROI
-        for j in range(len(indices[i])):
-            # For each charge deposit in the cluster
-            for k in range(len(indices[i][j])):
-                matrices[i][j][indices[i][j][k]] = values[i][j][k]
-    return matrices
+from hepattn.utils.tensor_utils import pad_to_size
 
-
-@numba.njit()
-def build_track_hit_masks_bcodes(tracks_bcode, hits_bcodes, track_padding, hit_padding):
-    num_rois = len(tracks_bcode)
-    track_hit_bcode = np.zeros(shape=(num_rois, track_padding, hit_padding), dtype=np.bool_)
-    for roi_idx in range(num_rois):
-        for track_idx, track_bcode in enumerate(tracks_bcode[roi_idx]):
-            for hit_idx, hit_bcodes in enumerate(hits_bcodes[roi_idx]):
-                for hit_bcode in hit_bcodes:
-                    if hit_bcode == track_bcode:
-                        track_hit_bcode[roi_idx,track_idx,hit_idx] = True
-
-    return track_hit_bcode
-
-
-@numba.njit()
-def build_track_hit_masks_ids(tracks_hits_ids, hits_id, track_padding, hit_padding):
-    num_rois = len(tracks_hits_ids)
-    track_hit_masks = np.zeros(shape=(num_rois, track_padding, hit_padding), dtype=np.bool_)
-
-    for roi_idx in range(num_rois):
-        for track_idx, track_hits_ids in enumerate(tracks_hits_ids[roi_idx]):
-            for hit_idx, hit_id in enumerate(hits_id[roi_idx]):
-                for track_hit_id in track_hits_ids:
-                    if track_hit_id == hit_id:
-                        track_hit_masks[roi_idx,track_idx,hit_idx] = True
-
-    return track_hit_masks
-
-
-# TODO: Wrap this somehow to return a dict instead / generally clean it up
-@numba.njit()
-def build_track_hit_targets(tracks_bcode, hits_bcodes, hit_phi, hit_theta, hit_locx, hit_locy, hit_energy, track_padding, hit_padding):
-    num_rois = len(tracks_bcode)
-    track_hit_phi = np.zeros(shape=(num_rois, track_padding, hit_padding), dtype=np.float32)
-    track_hit_theta = np.zeros(shape=(num_rois, track_padding, hit_padding), dtype=np.float32)
-    track_hit_locx = np.zeros(shape=(num_rois, track_padding, hit_padding), dtype=np.float32)
-    track_hit_locy = np.zeros(shape=(num_rois, track_padding, hit_padding), dtype=np.float32)
-    track_hit_energy = np.zeros(shape=(num_rois, track_padding, hit_padding), dtype=np.float32)
-
-    for roi_idx in range(num_rois):
-        for track_idx, track_bcode in enumerate(tracks_bcode[roi_idx]):
-            for hit_idx, hit_bcodes in enumerate(hits_bcodes[roi_idx]):
-                for bcode_idx, hit_bcode in enumerate(hit_bcodes):
-                    if hit_bcode == track_bcode:
-                        track_hit_locx[roi_idx,track_idx,hit_idx] = hit_locx[roi_idx][hit_idx][bcode_idx]
-                        track_hit_locy[roi_idx,track_idx,hit_idx] = hit_locy[roi_idx][hit_idx][bcode_idx]
-                        track_hit_phi[roi_idx,track_idx,hit_idx] = hit_phi[roi_idx][hit_idx][bcode_idx]
-                        track_hit_theta[roi_idx,track_idx,hit_idx] = hit_theta[roi_idx][hit_idx][bcode_idx]
-                        track_hit_energy[roi_idx,track_idx,hit_idx] = hit_energy[roi_idx][hit_idx][bcode_idx]
-    
-    return track_hit_phi, track_hit_theta, track_hit_locx, track_hit_locy, track_hit_energy
-
-
-def prep_field(x: ak.Array, padding_size: int, fill_value: float):
-    """ Takes an input jagged awkward array and converts it to
-    a rectangular numpy array that is padded with a given padding value.
-
-    Parameters
-    ----------
-    x : ak.Array
-        Input awkward array.
-    padding_size : int
-        Size to pad the output to along the jagged dimension.
-    fill_value : float
-        Vaue to fill padded entries with.
-
-    Returns
-    -------
-    np.ndarray
-        Rectangular array paddded to the given size.
-    """
-    if x.ndim == 1:
-        return ak.to_numpy(x)
-    x = ak.pad_none(x, target=padding_size, axis=1)
-    if x.ndim == 3:
-        fill_value = ak.full_like(x[0][0], fill_value)
-    return ak.to_numpy(ak.fill_none(x, value=fill_value, axis=1))
+# ruff: noqa
 
 
 def wrap_phi(x: Tensor) -> Tensor:
     """ Correctly wraps an input tensor of pi angles so they lie in [0, 2pi]. """
-    x = x + ak.values_astype(x < -np.pi, np.float32) * 2 * np.pi
-    x = x - ak.values_astype(x > np.pi, np.float32) * 2 * np.pi
+    x = x + (x < -np.pi).astype(np.float32) * 2 * np.pi
+    x = x - (x > np.pi).astype(np.float32) * 2 * np.pi
     return x
 
 
@@ -115,64 +32,17 @@ class ROIDataset(Dataset):
         inputs: dict,
         targets: dict,
         sampling_seed: int = 42,
-        min_track_pt: float = 1.0,
-        min_track_hits: dict[str, int] = {"pix": 2, "sct": 6},
-        max_roi_eta: float = 4,
-        max_roi_energy: float = 1e9,
-        allow_noise_hits: bool = True,
-        allow_shared_hits: bool = True,
-        max_roi_track_deta: float = 0.05,
-        max_roi_track_dphi: float = 0.05,
-        max_roi_track_dz0: float = 0.01,
-        max_track_d0: float = 0.0025,
-        max_roi_hit_deta: float = 0.5,
-        max_roi_hit_dphi: float = 0.5,
-        only_keep_perfect_rois: bool = True,
+        track_min_pt: float = 1.0,
+        track_max_d0: float = 1.0,
+        track_min_num_hits: dict[str, int] = {"pix": 1, "sct": 2},
+        roi_max_energy: float = 1e12,
+        roi_max_abs_eta: float = 4.0,
+        roi_min_num_tracks: int = 1,
+        roi_max_num_tracks: int = 32,
+        selection_pass_rate = 0.5,
         precision: str = "single",
     ):
         """
-        A dataset which loads and stores jagged unstructured ROI data in memory and dynamically
-        converts it to a structured rectangular format on demand.
-
-        Parameters
-        ----------
-        dirpath : str
-            Path to directory containing preprocessed awkward arrays which contain ROI data.
-        num_samples : int
-            Number of samples to retain after cuts are applied.
-        features : dict
-            Dictionary whose keys represent the feature name, e.g a pixel cluster, which has three entries:
-                - pad : int, size of padding to pad the features to
-                - min : int, minimum number of the features in an ROI, e.g. the minium number of pixel clusters to allow
-                - max : int, maximum number of features in the ROI, must be less than or equal to the pad value
-        sampling seed : int
-            Global seed for all random sampling.
-        min_track_pt : float
-            Minimum pT in GeV for a track to be deemed reconstructable.
-        min_track_pt : dict[str, int]
-            Dictionary specifying minimum number of pixel / sct hits required for a track to be deemed reconstructable.
-        max_roi_eta : float
-            Maximum ROI axis eta for ROI to be retained.
-        max_roi_energy : float
-            Maximum ROI energy in GeV for ROI to be retained.
-        allow_noise_hits : bool
-            Whether to retain hits that do not belong to a reconstructable track.
-        allow_noise_hits : bool
-            Whether to retain hits that are shared between multiple reconstructable tracks.
-        max_roi_track_deta : float
-            Maximum angular eta distance between a track and ROI axis for a track to be deemed reconstructable.
-        max_roi_track_dphi : float
-            Maximum angular phi distance between a track and ROI axis for a track to be deemed reconstructable.
-        max_roi_track_dz0 : float
-            Maximum distance between a track and ROI axis z origin in mm for a track to be deemed reconstructable.
-        max_track_d0 : float
-            Maximum track d0 for a track to be deemed reconstructable.
-        max_roi_hit_deta : float
-            Maximum angular eta distance between a hit and ROI axis for a hit to be marked as valid.
-        max_roi_hit_dphi : float
-            Maximum angular phi distance between a hit and ROI axis for a hit to be marked as valid.
-        only_keep_perfect_rois : bool
-            If true, only ROIs for which all tracks passed the given track cuts will be retained.
         """
         super().__init__()
 
@@ -181,20 +51,14 @@ class ROIDataset(Dataset):
         self.num_samples = num_samples
         self.inputs = inputs
         self.targets = targets
-        self.features = inputs | targets
-        self.min_track_pt = min_track_pt
-        self.min_track_hits = min_track_hits
-        self.max_roi_eta = max_roi_eta
-        self.max_roi_energy = max_roi_energy
-        self.allow_noise_hits = allow_noise_hits
-        self.allow_shared_hits = allow_shared_hits
-        self.max_roi_track_deta = max_roi_track_deta
-        self.max_roi_track_dphi = max_roi_track_dphi
-        self.max_roi_track_dz0 = max_roi_track_dz0
-        self.max_track_d0 = max_track_d0
-        self.max_roi_hit_deta = max_roi_hit_deta
-        self.max_roi_hit_dphi = max_roi_hit_dphi
-        self.only_keep_perfect_rois = only_keep_perfect_rois
+        self.track_min_pt = track_min_pt
+        self.track_max_d0 = track_max_d0
+        self.track_min_num_hits = track_min_num_hits
+        self.roi_max_energy = roi_max_energy
+        self.roi_max_abs_eta = roi_max_abs_eta
+        self.roi_min_num_tracks = roi_min_num_tracks
+        self.roi_max_num_tracks = roi_max_num_tracks
+        self.selection_pass_rate = selection_pass_rate
         self.precision = precision
 
         self.precision_type = {
@@ -207,372 +71,323 @@ class ROIDataset(Dataset):
 
         np.random.seed(self.sampling_seed)
 
-        data = []
-        num_samples_loaded = 0
-        mem_usage_gb = 0
+        file_paths = list(Path(self.dirpath).glob("*.h5"))
 
-        print("=" * 100 + f"\nReading files from {self.dirpath}\n" + "=" * 100)
-        for file_path in self.dirpath.iterdir():
-            if not file_path.suffix == ".parquet":
-                continue
-            print(f"Loading {file_path}")
-            x = ak.from_parquet(file_path)
-            pre_cut_size = len(x)
-            print(f"Loaded {pre_cut_size} ROIs from {file_path}")
+        # Maps the ROI id to the h5 file it is in
+        self.roi_id_to_file_path = {}
 
-            # Remove ROIs that have two many/few of each of the features
-            for feature, info in self.features.items():
-                if feature == "roi":
-                    continue
-                x[f"roi_num_{feature}"] = ak.num(x[feature + "_id"])
-                x = x[x[f"roi_num_{feature}"] <= info["max"]]
-                x = x[x[f"roi_num_{feature}"] >= info["min"]]
-                assert info["max"] <= info["pad"], f"Padding must be >= max count for {feature}"
-            
-            # ROI level cuts
-            x = x[np.abs(x[f"roi_eta"]) <= self.max_roi_eta]
-            x = x[x[f"roi_e"] <= self.max_roi_energy]
+        # Map the ROI id to the dataset index and vice-versa
+        self.idx_to_roi_id = {}
+        self.roi_id_to_idx = {}
 
-            x_tmp = {}
+        # ROIs that are known to fail the selection
+        self.rejected_roi_ids = []
+        # ROIs that are known to pass the selection
+        self.accepted_roi_ids = []
+        # ROIs that have not yet been evaluated on the selection
+        self.unevaluated_roi_ids = []
 
-            roi_eta = x["roi_eta"]
-            roi_phi = x["roi_phi"]
+        total_num_rois = 0
 
-            # Calculate a dirty vertex to use as the ROI reference z
-            roi_z0 = ak.mean(x[f"sisp_z0"], axis=-1)
-
-            sisp_z0 = prep_field(x[f"sisp_z0"], self.features["sisp"]["pad"], np.nan)
-            roi_z0 = np.nanmedian(sisp_z0, axis=-1)
-            roi_z0 = ak.from_numpy(roi_z0)
-
-            # Apply hit cuts
-            for k in ["pix", "sct"]:
-                x_tmp[f"{k}_valid"] = prep_field(ak.full_like(x[f"{k}_id"], True, dtype=bool), self.features[k]["pad"], False)
-
-                # Note we use the eta calculated using the ROI reference z
-                k_cor_z = x[f"{k}_z"] - roi_z0
-                k_s = np.sqrt(x[f"{k}_x"] ** 2 + x[f"{k}_y"] ** 2 + k_cor_z ** 2)
-                k_theta = np.arccos(k_cor_z / k_s)
-                k_eta = -np.log(np.tan(k_theta / 2))
-                k_phi = np.arctan2(x[f"{k}_y"], x[f"{k}_x"])
-
-                roi_k_deta = np.abs(k_eta - roi_eta) 
-                roi_k_dphi = np.abs(wrap_phi(k_phi - roi_phi))
-
-                # Apply any hit-based cuts by marking hits that fail the cuts as invalid hit slots
-                x_tmp[f"{k}_valid"] = x_tmp[f"{k}_valid"] & prep_field(roi_k_deta <= self.max_roi_hit_deta, self.features[k]["pad"], False)
-                x_tmp[f"{k}_valid"] = x_tmp[f"{k}_valid"] & prep_field(roi_k_dphi <= self.max_roi_hit_dphi, self.features[k]["pad"], False)
-
-            sudo_initial_valid = prep_field((x[f"sudo_pt"]) >= 0.0, self.features["sudo"]["pad"], False)
-
-            # Apply track cuts
-            for q in ["sudo", "sisp", "reco"]:
-                print(f"\nPerforming track paramater cuts for {q}")
-
-                # ROI-track angle containment cut
-                q_eta = x[f"{q}_eta"]
-                q_phi = x[f"{q}_phi"]
-
-                roi_q_abs_deta = np.abs(q_eta - roi_eta) 
-                roi_q_abs_dphi = np.abs(wrap_phi(q_phi - roi_phi))
-
-                # Scale d0 from mm -> m
-                roi_q_abs_dz0 = 0.001 * np.abs(x[f"{q}_z0"] - roi_z0)
-                q_abs_d0 = 0.001 * np.abs(x[f"{q}_d0"])
-
-                # Scale track pT from MeV to GeV
-                q_pt = x[f"{q}_pt"] / 1000.0
-
-                # Apply any track-based cuts by marking tracks that fail the cuts as invalid track slots
-                track_cuts = {
-                    f"track pt >= {self.min_track_pt}":  q_pt >= self.min_track_pt,
-                    f"roi-track deta <= {self.max_roi_track_deta}": roi_q_abs_deta <= self.max_roi_track_deta,
-                    f"roi-track dphi <= {self.max_roi_track_dphi}": roi_q_abs_dphi <= self.max_roi_track_dphi,
-                    f"roi-track dz0 <= {self.max_roi_track_dz0}": roi_q_abs_dz0 <= self.max_roi_track_dz0,
-                    f"track d0 <= {self.max_track_d0}": q_abs_d0 <= self.max_track_d0,
-                }
-
-                # Initialise vlid tracks
-                initial_valid = prep_field((x[f"{q}_pt"]) >= 0.0, self.features[q]["pad"], False)
-                x_tmp[f"{q}_valid"] = initial_valid.copy()
-
-                for cut_name, cut_mask in track_cuts.items():
-                    pre_cut_num = x_tmp[f"{q}_valid"].sum()
-                    x_tmp[f"{q}_valid"] = x_tmp[f"{q}_valid"] & prep_field(cut_mask, self.features[q]["pad"], False)
-                    post_cut_num = x_tmp[f"{q}_valid"].sum()
-                    retenetion_rate = 100 * post_cut_num / pre_cut_num
-                    print(f"Applied track cut {cut_name}: {pre_cut_num} pre-cut, {post_cut_num} post-cut ({retenetion_rate:.2f})")
-
-            # Build track-hit masks so we can do noise/sharing cuts
-            for q in ["sudo", "sisp", "reco"]:
-                for k in ["pix", "sct"]:
-                    if q == "sudo":
-                        track_hit_masks = build_track_hit_masks_bcodes(x[f"{q}_bcode"], x[f"{k}_bcodes"], self.features[q]["pad"], self.features[k]["pad"])
-                    else:
-                        track_hit_masks = build_track_hit_masks_ids(x[f"{q}_clus_ids"], x[f"{k}_id"], self.features[q]["pad"], self.features[k]["pad"])
-                    x_tmp[f"{q}_{k}_masks"] = track_hit_masks
-                    x_tmp[f"{q}_{k}_masks"] = x_tmp[f"{q}_{k}_masks"] & x_tmp[f"{q}_valid"][:,:,None]
-                    x_tmp[f"{q}_{k}_masks"] = x_tmp[f"{q}_{k}_masks"] & x_tmp[f"{k}_valid"][:,None,:]
-
-            # Apply hit cuts that depend on other hits/tracks, i.e. noise and shared hit cuts
-            for k in ["pix", "sct"]:
-                # Removing noise hits simply removes / marks as null any hits that are not associated to a pseudotrack / particle
-                if not self.allow_noise_hits:
-                    x_tmp[f"{k}_valid"] = x_tmp[f"{k}_valid"] & (x_tmp[f"sudo_{k}_masks"].sum(-2) > 0)
-
-                for q in ["sudo", "sisp", "reco"]:
-                    print(f"\nPerforming track hit content cuts for {q}")
-                    # Removing shared hits will remove any tracks that are associated to any shared hit
-                    # and also any hits that are associated to tracks on a shared hit
-                    if not self.allow_shared_hits:
-                        shared_hit = x_tmp[f"sudo_{k}_masks"].sum(-2) > 1 # B x num_hits
-                        track_with_shared_hit = (x_tmp[f"{q}_{k}_masks"] & shared_hit[:,None,:]).any(-1) # B x num_tracks
-                        hit_on_shared_track = (x_tmp[f"{q}_{k}_masks"] & track_with_shared_hit[:,:,None]).any(-2)
-                        x_tmp[f"{k}_valid"] = x_tmp[f"{k}_valid"] & (~hit_on_shared_track)
-                        x_tmp[f"{q}_valid"] = x_tmp[f"{q}_valid"] & (~track_with_shared_hit)
-
-                    x_tmp[f"{q}_{k}_masks"] = x_tmp[f"{q}_{k}_masks"] & x_tmp[f"{q}_valid"][:,:,None]
-                    x_tmp[f"{q}_{k}_masks"] = x_tmp[f"{q}_{k}_masks"] & x_tmp[f"{k}_valid"][:,None,:]
-
-                    pre_cut_num = x_tmp[f"{q}_valid"].sum()
-                    x_tmp[f"{q}_valid"] = x_tmp[f"{q}_valid"] & (x_tmp[f"{q}_{k}_masks"].sum(-1) >= self.min_track_hits[k])
-                    post_cut_num = x_tmp[f"{q}_valid"].sum()
-                    retenetion_rate = 100 * post_cut_num / pre_cut_num
-                    print(f"Applied track cut num {k} >= {self.min_track_hits[k]}: {pre_cut_num} pre-cut, {post_cut_num} post-cut ({retenetion_rate:.2f})")
-            
-            # Save which hits and tracks are valid after we applied cuts
-            for q in ["sudo", "sisp", "reco"]:
-                x[f"roi_num_{q}"] = x_tmp[f"{q}_valid"].sum(-1)
-                x[f"{q}_valid"] = x_tmp[f"{q}_valid"]
+        for file_path in file_paths:
+            with h5py.File(file_path, "r") as file:
+                roi_ids = list(file.keys())
+                total_num_rois += len(roi_ids)
+                print(f"Found {len(roi_ids)} ROIs in {file_path}, total of {total_num_rois}")
                 
-            for k in ["pix", "sct"]:
-                x[f"roi_num_{k}"] = x_tmp[f"{k}_valid"].sum(-1)
-                x[f"{k}_valid"] = x_tmp[f"{k}_valid"]
-            
-            # Mark ROIs that did not loose any tracks during the cut selection
-            x["roi_no_sudo_dropped"] = ak.from_numpy(np.all(x_tmp[f"sudo_valid"] == sudo_initial_valid, axis=-1))
+                for roi_id in roi_ids:
+                    self.roi_id_to_file_path[roi_id] = file_path
+                    self.unevaluated_roi_ids.append(roi_id)
 
-            # Apply ROI-level cuts
-            x = x[x["roi_num_sudo"] >= 1]
-
-            if self.only_keep_perfect_rois:
-                x = x[x["roi_no_sudo_dropped"]]
-
-            # Add the sample ids
-            # File names are like user.srettie.42156221.EXT1._000195.parquet 
-            file_id = file_path.stem.split("_")[1]
-            x["sample_id"] = ak.Array([int(file_id + str(i).zfill(6)) for i in range(len(x))])
-
-            post_cut_size = len(x)
-            data.append(x)
-            num_samples_loaded += post_cut_size
-            mem_usage_gb += x.nbytes / (1024 * 1024 * 1024)
-            pct_loaded = 100 * num_samples_loaded / num_samples
-            print(f"\nRead {pre_cut_size}, retained {post_cut_size} now have " +
-                  f"{num_samples_loaded} of {num_samples} target ({pct_loaded:.2f}%), using {mem_usage_gb:.2f}GB\n")
-
-            # If we have already loaded enough clusters then dont read any more files
-            if num_samples_loaded >= num_samples and num_samples != -1:
-                break
-
-        # Concatenate the data from all the files and get rid of any excess samples we loaded
-        print(f"Done loading data, concatenating")
-        data = ak.concatenate(data, axis=0)
-        if num_samples_loaded > num_samples and num_samples != -1:
-            data = data[:num_samples]
-
-        self.data = data
-        self.num_samples = len(self.data)
-        print(f"After cuts and skimming, have {self.num_samples} samples")
-        print(f"Final dataset type {data.type}")
+                if total_num_rois >= int(self.num_samples / self.selection_pass_rate):
+                    print(f"Read sufficient ROIs given the assumed selection pass rate.")
+                    break
 
     def __len__(self) -> int:
         """ Returns the number of samples / ROIs that are available in the dataset after all cuts have been applied. """
         return int(self.num_samples)
     
-    def __getitem__(self, idx) -> dict[str, Tensor]:
-        """ Return a minibatch of data at the given indices.
+    def load_roi(self, roi_id):
+        with h5py.File(self.roi_id_to_file_path[roi_id], "r") as file:
+            roi = {"roi_valid": np.array([True])}
 
-        Parameters
-        ----------
-        idx : slice
-            An array slice specifying which data from the overall dataset in memory to return.
+            # Load some ROI info so we can check if the ROI passes basic cuts before proceeding            
+            for field in ["id", "energy", "eta", "phi", "mass"]:
+                roi[f"roi_{field}"] = file[f"{roi_id}/roi_{field}"][:]
 
-        Returns
-        -------
-        data : dict[str, Tensor]
-            A dictionary of tensors containing data for the minibatch. Each key specifies the attribute name, and each
-            value contains a tensor with the values for the field. For example: "pix_x" contains a float tensor of shape
-            (batch size, pixel padding size) which contains the x-coordinates of the pixel clusters in the mini batch.
-        """
-        batch = self.data[idx]
+            # Apply any ROI-based cuts
+            roi["roi_valid"] &= (roi["roi_energy"] <= self.roi_max_energy)
+            roi["roi_valid"] &= (np.abs(roi["roi_eta"]) <= self.roi_max_abs_eta)
 
-        # Additional ROI axis coords and log of ROI energy 
-        batch["roi_theta"] = 2 * np.arctan(np.exp(-batch["roi_eta"]))
-        batch["roi_loge"] = np.log(batch["roi_e"] + 1.0)
+            # If the ROI has failed the selection, return nothing
+            if not roi["roi_valid"][0]:
+                return None
 
-        # Convert the track z0 and d0 from mm to m
-        for q in ["sudo", "sisp", "reco"]:
-            batch[f"{q}_z0"] = 0.001 * batch[f"{q}_z0"]
-            batch[f"{q}_d0"] = 0.001 * batch[f"{q}_d0"]
+            # Apply any hit based cuts
 
-        # Calculate a rough ROI 'vertex' by taking the median z0 of the sisp tracks in the ROI
-        sisp_z0 = prep_field(batch[f"sisp_z0"], self.features["sisp"]["pad"], np.nan)
-        roi_z0 = np.nanmedian(sisp_z0, axis=-1)
-        batch["roi_z0"] = ak.from_numpy(roi_z0)
+            # Apply any track based cuts
+            for track in ["sudo", "sisp", "reco"]:
+                # Convert pT to GeV
+                roi[f"{track}_pt"] = file[f"{roi_id}/{track}_pt"][:] / 1000.0
+                roi[f"{track}_valid"] = np.full_like(roi[f"{track}_pt"], True, dtype=bool)
+            
+            # Apply pT cut to pseudotracks
+            roi["sudo_valid"] &= (roi["sudo_pt"] >= self.track_min_pt)
+
+            # Calculate the ROI reference point
+            for coord in ["vx", "vy", "vz", "d0", "z0"]:
+                roi[f"sisp_{coord}"] = file[f"{roi_id}/sisp_{coord}"][:]
+                roi[f"roi_{coord}"] = np.array([np.median(roi[f"sisp_{coord}"])])
+
+            roi["roi_theta"] = 2 * np.arctan(np.exp(-roi[f"roi_eta"]))
+
+            for track in ["sudo", "sisp", "reco"]:
+                # Load in track fields
+                for field in ["pt", "eta", "phi", "z0", "d0", "vx", "vy", "vz", "q", "origin"]:
+                    roi[f"{track}_{field}"] = file[f"{roi_id}/{track}_{field}"][:]
+
+                # Make extra track fields
+                roi[f"{track}_px"] = roi[f"{track}_pt"] * np.cos(roi[f"{track}_phi"])
+                roi[f"{track}_py"] = roi[f"{track}_pt"] * np.sin(roi[f"{track}_phi"])
+                roi[f"{track}_pz"] = roi[f"{track}_pt"] * np.sinh(roi[f"{track}_eta"])
+                roi[f"{track}_theta"] = 2 * np.arctan(np.exp(-roi[f"{track}_eta"]))
+                roi[f"{track}_qop"] = roi[f"{track}_q"] / roi[f"{track}_pt"]
+
+                # Make track fields that are in the ROI frame
+                roi[f"{track}_deta"] = roi[f"{track}_eta"] - roi["roi_eta"]
+                roi[f"{track}_dtheta"] = roi[f"{track}_theta"] - roi["roi_theta"]
+                roi[f"{track}_dphi"] = wrap_phi(roi[f"{track}_phi"] - roi["roi_phi"])
+
+                for coord in ["x", "y", "z"]:
+                    roi[f"{track}_d{coord}"] = roi[f"{track}_v{coord}"] - roi[f"roi_v{coord}"]
+
+            def load_csr_matrix(index_field, data_field, dtype):
+                # Load the CSR data
+                csr_data = file[f"{roi_id}/{data_field}_data"][:]
+                csr_indices = file[f"{roi_id}/{index_field}_indices"][:]
+                csr_indptr = file[f"{roi_id}/{index_field}_indptr"][:]
+                csr_shape = tuple(file[f"{roi_id}/{index_field}_shape"][:])
+                csr_mat = csr_matrix((csr_data, csr_indices, csr_indptr), csr_shape, dtype=dtype)
+
+                # Convert the mask to a dense mask and keep it
+                return np.array(csr_mat.todense())
+            
+            for track in ["sudo", "sisp", "reco"]:
+                for hit in ["pix", "sct"]:
+                    # Load the mask
+                    roi[f"{track}_{hit}_valid"] = load_csr_matrix(f"{track}_{hit}_valid", f"{track}_{hit}_valid", bool)
+
+                    # Remove tracks that failed the selection from the mask
+                    roi[f"{track}_{hit}_valid"] &= roi[f"{track}_valid"][..., None]
+                    roi[f"{track}_num_{hit}"] = roi[f"{track}_{hit}_valid"].sum(-1)
+
+                    # Remove tracks that dont have enough hits
+                    roi[f"{track}_valid"] &= (roi[f"{track}_num_{hit}"] >= self.track_min_num_hits[hit])
+
+                    # Remove tracks that failed the selection from then mask
+                    roi[f"{track}_{hit}_valid"] &= roi[f"{track}_valid"][..., None]
+                
+                # Apply any ROI based cut that requres the track content
+                roi[f"roi_num_{track}"] = roi[f"{track}_valid"].sum(-1)
+                roi["roi_valid"] &= (roi[f"roi_num_{track}"] >= self.roi_min_num_tracks)
+                roi["roi_valid"] &= (roi[f"roi_num_{track}"] <= self.roi_max_num_tracks)
+                
+            # If the ROI has failed the selection, return nothing
+            if not roi["roi_valid"][0]:
+                return None
         
-        # 7x7 charge matrix for the pixel clusters - use logarithm due to large dynamic range of deposited charge
-        chargemats = np.zeros(shape=(len(batch), self.features["pix"]["pad"], 49))
-        chargemats = fill_charge_matrices(chargemats, batch["pix_chargemat_idx"], batch["pix_chargemat_val"])
-        batch["pix_logchargemat"] = np.log(1.0 + chargemats)
-
-        # Calculate cluster cylindrical coordinates and relative ROI coords
-        for k in ["pix", "sct"]:
-            # Convert mm to m
-            # Global cartesian coordinates of the hit
-            for i in ["x", "y", "z"]:
-                batch[f"{k}_{i}"] = 0.001 * batch[f"{k}_{i}"]
-                batch[f"{k}_mod_{i}"] = 0.001 * batch[f"{k}_mod_{i}"]
-
-            # Global cartesian coordinates of the module to which the hit belongs
-            for i in ["x", "y"]:
-                batch[f"{k}_mod_loc_{i}"] = 0.001 * batch[f"{k}_mod_loc_{i}"]
-
-            # Coordinates in the detector global frame
-            batch[f"{k}_r"] = np.sqrt(batch[f"{k}_x"]**2 + batch[f"{k}_y"]**2)
-            batch[f"{k}_s"] = np.sqrt(batch[f"{k}_x"]**2 + batch[f"{k}_y"]**2 + batch[f"{k}_z"]**2)
-            batch[f"{k}_ryz"] = np.sqrt(batch[f"{k}_y"]**2 + batch[f"{k}_z"]**2)
-            batch[f"{k}_absz"] = np.abs(batch[f"{k}_z"])
-            batch[f"{k}_u"] = batch[f"{k}_x"] / (batch[f"{k}_x"]**2 + batch[f"{k}_y"]**2)
-            batch[f"{k}_v"] = batch[f"{k}_y"] / (batch[f"{k}_x"]**2 + batch[f"{k}_y"]**2)
-            batch[f"{k}_theta"] = np.arccos(batch[f"{k}_z"] / batch[f"{k}_s"])
-            batch[f"{k}_phi"] = np.arctan2(batch[f"{k}_y"], batch[f"{k}_x"])
-            batch[f"{k}_eta"] = -np.log(np.tan(batch[f"{k}_theta"] / 2))
+            # Load the track-hit regression targets
+            for field in ["loc_x", "loc_y", "phi", "theta", "energy"]:
+                try:
+                    roi[f"sudo_pix_{field}"] = load_csr_matrix(f"sudo_pix_valid", f"sudo_pix_{field}", np.float32)
+                except ValueError as e:
+                    print(e)
+                    return None
             
-            # Calculate module orientation angles
-            batch[f"{k}_mod_norm_phi"] = np.arctan2(batch[f"{k}_mod_norm_y"], batch[f"{k}_mod_norm_x"])
-            batch[f"{k}_mod_norm_theta"] = np.arccos(batch[f"{k}_mod_norm_z"])
+            for hit in ["pix", "sct"]:
+                # Load in hit fields
+                for suffix in ["", "_mod", "_mod_norm"]:
+                    item = hit + suffix
+                    for coord in ["x", "y", "z"]:
+                        # Convert mm to m
+                        roi[f"{item}_{coord}"] = file[f"{roi_id}/{item}_{coord}"][:] / 1000.0
+                        
+                    
+                    # Add extra hit fields
+                    roi[f"{item}_r"] = np.sqrt(roi[f"{item}_x"] ** 2 + roi[f"{item}_y"] ** 2)
+                    roi[f"{item}_s"] = np.sqrt(roi[f"{item}_x"] ** 2 + roi[f"{item}_y"] ** 2 + roi[f"{item}_z"] ** 2)
+                    roi[f"{item}_theta"] = np.arccos(roi[f"{item}_z"] / roi[f"{item}_s"])
+                    roi[f"{item}_eta"] = -np.log(np.tan(roi[f"{item}_theta"] / 2))
+                    roi[f"{item}_phi"] = np.arctan2(roi[f"{item}_y"], roi[f"{item}_x"])
 
-            batch[f"{k}_mod_r"] = np.sqrt(batch[f"{k}_mod_x"]**2 + batch[f"{k}_mod_y"]**2)
-            batch[f"{k}_mod_s"] = np.sqrt(batch[f"{k}_mod_x"]**2 + batch[f"{k}_mod_y"]**2 + batch[f"{k}_mod_z"]**2)
-            batch[f"{k}_mod_theta"] = np.arccos(batch[f"{k}_mod_z"] / batch[f"{k}_mod_s"])
-            batch[f"{k}_mod_phi"] = np.arctan2(batch[f"{k}_mod_y"], batch[f"{k}_mod_x"])
-            batch[f"{k}_mod_eta"] = -np.log(np.tan(batch[f"{k}_mod_theta"] / 2))
+                # Add the ROI fields onto the hit fields
+                for field in ["theta", "eta", "phi", "vx", "vy", "vz", "z0", "d0"]:
+                    roi[f"{hit}_roi_{field}"] = np.full_like(roi[f"{hit}_x"], roi[f"roi_{field}"][0])
+                
+                # Add the relative ROI coordinates
+                for suffix in ["", "_mod", "_mod_norm"]:
+                    item = hit + suffix
+                    roi[f"{item}_rel_z"] = roi[f"{item}_z"] - (roi[f"roi_z0"] / 1000.0)
+                    roi[f"{item}_rel_s"] = np.sqrt(roi[f"{item}_x"] ** 2 + roi[f"{item}_y"] ** 2 + roi[f"{item}_rel_z"] ** 2)
+                    roi[f"{item}_rel_theta"] = np.arccos(roi[f"{item}_rel_z"] / roi[f"{item}_rel_s"])
+                    roi[f"{item}_rel_eta"] = -np.log(np.tan(roi[f"{item}_rel_theta"] / 2))
 
-            # Calculate a reference z position for the ROI
-            batch[f"{k}_cor_z"] = batch[f"{k}_z"] - batch["roi_z0"]
-            batch[f"{k}_cor_s"] = np.sqrt(batch[f"{k}_x"]**2 + batch[f"{k}_y"]**2 + batch[f"{k}_cor_z"]**2)
-            
-            # Calculate hit theta/eta from the ROI 'vertex'
-            batch[f"{k}_cor_theta"] =  np.arccos(batch[f"{k}_cor_z"] / batch[f"{k}_cor_s"])
-            batch[f"{k}_cor_eta"] = -np.log(np.tan(batch[f"{k}_cor_theta"] / 2))
+                    roi[f"{item}_dtheta"] = roi[f"{item}_rel_theta"] - roi["roi_theta"]
+                    roi[f"{item}_deta"] = roi[f"{item}_rel_eta"] - roi["roi_eta"]
+                    roi[f"{item}_dphi"] = wrap_phi(roi[f"{item}_phi"] - roi["roi_phi"])
 
-            # Coordinates relative to the ROI axis
-            batch[f"{k}_dtheta"] = batch[f"{k}_cor_theta"] - batch["roi_theta"]
-            batch[f"{k}_deta"] = batch[f"{k}_cor_eta"] - batch["roi_eta"]
+                # Mark the hits as valid inputs
+                roi[f"{hit}_valid"] = np.full_like(roi[f"{hit}_x"], True)
 
-            # Need to make sure to wrap the global phi angle!
-            batch[f"{k}_dphi"] = wrap_phi(batch[f"{k}_phi"] - batch["roi_phi"])
-            batch[f"{k}_dR"] = np.sqrt(batch[f"{k}_deta"] ** 2 + batch[f"{k}_dphi"] ** 2)
-
-            # Total charge on the cluster - use the logarithm due to the huge dynamic range of charge
-            batch[f"{k}_logcharge"] = np.log(np.maximum(batch[f"{k}_charge"], 0.0) + 1.0)
-            
-            # Add ROI fields
-            for i in ["loge", "phi", "theta", "eta", "m", "z0"]:
-                batch[f"{k}_roi_{i}"] = ak.broadcast_arrays(batch[f"roi_{i}"], batch[f"{k}_x"])[0]
-
-        batch["sudo_fromb"] = batch["sudo_bhadpt"] > 0.0
-
-        # Add in additional track fields
-        for q in ["sudo", "sisp", "reco"]:
-            batch[f"{q}_pt"] = batch[f"{q}_pt"] / 1000
-            batch[f"{q}_px"] = batch[f"{q}_pt"] * np.cos(batch[f"{q}_phi"])
-            batch[f"{q}_py"] = batch[f"{q}_pt"] * np.sin(batch[f"{q}_phi"])
-            batch[f"{q}_pz"] = batch[f"{q}_pt"] * np.sinh(batch[f"{q}_eta"])
-            batch[f"{q}_theta"] = 2 * np.arctan(np.exp(-batch[f"{q}_eta"]))
-            batch[f"{q}_qop"] = batch[f"{q}_q"] / batch[f"{q}_pt"]
-
-            batch[f"{q}_deta"] = batch[f"{q}_eta"] - batch["roi_eta"]
-            batch[f"{q}_dtheta"] = batch[f"{q}_theta"] - batch["roi_theta"]
-            batch[f"{q}_dphi"] = wrap_phi(batch[f"{q}_phi"] - batch["roi_phi"])
-            batch[f"{q}_dz0"] = batch[f"{q}_z0"] - batch[f"roi_z0"]
-
-        data = {}
-
-        # Now all of the derived fields have been made, prep them into tensors
-        for k, v in self.features.items():
-            for field in v["fields"]:
-                x = prep_field(batch[f"{k}_{field}"], self.features[k]["pad"], 0.0)
-                data[f"{k}_{field}"] = torch.from_numpy(x).float()
-
-            # We don't need to construct a valid flag for ROIs - all ROIs retained are valid
-            if k == "roi":
-                continue
-
-            # The mask that denotes whether an entry is padding or not
-            data[f"{k}_valid"] = torch.from_numpy(ak.to_numpy(batch[f"{k}_valid"])).bool()
+            # Add the charge and log charge for the pixel
+            roi[f"pix_charge"] = file[f"{roi_id}/pix_charge"][:]
+            roi[f"pix_log_charge"] = np.log(1.0 + roi[f"pix_charge"])
         
-        # Build the track-hit assignment masks
-        for k in ["pix", "sct"]:
-            for q in ["sudo", "sisp", "reco"]:
-                if q == "sudo":
-                    x = build_track_hit_masks_bcodes(batch[f"{q}_bcode"], batch[f"{k}_bcodes"], self.features[q]["pad"], self.features[k]["pad"])
+            # Pixel specific fields
+            for field in ["lshift", "pitches"]:
+                roi[f"pix_{field}"] = file[f"{roi_id}/pix_{field}"][:]
+
+            # Load the pixel charge matrices
+            roi["pix_charge_matrix"] = load_csr_matrix("pix_charge_matrix", "pix_charge_matrix", np.float32)
+            roi["pix_log_charge_matrix"] = np.log(1.0 + roi["pix_charge_matrix"])
+
+            # SCT specific fields
+            for field in ["side", "width"]:
+                roi[f"sct_{field}"] = file[f"{roi_id}/sct_{field}"][:]
+
+            # Drop any invalid track slots
+            for track in ["sudo", "sisp", "reco"]:
+                track_valid = roi[f"{track}_valid"]
+                for target_name, fields in self.targets.items():
+                    if track in target_name:
+                        roi[f"{target_name}_valid"] = roi[f"{target_name}_valid"][track_valid, ...]
+                        for field in fields:
+                            roi[f"{target_name}_{field}"] = roi[f"{target_name}_{field}"][track_valid, ...]
+            
+            """for k, v in roi.items():
+                if np.any(~np.isfinite(v)):
+                    print(k)
+                    print(v)
+                        """
+            # If we got to here, the ROI passes the selection, so return the ROI
+            return roi
+
+    def __getitem__(self, idx):
+        # Attempt to load the ROI with the given ID
+        # First check if an ROI has already been evaluated and assigned to this index
+        if idx in self.idx_to_roi_id:
+            # If its been assigned to an index, we know it passes the selection, and so we can go ahead and load it
+            roi = self.load_roi(self.idx_to_roi_id[idx])
+        else:
+            roi = None
+
+            # Keep trying ROI IDs from the set of unevaluated ROI IDs until we eventually get an ROI that
+            # passes the selection
+            num_attempts = 1
+            while roi is None:
+                # Check we still have some ROIs left
+                if not len(self.unevaluated_roi_ids) > 0:
+                    raise StopIteration("Ran out of ROIs that pass the selection.")
+
+                # Randomly sample an ID from the set of unevaluated IDs
+                roi_id = random.choice(self.unevaluated_roi_ids)
+
+                # Load this ROI ID and see if it passes the selection
+                roi = self.load_roi(roi_id)
+
+                # This ROI ID has been evaluated on the selection now
+                self.unevaluated_roi_ids.remove(roi_id)
+                num_attempts += 1
+
+                # If the ROI passes the selection, add it to the accepted list and map it to a dataset index
+                if roi is not None:
+                    self.accepted_roi_ids.append(roi_id)
+                    self.idx_to_roi_id[idx] = roi_id
+                    self.roi_id_to_idx[roi_id] = idx
+                # If the ROI fails the selection, add it to the rejected list and try again
                 else:
-                    x = build_track_hit_masks_ids(batch[f"{q}_clus_ids"], batch[f"{k}_id"], self.features[q]["pad"], self.features[k]["pad"])
-                data[f"{q}_{k}_valid"] = torch.from_numpy(x).bool()
+                    self.rejected_roi_ids.append(roi_id)
 
-        # sudo_pix_targets = build_track_hit_targets(batch["sudo_bcode"], batch["pix_bcodes"], 
-        #                                            batch["pix_sudo_loc_phi"], batch["pix_sudo_loc_theta"],
-        #                                            batch["pix_sudo_loc_x"], batch["pix_sudo_loc_y"], batch["pix_energydep"], 
-        #                                            self.features["sudo"]["pad"], self.features["pix"]["pad"])
-        # sudo_pix_phi, sudo_pix_theta, sudo_pix_x, sudo_pix_y, sudo_pix_energy = sudo_pix_targets
-
-        # # Clamp these fields to remove any extreme values that could mess up the regression
-        # # Extreme angles can come from e.g. low pt tracks going the other way into the sensor
-        # sudo_pix_phi = np.clip(sudo_pix_phi, -0.2, 0.4)
-        # sudo_pix_theta = np.clip(sudo_pix_theta, -np.pi/2, np.pi/2)
-        # sudo_pix_x = np.clip(sudo_pix_x, -8, 8)
-        # sudo_pix_y = np.clip(sudo_pix_y, -6, 6)
-        # sudo_pix_energy = np.clip(sudo_pix_energy, 0.0, 0.6)
-        
-        # # Add the track-hit regression targets
-        # # TODO: Make this optional in the config since these use a lot of memory
-        # data["sudo_pix_x"] = torch.from_numpy(sudo_pix_x).float()
-        # data["sudo_pix_y"] = torch.from_numpy(sudo_pix_y).float()
-        # data["sudo_pix_phi"] = torch.from_numpy(sudo_pix_phi).float()
-        # data["sudo_pix_theta"] = torch.from_numpy(sudo_pix_theta).float()
-        # data["sudo_pix_energy"] = torch.from_numpy(sudo_pix_energy).float()
-
-        # Update the track-hit masks to reflect any hit or track slots that are null
-        for k in ["pix", "sct"]:
-            for q in ["sudo", "sisp", "reco"]:
-                data[f"{q}_{k}_valid"] = data[f"{q}_{k}_valid"] & data[f"{k}_valid"][:,None,:]
-                data[f"{q}_valid"] = data[f"{q}_valid"] & (data[f"{q}_{k}_valid"].sum(-1) > 0)
-                data[f"{q}_{k}_valid"] = data[f"{q}_{k}_valid"] & data[f"{q}_valid"][:,:,None]
-
+        # Convert to a torch tensor of the correct dtype and add the batch dimension
         inputs = {}
         targets = {}
-        for k, v in self.inputs.items():
-            inputs[f"{k}_valid"] = data[f"{k}_valid"]
-            targets[f"{k}_valid"] = data[f"{k}_valid"]
-            for field in v["fields"]:
-                inputs[f"{k}_{field}"] = data[f"{k}_{field}"].to(self.precision_type)
+        for input_name, fields in self.inputs.items():
+            inputs[f"{input_name}_valid"] = torch.from_numpy(roi[f"{input_name}_valid"]).bool().unsqueeze(0)
+            # Some tasks might require to know hit padding info for loss masking
+            targets[f"{input_name}_valid"] = inputs[f"{input_name}_valid"]
+            for field in fields:
+                inputs[f"{input_name}_{field}"] = torch.from_numpy(roi[f"{input_name}_{field}"]).to(self.precision_type).unsqueeze(0)
 
-        for k, v in self.targets.items():
-            if k != "roi":
-                targets[f"{k}_valid"] = data[f"{k}_valid"]
-            for field in v["fields"]:
-                targets[f"{k}_{field}"] = data[f"{k}_{field}"].to(self.precision_type)
+        # Convert the targets
+        for target_name, fields in self.targets.items():
+            targets[f"{target_name}_valid"] = torch.from_numpy(roi[f"{target_name}_valid"]).bool().unsqueeze(0)
+            for field in fields:
+                targets[f"{target_name}_{field}"] = torch.from_numpy(roi[f"{target_name}_{field}"]).to(self.precision_type).unsqueeze(0)
 
-        for k in ["pix", "sct"]:
-            for q in ["sudo", "sisp", "reco"]:
-                targets[f"{q}_{k}_valid"] = data[f"{q}_{k}_valid"]
-
-        targets["sample_id"] = torch.from_numpy(ak.to_numpy(batch["sample_id"])).to(torch.int64)
+        # Convert the metedata
+        targets["sample_id"] = torch.tensor(roi["roi_id"], dtype=torch.int64)
 
         return inputs, targets
 
+
+def pad_and_concat(items: list[Tensor], target_size: tuple[int], pad_value) -> Tensor:
+    """Takes a list of tensors, pads them to a given size, and then concatenates them along the a new dimension at zero."""
+    return torch.cat([pad_to_size(item, (1, *target_size), pad_value) for item in items], dim=0)
+
+
+class ROICollator:
+    def __init__(self, dataset_inputs, dataset_targets, max_num_obj):
+        self.dataset_inputs = dataset_inputs
+        self.dataset_targets = dataset_targets
+        self.max_num_obj = max_num_obj
+
+    def __call__(self, batch):
+        inputs, targets = zip(*batch, strict=False)
+
+        hit_max_sizes = {}
+        for input_name in self.dataset_inputs:
+            hit_max_sizes[input_name] = max(event[f"{input_name}_valid"].shape[-1] for event in inputs)
+
+        batched_inputs = {}
+        batched_targets = {}
+        for input_name, fields in self.dataset_inputs.items():
+            k = f"{input_name}_valid"
+            batched_inputs[k] = pad_and_concat([i[k] for i in inputs], (hit_max_sizes[input_name],), False)
+
+            # Some tasks might require to know hit padding info for loss masking
+            batched_targets[k] = batched_inputs[k]
+
+            for field in fields:
+                k = f"{input_name}_{field}"
+                
+                # If the field is a vector we need to adjust the target size accordingly
+                # TODO: Make this nicer
+                if next(iter(inputs))[k].ndim == 3:
+                    size = (hit_max_sizes[input_name], next(iter(inputs))[k].shape[-1])
+                else:
+                    size = (hit_max_sizes[input_name],)
+
+                batched_inputs[k] = pad_and_concat([i[k] for i in inputs], size, 0.0)
+
+        for target_name, fields in self.dataset_targets.items():
+            if len(target_name.split("_")) == 1:
+                size = (self.max_num_obj,)
+            else:
+                hit = target_name.split("_")[1]
+                size = (self.max_num_obj, hit_max_sizes[hit])
+
+            k = f"{target_name}_valid"
+            batched_targets[k] = pad_and_concat([t[k] for t in targets], size, False)
+
+            for field in fields:
+                k = f"{target_name}_{field}"
+                batched_targets[k] = pad_and_concat([t[k] for t in targets], size, torch.nan)
+
+        # Batch the metadata
+        batched_targets["sample_id"] = torch.cat([t["sample_id"] for t in targets], dim=-1)
+
+        return batched_inputs, batched_targets
+    
 
 class ROIDataModule(LightningDataModule):
     def __init__(
@@ -584,7 +399,7 @@ class ROIDataModule(LightningDataModule):
         num_train: int,
         num_val: int,
         num_test: int,
-        test_dir: str = None,
+        test_dir: str | None = None,
         **kwargs,
     ):
         """ Lightning data module. Will iterate over the given directories
@@ -623,16 +438,13 @@ class ROIDataModule(LightningDataModule):
         self.kwargs = kwargs
 
     def setup(self, stage: str):
-        if self.trainer.is_global_zero:
-            print("-" * 100)
-
         # Create training and validation datasets
         if stage == "fit":
             self.train_dset = ROIDataset(dirpath=self.train_dir, num_samples=self.num_train, **self.kwargs)
             self.val_dset = ROIDataset(dirpath=self.val_dir, num_samples=self.num_val, **self.kwargs)
 
         # Only print train/val dataset details when actually training
-        if stage == "fit" and self.trainer.is_global_zero:
+        if stage == "fit":
             print(f"Created training dataset with {len(self.train_dset):,} events")
             print(f"Created validation dataset with {len(self.val_dset):,} events")
 
@@ -640,14 +452,16 @@ class ROIDataModule(LightningDataModule):
             assert self.test_dir is not None, "No test file specified, see --data.test_dir"
             self.test_dset = ROIDataset(dirpath=self.test_dir, num_samples=self.num_test, **self.kwargs)
             print(f"Created test dataset with {len(self.test_dset):,} events")
-
-        if self.trainer.is_global_zero:
-            print("-" * 100, "\n")
-
+    
     def get_dataloader(self, stage: str, dataset: ROIDataset, shuffle: bool):
-        random_sampler = RandomSampler(dataset)
-        random_batch_sampler = BatchSampler(random_sampler, batch_size=self.batch_size, drop_last=False)
-        return DataLoader(dataset=dataset, sampler=random_batch_sampler, batch_size=None)
+        return DataLoader(
+            dataset=dataset,
+            batch_size=self.batch_size,
+            collate_fn=ROICollator(dataset.inputs, dataset.targets, dataset.roi_max_num_tracks),
+            sampler=None,
+            num_workers=self.num_workers,
+            shuffle=shuffle,
+        )
 
     def train_dataloader(self):
         return self.get_dataloader(dataset=self.train_dset, stage="fit", shuffle=False)
@@ -657,3 +471,4 @@ class ROIDataModule(LightningDataModule):
 
     def test_dataloader(self):
         return self.get_dataloader(dataset=self.test_dset, stage="test", shuffle=False)
+
