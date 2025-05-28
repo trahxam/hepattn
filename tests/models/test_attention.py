@@ -79,7 +79,7 @@ def test_attention_consistency(batch_size, dim, num_heads, bias, q_len, kv_len, 
 # for now just test with SDPA
 def test_nested_jagged_tensor():
     attn_torch = Attention(dim=128, num_heads=8, attn_type="torch", torch_compile=False).cuda().half()
-    # attn_flex = Attention(dim=128, num_heads=8, attn_type="flex", torch_compile=True).cuda().half()  # noqa: ERA001
+    # attn_flex = Attention(dim=128, num_heads=8, attn_type="flex", torch_compile=True).cuda().half()
 
     # Current limitation that the total sequnce length must be divisible by 128
     qs = [torch.randn(s, 128, dtype=torch.float16, device="cuda") for s in (128, 256)]
@@ -91,13 +91,13 @@ def test_nested_jagged_tensor():
     nv = torch.nested.nested_tensor(vs, layout=torch.jagged, device="cuda", requires_grad=True)
 
     nt_out = attn_torch(nq, nk, nv)
-    # flex_out = attn_flex(nq, nk, nv)  # noqa: ERA001
+    # flex_out = attn_flex(nq, nk, nv)
 
     # do the same but looping over the list
     for i, (q, k, v) in enumerate(zip(qs, ks, vs, strict=False)):
         out = attn_torch(q, k, v)
         torch.testing.assert_close(out, nt_out[i], atol=1e-3, rtol=1e-3)
-        # torch.testing.assert_close(out, flex_out[i], atol=1e-3, rtol=1e-3)  # noqa: ERA001
+        # torch.testing.assert_close(out, flex_out[i], atol=1e-3, rtol=1e-3)
 
 
 def test_local_attention():
@@ -110,14 +110,14 @@ def test_local_attention():
 
     # Initialize attention layers
     attn_spda = Attention(dim=128, num_heads=8, attn_type="torch", torch_compile=False, bias=False).cuda().half()
-    # attn_flex = Attention(dim=128, num_heads=8, attn_type="flex", torch_compile=True, bias=False).cuda().half()  # noqa: ERA001
+    # attn_flex = Attention(dim=128, num_heads=8, attn_type="flex", torch_compile=True, bias=False).cuda().half()
     attn_flash = Attention(dim=128, num_heads=8, attn_type="flash", torch_compile=False, window_size=window_size, bias=False).cuda().half()
 
     # Synchronize weights for comparison
-    # attn_flex.q_proj.weight.data = attn_spda.q_proj.weight  # noqa: ERA001
-    # attn_flex.k_proj.weight.data = attn_spda.k_proj.weight  # noqa: ERA001
-    # attn_flex.v_proj.weight.data = attn_spda.v_proj.weight  # noqa: ERA001
-    # attn_flex.out_proj.weight.data = attn_spda.out_proj.weight  # noqa: ERA001
+    # attn_flex.q_proj.weight.data = attn_spda.q_proj.weight
+    # attn_flex.k_proj.weight.data = attn_spda.k_proj.weight
+    # attn_flex.v_proj.weight.data = attn_spda.v_proj.weight
+    # attn_flex.out_proj.weight.data = attn_spda.out_proj.weight
     attn_flash.q_proj.weight.data = attn_spda.q_proj.weight
     attn_flash.k_proj.weight.data = attn_spda.k_proj.weight
     attn_flash.v_proj.weight.data = attn_spda.v_proj.weight
@@ -125,9 +125,9 @@ def test_local_attention():
 
     mask_mod = sliding_window_mask(window_size)
     q_len = q.shape[-2]
-    # block_mask = create_block_mask(mask_mod, B=None, H=None, Q_LEN=q_len, KV_LEN=q_len, device=q.device)  # noqa: ERA001
+    # block_mask = create_block_mask(mask_mod, B=None, H=None, Q_LEN=q_len, KV_LEN=q_len, device=q.device)
     mask = create_mask(mask_mod, 1, None, q_len, q_len, device=q.device)
-    # out_flex = attn_flex(q, k, v, attn_mask=block_mask)  # noqa: ERA001
+    # out_flex = attn_flex(q, k, v, attn_mask=block_mask)
     # Squeeze operation is required as for SPDA attention we assume mask is the same accross heads
     # TODO: Standardise this accross the different backends, both for whether it should brodcast the
     # shape over heads and whether it should assume masks are true for valid slots or not
@@ -136,7 +136,7 @@ def test_local_attention():
 
     # Compare outputs
     torch.testing.assert_close(out_spda, out_flash, atol=1e-3, rtol=1e-3)
-    # torch.testing.assert_close(out_flex, out_flash, atol=1e-3, rtol=1e-3)  # noqa: ERA001
+    # torch.testing.assert_close(out_flex, out_flash, atol=1e-3, rtol=1e-3)
 
 
 def test_flex_dynamic():

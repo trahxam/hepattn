@@ -634,7 +634,6 @@ def preprocess_file(
     out_dir: Path,
     filename: str,
     min_pt: float = 10.0,
-    max_num_particles: int = 1000,
     verbose: bool = False,
 ):
     in_file_path = in_dir / Path(filename).with_suffix(".root")
@@ -682,13 +681,14 @@ def preprocess_file(
         size_mb = sum(value.nbytes for value in event.values()) / (1024 * 1024)
         num_completed_events += 1
         print(
-            f"Prepped event {event_name} ({num_completed_events}/{len(event_names)}) to {out_event_path}, num_particles={num_particles}, size={size_mb:.2f}Mb, time={dt:.2f}s"
+            f"Prepped event {event_name} ({num_completed_events}/{len(event_names)}) to {out_event_path}, "
+            f"num_particles={num_particles}, size={size_mb:.2f}Mb, time={dt:.2f}s"
         )
 
     print("=" * 100 + f"\nPreprocessed events in {in_file_path} and saved them to {out_folder}\n" + "=" * 100)
 
 
-def preprocess_files(in_dir: str, out_dir: str, overwrite: bool, parallel: bool = False, **kwargs):
+def preprocess_files(in_dir: str, out_dir: str, overwrite: bool, parallel: bool = False):
     """Preprpocess root files into parquet files.
 
     Parameters
@@ -739,7 +739,6 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--out_dir", dest="out_dir", type=str, required=True, help="Output directory for parquet files")
     parser.add_argument("--overwrite", action="store_true", help="Whether to overwrite existing events or not.")
     parser.add_argument("--min_pt", type=float, required=False, default=10, help="Minimum pT cut to apply on particles, in MeV")
-    parser.add_argument("--max_num_particles", type=int, required=False, default=256, help="Max number of particles in an event.")
     parser.add_argument("--verbose", action="store_true", help="Whether to print extra info or not.")
     parser.add_argument("--parallel", action="store_true", help="Whether the script will be run on a SLURM array.")
 
@@ -750,7 +749,6 @@ if __name__ == "__main__":
         args.out_dir,
         args.overwrite,
         min_pt=args.min_pt,
-        max_num_particles=args.max_num_particles,
         verbose=args.verbose,
         parallel=args.parallel,
     )

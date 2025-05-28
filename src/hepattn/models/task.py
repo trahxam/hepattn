@@ -7,7 +7,6 @@ from torch import Tensor, nn
 from hepattn.models.dense import Dense
 from hepattn.models.loss import cost_fns, focal_loss, loss_fns
 
-
 COST_PAD_VALUE = 1e6
 
 
@@ -253,7 +252,6 @@ class ObjectHitMaskTask(Task):
     def cost(self, outputs, targets):
         output = outputs[self.output_object_hit + "_logit"].detach().to(torch.float32)
         target = targets[self.target_object_hit + "_valid"].to(torch.float32)
-        
 
         costs = {}
         for cost_fn, cost_weight in self.costs.items():

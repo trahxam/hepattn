@@ -1,3 +1,5 @@
+# ruff: noqa: E501
+
 from pathlib import Path
 
 import h5py
@@ -5,9 +7,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import yaml
+from scipy.stats import binned_statistic
 from tqdm import tqdm
 
-from scipy.stats import binned_statistic
 from hepattn.experiments.cld.data import CLDDataset
 from hepattn.experiments.cld.plot_event import plot_cld_event_reconstruction
 from hepattn.utils.eval_plots import bayesian_binomial_error, plot_hist_to_ax

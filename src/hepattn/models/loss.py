@@ -92,7 +92,7 @@ def mask_ce_loss(pred_logits, true, mask=None, weight=None):
 
 def mask_ce_costs(pred_logits, true):
     pred_logits = torch.clamp(pred_logits, -100, 100)
-    
+
     pos = F.binary_cross_entropy_with_logits(pred_logits, torch.ones_like(pred_logits), reduction="none")
     neg = F.binary_cross_entropy_with_logits(pred_logits, torch.zeros_like(pred_logits), reduction="none")
 

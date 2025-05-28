@@ -26,7 +26,7 @@ class TIDEModel(ModelWrapper):
         for hit in hits:
             if f"pred_{hit}_assignment" not in preds:
                 continue
-            
+
             # Set the masks of any track slots that are not used as null
             pred_hit_masks = preds[f"pred_{hit}_assignment"][f"pred_{hit}_valid"] & pred_valid.unsqueeze(-1)
             true_hit_masks = targets[f"sudo_{hit}_valid"]

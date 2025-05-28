@@ -26,7 +26,6 @@ class TestROIDataModule:
 
     def test_roi_data(self, roi_datamodule):
         dataloader = roi_datamodule.train_dataloader()
-        dataset = dataloader.dataset
         data_iterator = iter(dataloader)
 
         for _i in range(10):
@@ -34,10 +33,6 @@ class TestROIDataModule:
 
             for k, v in inputs.items():
                 print(k, v.dtype, v.shape)
-            
+
             for k, v in targets.items():
                 print(k, v.dtype, v.shape)
-
-                
-            
-            print()

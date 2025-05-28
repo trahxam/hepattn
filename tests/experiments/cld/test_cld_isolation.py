@@ -34,7 +34,7 @@ def test_plot_cld_hit_coords(cld_datamodule):
     pts = []
     dphis = []
     detas = []
-    dRs = []
+    isolations = []
 
     for i in range(len(targets["particle_valid"])):
         particle_valid = targets["particle_valid"][i]
@@ -64,7 +64,7 @@ def test_plot_cld_hit_coords(cld_datamodule):
         pts.append(particle_pt)
         dphis.append(particle_min_abs_dphi)
         detas.append(particle_min_abs_deta)
-        dRs.append(particle_min_dr)
+        isolations.append(particle_min_dr)
 
     fig, ax = plt.subplots(1, 3)
     fig.set_size_inches(12, 4)
@@ -78,7 +78,7 @@ def test_plot_cld_hit_coords(cld_datamodule):
                  bins=(np.geomspace(0.1, 100.0, 32), np.geomspace(1.0, 1000 * np.pi, 32)),
                  norm=LogNorm(vmin=1, vmax=None))
     ax[2].hist2d(torch.cat(pts),
-                 torch.cat(dRs),
+                 torch.cat(isolations),
                  bins=(np.geomspace(0.1, 100.0, 32), np.geomspace(0.1, 1000 * np.pi, 32)),
                  norm=LogNorm(vmin=1, vmax=None))
 

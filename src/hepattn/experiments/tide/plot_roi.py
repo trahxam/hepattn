@@ -6,7 +6,6 @@ import yaml
 
 from hepattn.experiments.tide.data import ROIDataModule
 
-
 plt.rcParams["figure.dpi"] = 300
 
 
@@ -14,9 +13,7 @@ def plot_roi(inputs, targets):
     track = "sudo"
 
     # batch_idx = torch.argmax(targets[f"{track}_valid"].sum(-1))
-    batch_idx = torch.argmax(inputs[f"sct_valid"].sum(-1))
-
-
+    batch_idx = torch.argmax(inputs["sct_valid"].sum(-1))
 
     fig, ax = plt.subplots(1, 2)
     fig.set_size_inches(8, 4)
@@ -47,7 +44,7 @@ def plot_roi(inputs, targets):
             sort_idx = torch.argsort(track_hit_x)
 
             ax[i].plot(track_hit_x[sort_idx], track_hit_y[sort_idx], color=color)
-    
+
     num_pix = inputs["pix_valid"][batch_idx].sum()
     num_sct = inputs["sct_valid"][batch_idx].sum()
 
@@ -57,8 +54,6 @@ def plot_roi(inputs, targets):
 
     fig.tight_layout()
     fig.savefig(Path("/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/tide/plots/roi_display.png"))
-
-
 
 
 config_path = Path("src/hepattn/experiments/tide/configs/base.yaml")
