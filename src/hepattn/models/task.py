@@ -8,6 +8,9 @@ from hepattn.models.dense import Dense
 from hepattn.models.loss import cost_fns, focal_loss, loss_fns
 
 
+COST_PAD_VALUE = 1e6
+
+
 class Task(nn.Module, ABC):
     def __init__(self):
         super().__init__()
@@ -102,13 +105,13 @@ class ObjectValidTask(Task):
         return {self.output_object + "_valid": outputs[self.output_object + "_logit"].detach().sigmoid() >= threshold}
 
     def cost(self, outputs, targets):
-        output = outputs[self.output_object + "_logit"].detach()
-        target = targets[self.target_object + "_valid"].type_as(output)
+        output = outputs[self.output_object + "_logit"].detach().to(torch.float32)
+        target = targets[self.target_object + "_valid"].to(torch.float32)
         costs = {}
         for cost_fn, cost_weight in self.costs.items():
             costs[cost_fn] = cost_weight * cost_fns[cost_fn](output, target)
             # Set the costs of invalid objects to be (basically) inf
-            costs[cost_fn][~targets[self.target_object + "_valid"].unsqueeze(-2).expand_as(costs[cost_fn])] = 1e6
+            costs[cost_fn][~targets[self.target_object + "_valid"].unsqueeze(-2).expand_as(costs[cost_fn])] = COST_PAD_VALUE
         return costs
 
     def loss(self, outputs, targets):
@@ -248,15 +251,16 @@ class ObjectHitMaskTask(Task):
         return {self.output_object_hit + "_valid": outputs[self.output_object_hit + "_logit"].detach().sigmoid() >= threshold}
 
     def cost(self, outputs, targets):
-        output = outputs[self.output_object_hit + "_logit"].detach()
-        target = targets[self.target_object_hit + "_valid"].type_as(output)
+        output = outputs[self.output_object_hit + "_logit"].detach().to(torch.float32)
+        target = targets[self.target_object_hit + "_valid"].to(torch.float32)
+        
 
         costs = {}
         for cost_fn, cost_weight in self.costs.items():
             costs[cost_fn] = cost_weight * cost_fns[cost_fn](output, target)
 
             # Set the costs of invalid objects to be (basically) inf
-            costs[cost_fn][~targets[self.target_object + "_valid"].unsqueeze(-2).expand_as(costs[cost_fn])] = 1e6
+            costs[cost_fn][~targets[self.target_object + "_valid"].unsqueeze(-2).expand_as(costs[cost_fn])] = COST_PAD_VALUE
         return costs
 
     def loss(self, outputs, targets):
