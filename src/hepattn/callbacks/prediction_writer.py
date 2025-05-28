@@ -3,7 +3,7 @@ from pathlib import Path
 import h5py
 from lightning import Callback, LightningModule, Trainer
 
-from hepattn.utils.tensor import tensor_to_numpy
+from hepattn.utils.tensor_utils import tensor_to_numpy
 
 
 class PredictionWriter(Callback):

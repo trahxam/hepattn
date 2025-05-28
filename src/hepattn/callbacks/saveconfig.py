@@ -61,7 +61,7 @@ class Metadata(Callback):
 
         # Log the SLURM info if its present
         if "SLURM_JOB_ID" in os.environ:
-            meta["slurm_job_id"] = str(os.environ["SLURM_JOB_ID"])
+            meta["slurm_job_id"] = "SLURM_" + str(os.environ["SLURM_JOB_ID"])
 
         # Log the metadata to the logger if we are using one
         logger = pl_module.logger
