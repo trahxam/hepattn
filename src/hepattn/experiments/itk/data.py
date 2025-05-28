@@ -7,7 +7,7 @@ import torch
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader, Dataset
 
-from hepattn.utils.tensor import pad_to_size
+from hepattn.utils.tensor_utils import pad_to_size
 
 
 def is_valid_file(path):

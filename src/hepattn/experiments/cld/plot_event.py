@@ -2,6 +2,9 @@ import matplotlib.pyplot as plt
 import torch
 
 
+plt.rcParams["figure.dpi"] = 300
+
+
 def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec):
     num_axes = len(axes_spec)
 
@@ -36,9 +39,9 @@ def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec):
 
             ax[ax_idx].scatter(x, y, alpha=0.25, s=1.0, color="black")
 
-            mask = reconstruction[f"particle_{input_name}_valid"][batch_idx]
+            num_particles = reconstruction[f"particle_{input_name}_valid"][batch_idx].shape[-2]
 
-            for mcparticle_idx in range(mask.shape[-2]):
+            for mcparticle_idx in range(num_particles):
                 color = cycler[mcparticle_idx % len(cycler)]
                 mask = reconstruction[f"particle_{input_name}_valid"][batch_idx][mcparticle_idx]
 
