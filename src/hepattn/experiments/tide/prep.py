@@ -300,12 +300,13 @@ def preprocess_file(
                 roi_data[f"{track_alias}_{hit_alias}_valid_indptr"] = mask_csr.indptr
                 roi_data[f"{track_alias}_{hit_alias}_valid_shape"] = np.array(mask_csr.shape)
 
-            # Build the track-hit masks
+            # Build the track-hit fields
             for field_name, field_alias in sudo_pix_field_aliases.items():
                 sudo_pix_field = build_track_hit_field(
                     data["pseudotracks_barcode"][roi_idx], data["pixel_sihit_barcodes"][roi_idx], data[f"pixel_{field_name}"][roi_idx]
                 )
-                sudo_pix_field_csr = csr_matrix(sudo_pix_field, dtype=bool)
+
+                sudo_pix_field_csr = csr_matrix(sudo_pix_field, dtype=np.float32)
 
                 roi_data[f"sudo_pix_{field_alias}_data"] = sudo_pix_field_csr.data
 
