@@ -25,9 +25,9 @@ def sigmoid(x):
 
 
 def main():
-    config_path = Path("/share/rcifdata/maxhart/hepattn/logs/CLD_TRKECALHCAL_5_96_TF_charged_10MeV_F32_costwt_20250518-T144640/config.yaml")
+    config_path = Path("/home/syw24/ftag/hepattn/logs/CLD_10_96_TF_charged_10MeV_10GA_20250526-T225156/config.yaml")
     eval_path = Path(
-        "/share/rcifdata/maxhart/hepattn/logs/CLD_TRKECALHCAL_5_96_TF_charged_10MeV_F32_costwt_20250518-T144640/ckpts/epoch=006-train_loss=10.25808_train_eval.h5"
+        "/home/syw24/ftag/hepattn/logs/CLD_10_96_TF_charged_10MeV_10GA_20250526-T225156/ckpts/epoch=009-train_loss=20.88666_train_eval.h5"
     )
 
     # Now create the dataset

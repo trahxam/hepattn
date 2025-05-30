@@ -17,11 +17,18 @@ from hepattn.utils.tensor_utils import pad_to_size
 # ruff: noqa
 
 
-def wrap_phi(x: Tensor) -> Tensor:
+def wrap_phi(x: np.ndarray) -> np.ndarray:
     """Correctly wraps an input tensor of pi angles so they lie in [0, 2pi]."""
     x = x + (x < -np.pi).astype(np.float32) * 2 * np.pi
     x = x - (x > np.pi).astype(np.float32) * 2 * np.pi
     return x
+
+
+def theta_to_eta(theta: np.ndarray, theta_clip=0.1) -> np.ndarray:
+    """Converts theta to eta, clipping theta in the case that it is 0 or pi."""
+    theta = np.clip(theta, theta_clip,  np.pi - theta_clip)
+    return -np.log(np.tan(theta / 2))
+
 
 
 class ROIDataset(Dataset):
@@ -33,13 +40,15 @@ class ROIDataset(Dataset):
         targets: dict,
         sampling_seed: int = 42,
         track_min_pt: float = 1.0,
-        track_max_d0: float = 1.0,
+        track_max_d0: float = 100.0,
+        track_max_z0: float = 1000.0,
         track_min_num_hits: dict[str, int] = {"pix": 1, "sct": 2},
         roi_max_energy: float = 1e12,
         roi_max_abs_eta: float = 4.0,
         roi_min_num_tracks: int = 1,
         roi_max_num_tracks: int = 32,
-        selection_pass_rate: float = 0.5,
+        roi_max_num_dropped_tracks: int = 16,
+        selection_pass_rate: float = 0.2,
         precision: str = "single",
     ):
         """ """
@@ -52,11 +61,13 @@ class ROIDataset(Dataset):
         self.targets = targets
         self.track_min_pt = track_min_pt
         self.track_max_d0 = track_max_d0
+        self.track_max_z0 = track_max_z0
         self.track_min_num_hits = track_min_num_hits
         self.roi_max_energy = roi_max_energy
         self.roi_max_abs_eta = roi_max_abs_eta
         self.roi_min_num_tracks = roi_min_num_tracks
         self.roi_max_num_tracks = roi_max_num_tracks
+        self.roi_max_num_dropped_tracks = roi_max_num_dropped_tracks
         self.selection_pass_rate = selection_pass_rate
         self.precision = precision
 
@@ -128,10 +139,14 @@ class ROIDataset(Dataset):
             for track in ["sudo", "sisp", "reco"]:
                 # Convert pT to GeV
                 roi[f"{track}_pt"] = file[f"{roi_id}/{track}_pt"][:] / 1000.0
+                roi[f"{track}_d0"] = file[f"{roi_id}/{track}_d0"][:]
+                roi[f"{track}_z0"] = file[f"{roi_id}/{track}_z0"][:]
                 roi[f"{track}_valid"] = np.full_like(roi[f"{track}_pt"], True, dtype=bool)
 
-            # Apply pT cut to pseudotracks
+            # Apply pT and d0 cut to pseudotracks
             roi["sudo_valid"] &= roi["sudo_pt"] >= self.track_min_pt
+            roi["sudo_valid"] &= roi["sudo_d0"] <= self.track_max_d0
+            roi["sudo_valid"] &= roi["sudo_z0"] <= self.track_max_z0
 
             # Calculate the ROI reference point
             for coord in ["vx", "vy", "vz", "d0", "z0"]:
@@ -150,15 +165,21 @@ class ROIDataset(Dataset):
                 roi[f"{track}_py"] = roi[f"{track}_pt"] * np.sin(roi[f"{track}_phi"])
                 roi[f"{track}_pz"] = roi[f"{track}_pt"] * np.sinh(roi[f"{track}_eta"])
                 roi[f"{track}_theta"] = 2 * np.arctan(np.exp(-roi[f"{track}_eta"]))
-                roi[f"{track}_qop"] = roi[f"{track}_q"] / roi[f"{track}_pt"]
 
                 # Make track fields that are in the ROI frame
                 roi[f"{track}_deta"] = roi[f"{track}_eta"] - roi["roi_eta"]
                 roi[f"{track}_dtheta"] = roi[f"{track}_theta"] - roi["roi_theta"]
                 roi[f"{track}_dphi"] = wrap_phi(roi[f"{track}_phi"] - roi["roi_phi"])
+                roi[f"{track}_dz0"] = roi[f"{track}_z0"] - roi["roi_z0"]
+                
+                # Convert the track pT from MeV to GeV
+                roi[f"{track}_pt"] *= 0.001
+                roi[f"{track}_qopt"] = roi[f"{track}_q"] / roi[f"{track}_pt"]
 
-                for coord in ["x", "y", "z"]:
-                    roi[f"{track}_d{coord}"] = roi[f"{track}_v{coord}"] - roi[f"roi_v{coord}"]
+                # Create scaled fields that are O(1)
+                field_scalings = {"deta": 100.0, "dphi": 100.0, "dtheta": 100.0, "qopt": 10.0, "dz0": 0.1, "d0": 1.0}
+                for field, scaling in field_scalings.items():
+                    roi[f"{track}_scaled_{field}"] = scaling * roi[f"{track}_{field}"]
 
             def load_csr_matrix(index_field, data_field, dtype):
                 # Load the CSR data
@@ -215,7 +236,7 @@ class ROIDataset(Dataset):
                     roi[f"{item}_r"] = np.sqrt(roi[f"{item}_x"] ** 2 + roi[f"{item}_y"] ** 2)
                     roi[f"{item}_s"] = np.sqrt(roi[f"{item}_x"] ** 2 + roi[f"{item}_y"] ** 2 + roi[f"{item}_z"] ** 2)
                     roi[f"{item}_theta"] = np.arccos(roi[f"{item}_z"] / roi[f"{item}_s"])
-                    roi[f"{item}_eta"] = -np.log(np.tan(roi[f"{item}_theta"] / 2))
+                    roi[f"{item}_eta"] = theta_to_eta(roi[f"{item}_theta"])
                     roi[f"{item}_phi"] = np.arctan2(roi[f"{item}_y"], roi[f"{item}_x"])
 
                 # Add the ROI fields onto the hit fields
@@ -228,18 +249,26 @@ class ROIDataset(Dataset):
                     roi[f"{item}_rel_z"] = roi[f"{item}_z"] - (roi[f"roi_z0"] / 1000.0)
                     roi[f"{item}_rel_s"] = np.sqrt(roi[f"{item}_x"] ** 2 + roi[f"{item}_y"] ** 2 + roi[f"{item}_rel_z"] ** 2)
                     roi[f"{item}_rel_theta"] = np.arccos(roi[f"{item}_rel_z"] / roi[f"{item}_rel_s"])
-                    roi[f"{item}_rel_eta"] = -np.log(np.tan(roi[f"{item}_rel_theta"] / 2))
+                    roi[f"{item}_rel_eta"] = theta_to_eta(roi[f"{item}_rel_theta"])
 
                     roi[f"{item}_dtheta"] = roi[f"{item}_rel_theta"] - roi["roi_theta"]
                     roi[f"{item}_deta"] = roi[f"{item}_rel_eta"] - roi["roi_eta"]
                     roi[f"{item}_dphi"] = wrap_phi(roi[f"{item}_phi"] - roi["roi_phi"])
+
+                # Add the module local coordinates
+                for coord in ["x", "y"]:
+                    roi[f"{hit}_mod_loc_{coord}"] = file[f"{roi_id}/{hit}_mod_loc_{coord}"][:]
+
+                # Add conformal coordinates
+                roi[f"{hit}_u"] = roi[f"{hit}_x"] / (roi[f"{hit}_x"]**2 + roi[f"{hit}_y"]**2)
+                roi[f"{hit}_v"] = roi[f"{hit}_y"] / (roi[f"{hit}_x"]**2 + roi[f"{hit}_y"]**2)
 
                 # Mark the hits as valid inputs
                 roi[f"{hit}_valid"] = np.full_like(roi[f"{hit}_x"], True)
 
             # Add the charge and log charge for the pixel
             roi[f"pix_charge"] = file[f"{roi_id}/pix_charge"][:]
-            roi[f"pix_log_charge"] = np.log(1.0 + roi[f"pix_charge"])
+            roi[f"pix_log_charge"] = np.log10(1.0 + np.clip(roi[f"pix_charge"], a_min=0.0, a_max=1e12))
 
             # Pixel specific fields
             for field in ["lshift", "pitches"]:
@@ -247,11 +276,27 @@ class ROIDataset(Dataset):
 
             # Load the pixel charge matrices
             roi["pix_charge_matrix"] = load_csr_matrix("pix_charge_matrix", "pix_charge_matrix", np.float32)
-            roi["pix_log_charge_matrix"] = np.log(1.0 + roi["pix_charge_matrix"])
+
+            # Charge can have a large dynamic range, so take the log
+            # We need to clamp since sometimes noise means cells have a readout < 0
+            roi["pix_log_charge_matrix"] = np.log10(1.0 + np.clip(roi["pix_charge_matrix"], a_min=0.0, a_max=1e12))
 
             # SCT specific fields
             for field in ["side", "width"]:
                 roi[f"sct_{field}"] = file[f"{roi_id}/sct_{field}"][:]
+            
+            # Check the number of tracks that were dropped
+            num_tracks_pre_cuts = len(roi[f"{track}_valid"])
+            num_tracks_post_cuts = roi[f"{track}_valid"].sum()
+            num_dropped_tracks = num_tracks_pre_cuts - num_tracks_post_cuts
+
+            # Drop the ROI if we no longer have enough tracks after cuts
+            if num_tracks_post_cuts < self.roi_min_num_tracks:
+                return None
+            
+            # Drop any ROIs that dropped more tracks than allowed
+            if num_dropped_tracks > self.roi_max_num_dropped_tracks:
+                return None
 
             # Drop any invalid track slots
             for track in ["sudo", "sisp", "reco"]:
@@ -262,11 +307,6 @@ class ROIDataset(Dataset):
                         for field in fields:
                             roi[f"{target_name}_{field}"] = roi[f"{target_name}_{field}"][track_valid, ...]
 
-            """for k, v in roi.items():
-                if np.any(~np.isfinite(v)):
-                    print(k)
-                    print(v)
-                        """
             # If we got to here, the ROI passes the selection, so return the ROI
             return roi
 

@@ -4,7 +4,7 @@
 #SBATCH -p GPU
 #SBATCH --nodes=1
 #SBATCH --export=ALL
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:l40s:1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=12
 #SBATCH --mem=24G
@@ -31,23 +31,23 @@ cd /home/syw24/ftag/hepattn
 echo "Moved dir, now in: ${PWD}"
 
 # Set tmpdir
-export TMPDIR=/home/syw24/tmp/
+export TMPDIR=/share/rcifdata/maxhart/tmp/
 
 # Run the training
 echo "Running training script..."
 
 # Python command that will be run
-# PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config src/hepattn/experiments/cld/configs/base.yaml "
-# PYTORCH_CMD="python src/hepattn/experiments/cld/main.py test --config logs/CLD_10_96_TF_charged_10MeV_10GA_20250526-T225156/config.yaml --ckpt_path logs/CLD_10_96_TF_charged_10MeV_10GA_20250526-T225156/ckpts/epoch=009-train_loss=20.88666.ckpt "
-PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config logs/CLD_10_96_TF_charged_10MeV_10GA_20250526-T225156/config.yaml --ckpt_path logs/CLD_10_96_TF_charged_10MeV_10GA_20250526-T225156/ckpts/epoch=009-train_loss=20.88666_train_eval.h5 "
+CONFIG_PATH="/home/syw24/ftag/hepattn/logs/CLD_TRKECALHCAL_16_96_TF_charged_10MeV_F16_manypass_20250529-T024522/config.yaml"
+CKPT_PATH="/home/syw24/ftag/hepattn/logs/CLD_TRKECALHCAL_16_96_TF_charged_10MeV_F16_manypass_20250529-T024522/ckpts/epoch=007-train_loss=0.95565.ckpt"
+PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config $CONFIG_PATH --ckpt_path $CKPT_PATH"
+# PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config src/hepattn/experiments/cld/configs/tracking.yaml "
 
 # Pixi commnand that runs the python command inside the pixi env
 PIXI_CMD="pixi run $PYTORCH_CMD"
 
 # Apptainer command that runs the pixi command inside the pixi apptainer image
-# APPTAINER_CMD="apptainer run --nv --bind /home/syw24 /home/syw24/ftag/hepattn/pixi.sif $PIXI_CMD"
 APPTAINER_CMD="apptainer run --nv --bind /home/syw24 --bind /share/rcifdata/maxhart /home/syw24/ftag/hepattn/pixi.sif $PIXI_CMD"
-  
+
 # Run the final command
 echo "Running command: $APPTAINER_CMD"
 $APPTAINER_CMD
