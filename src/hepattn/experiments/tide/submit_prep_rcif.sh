@@ -24,7 +24,7 @@ echo "Running preprocessing script..."
 # Change these to wherever your data is, or get access to them
 #IN_DIR="/share/rcifdata/maxhart/data/tide/raw/val/"
 IN_DIR="/share/lustre/maxhart/data/ambi/user.srettie.800030.flatpT_Zprime_Extended.e7954_s3582_r12643_20241122_nom_with_rois_EXT1/"
-OUT_DIR="/share/rcifdata/maxhart/data/ambi_new/"
+OUT_DIR="/share/rcifdata/maxhart/data/ambi/tmp"
 
 # Python command that will be run
 # Note we specify a minimum pT cut, particles below this will be removed
