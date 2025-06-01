@@ -28,31 +28,52 @@ def tensor_to_numpy(tensor: torch.Tensor) -> np.ndarray:
     return tensor.numpy()
 
 
-def pad_to_size(x, target_shape, pad_value):
+def pad_to_size(x: torch.Tensor, target_shape: tuple, pad_value: float):
     """
-    Pads a tensor to match the given target shape.
-    """
-    # Get the current shape of the tensor
-    current_shape = x.shape
+    Pads a tensor `x` to exactly match `target_shape`, using `pad_value`.
+    Works even if some dimensions of `x` are zero. If x is already the
+    right shape, returns x unchanged. If any dimension of x is bigger
+    than target_shape, raises a ValueError.
 
+    Args:
+        x           (torch.Tensor): any‐shaped tensor
+        target_shape (tuple[int]):   desired shape (must have same length as x.dim())
+        pad_value    (float): default fill for the padded region
+
+    Returns:
+        torch.Tensor of shape `target_shape`, where the “upper‐left” block is x
+        and the rest is `pad_value`.
+
+    Raises:
+        ValueError if len(target_shape) != x.dim() or if any target < current
+    """
+    current_shape = tuple(x.shape)
     if len(target_shape) != x.dim():
-        raise ValueError(f"Target size must match input tensor dimensions: {x.shape} vs {target_shape}")
+        raise ValueError(
+            f"Target shape must have the same number of dimensions as x: "
+            f"{current_shape} vs {target_shape}"
+        )
 
-    # Calculate padding for each dimension
-    padding = []
-    for i in range(len(current_shape)):
-        # Don't pad this dimension
-        if target_shape[i] == -1 or current_shape[i] == target_shape[i]:
-            padding.append((0, 0))
+    # If any target dimension is smaller than x’s, that’s an error.
+    for i, (cur, tgt) in enumerate(zip(current_shape, target_shape)):
+        if cur > tgt:
+            raise ValueError(
+                f"Cannot pad: dimension {i} of x is {cur}, which is larger than "
+                f"target {tgt}."
+            )
 
-        # Need padding to match the target size
-        elif current_shape[i] < target_shape[i]:
-            padding.append((0, target_shape[i] - current_shape[i]))
+    # If x is already the correct shape, just return it.
+    if current_shape == target_shape:
+        return x
 
-        elif current_shape[i] > target_shape[i]:
-            raise ValueError(f"Target size {target_shape[i]} smaller than current size {current_shape[i]} at dimension {i}")
+    # 1) Make a new tensor of exactly target_shape, filled with pad_value
+    new_tensor = x.new_full(target_shape, pad_value)
 
-    # Apply padding to the tensor (pad in the reverse order)
-    padding = [item for sublist in reversed(padding) for item in sublist]
+    # 2) Build a tuple of slice objects to index the “upper‐left” corner
+    #    (i.e. from 0 to current_shape[i] in each dimension)
+    index_slices = tuple(slice(0, cur) for cur in current_shape)
 
-    return torch.nn.functional.pad(x, padding, value=pad_value)
+    # 3) Copy x into that region
+    new_tensor[index_slices] = x
+
+    return new_tensor
