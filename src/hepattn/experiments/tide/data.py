@@ -81,7 +81,11 @@ class ROIDataset(Dataset):
 
         np.random.seed(self.sampling_seed)
 
-        file_paths = list(Path(self.dirpath).glob("*.h5"))
+        # Files that are available to read from
+        self.available_file_paths = list(Path(self.dirpath).glob("*.h5"))
+
+        # Files that have been registered
+        self.file_paths = []
 
         # Maps the ROI id to the h5 file it is in
         self.roi_id_to_file_path = {}
@@ -97,21 +101,30 @@ class ROIDataset(Dataset):
         # ROIs that have not yet been evaluated on the selection
         self.unevaluated_roi_ids = []
 
+        # At the start, we load enough files so that we will have enough for the requested sample size
+        # As we read through the dataset, some ROIs will be discarded, and so we will load more
+        # files on-demand then as we need
         total_num_rois = 0
+        for file_path in self.available_file_paths:
+            self.register_file(file_path)
+            num_rois = len(self.roi_id_to_file_path)
+            total_num_rois += num_rois
 
-        for file_path in file_paths:
-            with h5py.File(file_path, "r") as file:
-                roi_ids = list(file.keys())
-                total_num_rois += len(roi_ids)
-                print(f"Found {len(roi_ids)} ROIs in {file_path}, total of {total_num_rois}")
+            if total_num_rois >= self.num_samples:
+                print(f"Finished registering {total_num_rois} ROIs from {len(self.file_paths)} files")
+                break
+    
+    def register_file(self, file_path):
+        with h5py.File(file_path, "r") as file:
+            roi_ids = list(file.keys())
+        
+            for roi_id in roi_ids:
+                self.roi_id_to_file_path[roi_id] = file_path
+                self.unevaluated_roi_ids.append(roi_id)
 
-                for roi_id in roi_ids:
-                    self.roi_id_to_file_path[roi_id] = file_path
-                    self.unevaluated_roi_ids.append(roi_id)
-
-                if total_num_rois >= int(self.num_samples / self.selection_pass_rate):
-                    print(f"Read sufficient ROIs given the assumed selection pass rate.")
-                    break
+            print(f"Registered {len(roi_ids)} ROIs from {file_path}")
+            self.file_paths.append(file_path)
+            return
 
     def __len__(self) -> int:
         """Returns the number of samples / ROIs that are available in the dataset after all cuts have been applied."""
@@ -325,8 +338,17 @@ class ROIDataset(Dataset):
             while roi is None:
                 # Check we still have some ROIs left
                 if not len(self.unevaluated_roi_ids) > 0:
-                    raise StopIteration("Ran out of ROIs that pass the selection.")
+                    # If not, we load in more ROIs
+                    print(f"Ran out of ROIs, so loading new file")
+                    unregistered_file_paths = set(self.available_file_paths) - set(self.file_paths)
+                    
+                    # Check if we have no files left and have ran out of ROIs
+                    if len(unregistered_file_paths) == 0:
+                        raise StopIteration("Ran out of ROIs that pass the selection, and have no new files left to read from.")
 
+                    # Load a random How new file then continue
+                    self.register_file(next(iter(unregistered_file_paths)))
+                        
                 # Randomly sample an ID from the set of unevaluated IDs
                 roi_id = random.choice(self.unevaluated_roi_ids)
 
