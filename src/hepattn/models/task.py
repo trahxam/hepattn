@@ -313,13 +313,20 @@ class RegressionTask(Task):
         return {self.output_object + "_" + field: latent[...,i] for i, field in enumerate(self.fields)}
 
     def loss(self, outputs, targets):
-        target = torch.stack([targets[self.target_object + "_" + field] for field in self.fields], dim=-1)[targets[self.target_object + "_valid"]]
-        output = outputs[self.output_object + "_regr"][targets[self.target_object + "_valid"]]
+        target = torch.stack([targets[self.target_object + "_" + field] for field in self.fields], dim=-1)
+        output = outputs[self.output_object + "_regr"]
 
-        loss = torch.nn.functional.mse_loss(output, target, reduction="none")
+        # Only compute loss for valid targets
+        mask = targets[self.target_object + "_valid"].clone()
+        target = target[mask]
+        output = output[mask]
 
-        # Compute average loss over all the features
+        # Compute the loss
+        loss = torch.nn.functional.smooth_l1_loss(output, target, reduction="none")
+
+        # Average over all the features
         loss = torch.mean(loss, dim=-1)
+
         # Compute the regression loss only for valid objects
         return {"mse": self.loss_weight * loss.mean()}
     
@@ -383,8 +390,8 @@ class ObjectHitRegressionTask(RegressionTask):
         self.dim = dim
         self.dim_per_dof = self.dim // self.ndofs
 
-        self.hit_net = Dense(dim, dim)
-        self.object_net = Dense(dim, dim)
+        self.hit_net = Dense(dim, self.ndofs * self.dim_per_dof)
+        self.object_net = Dense(dim, self.ndofs * self.dim_per_dof)
 
     def latent(self, x: dict[str, Tensor], pads: None | dict[str, Tensor] = None) -> Tensor:
         # Embed the hits and tracks and reshape so we have a separate embedding for each DoF

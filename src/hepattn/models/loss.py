@@ -104,6 +104,22 @@ def mask_ce_costs(pred_logits, true):
     return losses
 
 
+def regr_mse_loss(pred, true):
+    return torch.nn.functional.mse_loss(pred, true, reduction="none")
+
+
+def regr_smooth_l1_loss(pred, true):
+    return torch.nn.functional.smooth_l1_loss(pred, true, reduction="none")
+
+
+def regr_mse_costs(pred, true):
+    return torch.nn.functional.mse_loss(pred.unsqueeze(-2), true.unsqueeze(-3), reduction="none")
+
+
+def regr_smooth_l1_costs(pred, true):
+    return torch.nn.functional.mse_loss(pred.unsqueeze(-2), true.unsqueeze(-3), reduction="none")
+
+
 cost_fns = {
     "object_ce": object_ce_costs,
     "mask_ce": mask_ce_costs,
