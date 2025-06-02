@@ -17,9 +17,6 @@ data:
   # Maximum track d0 in mm
   track_max_d0: 100.0
 
-  # Maximum track z0 in mm
-  track_max_d0: 1000.0
-
   # Minimum number of each hit type required to be on a track for it
   # to be deemed reconstructable / not dropped
   track_min_num_hits:
@@ -391,7 +388,7 @@ model:
                   - scaled_dphi
                   - scaled_d0
                   - scaled_dz0
-            
+
             - class_path: hepattn.models.task.ObjectHitRegressionTask
               init_args:
                 name: pred_pix_regression
@@ -405,4 +402,4 @@ model:
                   - loc_x
                   - loc_y
                   - theta
-                  - phi                
+                  - phi

@@ -129,7 +129,7 @@ class ObjectValidTask(Task):
             return None
 
         return outputs[self.output_object + "_logit"].detach().sigmoid() >= threshold
-    
+
 
 class HitFilterTask(Task):
     def __init__(
@@ -301,8 +301,8 @@ class RegressionTask(Task):
         self.k = len(fields)
         # For standard regression number of DoFs is just the number of targets
         self.ndofs = self.k
-    
-    def forward(self, x: dict[str, Tensor], pads: None | dict[str, Tensor] = None) -> dict[str, Tensor]:
+
+    def forward(self, x: dict[str, Tensor], pads: dict[str, Tensor] | None = None) -> dict[str, Tensor]:
         # For a standard regression task, the raw network output is the final prediction
         latent = self.latent(x, pads=pads)
         return {self.output_object + "_regr": latent}
@@ -310,7 +310,7 @@ class RegressionTask(Task):
     def predict(self, outputs):
         # Split the regression vectior into the separate fields
         latent = outputs[self.output_object + "_regr"]
-        return {self.output_object + "_" + field: latent[...,i] for i, field in enumerate(self.fields)}
+        return {self.output_object + "_" + field: latent[..., i] for i, field in enumerate(self.fields)}
 
     def loss(self, outputs, targets):
         target = torch.stack([targets[self.target_object + "_" + field] for field in self.fields], dim=-1)
@@ -328,8 +328,8 @@ class RegressionTask(Task):
         loss = torch.mean(loss, dim=-1)
 
         # Compute the regression loss only for valid objects
-        return {"mse": self.loss_weight * loss.mean()}
-    
+        return {"smooth_l1": self.loss_weight * loss.mean()}
+
     def metrics(self, preds, data):
         metrics = {}
         for field in self.fields:
@@ -363,7 +363,7 @@ class ObjectRegressionTask(RegressionTask):
         self.dim = dim
         self.net = Dense(self.dim, self.ndofs)
 
-    def latent(self, x: dict[str, Tensor], pads: None | dict[str, Tensor] = None) -> Tensor:
+    def latent(self, x: dict[str, Tensor], pads: dict[str, Tensor] | None = None) -> Tensor:
         return self.net(x[self.input_object + "_embed"])
 
 
@@ -393,17 +393,17 @@ class ObjectHitRegressionTask(RegressionTask):
         self.hit_net = Dense(dim, self.ndofs * self.dim_per_dof)
         self.object_net = Dense(dim, self.ndofs * self.dim_per_dof)
 
-    def latent(self, x: dict[str, Tensor], pads: None | dict[str, Tensor] = None) -> Tensor:
+    def latent(self, x: dict[str, Tensor], pads: dict[str, Tensor] | None = None) -> Tensor:
         # Embed the hits and tracks and reshape so we have a separate embedding for each DoF
         x_obj = self.object_net(x[self.input_object + "_embed"])
         x_hit = self.hit_net(x[self.input_hit + "_embed"])
 
-        x_obj = x_obj.reshape(x_obj.size()[:-1] + torch.Size((self.ndofs, self.dim_per_dof))) # Shape BNDE
-        x_hit = x_hit.reshape(x_hit.size()[:-1] + torch.Size((self.ndofs, self.dim_per_dof))) # Shape BMDE
+        x_obj = x_obj.reshape(x_obj.size()[:-1] + torch.Size((self.ndofs, self.dim_per_dof)))  # Shape BNDE
+        x_hit = x_hit.reshape(x_hit.size()[:-1] + torch.Size((self.ndofs, self.dim_per_dof)))  # Shape BMDE
 
         # Take the dot product between the hits and tracks over the last embedding dimension so we are left
         # with just a scalar for each degree of freedom
-        x_obj_hit = torch.einsum("...nie,...mie->...nmi", x_obj, x_hit) # Shape BNMD
+        x_obj_hit = torch.einsum("...nie,...mie->...nmi", x_obj, x_hit)  # Shape BNMD
 
         # If padding data is provided, use it to zero out predictions for any hit slots that are not valid
         if pads is not None:

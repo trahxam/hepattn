@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import numpy as np
 import pytest
 import torch
 import yaml
@@ -19,7 +18,7 @@ class TestROIDataModule:
         config_path = Path("src/hepattn/experiments/tide/configs/regression.yaml")
         config = yaml.safe_load(config_path.read_text())["data"]
         config["num_workers"] = 0
-        config["batch_size"] = 1000
+        config["batch_size"] = 100
         config["num_test"] = 10000
 
         datamodule = ROIDataModule(**config)
@@ -33,16 +32,25 @@ class TestROIDataModule:
 
         output_dir = Path("tests/outputs/tide/")
 
-        inputs, targets = next(data_iterator)
+        inputs, _ = next(data_iterator)
 
         # Plot the global hit cluster coordinates
 
         hits = ["pix", "sct"]
         hit_aliases = {"pix": "Pixel", "sct": "SCT"}
-        field_aliases = {"x": r"$x$", "y": r"$y$", "z": r"$z$", "r": r"$r$", 
-                         "theta": r"$\theta$", "eta": r"$\eta$", "phi": r"$\phi$",
-                         "dtheta": r"$\Delta \theta$", "deta": r"$\Delta \eta$", "dphi": r"$\Delta \phi$",}
-        
+        field_aliases = {
+            "x": r"$x$",
+            "y": r"$y$",
+            "z": r"$z$",
+            "r": r"$r$",
+            "theta": r"$\theta$",
+            "eta": r"$\eta$",
+            "phi": r"$\phi$",
+            "dtheta": r"$\Delta \theta$",
+            "deta": r"$\Delta \eta$",
+            "dphi": r"$\Delta \phi$",
+        }
+
         fields = ["x", "y", "z", "r", "theta", "eta", "phi"]
 
         fig, ax = plt.subplots(len(hits), len(fields))
@@ -90,14 +98,13 @@ class TestROIDataModule:
         fig.tight_layout()
         fig.savefig(output_dir / Path("tide_hit_local_coords.png"))
 
-
     def test_plot_roi_track_vars(self, roi_datamodule):
         dataloader = roi_datamodule.test_dataloader()
         data_iterator = iter(dataloader)
 
         output_dir = Path("tests/outputs/tide/")
 
-        inputs, targets = next(data_iterator)
+        _, targets = next(data_iterator)
 
         tracks = ["sudo", "sisp", "reco"]
         track_aliases = {"sudo": "Pseudo Track", "sisp": "SiSp", "reco": "Reco"}
@@ -148,14 +155,13 @@ class TestROIDataModule:
         fig.tight_layout()
         fig.savefig(output_dir / Path("tide_track_local_coords.png"))
 
-
         fields = ["loc_x", "loc_y", "phi", "theta", "energy"]
 
         fig, ax = plt.subplots(nrows=1, ncols=len(fields))
         fig.set_size_inches(12, 3)
 
         for j, field in enumerate(fields):
-            ax[j].hist(targets[f"sudo_pix_{field}"][targets[f"sudo_pix_valid"]], bins=32, histtype="step")
+            ax[j].hist(targets[f"sudo_pix_{field}"][targets["sudo_pix_valid"]], bins=32, histtype="step")
             ax[j].set_xlabel(rf"{field}")
             ax[j].set_ylabel("Count")
             ax[j].set_yscale("log")

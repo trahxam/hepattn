@@ -17,9 +17,6 @@ data:
   # Maximum track d0 in mm
   track_max_d0: 100.0
 
-  # Maximum track z0 in mm
-  track_max_d0: 1000.0
-
   # Minimum number of each hit type required to be on a track for it
   # to be deemed reconstructable / not dropped
   track_min_num_hits:

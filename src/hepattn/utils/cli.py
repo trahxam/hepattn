@@ -7,7 +7,6 @@ import torch
 from jsonargparse.typing import register_type
 from lightning.pytorch.cli import LightningCLI
 
-
 # For info on why this is needed, see here
 # https://docs.pytorch.org/docs/stable/multiprocessing.html#file-system-file-system
 torch.multiprocessing.set_sharing_strategy("file_system")

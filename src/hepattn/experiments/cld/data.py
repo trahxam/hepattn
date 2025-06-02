@@ -205,7 +205,7 @@ class CLDDataset(Dataset):
 
         for field in particle_mom_fields:
             add_cylindrical_coords("particle", field)
-        
+
         event["particle.mom.qopt"] = event["particle.charge"] / event["particle.mom.r"]
 
         # Merge inputs, first check all requested merged inputs have the same
@@ -237,10 +237,21 @@ class CLDDataset(Dataset):
             mask_dense = np.array(mask_csr.todense())
             event[f"{src}_{tgt}_valid"] = mask_dense
 
-        col_fields = ["pos.x", "pos.y", "pos.z",
-                      "pos.r", "pos.theta", "pos.phi",
-                      "mom.x", "mom.y", "mom.z",
-                      "mom.r", "mom.theta", "mom.phi", "mom.rinv"]
+        col_fields = [
+            "pos.x",
+            "pos.y",
+            "pos.z",
+            "pos.r",
+            "pos.theta",
+            "pos.phi",
+            "mom.x",
+            "mom.y",
+            "mom.z",
+            "mom.r",
+            "mom.theta",
+            "mom.phi",
+            "mom.rinv",
+        ]
         con_fields = ["energy", "log_energy"]
 
         particle_trkrhit_fields = {("particle", f"{hit}_col", hit): col_fields for hit in trkr_hits}

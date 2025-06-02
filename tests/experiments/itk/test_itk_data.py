@@ -66,7 +66,6 @@ class TestITkEvent:
 
         return dataset
 
-
     def test_itk_event_display(self, itk_event):
         # Plot an event display directly from dataloader to verify things look correct
         inputs, targets = itk_event

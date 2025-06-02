@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import numpy as np
 import pytest
 import torch
 import yaml
@@ -33,7 +32,7 @@ class TestROIDataModule:
 
         output_dir = Path("tests/outputs/tide/")
 
-        inputs, targets = next(data_iterator)
+        inputs, _ = next(data_iterator)
 
         # Plot the histogram for the values of the charge matrices
 

@@ -36,12 +36,12 @@ def pad_to_size(x: torch.Tensor, target_shape: tuple, pad_value: float):
     than target_shape, raises a ValueError.
 
     Args:
-        x           (torch.Tensor): any‐shaped tensor
+        x           (torch.Tensor): any shaped tensor
         target_shape (tuple[int]):   desired shape (must have same length as x.dim())
         pad_value    (float): default fill for the padded region
 
     Returns:
-        torch.Tensor of shape `target_shape`, where the “upper‐left” block is x
+        torch.Tensor of shape `target_shape`, where the upper left block is x
         and the rest is `pad_value`.
 
     Raises:
@@ -49,31 +49,24 @@ def pad_to_size(x: torch.Tensor, target_shape: tuple, pad_value: float):
     """
     current_shape = tuple(x.shape)
     if len(target_shape) != x.dim():
-        raise ValueError(
-            f"Target shape must have the same number of dimensions as x: "
-            f"{current_shape} vs {target_shape}"
-        )
+        raise ValueError(f"Target shape must have the same number of dimensions as x: {current_shape} vs {target_shape}")
 
-    # If any target dimension is smaller than x’s, that’s an error.
-    for i, (cur, tgt) in enumerate(zip(current_shape, target_shape)):
+    # Check if any target dimension is smaller than x
+    for i, (cur, tgt) in enumerate(zip(current_shape, target_shape, strict=False)):
         if cur > tgt:
-            raise ValueError(
-                f"Cannot pad: dimension {i} of x is {cur}, which is larger than "
-                f"target {tgt}."
-            )
+            raise ValueError(f"Cannot pad: dimension {i} of x is {cur}, which is larger than target {tgt}.")
 
-    # If x is already the correct shape, just return it.
+    # If x is already the correct shape, just return it
     if current_shape == target_shape:
         return x
 
-    # 1) Make a new tensor of exactly target_shape, filled with pad_value
+    # Make a new tensor of exactly target_shape, filled with pad_value
     new_tensor = x.new_full(target_shape, pad_value)
 
-    # 2) Build a tuple of slice objects to index the “upper‐left” corner
-    #    (i.e. from 0 to current_shape[i] in each dimension)
+    # Build a tuple of slice objects to index the upper left corner
     index_slices = tuple(slice(0, cur) for cur in current_shape)
 
-    # 3) Copy x into that region
+    # Copy x into that region
     new_tensor[index_slices] = x
 
     return new_tensor

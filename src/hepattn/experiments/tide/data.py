@@ -26,9 +26,8 @@ def wrap_phi(x: np.ndarray) -> np.ndarray:
 
 def theta_to_eta(theta: np.ndarray, theta_clip=0.1) -> np.ndarray:
     """Converts theta to eta, clipping theta in the case that it is 0 or pi."""
-    theta = np.clip(theta, theta_clip,  np.pi - theta_clip)
+    theta = np.clip(theta, theta_clip, np.pi - theta_clip)
     return -np.log(np.tan(theta / 2))
-
 
 
 class ROIDataset(Dataset):
@@ -113,11 +112,11 @@ class ROIDataset(Dataset):
             if total_num_rois >= self.num_samples:
                 print(f"Finished registering {total_num_rois} ROIs from {len(self.file_paths)} files")
                 break
-    
+
     def register_file(self, file_path):
         with h5py.File(file_path, "r") as file:
             roi_ids = list(file.keys())
-        
+
             for roi_id in roi_ids:
                 self.roi_id_to_file_path[roi_id] = file_path
                 self.unevaluated_roi_ids.append(roi_id)
@@ -184,7 +183,7 @@ class ROIDataset(Dataset):
                 roi[f"{track}_dtheta"] = roi[f"{track}_theta"] - roi["roi_theta"]
                 roi[f"{track}_dphi"] = wrap_phi(roi[f"{track}_phi"] - roi["roi_phi"])
                 roi[f"{track}_dz0"] = roi[f"{track}_z0"] - roi["roi_z0"]
-                
+
                 # Convert the track pT from MeV to GeV
                 roi[f"{track}_pt"] *= 0.001
                 roi[f"{track}_qopt"] = roi[f"{track}_q"] / roi[f"{track}_pt"]
@@ -273,8 +272,8 @@ class ROIDataset(Dataset):
                     roi[f"{hit}_mod_loc_{coord}"] = file[f"{roi_id}/{hit}_mod_loc_{coord}"][:]
 
                 # Add conformal coordinates
-                roi[f"{hit}_u"] = roi[f"{hit}_x"] / (roi[f"{hit}_x"]**2 + roi[f"{hit}_y"]**2)
-                roi[f"{hit}_v"] = roi[f"{hit}_y"] / (roi[f"{hit}_x"]**2 + roi[f"{hit}_y"]**2)
+                roi[f"{hit}_u"] = roi[f"{hit}_x"] / (roi[f"{hit}_x"] ** 2 + roi[f"{hit}_y"] ** 2)
+                roi[f"{hit}_v"] = roi[f"{hit}_y"] / (roi[f"{hit}_x"] ** 2 + roi[f"{hit}_y"] ** 2)
 
                 # Mark the hits as valid inputs
                 roi[f"{hit}_valid"] = np.full_like(roi[f"{hit}_x"], True)
@@ -297,7 +296,7 @@ class ROIDataset(Dataset):
             # SCT specific fields
             for field in ["side", "width"]:
                 roi[f"sct_{field}"] = file[f"{roi_id}/sct_{field}"][:]
-            
+
             # Check the number of tracks that were dropped
             num_tracks_pre_cuts = len(roi[f"{track}_valid"])
             num_tracks_post_cuts = roi[f"{track}_valid"].sum()
@@ -306,7 +305,7 @@ class ROIDataset(Dataset):
             # Drop the ROI if we no longer have enough tracks after cuts
             if num_tracks_post_cuts < self.roi_min_num_tracks:
                 return None
-            
+
             # Drop any ROIs that dropped more tracks than allowed
             if num_dropped_tracks > self.roi_max_num_dropped_tracks:
                 return None
@@ -341,14 +340,14 @@ class ROIDataset(Dataset):
                     # If not, we load in more ROIs
                     print(f"Ran out of ROIs, so loading new file")
                     unregistered_file_paths = set(self.available_file_paths) - set(self.file_paths)
-                    
+
                     # Check if we have no files left and have ran out of ROIs
                     if len(unregistered_file_paths) == 0:
                         raise StopIteration("Ran out of ROIs that pass the selection, and have no new files left to read from.")
 
                     # Load a random How new file then continue
                     self.register_file(next(iter(unregistered_file_paths)))
-                        
+
                 # Randomly sample an ID from the set of unevaluated IDs
                 roi_id = random.choice(self.unevaluated_roi_ids)
 
