@@ -247,6 +247,8 @@ class CLDDataset(Dataset):
             "pos.r",
             "pos.theta",
             "pos.phi",
+            "pos.sinphi",
+            "pos.cosphi",
             "mom.x",
             "mom.y",
             "mom.z",
@@ -254,6 +256,8 @@ class CLDDataset(Dataset):
             "mom.theta",
             "mom.phi",
             "mom.rinv",
+            "mom.sinphi",
+            "mom.cosphi",
         ]
         con_fields = ["energy", "log_energy"]
 
