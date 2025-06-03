@@ -7,15 +7,6 @@ import torch
 from jsonargparse.typing import register_type
 from lightning.pytorch.cli import LightningCLI
 
-# For info on why this is needed, see
-# https://discuss.pytorch.org/t/runtimeerror-received-0-items-of-ancdata/4999
-# https://docs.pytorch.org/docs/stable/multiprocessing.html#file-system-file-system
-torch.multiprocessing.set_sharing_strategy("file_system")
-
-# Similarly, see here for this
-# https://docs.pytorch.org/docs/stable/generated/torch.set_float32_matmul_precision.html
-torch.set_float32_matmul_precision("high")
-
 
 # Add support for converting yaml lists to tensors
 def serializer(x: torch.Tensor) -> list:
@@ -56,13 +47,22 @@ def get_best_epoch(config_path: Path) -> Path:
 
 class CLI(LightningCLI):
     def add_arguments_to_parser(self, parser) -> None:
-        parser.add_argument("--name", default="hepformer", help="Name for this training run.")
+        parser.add_argument("--name", default="hepattn", help="Name for this training run.")
         parser.link_arguments("name", "trainer.logger.init_args.experiment_name")
         parser.link_arguments("name", "model.name")
         parser.link_arguments("trainer.default_root_dir", "trainer.logger.init_args.save_dir")
+        parser.add_argument("trainer.multiprocessing_sharing_strategy", default="file_descriptor", help="Set multiprocess sharing strategy")
+        parser.add_argument("trainer.float32_matmul_precision", default="medium", help="Set float32 matmul precision")
 
     def before_instantiate_classes(self) -> None:
         sc = self.config[self.subcommand]
+
+        # Set global torch flags via CLI args
+        if "trainer.multiprocessing_sharing_strategy" in sc:
+            torch.multiprocessing.set_sharing_strategy(sc["trainer.multiprocessing_sharing_strategy"])
+
+        if "trainer.float32_matmul_precision" in sc:
+            torch.set_float32_matmul_precision(sc["trainer.float32_matmul_precision"])
 
         if self.subcommand == "fit":
             # Get timestamped output dir for this run

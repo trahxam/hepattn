@@ -198,6 +198,8 @@ trainer:
   accumulate_grad_batches: 1
   enable_progress_bar: True
   val_check_interval: 1000
+  float32_matmul_precision: high
+  multiprocessing_sharing_strategy: file_system
 
   # Specify loggers here
   logger:

@@ -330,15 +330,18 @@ class RegressionTask(Task):
         # Compute the regression loss only for valid objects
         return {"smooth_l1": self.loss_weight * loss.mean()}
 
-    def metrics(self, preds, data):
+    def metrics(self, preds, targets):
         metrics = {}
         for field in self.fields:
+            # Get the target and prediction only for valid targets
+            pred = preds[self.output_object + "_" + field][targets[self.target_object + "_valid"]]
+            target = targets[self.target_object + "_" + field][targets[self.target_object + "_valid"]]
             # Get the error between the prediction and target for this field
-            err = preds[self.output_object + "_" + field] - data[self.target_object + "_" + field]
-            # Select the error only for valid tracks
-            err = err[data[self.target_object + "_valid"]]
+            err = pred - target
             # Compute the RMSE and log it
             metrics[field + "_rmse"] = torch.sqrt(torch.mean(torch.square(err)))
+            # Compute the relative error / resolution and log it 
+            metrics[field + "_resl"] = err / target
 
         return metrics
 
