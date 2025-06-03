@@ -51,18 +51,9 @@ class CLI(LightningCLI):
         parser.link_arguments("name", "trainer.logger.init_args.experiment_name")
         parser.link_arguments("name", "model.name")
         parser.link_arguments("trainer.default_root_dir", "trainer.logger.init_args.save_dir")
-        parser.add_argument("trainer.multiprocessing_sharing_strategy", default="file_descriptor", help="Set multiprocess sharing strategy")
-        parser.add_argument("trainer.float32_matmul_precision", default="medium", help="Set float32 matmul precision")
 
     def before_instantiate_classes(self) -> None:
         sc = self.config[self.subcommand]
-
-        # Set global torch flags via CLI args
-        if "trainer.multiprocessing_sharing_strategy" in sc:
-            torch.multiprocessing.set_sharing_strategy(sc["trainer.multiprocessing_sharing_strategy"])
-
-        if "trainer.float32_matmul_precision" in sc:
-            torch.set_float32_matmul_precision(sc["trainer.float32_matmul_precision"])
 
         if self.subcommand == "fit":
             # Get timestamped output dir for this run

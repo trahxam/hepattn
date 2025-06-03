@@ -300,7 +300,6 @@ trainer:
   gradient_clip_val: 0.1
   accumulate_grad_batches: 1
   enable_progress_bar: True
-  float32_matmul_precision: high
 
   # Specify loggers here
   logger:
@@ -614,7 +613,7 @@ model:
                   - vtx.x
                   - vtx.y
                   - vtx.z
-            
+
             - class_path: hepattn.models.task.ObjectHitRegressionTask
               init_args:
                 name: flow_vtxd_regression
@@ -628,7 +627,7 @@ model:
                   - mom.rinv
                   - mom.theta
                   - mom.phi
-            
+
             - class_path: hepattn.models.task.ObjectHitRegressionTask
               init_args:
                 name: flow_trkr_regression
@@ -642,7 +641,7 @@ model:
                   - mom.rinv
                   - mom.theta
                   - mom.phi
-            
+
             - class_path: hepattn.models.task.ObjectHitRegressionTask
               init_args:
                 name: flow_ecal_regression
@@ -654,7 +653,7 @@ model:
                 loss_weight: 0.05
                 fields:
                   - log_energy
-            
+
             - class_path: hepattn.models.task.ObjectHitRegressionTask
               init_args:
                 name: flow_hcal_regression

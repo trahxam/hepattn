@@ -340,7 +340,7 @@ class RegressionTask(Task):
             err = pred - target
             # Compute the RMSE and log it
             metrics[field + "_rmse"] = torch.sqrt(torch.mean(torch.square(err)))
-            # Compute the relative error / resolution and log it 
+            # Compute the relative error / resolution and log it
             metrics[field + "_resl"] = err / target
 
         return metrics
