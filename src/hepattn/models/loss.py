@@ -32,7 +32,7 @@ def mask_dice_loss(pred_logits, true, mask=None, weight=None, eps=1e-6):
 
 
 def mask_dice_costs(pred_logits, true, eps=1e-6):
-    num_pred = pred.sum(-1).unsqueeze(2)
+    num_pred = pred_logits.sum(-1).unsqueeze(2)
     num_true = true.sum(-1).unsqueeze(1)
 
     # Context manager necessary to overwride global autocast to ensure float32 cost is returned
@@ -45,7 +45,7 @@ def mask_dice_costs(pred_logits, true, eps=1e-6):
 
 
 def mask_iou_costs(pred_logits, true, eps=1e-6):
-    num_pred = pred.sum(-1).unsqueeze(2)
+    num_pred = pred_logits.sum(-1).unsqueeze(2)
     num_true = true.sum(-1).unsqueeze(1)
 
     # Context manager necessary to overwride global autocast to ensure float32 cost is returned
