@@ -7,7 +7,8 @@ import torch
 from jsonargparse.typing import register_type
 from lightning.pytorch.cli import LightningCLI
 
-# For info on why this is needed, see here
+# For info on why this is needed, see
+# https://discuss.pytorch.org/t/runtimeerror-received-0-items-of-ancdata/4999
 # https://docs.pytorch.org/docs/stable/multiprocessing.html#file-system-file-system
 torch.multiprocessing.set_sharing_strategy("file_system")
 
