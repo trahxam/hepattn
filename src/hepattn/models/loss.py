@@ -1,8 +1,6 @@
 import torch
 import torch.nn.functional as F
 
-eps = 1e-6
-
 
 def object_ce_loss(pred_logits, true, mask=None, weight=None):  # noqa: ARG001
     # TODO: Add support for mask?
@@ -11,17 +9,18 @@ def object_ce_loss(pred_logits, true, mask=None, weight=None):  # noqa: ARG001
 
 
 def object_ce_costs(pred_logits, true):
-    losses = F.binary_cross_entropy_with_logits(
+    costs = F.binary_cross_entropy_with_logits(
         pred_logits.unsqueeze(2).expand(-1, -1, true.shape[1]), true.unsqueeze(1).expand(-1, pred_logits.shape[1], -1), reduction="none"
     )
-    return losses
+    return costs
 
 
-def mask_dice_loss(pred_logits, true, mask=None, weight=None):
+def mask_dice_loss(pred_logits, true, mask=None, weight=None, eps=1e-6):
     pred = pred_logits.sigmoid()
-    num = 2 * (pred * true)
-    den = (pred.sum(-1) + true.sum(-1)).unsqueeze(-1)
-    losses = 1 - (num + 1) / (den + 1)
+    intersection = pred * true
+    num_pred = pred.sum(-1).unsqueeze(-1)
+    num_true = true.sum(-1).unsqueeze(-1)
+    losses = 1 - (intersection + eps) / (num_pred + num_true + eps)
 
     if weight is not None:
         losses *= weight
@@ -32,21 +31,29 @@ def mask_dice_loss(pred_logits, true, mask=None, weight=None):
     return losses.mean()
 
 
-def mask_dice_costs(pred_logits, true):
-    pred = pred_logits.sigmoid()
-    intersection = 2 * torch.einsum("bnc,bmc->bnm", pred, true)
-    num_pred = pred.sum(-1).unsqueeze(2)
+def mask_dice_costs(pred_logits, true, eps=1e-6):
+    num_pred = pred_logits.sum(-1).unsqueeze(2)
     num_true = true.sum(-1).unsqueeze(1)
-    losses = 1 - (2 * intersection + eps) / (num_pred + num_true + eps)
-    return losses
+
+    # Context manager necessary to overwride global autocast to ensure float32 cost is returned
+    with torch.autocast(device_type="cuda", enabled=False):
+        pred = pred_logits.sigmoid()
+        intersection = torch.einsum("bnc,bmc->bnm", pred, true)
+        costs = 1 - (2 * intersection + eps) / (num_pred + num_true + eps)
+
+    return costs
 
 
-def mask_iou_costs(pred_logits, true):
-    pred = pred_logits.sigmoid()
-    intersection = torch.einsum("bnc,bmc->bnm", pred, true)
-    num_pred = pred.sum(-1).unsqueeze(2)
+def mask_iou_costs(pred_logits, true, eps=1e-6):
+    num_pred = pred_logits.sum(-1).unsqueeze(2)
     num_true = true.sum(-1).unsqueeze(1)
-    costs = 1 - (intersection + eps) / (eps + num_pred + num_true - intersection)
+
+    # Context manager necessary to overwride global autocast to ensure float32 cost is returned
+    with torch.autocast(device_type="cuda", enabled=False):
+        pred = pred_logits.sigmoid()
+        intersection = torch.einsum("bnc,bmc->bnm", pred, true)
+        costs = 1 - (intersection + eps) / (eps + num_pred + num_true - intersection)
+
     return costs
 
 
@@ -77,8 +84,12 @@ def mask_focal_costs(pred_logits, true, alpha=-1.0, gamma=2.0):
     if alpha >= 0:
         focal_pos *= alpha
         focal_neg *= 1 - alpha
-    losses = torch.einsum("bnc,bmc->bnm", focal_pos, true) + torch.einsum("bnc,bmc->bnm", focal_neg, (1 - true))
-    return losses
+
+    # Context manager necessary to overwride global autocast to ensure float32 cost is returned
+    with torch.autocast(device_type="cuda", enabled=False):
+        costs = torch.einsum("bnc,bmc->bnm", focal_pos, true) + torch.einsum("bnc,bmc->bnm", focal_neg, (1 - true))
+
+    return costs
 
 
 def mask_ce_loss(pred_logits, true, mask=None, weight=None):
@@ -96,12 +107,27 @@ def mask_ce_costs(pred_logits, true):
     pos = F.binary_cross_entropy_with_logits(pred_logits, torch.ones_like(pred_logits), reduction="none")
     neg = F.binary_cross_entropy_with_logits(pred_logits, torch.zeros_like(pred_logits), reduction="none")
 
-    # Context manager is necessary as otherwise einsum migh return float16 if the global
-    # autocast conext has been set by lightning
+    # Context manager necessary to overwride global autocast to ensure float32 cost is returned
     with torch.autocast(device_type="cuda", enabled=False):
-        losses = torch.einsum("bnc,bmc->bnm", pos, true) + torch.einsum("bnc,bmc->bnm", neg, (1 - true))
+        costs = torch.einsum("bnc,bmc->bnm", pos, true) + torch.einsum("bnc,bmc->bnm", neg, (1 - true))
 
-    return losses
+    return costs
+
+
+def regr_mse_loss(pred, true):
+    return torch.nn.functional.mse_loss(pred, true, reduction="none")
+
+
+def regr_smooth_l1_loss(pred, true):
+    return torch.nn.functional.smooth_l1_loss(pred, true, reduction="none")
+
+
+def regr_mse_costs(pred, true):
+    return torch.nn.functional.mse_loss(pred.unsqueeze(-2), true.unsqueeze(-3), reduction="none")
+
+
+def regr_smooth_l1_costs(pred, true):
+    return torch.nn.functional.mse_loss(pred.unsqueeze(-2), true.unsqueeze(-3), reduction="none")
 
 
 cost_fns = {

@@ -9,6 +9,28 @@ plt.rcParams["figure.dpi"] = 300
 torch.manual_seed(42)
 
 
+def test_all_empty():
+    x = torch.empty((0, 0, 0))
+    d = (0, 0, 0)
+    padded = pad_to_size(x, d, pad_value=0)
+    assert torch.equal(padded, x)
+    assert padded.shape == torch.Size(d)
+
+
+def test_empty_after_nopad():
+    x = torch.empty((1, 39, 0))
+    d = (1, 39, 0)
+    padded = pad_to_size(x, d, pad_value=0)
+    assert padded.shape == torch.Size(d)
+
+
+def test_empty_after_pad():
+    x = torch.empty((1, 39, 0))
+    d = (1, 96, 0)
+    padded = pad_to_size(x, d, pad_value=0)
+    assert padded.shape == torch.Size(d)
+
+
 def test_no_padding_needed():
     x = torch.tensor([[1, 2], [3, 4]])
     d = (2, 2)

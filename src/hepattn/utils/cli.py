@@ -8,15 +8,6 @@ from jsonargparse.typing import register_type
 from lightning.pytorch.cli import LightningCLI
 
 
-# For info on why this is needed, see here
-# https://docs.pytorch.org/docs/stable/multiprocessing.html#file-system-file-system
-torch.multiprocessing.set_sharing_strategy("file_system")
-
-# Similarly, see here for this
-# https://docs.pytorch.org/docs/stable/generated/torch.set_float32_matmul_precision.html
-torch.set_float32_matmul_precision("high")
-
-
 # Add support for converting yaml lists to tensors
 def serializer(x: torch.Tensor) -> list:
     return x.tolist()
@@ -56,7 +47,7 @@ def get_best_epoch(config_path: Path) -> Path:
 
 class CLI(LightningCLI):
     def add_arguments_to_parser(self, parser) -> None:
-        parser.add_argument("--name", default="hepformer", help="Name for this training run.")
+        parser.add_argument("--name", default="hepattn", help="Name for this training run.")
         parser.link_arguments("name", "trainer.logger.init_args.experiment_name")
         parser.link_arguments("name", "model.name")
         parser.link_arguments("trainer.default_root_dir", "trainer.logger.init_args.save_dir")

@@ -26,6 +26,7 @@ class CLDDataset(Dataset):
         charged_particle_max_num_hits: dict[str, int] | None = None,
         neutral_particle_min_num_hits: dict[str, int] | None = None,
         neutral_particle_max_num_hits: dict[str, int] | None = None,
+        particle_max_abs_eta: float = 4.0,
         particle_hit_min_p_ratio: dict[str, float] | None = None,
         particle_hit_deflection_cuts: dict[str, dict] | None = None,
         particle_hit_separation_cuts: dict[str, dict] | None = None,
@@ -66,6 +67,7 @@ class CLDDataset(Dataset):
         self.charged_particle_max_num_hits = charged_particle_max_num_hits
         self.neutral_particle_min_num_hits = neutral_particle_min_num_hits
         self.neutral_particle_max_num_hits = neutral_particle_max_num_hits
+        self.particle_max_abs_eta = particle_max_abs_eta
         self.particle_hit_min_p_ratio = particle_hit_min_p_ratio
         self.particle_hit_deflection_cuts = particle_hit_deflection_cuts
         self.particle_hit_separation_cuts = particle_hit_separation_cuts
@@ -132,7 +134,9 @@ class CLDDataset(Dataset):
             event[f"{i}.{p}.theta"] = np.arccos(event[f"{i}.{p}.z"] / event[f"{i}.{p}.s"])
             event[f"{i}.{p}.eta"] = -np.log(np.tan(event[f"{i}.{p}.theta"] / 2))
             event[f"{i}.{p}.phi"] = np.arctan2(event[f"{i}.{p}.y"], event[f"{i}.{p}.x"])
-
+            event[f"{i}.{p}.rinv"] = 1.0 / event[f"{i}.{p}.r"]
+            event[f"{i}.{p}.sinphi"] = np.sin(event[f"{i}.{p}.phi"])
+            event[f"{i}.{p}.cosphi"] = np.cos(event[f"{i}.{p}.phi"])
             event[f"{i}.{p}.theta_drad"] = 100 * event[f"{i}.{p}.theta"]
             event[f"{i}.{p}.eta_drad"] = 100 * event[f"{i}.{p}.eta"]
             event[f"{i}.{p}.phi_drad"] = 100 * event[f"{i}.{p}.phi"]
@@ -180,6 +184,11 @@ class CLDDataset(Dataset):
             add_cylindrical_coords(item, "step_pos")
             add_conformal_coords(item, "step_pos")
 
+            mask = event[f"{item}.energy"] >= 1e-6
+            event[f"{item}.energy"][np.invert(mask)] = 0.0
+            event[f"{item}.log_energy"] = np.zeros_like(event[f"{item}.energy"])
+            event[f"{item}.log_energy"][mask] = np.log10(1.0 + (event[f"{item}.energy"][mask] * 1e6))
+
         # Add the log of the energy, useful for training over large dynamic range
         for item in calo_hits:
             add_log_energy(item)
@@ -199,6 +208,8 @@ class CLDDataset(Dataset):
 
         for field in particle_mom_fields:
             add_cylindrical_coords("particle", field)
+
+        event["particle.mom.qopt"] = event["particle.charge"] / event["particle.mom.r"]
 
         # Merge inputs, first check all requested merged inputs have the same
         # fields and that the fields are given in the same order
@@ -229,8 +240,26 @@ class CLDDataset(Dataset):
             mask_dense = np.array(mask_csr.todense())
             event[f"{src}_{tgt}_valid"] = mask_dense
 
-        col_fields = ["pos.x", "pos.y", "pos.z", "mom.x", "mom.y", "mom.z"]
-        con_fields = ["energy"]
+        col_fields = [
+            "pos.x",
+            "pos.y",
+            "pos.z",
+            "pos.r",
+            "pos.theta",
+            "pos.phi",
+            "pos.sinphi",
+            "pos.cosphi",
+            "mom.x",
+            "mom.y",
+            "mom.z",
+            "mom.r",
+            "mom.theta",
+            "mom.phi",
+            "mom.rinv",
+            "mom.sinphi",
+            "mom.cosphi",
+        ]
+        con_fields = ["energy", "log_energy"]
 
         particle_trkrhit_fields = {("particle", f"{hit}_col", hit): col_fields for hit in trkr_hits}
         particle_calohit_fields = {("particle", f"{hit}_con", hit): con_fields for hit in calo_hits}
@@ -272,6 +301,9 @@ class CLDDataset(Dataset):
 
         # Set which particles we deem to be targets / reconstructable
         particle_cuts = {"min_pt": event["particle.mom.r"] >= self.particle_min_pt}
+
+        # Add the eta cut
+        particle_cuts["max_eta"] = np.abs(event["particle.mom.eta"]) <= self.particle_max_abs_eta
 
         if not self.include_charged:
             particle_cuts["not_charged"] = ~event["particle.isCharged"]
