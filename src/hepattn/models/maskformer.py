@@ -16,6 +16,7 @@ class MaskFormer(nn.Module):
         dim: int,
         matcher: nn.Module | None = None,
         input_sort_field: str | None = None,
+        record_intermediate_embeddings: bool = False,
         use_attn_masks: bool = True,
         use_query_masks: bool = True,
     ):
@@ -54,6 +55,7 @@ class MaskFormer(nn.Module):
         self.num_queries = num_queries
         self.query_initial = nn.Parameter(torch.randn(num_queries, dim))
         self.input_sort_field = input_sort_field
+        self.record_intermediate_embeddings = record_intermediate_embeddings
         self.use_attn_masks = use_attn_masks
         self.use_query_masks = use_query_masks
 
@@ -118,6 +120,10 @@ class MaskFormer(nn.Module):
                 task_outputs = task(x)
 
                 outputs[f"layer_{layer_index}"][task.name] = task_outputs
+
+                if self.record_intermediate_embeddings:
+                    for input_embed in task.inputs:
+                        outputs[f"layer_{layer_index}"][input_embed] = x[input_embed].clone()
 
                 # Here we check if each task has an attention mask to contribute, then after
                 # we fill in any attention masks for any features that did not get an attention mask

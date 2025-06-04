@@ -31,7 +31,7 @@ cd /home/syw24/ftag/hepattn
 echo "Moved dir, now in: ${PWD}"
 
 # Set tmpdir
-export TMPDIR=/share/rcifdata/maxhart/tmp/
+export TMPDIR=/home/syw24/tmp
 
 # Run the training
 echo "Running training script..."
@@ -39,8 +39,9 @@ echo "Running training script..."
 # Python command that will be run
 CONFIG_PATH="/home/syw24/ftag/hepattn/logs/CLD_TRKECALHCAL_16_96_TF_charged_10MeV_F16_manypass_20250529-T024522/config.yaml"
 CKPT_PATH="/home/syw24/ftag/hepattn/logs/CLD_TRKECALHCAL_16_96_TF_charged_10MeV_F16_manypass_20250529-T024522/ckpts/epoch=007-train_loss=0.95565.ckpt"
-PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config $CONFIG_PATH --ckpt_path $CKPT_PATH"
-# PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config src/hepattn/experiments/cld/configs/tracking.yaml "
+# PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config $CONFIG_PATH --ckpt_path $CKPT_PATH"
+# PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config $CONFIG_PATH"
+PYTORCH_CMD="python src/hepattn/experiments/cld/main.py test --config $CONFIG_PATH --ckpt_path $CKPT_PATH"
 
 # Pixi commnand that runs the python command inside the pixi env
 PIXI_CMD="pixi run $PYTORCH_CMD"

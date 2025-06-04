@@ -25,9 +25,9 @@ def sigmoid(x):
 
 
 def main():
-    config_path = Path("/home/syw24/ftag/hepattn/logs/CLD_10_96_TF_charged_10MeV_10GA_20250526-T225156/config.yaml")
+    config_path = Path("/home/syw24/ftag/hepattn/logs/CLD_TRKECALHCAL_16_96_TF_charged_10MeV_F16_manypass_20250529-T024522/config.yaml")
     eval_path = Path(
-        "/home/syw24/ftag/hepattn/logs/CLD_10_96_TF_charged_10MeV_10GA_20250526-T225156/ckpts/epoch=009-train_loss=20.88666_train_eval.h5"
+        "/home/syw24/ftag/hepattn/logs/CLD_TRKECALHCAL_16_96_TF_charged_10MeV_F16_manypass_20250529-T024522/ckpts/epoch=007-train_loss=0.95565_train_eval.h5"
     )
 
     # Now create the dataset
