@@ -330,7 +330,7 @@ def _plot_matched_processed_particle(
             },
         )
 
-        t_post = inputs_post[f"{input_name}_time"][batch_idx][post_idx]
+        t_post = inputs_post[f"{input_name}_time"][batch_idx][mask_post]
         idx_post = torch.argsort(t_post, dim=-1)
         ax.plot(
             x_post[idx_post],
