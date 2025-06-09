@@ -106,8 +106,7 @@ class ROIDataset(Dataset):
         total_num_rois = 0
         for file_path in self.available_file_paths:
             self.register_file(file_path)
-            num_rois = len(self.roi_id_to_file_path)
-            total_num_rois += num_rois
+            total_num_rois += len(self.roi_id_to_file_path)
 
             if total_num_rois >= self.num_samples:
                 print(f"Finished registering {total_num_rois} ROIs from {len(self.file_paths)} files")
