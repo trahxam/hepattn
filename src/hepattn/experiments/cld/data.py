@@ -302,6 +302,24 @@ class CLDDataset(Dataset):
         # Set which particles we deem to be targets / reconstructable
         particle_cuts = {"min_pt": event["particle.mom.r"] >= self.particle_min_pt}
 
+        # Place a max no. of sihit cut first to get rid of looper tracks
+        n_vtxd = event["particle_vtxd_valid"].sum(-1)
+        n_trkr = event["particle_trkr_valid"].sum(-1)
+        n_ecal = event["particle_ecal_valid"].sum(-1)
+        n_hcal = event["particle_hcal_valid"].sum(-1)
+        n_sihit = n_vtxd + n_trkr
+        n_calo = n_ecal + n_hcal
+
+        if isinstance(self.charged_particle_max_num_hits, dict):
+            for hit_name, max_num_hits in self.charged_particle_max_num_hits.items():
+                particle_cuts[f"before_cut_charged_max_{hit_name}"] = ~(
+                    event["particle.isCharged"] & (event[f"particle_{hit_name}_valid"].sum(-1) > (max_num_hits + 2))
+                )
+        else:
+            particle_cuts["before_cut_charged_max_sihits"] = ~(
+                event["particle.isCharged"] & (n_sihit > (self.charged_particle_max_num_hits + 2)) & (n_calo == 0)
+            )
+
         # Add the eta cut
         particle_cuts["max_eta"] = np.abs(event["particle.mom.eta"]) <= self.particle_max_abs_eta
 
@@ -325,25 +343,31 @@ class CLDDataset(Dataset):
 
         # Apply hit cuts based on angular deflection
         for item_name, cut in self.particle_hit_deflection_cuts.items():
-            for _ in range(cut["num_passes"]):
-                mask = event[f"particle_{item_name}_valid"]
+            time_ordering = np.argsort(event[f"{item_name}.time"])
+            inverse_ordering = np.argsort(time_ordering)
 
-                px = np.ma.masked_array(event[f"particle_{item_name}.mom.x"], mask=~mask)
-                py = np.ma.masked_array(event[f"particle_{item_name}.mom.y"], mask=~mask)
-                pz = np.ma.masked_array(event[f"particle_{item_name}.mom.z"], mask=~mask)
+            for _ in range(cut["num_passes"]):
+                mask = event[f"particle_{item_name}_valid"][..., time_ordering]
+
+                px = np.ma.masked_array(event[f"particle_{item_name}.mom.x"][..., time_ordering], mask=~mask)
+                py = np.ma.masked_array(event[f"particle_{item_name}.mom.y"][..., time_ordering], mask=~mask)
+                pz = np.ma.masked_array(event[f"particle_{item_name}.mom.z"][..., time_ordering], mask=~mask)
 
                 angle_diff = masked_angle_diff_last_axis(px, py, pz, ~mask).filled(0.0)
 
-                event[f"particle_{item_name}_valid"] = event[f"particle_{item_name}_valid"] & (angle_diff <= cut["max_angle"])
+                event[f"particle_{item_name}_valid"] = (mask & (angle_diff <= cut["max_angle"]))[..., inverse_ordering]
 
         # Apply hit cuts based on distance between consecutive hits on particles
         for item_name, cut in self.particle_hit_separation_cuts.items():
-            for _ in range(cut["num_passes"]):
-                mask = event[f"particle_{item_name}_valid"]
+            time_ordering = np.argsort(event[f"{item_name}.time"])
+            inverse_ordering = np.argsort(time_ordering)
 
-                x = np.ma.masked_array(mask * event[f"{item_name}.pos.x"][..., None, :], mask=~mask)
-                y = np.ma.masked_array(mask * event[f"{item_name}.pos.y"][..., None, :], mask=~mask)
-                z = np.ma.masked_array(mask * event[f"{item_name}.pos.z"][..., None, :], mask=~mask)
+            for _ in range(cut["num_passes"]):
+                mask = event[f"particle_{item_name}_valid"][..., time_ordering]
+
+                x = np.ma.masked_array(mask * event[f"{item_name}.pos.x"][..., None, :][..., time_ordering], mask=~mask)
+                y = np.ma.masked_array(mask * event[f"{item_name}.pos.y"][..., None, :][..., time_ordering], mask=~mask)
+                z = np.ma.masked_array(mask * event[f"{item_name}.pos.z"][..., None, :][..., time_ordering], mask=~mask)
 
                 dx = masked_diff_last_axis(x)
                 dy = masked_diff_last_axis(y)
@@ -352,14 +376,31 @@ class CLDDataset(Dataset):
                 dr = np.ma.sqrt(dx**2 + dy**2 + dz**2).filled(0.0)
 
                 # event[f"particle_valid"] = event[f"particle_valid"] & (dr <= max_dist).all(-1)
-                event[f"particle_{item_name}_valid"] = event[f"particle_{item_name}_valid"] & (dr <= cut["max_dist"])
+                event[f"particle_{item_name}_valid"] = (mask & (dr <= cut["max_dist"]))[..., inverse_ordering]
 
         # Now we have built the masks, we can apply hit/counting based cuts
-        for hit_name, min_num_hits in self.charged_particle_min_num_hits.items():
-            particle_cuts[f"charged_min_{hit_name}"] = ~(event["particle.isCharged"] & (event[f"particle_{hit_name}_valid"].sum(-1) < min_num_hits))
+        n_vtxd = event["particle_vtxd_valid"].sum(-1)
+        n_trkr = event["particle_trkr_valid"].sum(-1)
+        n_ecal = event["particle_ecal_valid"].sum(-1)
+        n_hcal = event["particle_hcal_valid"].sum(-1)
+        n_sihit = n_vtxd + n_trkr
+        n_calo = n_ecal + n_hcal
 
-        for hit_name, max_num_hits in self.charged_particle_max_num_hits.items():
-            particle_cuts[f"charged_max_{hit_name}"] = ~(event["particle.isCharged"] & (event[f"particle_{hit_name}_valid"].sum(-1) > max_num_hits))
+        if isinstance(self.charged_particle_min_num_hits, dict):
+            for hit_name, min_num_hits in self.charged_particle_min_num_hits.items():
+                particle_cuts[f"charged_min_{hit_name}"] = ~(
+                    event["particle.isCharged"] & (event[f"particle_{hit_name}_valid"].sum(-1) < min_num_hits)
+                )
+        else:
+            particle_cuts["charged_min_sihits"] = ~(event["particle.isCharged"] & (n_sihit < self.charged_particle_min_num_hits) & (n_calo < 16))
+
+        if isinstance(self.charged_particle_max_num_hits, dict):
+            for hit_name, max_num_hits in self.charged_particle_max_num_hits.items():
+                particle_cuts[f"charged_max_{hit_name}"] = ~(
+                    event["particle.isCharged"] & (event[f"particle_{hit_name}_valid"].sum(-1) > max_num_hits)
+                )
+        else:
+            particle_cuts["charged_max_sihits"] = ~(event["particle.isCharged"] & (n_sihit > self.charged_particle_max_num_hits))
 
         for hit_name, min_num_hits in self.neutral_particle_min_num_hits.items():
             particle_cuts[f"neutral_min_{hit_name}"] = ~(event["particle.isNeutral"] & (event[f"particle_{hit_name}_valid"].sum(-1) < min_num_hits))

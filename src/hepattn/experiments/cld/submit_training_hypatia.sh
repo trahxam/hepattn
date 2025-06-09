@@ -4,10 +4,10 @@
 #SBATCH -p GPU
 #SBATCH --nodes=1
 #SBATCH --export=ALL
-#SBATCH --gres=gpu:l40s:1
+#SBATCH --gres=gpu:a100:1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=12
-#SBATCH --mem=24G
+#SBATCH --mem=40G
 #SBATCH --output=/home/syw24/ftag/hepattn/src/hepattn/experiments/cld/slurm_logs/slurm-%j.%x.out
 
 
@@ -37,9 +37,8 @@ export TMPDIR=/home/syw24/tmp
 echo "Running training script..."
 
 # Python command that will be run
-CONFIG_PATH="/home/syw24/ftag/hepattn/logs/CLD_TRKECALHCAL_16_96_TF_charged_10MeV_F16_manypass_20250529-T024522/config.yaml"
-CKPT_PATH="/home/syw24/ftag/hepattn/logs/CLD_TRKECALHCAL_16_96_TF_charged_10MeV_F16_manypass_20250529-T024522/ckpts/epoch=007-train_loss=0.95565.ckpt"
-# PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config $CONFIG_PATH --ckpt_path $CKPT_PATH"
+CONFIG_PATH="/home/syw24/ftag/hepattn/logs/CLD_10_96_TF_charged_10MeV_F16_regr_sincosphi_20250605-T111602/config.yaml"
+CKPT_PATH="/home/syw24/ftag/hepattn/logs/CLD_10_96_TF_charged_10MeV_F16_regr_sincosphi_20250605-T111602/ckpts/epoch=008-train_loss=4.15202.ckpt"
 # PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config $CONFIG_PATH"
 PYTORCH_CMD="python src/hepattn/experiments/cld/main.py test --config $CONFIG_PATH --ckpt_path $CKPT_PATH"
 

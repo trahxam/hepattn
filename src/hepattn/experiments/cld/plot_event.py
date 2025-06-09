@@ -69,14 +69,23 @@ def _plot_matched_particle(ax, input_name, mc_idx, batch_idx, truth, inputs, bas
 
     if mode == "preds":
         linestyle = "-"
-        marker = "o"
+        si_marker = "o"
+        ecal_marker = "."
+        hcal_marker = "s"
         alpha = 0.9
     else:
         linestyle = "--"
-        marker = "x"
+        si_marker = "x"
+        ecal_marker = "x"
+        hcal_marker = "x"
         alpha = 0.7
 
+    arrow_scale = {"vtxd": 100, "trkr": 4}
+
     if input_name in sihit_names and mask.any():
+        px_hits = truth[f"particle_{input_name}_{spec['px']}"][batch_idx][mc_idx][mask]
+        py_hits = truth[f"particle_{input_name}_{spec['py']}"][batch_idx][mc_idx][mask]
+
         times = inputs[f"{input_name}_time"][batch_idx][mask]
         idx = torch.argsort(times, dim=-1)
         ax.plot(
@@ -84,11 +93,18 @@ def _plot_matched_particle(ax, input_name, mc_idx, batch_idx, truth, inputs, bas
             y_hits[idx],
             color=base_color,
             linestyle=linestyle,
-            marker=marker,
+            marker=si_marker,
             markersize=2.5,
             linewidth=1.0,
             alpha=alpha,
             label=f"mc_idx:{mc_idx}",
+        )
+
+        m = torch.sqrt(px_hits[idx] ** 2 + py_hits[idx] ** 2).clamp(min=1e-6)
+        dx = px_hits[idx] / m
+        dy = py_hits[idx] / m
+        ax.quiver(
+            x_hits[idx], y_hits[idx], dx, dy, angles="xy", scale_units="xy", scale=arrow_scale[input_name], color=base_color, width=0.002, alpha=alpha
         )
 
         end_x = x_hits[idx][-1].item()
@@ -111,10 +127,10 @@ def _plot_matched_particle(ax, input_name, mc_idx, batch_idx, truth, inputs, bas
         )
 
     elif input_name in ecal_names:
-        ax.scatter(x_hits, y_hits, color=base_color, marker=marker, alpha=alpha, s=3.0)
+        ax.scatter(x_hits, y_hits, color=base_color, marker=ecal_marker, alpha=alpha, s=3.0)
 
     elif input_name in hcal_names:
-        ax.scatter(x_hits, y_hits, color=base_color, marker=marker, alpha=alpha, s=6.0)
+        ax.scatter(x_hits, y_hits, color=base_color, marker=hcal_marker, alpha=alpha, s=6.0)
 
     elif input_name == "muon":
         ax.scatter(x_hits, y_hits, color=base_color, marker="h", alpha=alpha, s=6.0)
@@ -129,7 +145,6 @@ def _plot_mismatched_particle(ax, input_name, mc_idx, batch_idx, truth, preds, i
         t_y = inputs[f"{input_name}_{spec['y']}"][batch_idx][truth_mask]
 
         linestyle = "-"
-        marker = "o"
         alpha = 0.5
         if input_name in sihit_names:
             t_times = inputs[f"{input_name}_time"][batch_idx][truth_mask]
@@ -139,7 +154,7 @@ def _plot_mismatched_particle(ax, input_name, mc_idx, batch_idx, truth, preds, i
                 t_y[tidx],
                 color=base_color,
                 linestyle=linestyle,
-                marker=marker,
+                marker="o",
                 markersize=2.5,
                 linewidth=1.0,
                 alpha=alpha,
@@ -147,10 +162,10 @@ def _plot_mismatched_particle(ax, input_name, mc_idx, batch_idx, truth, preds, i
             )
 
         elif input_name in ecal_names:
-            ax.scatter(t_x, t_y, color=base_color, marker=marker, alpha=alpha, s=4.0)
+            ax.scatter(t_x, t_y, color=base_color, marker=".", alpha=alpha, s=4.0)
 
         elif input_name in hcal_names:
-            ax.scatter(t_x, t_y, color=base_color, marker=marker, alpha=alpha, s=8.0)
+            ax.scatter(t_x, t_y, color=base_color, marker="s", alpha=alpha, s=8.0)
 
         elif input_name == "muon":
             ax.scatter(t_x, t_y, color=base_color, marker="h", alpha=alpha, s=8.0)
@@ -294,9 +309,16 @@ def _plot_matched_processed_particle(
     alpha_pre = 0.5
     alpha_post = 0.9
     marker_pre = "x"
-    marker_post = "o"
+
+    arrow_scale = {"vtxd": 100, "trkr": 4}
 
     if input_name in sihit_names and mask_pre.any():
+        px_pre = orig_targets[f"particle_{input_name}_{spec['px']}"][batch_idx][mc_idx][mask_pre]
+        py_pre = orig_targets[f"particle_{input_name}_{spec['py']}"][batch_idx][mc_idx][mask_pre]
+
+        px_post = post_targets[f"particle_{input_name}_{spec['px']}"][batch_idx][post_idx][mask_post]
+        py_post = post_targets[f"particle_{input_name}_{spec['py']}"][batch_idx][post_idx][mask_post]
+
         t_pre = inputs_orig[f"{input_name}_time"][batch_idx][mask_pre]
         idx_pre = torch.argsort(t_pre, dim=-1)
         ax.plot(
@@ -308,11 +330,55 @@ def _plot_matched_processed_particle(
             marker=marker_pre,
             markersize=3.5,
             alpha=alpha_pre,
-            label=f"mc_idx:{mc_idx}",
+            label=f"mc_idx:{mc_idx} ({post_idx})",
         )
-
         end_x = x_pre[idx_pre][-1].item()
         end_y = y_pre[idx_pre][-1].item()
+        ax.text(
+            end_x,
+            end_y,
+            str(mc_idx),
+            fontsize=5,
+            color="black",
+            ha="center",
+            va="center",
+            bbox={
+                "boxstyle": "round,pad=0.2",
+                "facecolor": "white",
+                "edgecolor": "black",
+                "linestyle": "--",
+                "linewidth": 0.5,
+                "alpha": 0.5,
+            },
+        )
+        m_pre = torch.sqrt(px_pre[idx_pre] ** 2 + py_pre[idx_pre] ** 2).clamp(min=1e-6)
+        ax.quiver(
+            x_pre[idx_pre],
+            y_pre[idx_pre],
+            (px_pre[idx_pre] / m_pre),
+            (py_pre[idx_pre] / m_pre),
+            angles="xy",
+            scale_units="xy",
+            scale=arrow_scale[input_name],
+            color=base_color,
+            width=0.002,
+            alpha=alpha_pre,
+        )
+
+        t_post = inputs_post[f"{input_name}_time"][batch_idx][mask_post]
+        idx_post = torch.argsort(t_post, dim=-1)
+        ax.plot(
+            x_post[idx_post],
+            y_post[idx_post],
+            color=base_color,
+            linestyle=linestyle_post,
+            linewidth=1.0,
+            marker="o",
+            markersize=2.5,
+            alpha=alpha_post,
+        )
+        end_x = x_post[idx_post][-1].item()
+        end_y = y_post[idx_post][-1].item()
         ax.text(
             end_x,
             end_y,
@@ -329,27 +395,27 @@ def _plot_matched_processed_particle(
                 "alpha": 0.5,
             },
         )
-
-        t_post = inputs_post[f"{input_name}_time"][batch_idx][mask_post]
-        idx_post = torch.argsort(t_post, dim=-1)
-        ax.plot(
+        m_post = torch.sqrt(px_post[idx_post] ** 2 + py_post[idx_post] ** 2).clamp(min=1e-6)
+        ax.quiver(
             x_post[idx_post],
             y_post[idx_post],
+            (px_post[idx_post] / m_post),
+            (py_post[idx_post] / m_post),
+            angles="xy",
+            scale_units="xy",
+            scale=arrow_scale[input_name],
             color=base_color,
-            linestyle=linestyle_post,
-            linewidth=1.0,
-            marker=marker_post,
-            markersize=2.5,
+            width=0.002,
             alpha=alpha_post,
         )
 
     elif input_name in ecal_names:
         ax.scatter(x_pre, y_pre, color=base_color, marker=marker_pre, alpha=alpha_pre, s=4.0)
-        ax.scatter(x_post, y_post, color=base_color, marker=marker_post, alpha=alpha_post, s=3.0)
+        ax.scatter(x_post, y_post, color=base_color, marker=".", alpha=alpha_post, s=3.0)
 
     elif input_name in hcal_names:
         ax.scatter(x_pre, y_pre, color=base_color, marker=marker_pre, alpha=alpha_pre, s=8.0)
-        ax.scatter(x_post, y_post, color=base_color, marker=marker_post, alpha=alpha_post, s=6.0)
+        ax.scatter(x_post, y_post, color=base_color, marker="s", alpha=alpha_post, s=6.0)
 
     elif input_name == "muon":
         ax.scatter(x_pre, y_pre, color=base_color, marker="H", alpha=alpha_pre, s=8.0)
