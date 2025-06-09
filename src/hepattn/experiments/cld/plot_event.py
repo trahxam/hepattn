@@ -4,7 +4,7 @@ import torch
 plt.rcParams["figure.dpi"] = 300
 
 
-def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec):
+def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec, object_name="particle", batch_idx=0):
     num_axes = len(axes_spec)
 
     fig, ax = plt.subplots(1, num_axes)
@@ -14,8 +14,6 @@ def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec):
 
     colormap = plt.cm.tab10
     cycler = [colormap(i) for i in range(colormap.N)]
-
-    batch_idx = torch.argmax(reconstruction["particle_valid"].sum(-1))
 
     sihit_names = ["vtb", "vte", "itb", "ite", "otb", "ote", "sihit", "vtxd", "trkr"]
 
@@ -32,17 +30,26 @@ def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec):
     ]
 
     for ax_idx, ax_spec in enumerate(axes_spec):
+        #if "sample_id" in reconstruction:
+        #    event_id = reconstruction[f"sample_id"][batch_idx]
+        #    ax[ax_idx].set_title(f"Event {event_id}")
+
         for input_name in ax_spec["input_names"]:
             x = inputs[f"{input_name}_{ax_spec['x']}"][batch_idx]
             y = inputs[f"{input_name}_{ax_spec['y']}"][batch_idx]
 
             ax[ax_idx].scatter(x, y, alpha=0.25, s=1.0, color="black")
 
-            num_particles = reconstruction[f"particle_{input_name}_valid"][batch_idx].shape[-2]
+            num_particles = reconstruction[f"{object_name}_{input_name}_valid"][batch_idx].shape[-2]
 
-            for mcparticle_idx in range(num_particles):
-                color = cycler[mcparticle_idx % len(cycler)]
-                mask = reconstruction[f"particle_{input_name}_valid"][batch_idx][mcparticle_idx]
+            for object_idx in range(num_particles):
+                # Only plot the masks for slots that are marked valid
+                if not reconstruction[f"{object_name}_valid"][batch_idx][object_idx]:
+                    continue
+
+                color = cycler[object_idx % len(cycler)]
+                mask = reconstruction[f"{object_name}_{input_name}_valid"][batch_idx][object_idx]
+
 
                 # Tracker hit
                 if input_name in sihit_names:
@@ -50,6 +57,13 @@ def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec):
                     idx = torch.argsort(inputs[f"{input_name}_time"][batch_idx][mask], dim=-1)
 
                     ax[ax_idx].plot(x[mask][idx], y[mask][idx], color=color, marker="o", alpha=0.75, linewidth=1.0, ms=2.0)
+
+                    #px = reconstruction[f"{object_name}_{input_name}_{ax_spec['px']}"][batch_idx][object_idx]
+                    #py = reconstruction[f"{object_name}_{input_name}_{ax_spec['py']}"][batch_idx][object_idx]
+
+                    #for i in range(len(x[mask][idx])):
+                    #    mag = 5.0 * torch.sqrt(px[mask][idx][i]** 2 + py[mask][idx][i]**2)
+                    #    ax[ax_idx].arrow(x[mask][idx][i], y[mask][idx][i], dx=px[mask][idx][i] / mag, dy=py[mask][idx][i] / mag, color=color, alpha=0.8, head_width=0.04)
 
                 # ECAL hit
                 elif input_name in ecal_names:
