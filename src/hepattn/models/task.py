@@ -200,6 +200,7 @@ class ObjectHitMaskTask(Task):
         dim: int,
         null_weight: float = 1.0,
         mask_attn: bool = True,
+        target_field: str = "valid",
     ):
         super().__init__()
 
@@ -208,6 +209,8 @@ class ObjectHitMaskTask(Task):
         self.input_object = input_object
         self.output_object = output_object
         self.target_object = target_object
+        self.target_field = target_field
+        
         self.losses = losses
         self.costs = costs
         self.dim = dim
@@ -252,7 +255,7 @@ class ObjectHitMaskTask(Task):
 
     def cost(self, outputs, targets):
         output = outputs[self.output_object_hit + "_logit"].detach().to(torch.float32)
-        target = targets[self.target_object_hit + "_valid"].to(torch.float32)
+        target = targets[self.target_object_hit + "_" + self.target_field].to(torch.float32)
 
         costs = {}
         for cost_fn, cost_weight in self.costs.items():
@@ -264,7 +267,7 @@ class ObjectHitMaskTask(Task):
 
     def loss(self, outputs, targets):
         output = outputs[self.output_object_hit + "_logit"]
-        target = targets[self.target_object_hit + "_valid"].type_as(output)
+        target = targets[self.target_object_hit + "_" + self.target_field].type_as(output)
 
         # Build a padding mask for object-hit pairs
         hit_pad = targets[self.input_hit + "_valid"].unsqueeze(-2).expand_as(target)
@@ -290,6 +293,7 @@ class RegressionTask(Task):
         target_object: str,
         fields: list[str],
         loss_weight: float,
+        cost_weight: float,
     ):
         super().__init__()
 
@@ -298,6 +302,7 @@ class RegressionTask(Task):
         self.target_object = target_object
         self.fields = fields
         self.loss_weight = loss_weight
+        self.cost_weight = cost_weight
         self.k = len(fields)
         # For standard regression number of DoFs is just the number of targets
         self.ndofs = self.k
@@ -330,6 +335,15 @@ class RegressionTask(Task):
         # Compute the regression loss only for valid objects
         return {"smooth_l1": self.loss_weight * loss.mean()}
 
+    def cost(self, outputs, targets):
+        output = outputs[self.output_object + "_regr"].detach().to(torch.float32)
+        target = torch.stack([targets[self.target_object + "_" + field] for field in self.fields], dim=-1).to(torch.float32)
+        # Index from the front so it works for both object and mask regression
+        costs = torch.nn.functional.smooth_l1_loss(output.unsqueeze(2), target.unsqueeze(1), reduction="none")
+        # Average over the regression fields dimension
+        costs = costs.mean(-1)
+        return {"regr_smooth_l1": self.cost_weight * costs}
+
     def metrics(self, preds, targets):
         metrics = {}
         for field in self.fields:
@@ -341,8 +355,8 @@ class RegressionTask(Task):
             # Compute the RMSE and log it
             metrics[field + "_rmse"] = torch.sqrt(torch.mean(torch.square(err)))
             # Compute the relative error / resolution and log it
-            metrics[field + "_mean_res"] = torch.mean(err / target)
-            metrics[field + "_std_res"] = torch.std(err / target)
+            metrics[field + "_mean_rel_err"] = torch.mean(err / target)
+            metrics[field + "_std_rel_err"] = torch.std(err / target)
 
         return metrics
 
@@ -356,9 +370,10 @@ class ObjectRegressionTask(RegressionTask):
         target_object: str,
         fields: list[str],
         loss_weight: float,
+        cost_weight: float,
         dim: int,
     ):
-        super().__init__(name, output_object, target_object, fields, loss_weight)
+        super().__init__(name, output_object, target_object, fields, loss_weight, cost_weight)
 
         self.input_object = input_object
         self.inputs = [input_object + "_embed"]
