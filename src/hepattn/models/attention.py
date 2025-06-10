@@ -1,10 +1,11 @@
 import torch
 from flash_attn import flash_attn_func, flash_attn_varlen_func
-from torch import BoolTensor, Size, Tensor, nn
+from torch import BoolTensor, FloatTensor, HalfTensor, BFloat16Tensor, Size, Tensor, nn
 from torch.nn.attention.flex_attention import BlockMask, _score_mod_signature, flex_attention
 from torch.nn.functional import scaled_dot_product_attention
 
 from hepattn.models.norm import LayerNorm
+from hepattn.flex import relative_position_wrapped, sliding_window_mask
 
 ATTN_TYPES = {
     "torch": scaled_dot_product_attention,
@@ -34,6 +35,11 @@ WINDOW_ATTN_TYPES = [
 FLASH_ATTN_TYPES = [
     "flash",
     "flash-varlen",
+]
+
+# Which attention types support attention biases
+ATTN_BIAS_ATTN_TYPES = [
+    "torch",
 ]
 
 
@@ -78,6 +84,7 @@ class Attention(nn.Module):
         window_size: int | None = None,
         value_residual: bool = False,
         qkv_norm: bool = False,
+        
     ) -> None:
         super().__init__()
         assert dim % num_heads == 0, "num_heads must divide dim."
@@ -91,13 +98,15 @@ class Attention(nn.Module):
         self.window_size = None
         self.value_residual = value_residual
         self.qkv_norm = qkv_norm
-
-        if attn_type in FLASH_ATTN_TYPES:
+        
+        # Setup attention windowing
+        if attn_type in WINDOW_ATTN_TYPES:
             # TODO: Will need to change when supporting window with flex
             self.window_size = (window_size // 2, window_size // 2) if window_size is not None else (-1, -1)
         if torch_compile or attn_type == "flex":
             self.attn = torch.compile(self.attn, dynamic=True)
 
+        # Setup qkv projection matrices
         self.q_proj = nn.Linear(dim, self.dim, bias=bias)
         self.k_proj = nn.Linear(dim, self.dim, bias=bias)
         self.v_proj = nn.Linear(dim, self.dim, bias=bias)
@@ -130,6 +139,7 @@ class Attention(nn.Module):
         q_mask: BoolTensor | None = None,
         kv_mask: BoolTensor | None = None,
         attn_mask: BlockMask | BoolTensor | None = None,
+        attn_bias: Tensor | None = None,
         score_mod: _score_mod_signature | None = None,
         initial_values: dict | None = None,
     ) -> Tensor:
@@ -150,6 +160,8 @@ class Attention(nn.Module):
         attn_mask : BlockMask | BoolTensor, optional
             Attention mask to apply. If None, no mask is applied.
             True values indicate that an attention slot should partake in computation.
+        attn_bias : Tensor, optional
+            Values of bias features of shape (B, S, S, num_heads). 
         score_mod : _score_mod_signature, optional
             Score modifier function for flex attention. If None, no score modifier is applied.
         initial_values : dict, optional
@@ -168,6 +180,10 @@ class Attention(nn.Module):
             msg = f"Only the backends {ATTN_MASK_ATTN_TYPES} support attention masking"
             assert self.attn_type in ATTN_MASK_ATTN_TYPES, msg
 
+        if attn_bias is not None:
+            msg = f"Only the backends {ATTN_BIAS_ATTN_TYPES} support attention masking"
+            assert self.attn_type in ATTN_BIAS_ATTN_TYPES, msg
+        
         attn_mask = merge_masks(q_mask, kv_mask, attn_mask, q.shape, k.shape, q.device)
 
         # Mix for value residual
@@ -175,6 +191,8 @@ class Attention(nn.Module):
         if self.value_residual:
             mix = self.value_residual_mix(q)
             mix = mix.unsqueeze(-1)
+            # Flash attention assumes (batch, seq, head, dim)
+            # Everything else assumes (batch, head, seq, dim)
             if self.attn_type not in FLASH_ATTN_TYPES:
                 mix = mix.transpose(-2, -3)
 
@@ -201,21 +219,35 @@ class Attention(nn.Module):
             else:
                 v = v * mix + initial_values["v"] * (1.0 - mix)
 
-        # Fused attention
+        # Flex attention
         if self.attn_type == "flex":
+            # TODO: Should block_mask be an argument separate from attn_mask to simplify things?
             out = self.attn(q, k, v, block_mask=attn_mask, score_mod=score_mod)
 
+        # Standard torch attention
         elif self.attn_type == "torch":
             # Have to expand the attention mask so that it is broadcasted over the head dimension
             if attn_mask is not None:
                 # In functional SDPA, attn mask is TRUE for valid slots ...
                 attn_mask = attn_mask.unsqueeze(-3)
 
+            if attn_bias is not None:
+                # Torch expects the head dim first so have to permute
+                attn_bias = attn_bias.permute(0, 3, 1, 2)
+                
+                # Combine the bias with the attention mask if both are specified
+                if attn_mask is not None:
+                    attn_bias = attn_bias.masked_fill(~attn_mask, float("-inf"))
+                
+                attn_mask = attn_bias
+
             out = self.attn(q, k, v, attn_mask=attn_mask)
 
+        # Flash attention
         elif self.attn_type == "flash":
             out = self.attn(q, k, v, window_size=self.window_size)
 
+        # Flash attention with variable length k/q
         elif self.attn_type == "flash-varlen":
             # TODO: Implement a packed version for the self attention case
 

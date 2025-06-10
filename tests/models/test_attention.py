@@ -14,8 +14,8 @@ torch.manual_seed(42)
 # NOTE: We need enough keys/queries such that it is improbable that an entire k/q slot is masked
 # if that happens then nans are produced
 @pytest.mark.parametrize("batch_size", [1, 9])
-@pytest.mark.parametrize("q_len", [100])
-@pytest.mark.parametrize("kv_len", [None, 100, 150])
+@pytest.mark.parametrize("q_len", [37])
+@pytest.mark.parametrize("kv_len", [None, 51])
 @pytest.mark.parametrize("dim", [128])
 @pytest.mark.parametrize("num_heads", [8])
 @pytest.mark.parametrize("bias", [False, True])
@@ -164,6 +164,24 @@ def test_cross_attention(attn_type):
 
     # Compute outputs
     out = attn(q, k, v)
+
+    # Check output shape
+    assert out.shape == q.shape
+
+
+def test_attn_bias_attention():
+    # Generate random input tensors
+    q = torch.randn(1, 100, 128, dtype=torch.float16, device="cuda")
+    k = torch.randn(1, 100, 128, dtype=torch.float16, device="cuda")
+    v = torch.randn(1, 100, 128, dtype=torch.float16, device="cuda")
+    attn_bias = torch.randn(1, 100, 100, 8, dtype=torch.float16, device="cuda")
+    attn_mask = torch.randn(1, 100, 100, dtype=torch.float16, device="cuda") >= 0.5
+
+    # Initialize attention layers
+    attn = Attention(dim=128, num_heads=8, attn_type="torch").cuda().half()
+
+    # Compute outputs
+    out = attn(q, k, v, attn_bias=attn_bias, attn_mask=attn_mask)
 
     # Check output shape
     assert out.shape == q.shape
