@@ -1,4 +1,4 @@
-name: CLD_10_96_TF_charged_10MeV_muon_rw
+name: CLD_10_400_charged_10MeV_noise_neutrals
 
 data:
   # Paths to preprocessed data directories
@@ -20,17 +20,23 @@ data:
   particle_min_pt: 0.01
 
   # Number of query slots / particles to generate per event
-  event_max_num_particles: &num_particles 96
+  event_max_num_particles: &num_particles 400
 
   # Charged particle cuts based on hit content
   charged_particle_min_num_hits:
-    vtxd: 4
-    trkr: 4
+    vtxd: 0
+    trkr: 0
+    sihits: 4
 
   # Neutral particle cuts based on hit content
   charged_particle_max_num_hits:
     vtxd: 12
     trkr: 12
+    sihits: 24
+
+  particle_cut_veto_min_num_hits:
+    ecal: 32
+    hcal: 16
 
   # Cuts on minimum fraction of particle pT a hit should have
   particle_hit_min_p_ratio:
@@ -50,21 +56,21 @@ data:
   particle_hit_separation_cuts:
     vtxd:
       max_dist: 0.25
-      num_passes: 4
+      num_passes: 8
     trkr:
       max_dist: 1.5
-      num_passes: 8
+      num_passes: 12
 
   # Whether to include charged / neutral particles as targets
   include_charged: true
-  include_neutral: false
+  include_neutral: true
 
-  truth_filter_hits:
-    - vtxd
-    - trkr
-    - ecal
-    - hcal
-    - muon
+  truth_filter_hits: []
+    #- vtxd
+    #- trkr
+    #- ecal
+    #- hcal
+    #- muon
 
   merge_inputs:
     vtxd:
@@ -72,6 +78,14 @@ data:
       - vte
 
     trkr:
+      - itb
+      - ite
+      - otb
+      - ote
+    
+    sihits:
+      - vtb
+      - vte
       - itb
       - ite
       - otb
@@ -136,6 +150,9 @@ data:
       - v.b
       - du
       - dv
+    
+    sihits:
+      - type
 
     ecal:
       - type
@@ -236,9 +253,11 @@ data:
 
     particle_ecal:
       - energy
+      - energy_frac
 
     particle_hcal:
       - energy
+      - energy_frac
 
     particle_muon:
       - energy
@@ -548,6 +567,7 @@ model:
                 input_object: query
                 output_object: flow
                 target_object: particle
+                target_field: energy_frac
                 losses:
                   mask_ce: 0.1
                   #mask_dice: 2.0
@@ -566,6 +586,7 @@ model:
                 input_object: query
                 output_object: flow
                 target_object: particle
+                target_field: energy_frac
                 losses:
                   mask_ce: 0.5
                   #mask_dice: 2.0

@@ -1,0 +1,199 @@
+name: pixel
+
+data:
+  train_dir: /share/rcifdata/maxhart/data/pixsplit/mc23_prepped/train
+  val_dir: /share/rcifdata/maxhart/data/pixsplit/mc23_prepped/train
+  test_dir: /share/rcifdata/maxhart/data/pixsplit/mc23_prepped/train
+
+  num_train: 1000000
+  num_val: 10000
+  num_test: 10000
+
+  num_workers: 8
+
+  batch_size: 250
+
+  cluster_multiplicity_sample_frac:
+    0: 0.0
+    1: 0.25
+
+  # Whether to consider particles without a barcode as valid or not
+  particle_allow_notruth: false
+
+  # Whether to consider secondary particles as valid or not
+  particle_allow_secondary: true
+
+  # Which detector regions should be included
+  # 0 is barrel and 2 is endcap
+  cluster_regions: [-2, -1, 0, 1, 2]
+
+  # Which tracker layers should be included
+  cluster_layers: [0, 1, 2, 3]
+
+  # If specified only clusters with these multiplicities will be given
+  #cluster_multiplicity: []
+
+  cluster_min_num_particles: 1
+  cluster_max_num_particles: &num_tracks 8
+
+  inputs:
+    cluster:
+      - bec
+      - layer
+      - size_x
+      - size_y
+      #- charge_matrix
+
+
+    cell:
+      - x
+      - y
+      - charge
+
+  targets:
+    particle:
+      - x
+      - y
+      - phi
+      - theta
+      - p
+      - barcode
+      - primary
+      - secondary
+      - notruth
+
+# Training stuff here
+trainer:
+  max_epochs: 15
+  accelerator: gpu
+  devices: 1
+  precision: 32
+  log_every_n_steps: 10
+  default_root_dir: logs
+  gradient_clip_val: 0.1
+  accumulate_grad_batches: 1
+  enable_progress_bar: True
+  val_check_interval: 1000
+
+  # Specify loggers here
+  logger:
+    class_path: lightning.pytorch.loggers.CometLogger
+    init_args:
+      project_name: pixel
+      # We are not using conda and log manually anyway
+      log_env_details: false
+
+  # Specify any callback here
+  callbacks:
+    - class_path: hepattn.callbacks.Metadata
+    - class_path: hepattn.callbacks.Checkpoint
+      init_args:
+        monitor: train/loss
+        every_n_train_steps: 1000
+    - class_path: hepattn.callbacks.PredictionWriter
+      init_args:
+        write_inputs: false
+        write_outputs: false
+        write_preds: true
+        write_targets: false
+        write_losses: false
+    - class_path: lightning.pytorch.callbacks.ModelSummary
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+    - class_path: lightning.pytorch.callbacks.TQDMProgressBar
+      init_args:
+        refresh_rate: 50
+
+model:
+  optimizer: lion
+
+  lrs_config:
+    initial: 1e-5
+    max: 1e-4
+    end: 1e-5
+    pct_start: 0.01
+    skip_scheduler: false
+    weight_decay: 1e-5
+
+  mtl: false
+
+  model:
+    class_path: hepattn.models.MaskFormer
+    init_args:
+      dim: &dim 128
+      num_queries: *num_tracks
+      input_sort_field: x
+      use_attn_masks: false
+      use_query_masks: false
+
+      input_nets:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: hepattn.models.InputNet
+              init_args:
+                input_name: cell
+                fields:
+                  - x
+                  - y
+                  - charge
+                net:
+                  class_path: hepattn.models.Dense
+                  init_args:
+                    input_size: 3
+                    output_size: *dim
+                posenc:
+                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  init_args:
+                    input_name: cell
+                    dim: *dim
+                    fields:
+                      - x
+                      - y
+
+      encoder:
+        class_path: hepattn.models.Encoder
+        init_args:
+          num_layers: 4
+          dim: *dim
+          attn_type: torch
+
+      num_decoder_layers: 4
+      decoder_layer_config:
+        dim: *dim
+        mask_attention: false
+
+      matcher:
+        class_path: hepattn.models.matcher.Matcher
+        init_args:
+          default_solver: scipy
+          adaptive_solver: false
+          adaptive_check_interval: 1000
+
+      tasks:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: hepattn.models.task.ObjectValidTask
+              init_args:
+                name: track_valid
+                input_object: query
+                output_object: track
+                target_object: particle
+                losses:
+                  object_ce: 0.01
+                costs:
+                  object_ce: 0.01
+                dim: *dim
+
+            - class_path: hepattn.models.task.ObjectRegressionTask
+              init_args:
+                name: track_regression
+                input_object: query
+                output_object: track
+                target_object: particle
+                fields:
+                  - x
+                  - y
+                loss_weight: 1.0
+                cost_weight: 1.0
+                dim: *dim

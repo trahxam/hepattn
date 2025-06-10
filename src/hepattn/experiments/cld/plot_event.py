@@ -5,7 +5,7 @@ import torch
 plt.rcParams["figure.dpi"] = 300
 
 
-def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec, valid=True):
+def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec, object_name="particle", batch_idx=0, valid=True):
     num_axes = len(axes_spec)
 
     fig, ax = plt.subplots(1, num_axes)
@@ -15,8 +15,6 @@ def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec, valid=True)
 
     colormap = plt.cm.tab20
     cycler = [colormap(i) for i in range(colormap.N)]
-
-    batch_idx = torch.argmax(reconstruction["particle_valid"].sum(-1))
 
     sihit_names = ["vtb", "vte", "itb", "ite", "otb", "ote", "sihit", "vtxd", "trkr"]
     ecal_names = ["ecb", "ece", "ecal"]
@@ -29,12 +27,12 @@ def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec, valid=True)
 
             ax[ax_idx].scatter(x, y, alpha=0.25, s=1.0, color="black")
 
-            num_particles = reconstruction[f"particle_{input_name}_valid"][batch_idx].shape[-2]
+            num_particles = reconstruction[f"{object_name}_{input_name}_valid"][batch_idx].shape[-2]
 
             for mcparticle_idx in range(num_particles):
-                if reconstruction["particle_valid"][batch_idx][mcparticle_idx].item() == valid:
+                if reconstruction[f"{object_name}_valid"][batch_idx][mcparticle_idx].item() == valid:
                     color = cycler[mcparticle_idx % len(cycler)]
-                    mask = reconstruction[f"particle_{input_name}_valid"][batch_idx][mcparticle_idx]
+                    mask = reconstruction[f"{object_name}_{input_name}_valid"][batch_idx][mcparticle_idx]
 
                     # Tracker hit
                     if input_name in sihit_names:
@@ -62,8 +60,10 @@ def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec, valid=True)
     return fig
 
 
-def _plot_matched_particle(ax, input_name, mc_idx, batch_idx, truth, inputs, base_color, sihit_names, ecal_names, hcal_names, spec, mode="preds"):
-    mask = truth[f"particle_{input_name}_valid"][batch_idx][mc_idx]
+def _plot_matched_particle(
+    ax, input_name, mc_idx, batch_idx, truth, inputs, base_color, sihit_names, ecal_names, hcal_names, spec, mode="preds", object_name="particle"
+):
+    mask = truth[f"{object_name}_{input_name}_valid"][batch_idx][mc_idx]
     x_hits = inputs[f"{input_name}_{spec['x']}"][batch_idx][mask]
     y_hits = inputs[f"{input_name}_{spec['y']}"][batch_idx][mask]
 
@@ -83,8 +83,8 @@ def _plot_matched_particle(ax, input_name, mc_idx, batch_idx, truth, inputs, bas
     arrow_scale = {"vtxd": 100, "trkr": 4}
 
     if input_name in sihit_names and mask.any():
-        px_hits = truth[f"particle_{input_name}_{spec['px']}"][batch_idx][mc_idx][mask]
-        py_hits = truth[f"particle_{input_name}_{spec['py']}"][batch_idx][mc_idx][mask]
+        px_hits = truth[f"{object_name}_{input_name}_{spec['px']}"][batch_idx][mc_idx][mask]
+        py_hits = truth[f"{object_name}_{input_name}_{spec['py']}"][batch_idx][mc_idx][mask]
 
         times = inputs[f"{input_name}_time"][batch_idx][mask]
         idx = torch.argsort(times, dim=-1)
@@ -136,9 +136,11 @@ def _plot_matched_particle(ax, input_name, mc_idx, batch_idx, truth, inputs, bas
         ax.scatter(x_hits, y_hits, color=base_color, marker="h", alpha=alpha, s=6.0)
 
 
-def _plot_mismatched_particle(ax, input_name, mc_idx, batch_idx, truth, preds, inputs, base_color, sihit_names, ecal_names, hcal_names, spec):
-    truth_mask = truth[f"particle_{input_name}_valid"][batch_idx][mc_idx]
-    pred_mask = preds[f"particle_{input_name}_valid"][batch_idx][mc_idx]
+def _plot_mismatched_particle(
+    ax, input_name, mc_idx, batch_idx, truth, preds, inputs, base_color, sihit_names, ecal_names, hcal_names, spec, object_name="particle"
+):
+    truth_mask = truth[f"{object_name}_{input_name}_valid"][batch_idx][mc_idx]
+    pred_mask = preds[f"{object_name}_{input_name}_valid"][batch_idx][mc_idx]
 
     if truth_mask.any():
         t_x = inputs[f"{input_name}_{spec['x']}"][batch_idx][truth_mask]
@@ -216,15 +218,13 @@ def _plot_mismatched_particle(ax, input_name, mc_idx, batch_idx, truth, preds, i
         )
 
 
-def plot_cld_event_match_vs_mismatch(inputs, truth, preds, axes_spec):
+def plot_cld_event_match_vs_mismatch(inputs, truth, preds, axes_spec, object_name="particle", batch_idx=0):
     num_axes = len(axes_spec)
     fig, axes = plt.subplots(2, num_axes, squeeze=False)
     fig.set_size_inches(8 * num_axes, 16)
 
     colormap = plt.cm.tab20
     cycler = [colormap(i) for i in range(colormap.N)]
-
-    batch_idx = torch.argmax(truth["particle_valid"].sum(-1))
 
     sihit_names = ["vtb", "vte", "itb", "ite", "otb", "ote", "sihit", "vtxd", "trkr"]
     ecal_names = ["ecb", "ece", "ecal"]
@@ -241,23 +241,25 @@ def plot_cld_event_match_vs_mismatch(inputs, truth, preds, axes_spec):
             ax_mismatch.scatter(x_all, y_all, color="black", alpha=0.5, s=1.0)
 
         input_names = spec["input_names"][0]
-        truth_mask_all = truth[f"particle_{input_names}_valid"][batch_idx]
+        truth_mask_all = truth[f"{object_name}_{input_names}_valid"][batch_idx]
         num_particles = truth_mask_all.shape[0]
 
         for mc_idx in range(num_particles):
             base_color = cycler[mc_idx % len(cycler)]
 
             for name in spec["input_names"]:
-                truth_mask = truth[f"particle_{name}_valid"][batch_idx][mc_idx]
-                pred_mask = preds[f"particle_{name}_valid"][batch_idx][mc_idx]
+                truth_mask = truth[f"{object_name}_{name}_valid"][batch_idx][mc_idx]
+                pred_mask = preds[f"{object_name}_{name}_valid"][batch_idx][mc_idx]
                 if not (truth_mask.any() or pred_mask.any()):
                     continue
 
                 if torch.equal(truth_mask, pred_mask):
-                    _plot_matched_particle(ax_matched, name, mc_idx, batch_idx, truth, inputs, base_color, sihit_names, ecal_names, hcal_names, spec)
+                    _plot_matched_particle(
+                        ax_matched, name, mc_idx, batch_idx, truth, inputs, base_color, sihit_names, ecal_names, hcal_names, spec, object_name
+                    )
                 else:
                     _plot_mismatched_particle(
-                        ax_mismatch, name, mc_idx, batch_idx, truth, preds, inputs, base_color, sihit_names, ecal_names, hcal_names, spec
+                        ax_mismatch, name, mc_idx, batch_idx, truth, preds, inputs, base_color, sihit_names, ecal_names, hcal_names, spec, object_name
                     )
 
         ax_matched.set_xlabel(spec["x"])
@@ -295,12 +297,13 @@ def _plot_matched_processed_particle(
     hcal_names,
     post_idx,
     spec,
+    object_name="particle",
 ):
-    mask_pre = orig_targets[f"particle_{input_name}_valid"][batch_idx][mc_idx]
+    mask_pre = orig_targets[f"{object_name}_{input_name}_valid"][batch_idx][mc_idx]
     x_pre = inputs_orig[f"{input_name}_{spec['x']}"][batch_idx][mask_pre]
     y_pre = inputs_orig[f"{input_name}_{spec['y']}"][batch_idx][mask_pre]
 
-    mask_post = post_targets[f"particle_{input_name}_valid"][batch_idx][post_idx]
+    mask_post = post_targets[f"{object_name}_{input_name}_valid"][batch_idx][post_idx]
     x_post = inputs_post[f"{input_name}_{spec['x']}"][batch_idx][mask_post]
     y_post = inputs_post[f"{input_name}_{spec['y']}"][batch_idx][mask_post]
 
@@ -313,11 +316,11 @@ def _plot_matched_processed_particle(
     arrow_scale = {"vtxd": 100, "trkr": 4}
 
     if input_name in sihit_names and mask_pre.any():
-        px_pre = orig_targets[f"particle_{input_name}_{spec['px']}"][batch_idx][mc_idx][mask_pre]
-        py_pre = orig_targets[f"particle_{input_name}_{spec['py']}"][batch_idx][mc_idx][mask_pre]
+        px_pre = orig_targets[f"{object_name}_{input_name}_{spec['px']}"][batch_idx][mc_idx][mask_pre]
+        py_pre = orig_targets[f"{object_name}_{input_name}_{spec['py']}"][batch_idx][mc_idx][mask_pre]
 
-        px_post = post_targets[f"particle_{input_name}_{spec['px']}"][batch_idx][post_idx][mask_post]
-        py_post = post_targets[f"particle_{input_name}_{spec['py']}"][batch_idx][post_idx][mask_post]
+        px_post = post_targets[f"{object_name}_{input_name}_{spec['px']}"][batch_idx][post_idx][mask_post]
+        py_post = post_targets[f"{object_name}_{input_name}_{spec['py']}"][batch_idx][post_idx][mask_post]
 
         t_pre = inputs_orig[f"{input_name}_time"][batch_idx][mask_pre]
         idx_pre = torch.argsort(t_pre, dim=-1)
@@ -422,7 +425,7 @@ def _plot_matched_processed_particle(
         ax.scatter(x_post, y_post, color=base_color, marker="h", alpha=alpha_post, s=6.0)
 
 
-def plot_cld_event_pre_vs_post(inputs_orig, inputs_post, orig_targets, post_targets, axes_spec):
+def plot_cld_event_pre_vs_post(inputs_orig, inputs_post, orig_targets, post_targets, axes_spec, object_name="particle", batch_idx=0):
     num_axes = len(axes_spec)
     fig, axes = plt.subplots(2, num_axes, squeeze=False)
     fig.set_size_inches(8 * num_axes, 16)
@@ -430,15 +433,13 @@ def plot_cld_event_pre_vs_post(inputs_orig, inputs_post, orig_targets, post_targ
     colormap = plt.cm.tab20
     cycler = [colormap(i) for i in range(colormap.N)]
 
-    batch_idx = torch.argmax(orig_targets["particle_valid"].sum(-1))
-
     sihit_names = ["vtb", "vte", "itb", "ite", "otb", "ote", "sihit", "vtxd", "trkr"]
     ecal_names = ["ecb", "ece", "ecal"]
     hcal_names = ["hcb", "hce", "hcal"]
 
     fields = ["mom.x", "mom.y", "mom.z", "vtx.x", "vtx.y", "vtx.z"]
-    orig_list = [orig_targets[f"particle_{x}"][batch_idx] for x in fields]
-    post_list = [post_targets[f"particle_{x}"][batch_idx] for x in fields]
+    orig_list = [orig_targets[f"{object_name}_{x}"][batch_idx] for x in fields]
+    post_list = [post_targets[f"{object_name}_{x}"][batch_idx] for x in fields]
     orig_arr = torch.stack(orig_list, dim=1)
     post_arr = torch.stack(post_list, dim=1)
 
@@ -452,7 +453,7 @@ def plot_cld_event_pre_vs_post(inputs_orig, inputs_post, orig_targets, post_targ
         if matched_mask[i]:
             match_idx[i] = torch.nonzero(row_matched[i])[0]
 
-    num_particles = orig_targets["particle_valid"].shape[-1]
+    num_particles = orig_targets[f"{object_name}_valid"].shape[-1]
 
     for col_idx, spec in enumerate(axes_spec):
         ax_matched = axes[0, col_idx]
@@ -485,6 +486,7 @@ def plot_cld_event_pre_vs_post(inputs_orig, inputs_post, orig_targets, post_targ
                         hcal_names,
                         post_i,
                         spec,
+                        object_name,
                     )
                 ax_matched.set_title("Matched Particles")
                 ax_matched.set_xlabel(spec["x"])
@@ -505,6 +507,7 @@ def plot_cld_event_pre_vs_post(inputs_orig, inputs_post, orig_targets, post_targ
                         hcal_names,
                         spec,
                         mode="preprocess",
+                        object_name=object_name,
                     )
                 ax_mismatch.set_title("Dropped Particles")
                 ax_mismatch.set_xlabel(spec["x"])
