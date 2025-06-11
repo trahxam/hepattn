@@ -208,6 +208,12 @@ class Encoder(nn.Module):
 
         self.layers = torch.nn.ModuleList([EncoderLayer(dim=dim, depth=i, **layer_kwargs) for i in range(num_layers)])
 
+    def set_backend(self, attn_type: str):
+        self.attn_type = attn_type
+        layer: EncoderLayer
+        for layer in self.layers:
+            self.attn_type = layer.attn.fn.set_backend(self.attn_type)
+
     def forward(self, x: Tensor, x_sort_value: Tensor | None = None, **kwargs) -> Tensor:
         # If value to sort on is provided, use it to sort the tokens
         # We don't need to use the stable sort assuming that the sort values are unique
@@ -250,3 +256,15 @@ class Encoder(nn.Module):
             x = torch.gather(x, -2, x_unsort_idx.unsqueeze(-1).expand_as(x))
 
         return x
+
+
+def change_attn_backends(module: nn.Module, backend: str) -> None:
+    """Recursively change the attention backend of a module and all its children."""
+    if isinstance(module, Encoder):
+        module.set_backend(backend)
+        return
+    if isinstance(module, Attention):
+        module.set_backend(backend)
+        return
+    for child in module.children():
+        change_attn_backends(child, backend)
