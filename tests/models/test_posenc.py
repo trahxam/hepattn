@@ -3,8 +3,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import torch
 
-from hepattn.models.posenc import PositionEncoder, pos_enc, pos_enc_symmetric
-from hepattn.models.posenc_random import PositionEncoderRandom
+from hepattn.models.posenc import FourierPositionEncoder, PositionEncoder, pos_enc, pos_enc_symmetric
 
 
 def test_pos_enc():
@@ -53,9 +52,8 @@ def test_pos_enc_class():
 
 
 def test_pos_enc_random():
-    variables = ["x", "y", "z"]
-    pe = PositionEncoderRandom(dim=128, variables=variables)
+    pe = FourierPositionEncoder(input_name="test_input", dim=128, fields=["x", "y", "z"])
     x = y = z = torch.randn(10, 100)
-    xs = {"x": x, "y": y, "z": z}
+    xs = {"test_input_x": x, "test_input_y": y, "test_input_z": z}
     embedding = pe(xs)
     assert embedding.shape == (10, 100, 128)

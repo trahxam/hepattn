@@ -1,11 +1,10 @@
 import torch
 from flash_attn import flash_attn_func, flash_attn_varlen_func
-from torch import BoolTensor, FloatTensor, HalfTensor, BFloat16Tensor, Size, Tensor, nn
+from torch import BoolTensor, Size, Tensor, nn
 from torch.nn.attention.flex_attention import BlockMask, _score_mod_signature, flex_attention
 from torch.nn.functional import scaled_dot_product_attention
 
 from hepattn.models.norm import LayerNorm
-from hepattn.flex import relative_position_wrapped, sliding_window_mask
 
 ATTN_TYPES = {
     "torch": scaled_dot_product_attention,
@@ -84,7 +83,6 @@ class Attention(nn.Module):
         window_size: int | None = None,
         value_residual: bool = False,
         qkv_norm: bool = False,
-        
     ) -> None:
         super().__init__()
         assert dim % num_heads == 0, "num_heads must divide dim."
@@ -98,7 +96,7 @@ class Attention(nn.Module):
         self.window_size = None
         self.value_residual = value_residual
         self.qkv_norm = qkv_norm
-        
+
         # Setup attention windowing
         if attn_type in WINDOW_ATTN_TYPES:
             # TODO: Will need to change when supporting window with flex
@@ -161,7 +159,7 @@ class Attention(nn.Module):
             Attention mask to apply. If None, no mask is applied.
             True values indicate that an attention slot should partake in computation.
         attn_bias : Tensor, optional
-            Values of bias features of shape (B, S, S, num_heads). 
+            Values of bias features of shape (B, S, S, num_heads).
         score_mod : _score_mod_signature, optional
             Score modifier function for flex attention. If None, no score modifier is applied.
         initial_values : dict, optional
@@ -183,7 +181,7 @@ class Attention(nn.Module):
         if attn_bias is not None:
             msg = f"Only the backends {ATTN_BIAS_ATTN_TYPES} support attention masking"
             assert self.attn_type in ATTN_BIAS_ATTN_TYPES, msg
-        
+
         attn_mask = merge_masks(q_mask, kv_mask, attn_mask, q.shape, k.shape, q.device)
 
         # Mix for value residual
@@ -234,11 +232,11 @@ class Attention(nn.Module):
             if attn_bias is not None:
                 # Torch expects the head dim first so have to permute
                 attn_bias = attn_bias.permute(0, 3, 1, 2)
-                
+
                 # Combine the bias with the attention mask if both are specified
                 if attn_mask is not None:
                     attn_bias = attn_bias.masked_fill(~attn_mask, float("-inf"))
-                
+
                 attn_mask = attn_bias
 
             out = self.attn(q, k, v, attn_mask=attn_mask)
