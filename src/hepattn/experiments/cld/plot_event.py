@@ -30,7 +30,7 @@ def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec, object_name
     ]
 
     for ax_idx, ax_spec in enumerate(axes_spec):
-        #if "sample_id" in reconstruction:
+        # if "sample_id" in reconstruction:
         #    event_id = reconstruction[f"sample_id"][batch_idx]
         #    ax[ax_idx].set_title(f"Event {event_id}")
 
@@ -50,7 +50,6 @@ def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec, object_name
                 color = cycler[object_idx % len(cycler)]
                 mask = reconstruction[f"{object_name}_{input_name}_valid"][batch_idx][object_idx]
 
-
                 # Tracker hit
                 if input_name in sihit_names:
                     # Used for sorting the hits in time when we want to plot them in order in the tracker
@@ -58,12 +57,13 @@ def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec, object_name
 
                     ax[ax_idx].plot(x[mask][idx], y[mask][idx], color=color, marker="o", alpha=0.75, linewidth=1.0, ms=2.0)
 
-                    #px = reconstruction[f"{object_name}_{input_name}_{ax_spec['px']}"][batch_idx][object_idx]
-                    #py = reconstruction[f"{object_name}_{input_name}_{ax_spec['py']}"][batch_idx][object_idx]
+                    # px = reconstruction[f"{object_name}_{input_name}_{ax_spec['px']}"][batch_idx][object_idx]
+                    # py = reconstruction[f"{object_name}_{input_name}_{ax_spec['py']}"][batch_idx][object_idx]
 
-                    #for i in range(len(x[mask][idx])):
+                    # for i in range(len(x[mask][idx])):
                     #    mag = 5.0 * torch.sqrt(px[mask][idx][i]** 2 + py[mask][idx][i]**2)
-                    #    ax[ax_idx].arrow(x[mask][idx][i], y[mask][idx][i], dx=px[mask][idx][i] / mag, dy=py[mask][idx][i] / mag, color=color, alpha=0.8, head_width=0.04)
+                    #    ax[ax_idx].arrow(x[mask][idx][i], y[mask][idx][i], dx=px[mask][idx][i] / mag,
+                    #                      dy=py[mask][idx][i] / mag, color=color, alpha=0.8, head_width=0.04)
 
                 # ECAL hit
                 elif input_name in ecal_names:

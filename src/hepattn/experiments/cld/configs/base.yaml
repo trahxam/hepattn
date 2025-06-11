@@ -82,7 +82,7 @@ data:
       - ite
       - otb
       - ote
-    
+
     sihits:
       - vtb
       - vte
@@ -150,7 +150,7 @@ data:
       - v.b
       - du
       - dv
-    
+
     sihits:
       - type
 

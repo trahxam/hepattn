@@ -33,7 +33,7 @@ class CLDDataset(Dataset):
         particle_hit_separation_cuts: dict[str, dict] | None = None,
         truth_filter_hits: list[str] | None = None,
         event_max_num_particles: int = 256,
-        calo_energy_thresh = 1e-6,
+        calo_energy_thresh=1e-6,
         random_seed: int = 42,
         precision: str | int = 16,
     ):
@@ -294,7 +294,7 @@ class CLDDataset(Dataset):
                 particle_total_energy,
                 out=np.zeros_like(particle_calo_energy),
                 where=particle_total_energy > self.calo_energy_thresh,
-                )
+            )
 
         # Merge together any masks
         if self.merge_inputs:
