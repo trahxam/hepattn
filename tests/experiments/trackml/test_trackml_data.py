@@ -39,7 +39,7 @@ class TestTrackMLEvent:
             "particle": ["pt", "eta", "phi"],
         }
 
-        dirpath = "/share/rcifdata/maxhart/data/trackml/raw/train/"
+        dirpath = "/share/rcifdata/maxhart/data/trackml/prepped/train/"
         num_events = 10
         hit_volume_ids = [8]
         particle_min_pt = 1.0
@@ -72,6 +72,8 @@ class TestTrackMLEvent:
 
     def test_trackml_event_display(self, trackml_event):
         # Quick event display plotted directly from dataloader to verify things look correct
+        out_dir = Path("tests/outputs/trackml")
+        out_dir.mkdir(exist_ok=True, parents=True)
         inputs, targets = trackml_event
 
         fig = plot_trackml_event_reconstruction(inputs, targets)

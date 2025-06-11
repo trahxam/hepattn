@@ -47,5 +47,7 @@ class TestTrackMLEvent:
         return dataset
 
     def test_trackml_plot_kinematics(self, trackml_dataset):
+        out_dir = Path("tests/outputs/trackml")
+        out_dir.mkdir(exist_ok=True, parents=True)
         fig = plot_trackml_kinematics(trackml_dataset)
         fig.savefig(Path("tests/outputs/trackml/trackml_kinematics.png"))
