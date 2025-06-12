@@ -162,10 +162,6 @@ class CLDDataset(Dataset):
         # Atomic input types
         trkr_hits = ["vtb", "vte", "itb", "ite", "otb", "ote"]
         calo_hits = ["ecb", "ece", "hcb", "hce", "hco", "msb", "mse"]
-<<<<<<< HEAD
-
-=======
->>>>>>> upstream/main
         hits = trkr_hits + calo_hits
 
         trkr_cols = [f"{hit}_col" for hit in trkr_hits]
