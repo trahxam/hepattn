@@ -25,9 +25,9 @@ def sigmoid(x):
 
 
 def main():
-    config_path = Path("/home/syw24/ftag/hepattn/logs/CLD_10_96_TF_charged_10MeV_F16_regr_sincosphi_20250605-T111602/config.yaml")
+    config_path = Path("/home/syw24/ftag/hepattn/logs/CLD_TRKECALHCAL_16_96_TF_charged_10MeV_F16_manypass_20250529-T024522/config.yaml")
     eval_path = Path(
-        "/home/syw24/ftag/hepattn/logs/CLD_10_96_TF_charged_10MeV_F16_regr_sincosphi_20250605-T111602/ckpts/epoch=008-train_loss=4.15202_train_eval.h5"
+        "/home/syw24/ftag/hepattn/logs/CLD_TRKECALHCAL_16_96_TF_charged_10MeV_F16_manypass_20250529-T024522/ckpts/epoch=007-train_loss=0.95565_train_eval.h5"
     )
 
     # Now create the dataset
@@ -101,10 +101,10 @@ def main():
         "vtx.r": ("Vertex $r_0$ [m]", np.linspace(0.0, 0.05, 32), "linear"),
         "vtx.z": ("Vertex $z_0$ [m]", np.linspace(-0.5, 0.5, 32), "linear"),
         "isolation": (r"$\Delta R$ Isolation", np.logspace(-4, 0, 32), "log"),
-        "num_vtxd": ("Number of Vertex Detector Hits", np.arange(0, 12) + 0.5, "linear"),
-        "num_trkr": ("Number of Tracker Hits", np.arange(0, 12) + 0.5, "linear"),
-        "num_ecal": ("Number of ECAL Hits", np.geomspace(1, 10000, 32), "log"),
-        "num_hcal": ("Number of HCAL Hits", np.geomspace(1, 1000, 32), "log"),
+        "num_vtxd": ("Number of Vertex Detector Hits", np.arange(0, 20) + 0.5, "linear"),
+        "num_trkr": ("Number of Tracker Hits", np.arange(0, 20) + 0.5, "linear"),
+        "num_ecal": ("Number of ECAL Hits", np.geomspace(1, 10000, 32), "linear"),
+        "num_hcal": ("Number of HCAL Hits", np.geomspace(1, 1000, 32), "linear"),
     }
 
     particle_total_valid = {hit: {field: np.zeros(len(plot_specs[field][1]) - 1) for field in plot_specs} for hit in hits}

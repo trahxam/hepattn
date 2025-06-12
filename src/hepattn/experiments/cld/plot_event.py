@@ -41,6 +41,27 @@ def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec, object_name
 
                         ax[ax_idx].plot(x[mask][idx], y[mask][idx], color=color, marker="o", alpha=0.75, linewidth=1.0, ms=2.0)
 
+                        # Leave a box denoting particle index for trkr hit
+                        # if input_name == "trkr" and mask.any():
+                        #     end_x = x[mask][idx][-1].item()
+                        #     end_y = y[mask][idx][-1].item()
+                        #     ax[ax_idx].text(
+                        #         end_x,
+                        #         end_y,
+                        #         str(mcparticle_idx),
+                        #         fontsize=5,
+                        #         color="black",
+                        #         ha="center",
+                        #         va="center",
+                        #         bbox={
+                        #             "boxstyle": "round,pad=0.2",
+                        #             "facecolor": "white",
+                        #             "edgecolor": "black",
+                        #             "linewidth": 0.5,
+                        #             "alpha": 0.5,
+                        #         },
+                        #     )
+
                     # ECAL hit
                     elif input_name in ecal_names:
                         ax[ax_idx].scatter(x[mask], y[mask], color=color, marker=".", alpha=0.5, s=1.0)
@@ -53,9 +74,9 @@ def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec, object_name
                     elif input_name == "muon":
                         ax[ax_idx].scatter(x[mask], y[mask], color=color, marker="x", alpha=0.75, s=4.0)
 
-                    ax[ax_idx].set_xlabel(ax_spec["x"])
-                    ax[ax_idx].set_ylabel(ax_spec["y"])
-                    ax[ax_idx].set_aspect("equal", "box")
+            ax[ax_idx].set_xlabel(ax_spec["x"])
+            ax[ax_idx].set_ylabel(ax_spec["y"])
+            ax[ax_idx].set_aspect("equal", "box")
 
     return fig
 
@@ -466,11 +487,22 @@ def plot_cld_event_pre_vs_post(inputs_orig, inputs_post, orig_targets, post_targ
             ax_mismatch.scatter(x_all, y_all, color="black", alpha=0.5, s=1.0)
 
         for mc_i in range(num_particles):
+            # if mc_i not in [31,33,60]:
+            #  continue
+
             base_color = cycler[mc_i % len(cycler)]
             post_i = match_idx[mc_i].item()
 
             if post_i >= 0:
                 for name in spec["input_names"]:
+                    # Uncomment to plot only modified truth tracks for matched particles
+                    # mask_pre = orig_targets[f"{object_name}_{name}_valid"][batch_idx][mc_i]
+                    # x_pre = inputs_orig[f"{name}_{spec['x']}"][batch_idx][mask_pre]
+                    # mask_post = post_targets[f"{object_name}_{name}_valid"][batch_idx][post_i]
+                    # x_post = inputs_post[f"{name}_{spec['x']}"][batch_idx][mask_post]
+                    # if x_pre.shape == x_post.shape:
+                    #     continue
+
                     _plot_matched_processed_particle(
                         ax_matched,
                         name,

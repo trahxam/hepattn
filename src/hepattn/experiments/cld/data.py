@@ -321,22 +321,10 @@ class CLDDataset(Dataset):
         # Set which particles we deem to be targets / reconstructable
         particle_cuts = {"min_pt": event["particle.mom.r"] >= self.particle_min_pt}
 
-        # Place a max no. of sihit cut first to get rid of looper tracks
-        n_vtxd = event["particle_vtxd_valid"].sum(-1)
-        n_trkr = event["particle_trkr_valid"].sum(-1)
-        n_ecal = event["particle_ecal_valid"].sum(-1)
-        n_hcal = event["particle_hcal_valid"].sum(-1)
-        n_sihit = n_vtxd + n_trkr
-        n_calo = n_ecal + n_hcal
-
-        if isinstance(self.charged_particle_max_num_hits, dict):
-            for hit_name, max_num_hits in self.charged_particle_max_num_hits.items():
-                particle_cuts[f"before_cut_charged_max_{hit_name}"] = ~(
-                    event["particle.isCharged"] & (event[f"particle_{hit_name}_valid"].sum(-1) > (max_num_hits + 2))
-                )
-        else:
-            particle_cuts["before_cut_charged_max_sihits"] = ~(
-                event["particle.isCharged"] & (n_sihit > (self.charged_particle_max_num_hits + 2)) & (n_calo == 0)
+        # Place a max no. of sihit cut first to get rid of charged looper tracks
+        for hit_name, max_num_hits in self.charged_particle_max_num_hits.items():
+            particle_cuts[f"before_cut_charged_max_{hit_name}"] = ~(
+                event["particle.isCharged"] & (event[f"particle_{hit_name}_valid"].sum(-1) > max_num_hits)
             )
 
         # Add the eta cut
@@ -415,13 +403,23 @@ class CLDDataset(Dataset):
         for hit_name, max_num_hits in self.neutral_particle_max_num_hits.items():
             particle_cuts[f"neutral_max_{hit_name}"] = ~(event["particle.isNeutral"] & (event[f"particle_{hit_name}_valid"].sum(-1) > max_num_hits))
 
+        n_vtxd = event["particle_vtxd_valid"].sum(-1)
+        n_trkr = event["particle_trkr_valid"].sum(-1)
+        n_sihit = n_vtxd + n_trkr
+        min_sihits = self.charged_particle_min_num_hits.get("sihits", None)
+        max_sihits = self.charged_particle_max_num_hits.get("sihits", None)
+        if min_sihits is not None:
+            particle_cuts["charged_min_sihits"] = ~(event["particle.isCharged"] & (n_sihit < min_sihits))
+        if max_sihits is not None:
+            particle_cuts["charged_max_sihits"] = ~(event["particle.isCharged"] & (n_sihit > max_sihits))
+
         # Apply the particle cuts
         for cut_mask in particle_cuts.values():
             event["particle_valid"] &= cut_mask
 
-        # Apply cut vetos
-        for hit_name, min_num_hits in self.particle_cut_veto_min_num_hits.items():
-            event["particle_valid"] = event["particle_valid"] | (event[f"particle_{hit_name}_valid"].sum(-1) > min_num_hits)
+        # # Apply cut vetos
+        # for hit_name, min_num_hits in self.particle_cut_veto_min_num_hits.items():
+        #     event["particle_valid"] = event["particle_valid"] | (event[f"particle_{hit_name}_valid"].sum(-1) > min_num_hits)
 
         # Remove any mask slots for invalid particles
         for input_name in self.inputs:
