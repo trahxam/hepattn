@@ -36,14 +36,14 @@ class Pooling(nn.Module):
         self.weight_net = Dense(dim, 1)
         self.pool_net = pool_net
 
-    def forward(self, x: dict[str, Tensor], pads: None | dict[str, Tensor] = None) -> dict[str, Tensor]:
-        x = x[self.input_object + "_embed"] # (..., N, E)
+    def forward(self, inputs: dict[str, Tensor]) -> dict[str, Tensor]:
+        x = inputs[self.input_object + "_embed"] # (..., N, E)
         if self.pool_net is not None:
             x = self.pool_net(x) # (..., N, E) -> (..., N, E)
         # Calculate a weight that will be used to pool the new embeddings (..., N, E) -> (..., N, 1)
         w = self.weight_net(x)
         # Set weights of padded entries to zero and make sure they sum to one
-        w = w.masked_fill(~pads[self.input_object  + "_valid"], -torch.inf)
+        w = w.masked_fill(~inputs[self.input_object  + "_valid"], -torch.inf)
         w = torch.softmax(w, dim=-2)  # (..., N, 1)
         # Weighted sum of all the embeddings (..., N, E) -> (..., E)
         x = torch.sum(x * w, dim=-2)

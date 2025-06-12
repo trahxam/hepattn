@@ -314,9 +314,9 @@ class RegressionTask(Task):
         # For standard regression number of DoFs is just the number of targets
         self.ndofs = self.k
 
-    def forward(self, x: dict[str, Tensor], pads: dict[str, Tensor] | None = None) -> dict[str, Tensor]:
+    def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:
         # For a standard regression task, the raw network output is the final prediction
-        latent = self.latent(x, pads=pads)
+        latent = self.latent(x)
         return {self.output_object + "_regr": latent}
 
     def predict(self, outputs):
@@ -380,7 +380,7 @@ class ObjectRegressionTask(RegressionTask):
         self.dim = dim
         self.net = Dense(self.dim, self.ndofs)
 
-    def latent(self, x: dict[str, Tensor], pads: dict[str, Tensor] | None = None) -> Tensor:
+    def latent(self, x: dict[str, Tensor]) -> Tensor:
         return self.net(x[self.input_object + "_embed"])
 
     def cost(self, outputs, targets):
@@ -422,7 +422,7 @@ class ObjectHitRegressionTask(RegressionTask):
         self.hit_net = Dense(dim, self.ndofs * self.dim_per_dof)
         self.object_net = Dense(dim, self.ndofs * self.dim_per_dof)
 
-    def latent(self, x: dict[str, Tensor], pads: dict[str, Tensor] | None = None) -> Tensor:
+    def latent(self, x: dict[str, Tensor]) -> Tensor:
         # Embed the hits and tracks and reshape so we have a separate embedding for each DoF
         x_obj = self.object_net(x[self.input_object + "_embed"])
         x_hit = self.hit_net(x[self.input_hit + "_embed"])
@@ -434,10 +434,8 @@ class ObjectHitRegressionTask(RegressionTask):
         # with just a scalar for each degree of freedom
         x_obj_hit = torch.einsum("...nie,...mie->...nmi", x_obj, x_hit)  # Shape BNMD
 
-        # If padding data is provided, use it to zero out predictions for any hit slots that are not valid
-        if pads is not None:
-            # Shape of padding goes BM -> B1M -> B1M1 -> BNMD
-            x_obj_hit = x_obj_hit * pads[self.input_hit + "_valid"].unsqueeze(-2).unsqueeze(-1).expand_as(x_obj_hit).float()
+        # Shape of padding goes BM -> B1M -> B1M1 -> BNMD
+        x_obj_hit = x_obj_hit * x[self.input_hit + "_valid"].unsqueeze(-2).unsqueeze(-1).expand_as(x_obj_hit).float()
         return x_obj_hit
 
 
@@ -469,7 +467,7 @@ class ClassificationTask(nn.Module):
         self.class_net = Dense(dim, len(classes))
         self.class_weights_values = torch.tensor([class_weights[class_name] for class_name in self.classes])
 
-    def forward(self, x: dict[str, Tensor], pads: None | dict[str, Tensor] = None) -> dict[str, Tensor]:
+    def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:
         # Now get the class logits from the embedding (..., N, ) -> (..., E)
         x = self.class_net(x[f"{self.input_object}_embed"])
         return {f"{self.output_object}_logits": x}
