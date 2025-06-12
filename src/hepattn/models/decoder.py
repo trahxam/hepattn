@@ -19,6 +19,7 @@ class MaskFormerDecoderLayer(nn.Module):
     def __init__(
         self,
         dim: int,
+        norm: str = 'LayerNorm',
         dense_kwargs: dict | None = None,
         attn_kwargs: dict | None = None,
         mask_attention: bool = True,
@@ -32,7 +33,7 @@ class MaskFormerDecoderLayer(nn.Module):
         attn_kwargs = attn_kwargs or {}
         dense_kwargs = dense_kwargs or {}
 
-        residual = partial(Residual, dim=dim, norm=LayerNorm)
+        residual = partial(Residual, dim=dim, norm=norm)
         self.q_ca = residual(Attention(dim, **attn_kwargs))
         self.q_sa = residual(Attention(dim, **attn_kwargs))
         self.q_dense = residual(Dense(dim, **dense_kwargs))
