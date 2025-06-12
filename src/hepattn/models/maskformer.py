@@ -84,6 +84,14 @@ class MaskFormer(nn.Module):
         x["key_embed"] = torch.concatenate([x[input_name + "_embed"] for input_name in input_names], dim=-2)
         x["key_valid"] = torch.concatenate([x[input_name + "_valid"] for input_name in input_names], dim=-1)
 
+        # calculate the batch size and combined number of input constituents
+        batch_size = x["key_valid"].shape[0]
+        num_constituents = x["key_valid"].shape[-1]
+
+        # if all key_valid are true, then we can just set it to None 
+        if x["key_valid"].all():
+            x["key_valid"] = None
+
         # Also merge the field being used for sorting in window attention if requested
         if self.input_sort_field is not None:
             x[f"key_{self.input_sort_field}"] = torch.concatenate(
@@ -101,7 +109,6 @@ class MaskFormer(nn.Module):
             x[input_name + "_embed"] = x["key_embed"][..., x[f"key_is_{input_name}"], :]
 
         # Generate the queries that represent objects
-        batch_size = x["key_valid"].shape[0]
         x["query_embed"] = self.query_initial.expand(batch_size, -1, -1)
         x["query_valid"] = torch.full((batch_size, self.num_queries), True)
 
@@ -140,7 +147,7 @@ class MaskFormer(nn.Module):
 
             # Fill in attention masks for features that did not get one specified by any task
             if attn_masks and self.use_attn_masks:
-                attn_mask = torch.full((batch_size, self.num_queries, x["key_valid"].shape[-1]), True, device=x["key_embed"].device)
+                attn_mask = torch.full((batch_size, self.num_queries, num_constituents), True, device=x["key_embed"].device)
 
                 for input_name, input_attn_mask in attn_masks.items():
                     attn_mask[..., x[f"key_is_{input_name}"]] = input_attn_mask
