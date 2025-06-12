@@ -31,9 +31,10 @@ class CLDDataset(Dataset):
         particle_hit_min_p_ratio: dict[str, float] | None = None,
         particle_hit_deflection_cuts: dict[str, dict] | None = None,
         particle_hit_separation_cuts: dict[str, dict] | None = None,
+        particle_min_calib_calo_energy: dict[str, float] | None = None,
         truth_filter_hits: list[str] | None = None,
         event_max_num_particles: int = 256,
-        calo_energy_thresh = 1e-6,
+        calo_energy_thresh: float = 1e-6,
         random_seed: int = 42,
         precision: str | int = 16,
     ):
@@ -55,6 +56,8 @@ class CLDDataset(Dataset):
             charged_particle_min_num_hits = {}
         if particle_cut_veto_min_num_hits is None:
             particle_cut_veto_min_num_hits = {}
+        if particle_min_calib_calo_energy is None:
+            particle_min_calib_calo_energy = {}
         if merge_inputs is None:
             merge_inputs = {}
         super().__init__()
@@ -159,6 +162,7 @@ class CLDDataset(Dataset):
         # Atomic input types
         trkr_hits = ["vtb", "vte", "itb", "ite", "otb", "ote"]
         calo_hits = ["ecb", "ece", "hcb", "hce", "hco", "msb", "mse"]
+
         hits = trkr_hits + calo_hits
 
         trkr_cols = [f"{hit}_col" for hit in trkr_hits]
@@ -286,15 +290,15 @@ class CLDDataset(Dataset):
         # Calculate the fractional energy contributions for the calo clusters
         for calo_hit in calo_hits:
             # Normalise the energy by the sum of the contributions from all particles
-
             particle_calo_energy = event[f"particle_{calo_hit}.energy"]
+            # This is the total energy each hit recieves from every particle
             particle_total_energy = particle_calo_energy.sum(-2)
             event[f"particle_{calo_hit}.energy_frac"] = np.divide(
                 particle_calo_energy,
                 particle_total_energy,
                 out=np.zeros_like(particle_calo_energy),
                 where=particle_total_energy > self.calo_energy_thresh,
-                )
+            )
 
         # Merge together any masks
         if self.merge_inputs:
@@ -306,6 +310,19 @@ class CLDDataset(Dataset):
                         event[f"particle_{merged_input_name}.{field}"] = np.concatenate(
                             [event[f"particle_{hit}.{field}"] for hit in input_names], axis=-1
                         )
+
+        calo_hit_calibrations = {
+            "ecal": 37.0,
+            "hcal": 45.0,
+        }
+
+        # Now calculate the total energy each particle has in each of the calo hits
+        # Need to be careful to do this after we have merged calo hits / on the merged calo hits!
+        for calo_hit in ["ecal", "hcal"]:
+            # Sum over the hits
+            event[f"particle.energy_{calo_hit}"] = event[f"particle_{calo_hit}.energy"].sum(-1)
+            event[f"particle.calib_energy_{calo_hit}"] = calo_hit_calibrations[calo_hit] * event[f"particle.energy_{calo_hit}"]
+
 
         # Add extra labels for particles
         event["particle.isCharged"] = np.abs(event["particle.charge"]) > 0
