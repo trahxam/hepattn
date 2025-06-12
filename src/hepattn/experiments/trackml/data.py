@@ -82,7 +82,6 @@ class TrackMLDataset(Dataset):
 
         # Load the event
         hits, particles = self.load_event(idx)
-
         num_particles = len(particles)
 
         # Build the input hits
@@ -98,7 +97,7 @@ class TrackMLDataset(Dataset):
         targets["particle_valid"][: len(particles)] = True
         targets["particle_valid"] = targets["particle_valid"].unsqueeze(0)
         message = f"Event {idx} has {num_particles}, but limit is {self.event_max_num_particles}"
-        assert len(particles) <= self.event_max_num_particles, message
+        assert num_particles <= self.event_max_num_particles, message
 
         # Build the particle regression targets
         particle_ids = torch.from_numpy(particles["particle_id"].values)
