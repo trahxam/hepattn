@@ -1,4 +1,4 @@
-name: CLD_10_400_charged_10MeV_noise_neutrals
+name: CLD_5_320_charged_10MeV_noise_neutrals_F16_focal_dice
 
 data:
   # Paths to preprocessed data directories
@@ -9,10 +9,10 @@ data:
   # Number of events to include in each set
   num_workers: 10
   num_train: -1
-  num_test: 100
+  num_test: 1000
   num_val: 100
 
-  batch_size: 10
+  batch_size: 5
 
   precision: 16
 
@@ -20,19 +20,19 @@ data:
   particle_min_pt: 0.01
 
   # Number of query slots / particles to generate per event
-  event_max_num_particles: &num_particles 400
+  event_max_num_particles: &num_particles 320
 
   # Charged particle cuts based on hit content
   charged_particle_min_num_hits:
     vtxd: 0
     trkr: 0
-    sihits: 4
+    sihit: 4
 
   # Neutral particle cuts based on hit content
   charged_particle_max_num_hits:
     vtxd: 12
     trkr: 12
-    sihits: 24
+    sihit: 24
 
   particle_cut_veto_min_num_hits:
     ecal: 32
@@ -82,8 +82,8 @@ data:
       - ite
       - otb
       - ote
-    
-    sihits:
+
+    sihit:
       - vtb
       - vte
       - itb
@@ -150,8 +150,8 @@ data:
       - v.b
       - du
       - dv
-    
-    sihits:
+
+    sihit:
       - type
 
     ecal:
@@ -221,8 +221,11 @@ data:
       - mom.r
       - mom.eta
       - mom.phi
+      - mom.theta
       - mom.eta_drad
       - mom.phi_drad
+      - mom.rinv
+      - mom.qopt
       - spin.x
       - spin.y
       - spin.z
@@ -234,6 +237,12 @@ data:
       - num_trkr
       - num_ecal
       - num_hcal
+      - num_sihit
+      - isolation
+      - energy_ecal
+      - energy_hcal
+      - calib_energy_ecal
+      - calib_energy_hcal
 
     particle_vtxd:
       - pos.x
@@ -242,6 +251,9 @@ data:
       - mom.x
       - mom.y
       - mom.z
+      - mom.rinv
+      - mom.theta
+      - mom.phi
 
     particle_trkr:
       - pos.x
@@ -250,6 +262,9 @@ data:
       - mom.x
       - mom.y
       - mom.z
+      - mom.rinv
+      - mom.theta
+      - mom.phi
 
     particle_ecal:
       - energy
@@ -290,7 +305,7 @@ trainer:
     - class_path: hepattn.callbacks.PredictionWriter
       init_args:
         write_inputs: false
-        write_outputs: false
+        write_outputs: true
         write_preds: true
         write_targets: false
         write_losses: false
@@ -305,7 +320,7 @@ model:
 
   lrs_config:
     initial: 1e-5
-    max: 4e-5
+    max: 5e-5
     end: 1e-5
     pct_start: 0.01
     skip_scheduler: false
@@ -533,12 +548,12 @@ model:
                 target_object: particle
                 losses:
                   mask_ce: 10.0
-                  #mask_dice: 2.0
-                  #mask_focal: 100.0
+                  mask_dice: 10.0
+                  mask_focal: 10.0
                 costs:
                   mask_ce: 10.0
-                  #mask_dice: 2.0
-                  #mask_focal: 50.0
+                  mask_dice: 10.0
+                  mask_focal: 10.0
                 dim: *dim
                 null_weight: 1.0
 
@@ -551,12 +566,12 @@ model:
                 target_object: particle
                 losses:
                   mask_ce: 10.0
-                  #mask_dice: 2.0
-                  #mask_focal: 100.0
+                  mask_dice: 10.0
+                  mask_focal: 10.0
                 costs:
                   mask_ce: 10.0
-                  #mask_dice: 2.0
-                  #mask_focal: 50.0
+                  mask_dice: 10.0
+                  mask_focal: 10.0
                 dim: *dim
                 null_weight: 1.0
 
@@ -570,12 +585,12 @@ model:
                 target_field: energy_frac
                 losses:
                   mask_ce: 0.1
-                  #mask_dice: 2.0
-                  #mask_focal: 10.0
+                  mask_dice: 0.5
+                  mask_focal: 0.5
                 costs:
                   mask_ce: 0.1
-                  #mask_dice: 2.0
-                  #mask_focal: 50.0
+                  mask_dice: 0.5
+                  mask_focal: 0.5
                 dim: *dim
                 null_weight: 1.0
 
@@ -589,12 +604,12 @@ model:
                 target_field: energy_frac
                 losses:
                   mask_ce: 0.5
-                  #mask_dice: 2.0
-                  # mask_focal: 50.0
+                  mask_dice: 0.5
+                  mask_focal: 0.5
                 costs:
                   mask_ce: 0.5
-                  #mask_dice: 2.0
-                  #mask_focal: 50.0
+                  mask_dice: 0.5
+                  mask_focal: 0.5
                 dim: *dim
                 null_weight: 1.0
 
@@ -607,11 +622,11 @@ model:
                 target_object: particle
                 losses:
                   mask_ce: 1.0
-                  #mask_dice: 2.0
-                  # mask_focal: 50.0
+                  mask_dice: 1.0
+                  mask_focal: 1.0
                 costs:
                   mask_ce: 1.0
-                  #mask_dice: 2.0
-                  #mask_focal: 50.0
+                  mask_dice: 1.0
+                  mask_focal: 1.0
                 dim: *dim
                 null_weight: 1.0

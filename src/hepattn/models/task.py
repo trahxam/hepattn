@@ -260,7 +260,6 @@ class ObjectHitMaskTask(Task):
         costs = {}
         for cost_fn, cost_weight in self.costs.items():
             costs[cost_fn] = cost_weight * cost_fns[cost_fn](output, target)
-
             # Set the costs of invalid objects to be (basically) inf
             costs[cost_fn][~targets[self.target_object + "_valid"].unsqueeze(-2).expand_as(costs[cost_fn])] = COST_PAD_VALUE
         return costs
@@ -335,15 +334,6 @@ class RegressionTask(Task):
         # Compute the regression loss only for valid objects
         return {"smooth_l1": self.loss_weight * loss.mean()}
 
-    def cost(self, outputs, targets):
-        output = outputs[self.output_object + "_regr"].detach().to(torch.float32)
-        target = torch.stack([targets[self.target_object + "_" + field] for field in self.fields], dim=-1).to(torch.float32)
-        # Index from the front so it works for both object and mask regression
-        costs = torch.nn.functional.smooth_l1_loss(output.unsqueeze(2), target.unsqueeze(1), reduction="none")
-        # Average over the regression fields dimension
-        costs = costs.mean(-1)
-        return {"regr_smooth_l1": self.cost_weight * costs}
-
     def metrics(self, preds, targets):
         metrics = {}
         for field in self.fields:
@@ -385,6 +375,17 @@ class ObjectRegressionTask(RegressionTask):
     def latent(self, x: dict[str, Tensor], pads: dict[str, Tensor] | None = None) -> Tensor:
         return self.net(x[self.input_object + "_embed"])
 
+    def cost(self, outputs, targets):
+        output = outputs[self.output_object + "_regr"].detach().to(torch.float32)
+        target = torch.stack([targets[self.target_object + "_" + field] for field in self.fields], dim=-1).to(torch.float32)
+        # Index from the front so it works for both object and mask regression
+        costs = torch.nn.functional.smooth_l1_loss(output.unsqueeze(2), target.unsqueeze(1), reduction="none")
+        # Average over the regression fields dimension
+        costs = costs.mean(-1)
+        # Set the costs of invalid objects to be inf
+        costs[~targets[self.target_object + "_valid"].unsqueeze(-2).expand_as(costs)] = COST_PAD_VALUE
+        return {"regr_smooth_l1": self.cost_weight * costs}
+
 
 class ObjectHitRegressionTask(RegressionTask):
     def __init__(
@@ -396,9 +397,10 @@ class ObjectHitRegressionTask(RegressionTask):
         target_object: str,
         fields: list[str],
         loss_weight: float,
+        cost_weight: float,
         dim: int,
     ):
-        super().__init__(name, output_object, target_object, fields, loss_weight)
+        super().__init__(name, output_object, target_object, fields, loss_weight, cost_weight)
 
         self.input_hit = input_hit
         self.input_object = input_object
@@ -429,3 +431,60 @@ class ObjectHitRegressionTask(RegressionTask):
             # Shape of padding goes BM -> B1M -> B1M1 -> BNMD
             x_obj_hit = x_obj_hit * pads[self.input_hit + "_valid"].unsqueeze(-2).unsqueeze(-1).expand_as(x_obj_hit).float()
         return x_obj_hit
+
+
+class ClassificationTask(nn.Module):
+    def __init__(
+        self,
+        name: str,
+        input_object: str,
+        output_object: str,
+        target_object: str,
+        classes: list[str],
+        dim: int,
+        class_weights: dict[str, float] | None = None,
+        loss_weight: float = 1.0,
+        multilabel: bool = False,
+    ):
+        super().__init__()
+
+        self.name = name
+        self.input_object = input_object
+        self.output_object = output_object
+        self.target_object = target_object
+        self.classes = classes
+        self.dim = dim
+        self.class_weights = class_weights
+        self.loss_weight = loss_weight
+        self.multilabel = multilabel
+
+        self.class_net = Dense(dim, len(classes))
+        self.class_weights_values = torch.tensor([class_weights[class_name] for class_name in self.classes])
+
+    def forward(self, x: dict[str, Tensor], pads: None | dict[str, Tensor] = None) -> dict[str, Tensor]:
+        # Now get the class logits from the embedding (..., N, ) -> (..., E)
+        x = self.class_net(x[f"{self.input_object}_embed"])
+        return {f"{self.output_object}_logits": x}
+    
+    def predict(self, outputs, threshold=0.5):
+        # Split the regression vectior into the separate fields
+        logits = outputs[self.output_object + "_logits"]
+        if self.multilabel:
+            predictions = torch.nn.functional.sigmoid(logits) >= threshold
+        else:
+            predictions = torch.nn.functional.softmax(logits, dim=-1)
+        return {self.output_object + "_" + class_name: predictions[..., i] for i, class_name in enumerate(self.classes)}
+
+    def loss(self, outputs, targets):
+        # Get the targets and predictions
+        target = torch.stack([targets[self.target_object + "_" + class_name] for class_name in self.classes], dim=-1)
+        logits = outputs[f"{self.output_object}_logits"]
+        # Put the class weights into a tensor with the correct dtype
+        class_weights = self.class_weights_values.type_as(target)
+        # Compute the loss, using the class weights
+        losses = torch.nn.functional.binary_cross_entropy_with_logits(logits, target, pos_weight=class_weights, reduction="none")
+        # Only consider valid targets
+        losses = losses[targets[f"{self.target_object}_valid"]]
+        return {"bce": self.loss_weight * losses.mean()}
+
+

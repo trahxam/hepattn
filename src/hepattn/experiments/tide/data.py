@@ -159,6 +159,11 @@ class ROIDataset(Dataset):
             roi["sudo_valid"] &= roi["sudo_d0"] <= self.track_max_d0
             roi["sudo_valid"] &= roi["sudo_z0"] <= self.track_max_z0
 
+            # Add pseudorack specific fields
+            # B hadron pt is already in GeV
+            roi["sudo_bhad_pt"] = file[f"{roi_id}/sudo_bhad_pt"][:]
+            roi["sudo_from_bhad"] = roi["sudo_bhad_pt"] > 0
+
             # Calculate the ROI reference point
             for coord in ["vx", "vy", "vz", "d0", "z0"]:
                 roi[f"sisp_{coord}"] = file[f"{roi_id}/sisp_{coord}"][:]
@@ -166,10 +171,25 @@ class ROIDataset(Dataset):
 
             roi["roi_theta"] = 2 * np.arctan(np.exp(-roi[f"roi_eta"]))
 
+            # Origin codes found at: https://gitlab.cern.ch/Atlas-Inner-Tracking/ctide-ambiguity-solver-analyser/-/
+            # blob/master/source/CTIDEAmbiguitySolverAnalyser/CTIDEAmbiguitySolverAnalyser/CTIDEAmbiguitySolverAnalyserAlg.h#L706
+            # Order of defintion is important and defines the labelling priority
+            track_orgin_class_ids = {
+                "b": [0, 1],
+                "c": [2, 3],
+                "tau": [4, 5],
+                "other": [6],
+            }
+            
             for track in ["sudo", "sisp", "reco"]:
                 # Load in track fields
                 for field in ["pt", "eta", "phi", "z0", "d0", "vx", "vy", "vz", "q", "origin"]:
                     roi[f"{track}_{field}"] = file[f"{roi_id}/{track}_{field}"][:]
+
+                for origin_class, origin_ids in track_orgin_class_ids.items():
+                    roi[f"{track}_from_{origin_class}"] = np.full_like(roi[f"{track}_origin"], False, bool)
+                    for origin_id in origin_ids:
+                        roi[f"{track}_from_{origin_class}"] = roi[f"{track}_from_{origin_class}"] | np.isclose(roi[f"{track}_origin"], origin_id)
 
                 # Make extra track fields
                 roi[f"{track}_px"] = roi[f"{track}_pt"] * np.cos(roi[f"{track}_phi"])
@@ -191,6 +211,20 @@ class ROIDataset(Dataset):
                 field_scalings = {"deta": 100.0, "dphi": 100.0, "dtheta": 100.0, "qopt": 10.0, "dz0": 0.1, "d0": 1.0}
                 for field, scaling in field_scalings.items():
                     roi[f"{track}_scaled_{field}"] = scaling * roi[f"{track}_{field}"]
+
+            # Apply an ROI label based on the track origin
+            for origin_class in track_orgin_class_ids:
+                roi[f"roi_has_{origin_class}"] = np.any(roi[f"sudo_from_{origin_class}"], keepdims=True)
+
+            # roi["roi_has_b"] = np.any(roi[f"sudo_bhad_pt"] >= 5.0, keepdims=True)
+            
+            # Used to keep track of which ROIs have already been assigned a label for the labelling priority
+            assigned_class = np.array([False])
+            for origin_class in track_orgin_class_ids:
+                # If the ROI has not been labelled and has a track of an origin in it, label it as that origin
+                roi[f"roi_is_{origin_class}"] = roi[f"roi_has_{origin_class}"] & (~assigned_class)
+                # Now mark the ROI as labelled
+                assigned_class = assigned_class | roi[f"roi_is_{origin_class}"]
 
             def load_csr_matrix(index_field, data_field, dtype):
                 # Load the CSR data
@@ -439,7 +473,11 @@ class ROICollator:
 
             for field in fields:
                 k = f"{target_name}_{field}"
-                batched_targets[k] = pad_and_concat([t[k] for t in targets], size, torch.nan)
+
+                if target_name == "roi":
+                    batched_targets[k] = torch.cat([t[k] for t in targets], dim=-1)
+                else:
+                    batched_targets[k] = pad_and_concat([t[k] for t in targets], size, torch.nan)
 
         # Batch the metadata
         batched_targets["sample_id"] = torch.cat([t["sample_id"] for t in targets], dim=-1)
