@@ -56,6 +56,7 @@ class TrackMLDataset(Dataset):
         self.targets = targets
         self.num_events = num_events
         self.event_names = event_names[:num_events]
+        self.sample_ids = [int(name.removeprefix("event")) for name in self.event_names]
 
         # Setup hit eval file if specified
         if self.hit_eval_path:
@@ -81,7 +82,6 @@ class TrackMLDataset(Dataset):
 
         # Load the event
         hits, particles = self.load_event(idx)
-
         num_particles = len(particles)
 
         # Build the input hits
@@ -96,12 +96,11 @@ class TrackMLDataset(Dataset):
         targets["particle_valid"] = torch.full((self.event_max_num_particles,), False)
         targets["particle_valid"][: len(particles)] = True
         targets["particle_valid"] = targets["particle_valid"].unsqueeze(0)
+        message = f"Event {idx} has {num_particles}, but limit is {self.event_max_num_particles}"
+        assert num_particles <= self.event_max_num_particles, message
 
         # Build the particle regression targets
         particle_ids = torch.from_numpy(particles["particle_id"].values)
-
-        message = f"Event {idx} has {num_particles}, but limit is {self.event_max_num_particles}"
-        assert len(particle_ids) <= self.event_max_num_particles, message
 
         # Fill in empty slots with -1s and get the IDs of the particle on each hit
         particle_ids = torch.cat([particle_ids, -999 * torch.ones(self.event_max_num_particles - len(particle_ids))])
@@ -112,6 +111,9 @@ class TrackMLDataset(Dataset):
 
         # Create the hit filter targets
         targets["hit_on_valid_particle"] = torch.from_numpy(hits["on_valid_particle"].to_numpy()).unsqueeze(0)
+
+        # Add sample ID
+        targets['sample_id'] = torch.tensor([self.sample_ids[idx]], dtype=torch.int32)
 
         # Build the regression targets
         if "particle" in self.targets:
@@ -174,8 +176,10 @@ class TrackMLDataset(Dataset):
         # If a hit eval file was specified, read in the predictions from it to use the hit filtering
         if self.hit_eval_path:
             with h5py.File(self.hit_eval_path, "r") as hit_eval_file:
+                assert str(self.sample_ids[idx]) in hit_eval_file, f"Key {self.sample_ids[idx]} not found in file {self.hit_eval_path}"
+
                 # The dataset has shape (1, num_hits)
-                hit_filter_pred = hit_eval_file[f"{event_name}/preds/final/hit_filter/hit_on_valid_particle"][0]
+                hit_filter_pred = hit_eval_file[f"{self.sample_ids[idx]}/preds/final/hit_filter/hit_on_valid_particle"][0]
                 hits = hits[hit_filter_pred]
 
         # TODO: Add back truth based hit filtering
