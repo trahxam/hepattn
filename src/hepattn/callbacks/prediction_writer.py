@@ -60,6 +60,7 @@ class PredictionWriter(Callback):
             # Iterate through all of the samples in the batch
             for idx, sample_id in enumerate(sample_ids):
                 self.write_sample(sample_id, inputs, targets, outputs, preds, losses, idx)
+
         # handle unbatched case
         else:
             self.write_sample(batch_idx, inputs, targets, outputs, preds, losses, 0)
@@ -113,14 +114,16 @@ class PredictionWriter(Callback):
                 for name, value in task_items.items():
                     self.create_dataset(task_group, name, value[idx][None, ...])
 
-    def on_test_epoch_end(self, trainer, module):
-        # Close the file handle now we are done
-        self.file.close()
-        print("Created output file", self.output_path)
-
     def create_dataset(self, group, name, value):
         # Shouldn't need to detach as we are testing
         value = tensor_to_numpy(value)
 
         # Write the data to the file
         group.create_dataset(name, data=value, compression="lzf")
+
+    def teardown(self, trainer, module, stage):
+        # Close the file handle now we are done
+        self.file.close()
+        print("-" * 80)
+        print("Created output file", self.output_path)
+        print("-" * 80)

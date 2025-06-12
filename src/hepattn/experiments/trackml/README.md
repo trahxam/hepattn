@@ -16,13 +16,17 @@ cd hepattn/src/hepattn/experiments/trackml/
 python run_filtering.py fit --config configs/filtering.yaml --trainer.fast_dev_run 10
 
 # test
-python run_filtering.py test --config PATH --trainer.callbacks+='{"class_path": "hepattn.callbacks.InferenceTimer"}'
+python run_filtering.py test --config PATH
 ```
 
 ## Tracking
 
 ```shell
+# train 
 python run_tracking.py fit --config configs/tracking.yaml --trainer.fast_dev_run 10
+
+# test
+python run_tracking.py test --config PATH
 ```
 
 

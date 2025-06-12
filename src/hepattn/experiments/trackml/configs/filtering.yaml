@@ -86,7 +86,6 @@ trainer:
         write_preds: true
         write_targets: false
         write_losses: false
-    - class_path: lightning.pytorch.callbacks.ModelSummary
     - class_path: lightning.pytorch.callbacks.LearningRateMonitor
     - class_path: lightning.pytorch.callbacks.TQDMProgressBar
       init_args:
@@ -168,4 +167,4 @@ model:
                 target_field: on_valid_particle
                 dim: *dim
                 threshold: 0.1
-                loss_fn: both
+                loss_fn: bce
