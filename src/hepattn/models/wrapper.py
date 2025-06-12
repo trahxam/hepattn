@@ -46,7 +46,7 @@ class ModelWrapper(LightningModule):
             for task_name, task_losses in layer_losses.items():
                 for loss_name, loss_value in task_losses.items():
                     self.log(f"{stage}/{layer_name}_{task_name}_{loss_name}", loss_value)
-                total_loss += loss_value
+                    total_loss += loss_value
 
         # Log the total loss
         self.log(f"{stage}/loss", total_loss)
