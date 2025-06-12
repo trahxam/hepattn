@@ -24,6 +24,4 @@ def test_pooling():
 
     outputs = pooling_layer(inputs)
 
-    print(outputs)
-    print(outputs.shape)
-
+    assert outputs["y_embed"].shape == (batch_size, dim)
