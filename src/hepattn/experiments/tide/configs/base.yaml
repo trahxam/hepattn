@@ -1,12 +1,12 @@
-name: TIDE_1M_100_32trk_F32_0drop
+name: TIDE_5M_100_32trk_F32
 
 data:
   batch_size: 100
-  train_dir: /share/rcifdata/maxhart/data/ambi_new/
-  val_dir: /share/rcifdata/maxhart/data/ambi_new/
-  test_dir: /share/rcifdata/maxhart/data/ambi_new/
-  num_workers: 14
-  num_train: 1000000
+  train_dir: /share/rcifdata/maxhart/data/ambi/train/
+  val_dir: /share/rcifdata/maxhart/data/ambi/val/
+  test_dir: /share/rcifdata/maxhart/data/ambi/test/
+  num_workers: 10
+  num_train: 5000000
   num_test: 10000
   num_val: 10000
   precision: single
@@ -24,7 +24,7 @@ data:
     sct: 4
 
   # Maximum number of tracks allowed in an ROI before we drop the ROI
-  roi_max_num_tracks: &num_tracks 32
+  roi_max_num_tracks: &num_tracks 40
 
   # The maximum number of tracks that can be dropped from track
   # cuts before we drop the entire ROI
@@ -127,31 +127,49 @@ data:
       - eta
       - phi
       - theta
-      - vx
-      - vy
-      - vz
       - z0
       - d0
       - q
-      - qop
-      # Track paramaters in ROI frame
+      - qopt
+      # Track paramaters in the ROI frame
+      - dtheta
       - deta
       - dphi
-      # Pseudotrack specific params
-      #- bhadpt
+      - dz0
+      # Vertex location in global frame
+      - vx
+      - vy
+      - vz
+      # Scaled fields for the regression
+      - scaled_dz0
+      - scaled_d0
+      - scaled_qopt
+      - scaled_dtheta
+      - scaled_dphi
+      # Pseudotrack specific fields
+      - origin
+      - bhad_pt
+      - from_b
+      - from_c
+      - from_tau
+      - from_other
 
     sisp:
       # Track paramaters in global frame
       - pt
       - eta
       - phi
+      - theta
       - z0
       - d0
       - q
-      - qop
-      # Track paramaters in ROI frame
+      - qopt
+      # Track paramaters in the ROI frame
+      - dtheta
       - deta
       - dphi
+      - dz0
+      # Vertex location in global frame
       - vx
       - vy
       - vz
@@ -161,13 +179,17 @@ data:
       - pt
       - eta
       - phi
+      - theta
       - z0
       - d0
       - q
-      - qop
-      # Track paramaters in ROI frame
+      - qopt
+      # Track paramaters in the ROI frame
+      - dtheta
       - deta
       - dphi
+      - dz0
+      # Vertex location in global frame
       - vx
       - vy
       - vz
@@ -176,6 +198,16 @@ data:
       - eta
       - phi
       - energy
+      # Whether the ROI contains a b/c/tau/other
+      - has_b
+      - has_c
+      - has_tau
+      - has_other
+      # Whether the ROI is marked as a b/c/tau/other
+      - is_b
+      - is_c
+      - is_tau
+      - is_other
 
     sudo_pix:
       - loc_x
@@ -244,7 +276,6 @@ model:
       dim: &dim 256
       num_queries: *num_tracks
       input_sort_field: phi
-      record_intermediate_embeddings: false
       use_attn_masks: true
       use_query_masks: false
 
@@ -426,3 +457,33 @@ model:
                   mask_ce: 50.0
                 dim: *dim
                 null_weight: 1.0
+
+            - class_path: hepattn.models.task.ObjectRegressionTask
+              init_args:
+                name: pred_regression
+                input_object: query
+                output_object: pred
+                target_object: sudo
+                dim: *dim
+                loss_weight: 10.0
+                fields:
+                  - scaled_qopt
+                  - scaled_dtheta
+                  - scaled_dphi
+                  - scaled_d0
+                  - scaled_dz0
+
+            - class_path: hepattn.models.task.ObjectHitRegressionTask
+              init_args:
+                name: pred_pix_regression
+                input_hit: pix
+                input_object: query
+                output_object: pred_pix
+                target_object: sudo_pix
+                dim: *dim
+                loss_weight: 10.0
+                fields:
+                  - loc_x
+                  - loc_y
+                  - theta
+                  - phi
