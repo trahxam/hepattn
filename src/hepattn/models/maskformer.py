@@ -89,7 +89,7 @@ class MaskFormer(nn.Module):
         num_constituents = x["key_valid"].shape[-1]
 
         # if all key_valid are true, then we can just set it to None 
-        if x["key_valid"].all():
+        if batch_size == 1 and x["key_valid"].all():
             x["key_valid"] = None
 
         # Also merge the field being used for sorting in window attention if requested
