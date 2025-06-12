@@ -18,7 +18,6 @@ def plot_hist_to_ax(ax, values, bins, value_errors=None, color="cornflowerblue",
             ax.plot(px, py, color=color, linewidth=1.0)
 
 
-
 def frequentist_binomial_error(k, n):
     return np.sqrt((k / n) * (1 - (k / n)) / n)
 

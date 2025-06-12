@@ -140,7 +140,7 @@ class HitFilterTask(Task):
         dim: int,
         threshold: float = 0.1,
         mask_keys: bool = False,
-        loss_fn: Literal["bce", "focal"] = "bce",
+        loss_fn: Literal["bce", "focal", "both"] = "bce",
     ):
         """Task used for classifying whether hits belong to reconstructable objects or not."""
         super().__init__()
@@ -154,7 +154,7 @@ class HitFilterTask(Task):
         self.mask_keys = mask_keys
 
         # Internal
-        self.input_objects = [f"{hit_name}_embed"]
+        self.input_objects = [f"{input_object}_embed"]
         self.net = Dense(dim, 1)
 
     def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:
@@ -166,25 +166,33 @@ class HitFilterTask(Task):
 
     def loss(self, outputs: dict, targets: dict) -> dict:
         # Pick out the field that denotes whether a hit is on a reconstructable object or not
-        output = outputs[f"{self.hit_name}_logit"]
-        target = targets[f"{self.hit_name}_{self.target_field}"].type_as(output)
+        output = outputs[f"{self.input_object}_logit"]
+        target = targets[f"{self.input_object}_{self.target_field}"].type_as(output)
 
         # Calculate the BCE loss with class weighting
         if self.loss_fn == "bce":
             weight = 1 / target.float().mean()
             loss = nn.functional.binary_cross_entropy_with_logits(output, target, pos_weight=weight)
+            return {f"{self.input_object}_{self.loss_fn}": loss}
         elif self.loss_fn == "focal":
             loss = focal_loss(output, target)
+            return {f"{self.input_object}_{self.loss_fn}": loss}
+        elif self.loss_fn == "both":
+            weight = 1 / target.float().mean()
+            bce_loss = nn.functional.binary_cross_entropy_with_logits(output, target, pos_weight=weight)
+            focal_loss_value = focal_loss(output, target)
+            return {
+                f"{self.input_object}_bce": bce_loss,
+                f"{self.input_object}_focal": focal_loss_value,
+            }
         else:
             raise ValueError(f"Unknown loss function: {self.loss_fn}")
-
-        return {f"{self.hit_name}_{self.loss_fn}": loss}
 
     def key_mask(self, outputs, threshold=0.1):
         if not self.mask_keys:
             return {}
 
-        return {self.hit_name: outputs[f"{self.hit_name}_logit"].detach().sigmoid() >= threshold}
+        return {self.input_object: outputs[f"{self.input_object}_logit"].detach().sigmoid() >= threshold}
 
 
 class ObjectHitMaskTask(Task):
@@ -306,9 +314,9 @@ class RegressionTask(Task):
         # For standard regression number of DoFs is just the number of targets
         self.ndofs = self.k
 
-    def forward(self, x: dict[str, Tensor], pads: dict[str, Tensor] | None = None) -> dict[str, Tensor]:
+    def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:
         # For a standard regression task, the raw network output is the final prediction
-        latent = self.latent(x, pads=pads)
+        latent = self.latent(x)
         return {self.output_object + "_regr": latent}
 
     def predict(self, outputs):
@@ -372,7 +380,7 @@ class ObjectRegressionTask(RegressionTask):
         self.dim = dim
         self.net = Dense(self.dim, self.ndofs)
 
-    def latent(self, x: dict[str, Tensor], pads: dict[str, Tensor] | None = None) -> Tensor:
+    def latent(self, x: dict[str, Tensor]) -> Tensor:
         return self.net(x[self.input_object + "_embed"])
 
     def cost(self, outputs, targets):
@@ -414,7 +422,7 @@ class ObjectHitRegressionTask(RegressionTask):
         self.hit_net = Dense(dim, self.ndofs * self.dim_per_dof)
         self.object_net = Dense(dim, self.ndofs * self.dim_per_dof)
 
-    def latent(self, x: dict[str, Tensor], pads: dict[str, Tensor] | None = None) -> Tensor:
+    def latent(self, x: dict[str, Tensor]) -> Tensor:
         # Embed the hits and tracks and reshape so we have a separate embedding for each DoF
         x_obj = self.object_net(x[self.input_object + "_embed"])
         x_hit = self.hit_net(x[self.input_hit + "_embed"])
@@ -426,10 +434,8 @@ class ObjectHitRegressionTask(RegressionTask):
         # with just a scalar for each degree of freedom
         x_obj_hit = torch.einsum("...nie,...mie->...nmi", x_obj, x_hit)  # Shape BNMD
 
-        # If padding data is provided, use it to zero out predictions for any hit slots that are not valid
-        if pads is not None:
-            # Shape of padding goes BM -> B1M -> B1M1 -> BNMD
-            x_obj_hit = x_obj_hit * pads[self.input_hit + "_valid"].unsqueeze(-2).unsqueeze(-1).expand_as(x_obj_hit).float()
+        # Shape of padding goes BM -> B1M -> B1M1 -> BNMD
+        x_obj_hit = x_obj_hit * x[self.input_hit + "_valid"].unsqueeze(-2).unsqueeze(-1).expand_as(x_obj_hit).float()
         return x_obj_hit
 
 
@@ -461,7 +467,7 @@ class ClassificationTask(nn.Module):
         self.class_net = Dense(dim, len(classes))
         self.class_weights_values = torch.tensor([class_weights[class_name] for class_name in self.classes])
 
-    def forward(self, x: dict[str, Tensor], pads: None | dict[str, Tensor] = None) -> dict[str, Tensor]:
+    def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:
         # Now get the class logits from the embedding (..., N, ) -> (..., E)
         x = self.class_net(x[f"{self.input_object}_embed"])
         return {f"{self.output_object}_logits": x}

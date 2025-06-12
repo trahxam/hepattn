@@ -5,7 +5,7 @@ import torch
 plt.rcParams["figure.dpi"] = 300
 
 
-def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec, object_name="particle", batch_idx=0, valid=True):
+def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec, object_name="particle", batch_idx=None, valid=True):
     num_axes = len(axes_spec)
 
     fig, ax = plt.subplots(1, num_axes)
@@ -15,6 +15,9 @@ def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec, object_name
 
     colormap = plt.cm.tab20
     cycler = [colormap(i) for i in range(colormap.N)]
+
+    if batch_idx is None:
+        batch_idx = torch.argmax(reconstruction["particle_valid"].sum(-1))
 
     sihit_names = ["vtb", "vte", "itb", "ite", "otb", "ote", "sihit", "vtxd", "trkr"]
     ecal_names = ["ecb", "ece", "ecal"]

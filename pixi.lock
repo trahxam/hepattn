@@ -1484,7 +1484,7 @@ packages:
 - pypi: .
   name: hepattn
   version: 0.1.0
-  sha256: ff5881fb51eeef7e50af33c239f11dc53d04537abe94c13d0c04edc3ab0332cb
+  sha256: 7c1f049a83f4bc695e0ea26934144f950daeb4f4d26d2c15f1a8bc71ab78d795
   requires_dist:
   - packaging
   - wheel
