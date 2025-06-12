@@ -27,6 +27,11 @@ ATTN_MASK_ATTN_TYPES = [
     "torch",
 ]
 
+# Which attention types support attention biasing
+ATTN_BIAS_ATTN_TYPES = [
+    "torch",
+]
+
 # Which attention types support windowed attention
 WINDOW_ATTN_TYPES = [
     "flash",
@@ -275,6 +280,7 @@ class Attention(nn.Module):
         q_mask: BoolTensor | None = None,
         kv_mask: BoolTensor | None = None,
         attn_mask: BlockMask | BoolTensor | None = None,
+        attn_bias: Tensor | None = None,
         score_mod: _score_mod_signature | None = None,
         initial_values: dict | None = None,
     ) -> Tensor:
@@ -284,15 +290,19 @@ class Attention(nn.Module):
         Parameters
         ----------
         q : Tensor
-            Queries tensor of shape (B, S, D).
+            Queries tensor of shape (B, N, D).
         kv : Tensor, optional
-            Keys tensor of shape (B, S, D). If None, defaults to q.
+            Keys tensor of shape (B, M, D). If None, defaults to q.
         kv_mask : BoolTensor, optional
             Key/value mask to apply. If None, no mask is applied.
             True values indicate that a value is not padded and should partake in computation.
         attn_mask : BlockMask | BoolTensor, optional
             Attention mask to apply. If None, no mask is applied.
             True values indicate that an attention slot should partake in computation.
+            Expected shape is (B, M, M).
+        attn_bias: Tensor, optional
+            Attention bias to apply to the attention scores. If None, no bias is applied.
+            Expected shape is (B, M, M).
         score_mod : _score_mod_signature, optional
             Score modifier function for flex attention. If None, no score modifier is applied.
         initial_values : dict, optional
@@ -314,6 +324,10 @@ class Attention(nn.Module):
         if attn_mask is not None:
             msg = f"Only the backends {ATTN_MASK_ATTN_TYPES} support attention masking"
             assert self.attn_type in ATTN_MASK_ATTN_TYPES, msg
+
+        if attn_bias is not None:
+            msg = f"Only the backends {ATTN_BIAS_ATTN_TYPES} support attention masking"
+            assert self.attn_type in ATTN_BIAS_ATTN_TYPES, msg
 
         # Prepare queries, keys, and values
         q, k, v = self._prepare_qkv(q, kv, initial_values)
@@ -341,12 +355,9 @@ class Attention(nn.Module):
                     attn_bias = attn_bias.masked_fill(~attn_mask, float("-inf"))
                 
                 attn_mask = attn_bias
-
             out = self.attn(q, k, v, attn_mask=attn_mask)
-
         elif self.attn_type == "flash":
             out = self.attn(q, k, v, window_size=self.window_size)
-
         else:
             raise ValueError(f"Invalid attention type: {self.attn_type}")
 
