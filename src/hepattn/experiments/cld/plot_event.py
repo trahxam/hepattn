@@ -299,7 +299,6 @@ def plot_cld_event_match_vs_mismatch(inputs, truth, preds, axes_spec, object_nam
         ax_mismatch.set_title("Mismatched Tracks")
         ax_mismatch.legend(fontsize=5, framealpha=0.5)
 
-    # 3) Global legend for “Truth” vs “Prediction”
     line_truth = mlines.Line2D([], [], color="gray", linestyle="-", marker="o", label="Truth")
     line_pred = mlines.Line2D([], [], color="gray", linestyle="--", marker="x", label="Prediction")
     fig.legend(handles=[line_truth, line_pred], loc="upper right")
