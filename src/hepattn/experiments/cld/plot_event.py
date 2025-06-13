@@ -33,6 +33,7 @@ def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec, object_name
             num_particles = reconstruction[f"{object_name}_{input_name}_valid"][batch_idx].shape[-2]
 
             for mcparticle_idx in range(num_particles):
+                # Plots invalid particle if valid set to be False
                 if reconstruction[f"{object_name}_valid"][batch_idx][mcparticle_idx].item() == valid:
                     color = cycler[mcparticle_idx % len(cycler)]
                     mask = reconstruction[f"{object_name}_{input_name}_valid"][batch_idx][mcparticle_idx]
