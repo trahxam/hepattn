@@ -1,0 +1,14 @@
+name: Build
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get Pixi Environment
+        run: |
+          apptainer pull pixi.sif docker://ghcr.io/prefix-dev/pixi:0.45.0-noble-cuda-12.6.3
+          apptainer shell --nv pixi.sif
+      - name: Build Pixi Environment
+        run: |
+          pixi install --file ./pyproject.toml --locked
