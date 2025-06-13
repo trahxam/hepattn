@@ -174,10 +174,10 @@ class HitFilterTask(Task):
             weight = 1 / target.float().mean()
             loss = nn.functional.binary_cross_entropy_with_logits(output, target, pos_weight=weight)
             return {f"{self.input_object}_{self.loss_fn}": loss}
-        elif self.loss_fn == "focal":
+        if self.loss_fn == "focal":
             loss = focal_loss(output, target)
             return {f"{self.input_object}_{self.loss_fn}": loss}
-        elif self.loss_fn == "both":
+        if self.loss_fn == "both":
             weight = 1 / target.float().mean()
             bce_loss = nn.functional.binary_cross_entropy_with_logits(output, target, pos_weight=weight)
             focal_loss_value = focal_loss(output, target)
@@ -185,8 +185,7 @@ class HitFilterTask(Task):
                 f"{self.input_object}_bce": bce_loss,
                 f"{self.input_object}_focal": focal_loss_value,
             }
-        else:
-            raise ValueError(f"Unknown loss function: {self.loss_fn}")
+        raise ValueError(f"Unknown loss function: {self.loss_fn}")
 
     def key_mask(self, outputs, threshold=0.1):
         if not self.mask_keys:
