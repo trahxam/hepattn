@@ -44,7 +44,7 @@ def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec, object_name
 
                         ax[ax_idx].plot(x[mask][idx], y[mask][idx], color=color, marker="o", alpha=0.75, linewidth=1.0, ms=2.0)
 
-                        # Leave a box denoting particle index for trkr hit
+                        # Uncomment to leave a box denoting particle index for trkr hit
                         # if input_name == "trkr" and mask.any():
                         #     end_x = x[mask][idx][-1].item()
                         #     end_y = y[mask][idx][-1].item()
@@ -490,8 +490,8 @@ def plot_cld_event_pre_vs_post(inputs_orig, inputs_post, orig_targets, post_targ
             ax_mismatch.scatter(x_all, y_all, color="black", alpha=0.5, s=1.0)
 
         for mc_i in range(num_particles):
-            # if mc_i not in [31,33,60]:
-            #  continue
+            # if mc_i not in [18,41,63,120,143]:
+            #     continue
 
             base_color = cycler[mc_i % len(cycler)]
             post_i = match_idx[mc_i].item()

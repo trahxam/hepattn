@@ -28,7 +28,7 @@ data:
     trkr: 0
     sihit: 4
 
-  # Neutral particle cuts based on hit content
+  # Charged particle cuts based on hit content
   charged_particle_max_num_hits:
     vtxd: 12
     trkr: 12
@@ -47,9 +47,13 @@ data:
   particle_hit_deflection_cuts:
     vtxd:
       max_angle: 0.25
+      max_angle_xy: 0.25
+      max_angle_rz: 0.1
       num_passes: 8
     trkr:
       max_angle: 1.0
+      max_angle_xy: 1.0
+      max_angle_rz: 0.2
       num_passes: 12
 
   # Cuts on maximum distance between subsequent hit

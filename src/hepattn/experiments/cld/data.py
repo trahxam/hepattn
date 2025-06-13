@@ -375,12 +375,25 @@ class CLDDataset(Dataset):
                 py = np.ma.masked_array(event[f"particle_{item_name}.mom.y"][:, idx], mask=~mask)
                 pz = np.ma.masked_array(event[f"particle_{item_name}.mom.z"][:, idx], mask=~mask)
 
+                # The 3d angle
                 angle_diff = masked_angle_diff_last_axis(px, py, pz, ~mask).filled(0.0)
-
                 # Undo the sorting
                 angle_diff = angle_diff[:, np.argsort(idx)]
 
-                event[f"particle_{item_name}_valid"] = event[f"particle_{item_name}_valid"] & (angle_diff <= cut["max_angle"])
+                # The angle in the x-y plane
+                zeros = np.ma.masked_array(np.zeros_like(px), mask=~mask)
+                angle_diff_xy = masked_angle_diff_last_axis(px, py, zeros, ~mask).filled(0.0)
+                angle_diff_xy = angle_diff_xy[:, np.argsort(idx)]
+
+                # The angle in the r-z plane
+                pt = np.ma.sqrt(px**2 + py**2)
+                angle_diff_rz = masked_angle_diff_last_axis(pt, pz, zeros, ~mask).filled(0.0)
+                angle_diff_rz = angle_diff_rz[:, np.argsort(idx)]
+
+                # Requires it to pass one of the cut
+                # TODO: Removing the 3d angle and only use the xy and rz angle
+                angle_diff_or = (angle_diff <= cut["max_angle"]) | (angle_diff_xy <= cut["max_angle_xy"]) | (angle_diff_rz <= cut["max_angle_rz"])
+                event[f"particle_{item_name}_valid"] = event[f"particle_{item_name}_valid"] & angle_diff_or
 
         # Apply hit cuts based on distance between consecutive hits on particles
         for item_name, cut in self.particle_hit_separation_cuts.items():
@@ -405,6 +418,37 @@ class CLDDataset(Dataset):
                 # event[f"particle_valid"] = event[f"particle_valid"] & (dr <= max_dist).all(-1)
                 event[f"particle_{item_name}_valid"] = event[f"particle_{item_name}_valid"] & (dr <= cut["max_dist"])
 
+        # Merge the hits if they do not appear in the angular deflection and hit separation cuts
+        # all_cut_names = set(self.charged_particle_min_num_hits) | set(self.charged_particle_max_num_hits)
+        # cut_names = set(self.particle_hit_deflection_cuts) | set(self.particle_hit_separation_cuts)
+        # # Pick out the field that needs to be merged
+        # merge_name = all_cut_names - cut_names
+
+        # Pick out the input names beside the ones needed to be merged
+        # to_merge = {}
+        # for merged_input_name, input_names in self.merge_inputs.items():
+        #     if merged_input_name in merge_name:
+        #         continue
+        #     for names in input_names:
+        #         to_merge[names] = merged_input_name
+
+        # # Pick out the merged field name by matching the input names then merge
+        # for merge_name in to_merge:
+        #     input_names = self.merge_inputs.get(merge_name, [])
+        #     merged_input_name = list(dict.fromkeys(to_merge.get(hit_name) for hit_name in input_names))
+        #     particle_hit_valid = [event[f"particle_{hit_name}_valid"] for hit_name in merged_input_name]
+        #     event[f"particle_{merge_name}_valid"] = np.concatenate(particle_hit_valid, axis=-1)
+
+        # Above seems to be tedious, an alternative but not generalised
+        num_hit_cut_names = list(dict.fromkeys(self.charged_particle_min_num_hits))
+        deflection_cut_names = list(dict.fromkeys(self.particle_hit_deflection_cuts))
+        to_merge_name = [name for name in num_hit_cut_names if name in deflection_cut_names]
+        particle_hit_valid = [event[f"particle_{hit_name}_valid"] for hit_name in to_merge_name]
+
+        merge_name = set(num_hit_cut_names) - set(deflection_cut_names)
+        for name in merge_name:
+            event[f"particle_{name}_valid"] = np.concatenate(particle_hit_valid, axis=-1)
+
         # Now we have built the masks, we can apply hit/counting based cuts
         for hit_name, min_num_hits in self.charged_particle_min_num_hits.items():
             particle_cuts[f"charged_min_{hit_name}"] = ~(event["particle.isCharged"] & (event[f"particle_{hit_name}_valid"].sum(-1) < min_num_hits))
@@ -417,16 +461,6 @@ class CLDDataset(Dataset):
 
         for hit_name, max_num_hits in self.neutral_particle_max_num_hits.items():
             particle_cuts[f"neutral_max_{hit_name}"] = ~(event["particle.isNeutral"] & (event[f"particle_{hit_name}_valid"].sum(-1) > max_num_hits))
-
-        n_vtxd = event["particle_vtxd_valid"].sum(-1)
-        n_trkr = event["particle_trkr_valid"].sum(-1)
-        n_sihit = n_vtxd + n_trkr
-        min_sihits = self.charged_particle_min_num_hits.get("sihits", None)
-        max_sihits = self.charged_particle_max_num_hits.get("sihits", None)
-        if min_sihits is not None:
-            particle_cuts["charged_min_sihits"] = ~(event["particle.isCharged"] & (n_sihit < min_sihits))
-        if max_sihits is not None:
-            particle_cuts["charged_max_sihits"] = ~(event["particle.isCharged"] & (n_sihit > max_sihits))
 
         # Apply the particle cuts
         for cut_mask in particle_cuts.values():
