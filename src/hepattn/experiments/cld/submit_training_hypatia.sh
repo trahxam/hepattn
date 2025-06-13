@@ -4,11 +4,11 @@
 #SBATCH -p GPU
 #SBATCH --nodes=1
 #SBATCH --export=ALL
-#SBATCH --gres=gpu:a100:1
+#SBATCH --gres=gpu:l40s:1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=12
-#SBATCH --mem=40G
-#SBATCH --output=/home/syw24/ftag/hepattn/src/hepattn/experiments/cld/slurm_logs/slurm-%j.%x.out
+#SBATCH --mem=24G
+#SBATCH --output=/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/slurm_logs/slurm-%j.%x.out
 
 
 # Comet variables
@@ -27,26 +27,26 @@ echo "nvidia-smi:"
 nvidia-smi
 
 # Move to workdir
-cd /home/syw24/ftag/hepattn
+cd /share/rcifdata/maxhart/hepattn/
 echo "Moved dir, now in: ${PWD}"
 
 # Set tmpdir
-export TMPDIR=/home/syw24/tmp
+export TMPDIR=/share/rcifdata/maxhart/tmp/
 
 # Run the training
 echo "Running training script..."
 
 # Python command that will be run
-CONFIG_PATH="/home/syw24/ftag/hepattn/logs/CLD_10_96_TF_charged_10MeV_F16_regr_sincosphi_20250605-T111602/config.yaml"
-CKPT_PATH="/home/syw24/ftag/hepattn/logs/CLD_10_96_TF_charged_10MeV_F16_regr_sincosphi_20250605-T111602/ckpts/epoch=008-train_loss=4.15202.ckpt"
-# PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config $CONFIG_PATH"
-PYTORCH_CMD="python src/hepattn/experiments/cld/main.py test --config $CONFIG_PATH --ckpt_path $CKPT_PATH"
+CONFIG_PATH="/share/rcifdata/maxhart/hepattn/logs/CLD_TRKECALHCAL_16_96_TF_charged_10MeV_F16_scaled_20250526-T120023/config.yaml"
+CKPT_PATH="/share/rcifdata/maxhart/hepattn/logs/CLD_TRKECALHCAL_16_96_TF_charged_10MeV_F16_scaled_20250526-T120023/ckpts/epoch=009-train_loss=1.45212.ckpt"
+PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config $CONFIG_PATH --ckpt_path $CKPT_PATH"
+# PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config src/hepattn/experiments/cld/configs/tracking.yaml "
 
 # Pixi commnand that runs the python command inside the pixi env
 PIXI_CMD="pixi run $PYTORCH_CMD"
 
 # Apptainer command that runs the pixi command inside the pixi apptainer image
-APPTAINER_CMD="apptainer run --nv --bind /home/syw24 --bind /share/rcifdata/maxhart /home/syw24/ftag/hepattn/pixi.sif $PIXI_CMD"
+APPTAINER_CMD="apptainer run --nv --bind /share/rcifdata/maxhart /share/rcifdata/maxhart/hepattn/pixi.sif $PIXI_CMD"
 
 # Run the final command
 echo "Running command: $APPTAINER_CMD"
