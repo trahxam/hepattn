@@ -7,6 +7,14 @@ jobs:
       image: ghcr.io/prefix-dev/pixi:0.45.0-noble-cuda-12.6.3
     steps:
       - uses: actions/checkout@v4
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /usr/local/.ghcup
+          df -h
       - name: Build Pixi Environment
         run: |
           pixi install --locked
