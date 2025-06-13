@@ -15,6 +15,9 @@ jobs:
           version: "0.8.0"
           args: "--version"
 
+      - name: Where am I
+        run: pwd && ls -la
+
       - name: Run ruff check
         run: ruff -v --config ./pyproject.toml check --fix
 
