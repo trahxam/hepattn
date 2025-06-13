@@ -18,6 +18,9 @@ jobs:
       - name: Run ruff check
         run: ruff -v --config ./pyproject.toml check --fix
 
+      - name: Check python version
+        run: python --version
+
       - name: Run ruff format
         run: ruff -v --config ./pyproject.toml format
 
