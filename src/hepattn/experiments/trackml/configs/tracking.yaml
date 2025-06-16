@@ -1,12 +1,14 @@
 seed_everything: 42
-name: trackml_tracking
+name: TRK-v0-dice-focal-noce
 
 data:
-  train_dir: /share/rcifdata/maxhart/data/trackml/prepped/test/
-  val_dir: /share/rcifdata/maxhart/data/trackml/prepped/test/
+  train_dir: /share/rcifdata/maxhart/data/trackml/prepped/train/
+  val_dir: /share/rcifdata/maxhart/data/trackml/prepped/val/
   test_dir: /share/rcifdata/maxhart/data/trackml/prepped/test/
 
-  hit_eval_train: /share/rcifdata/svanstroud/hepattn/src/hepattn/experiments/trackml/logs/HC-v3_20250612-T124041/ckpts/epoch=010-val_loss=0.19324_test_eval.h5
+  hit_eval_train: /share/rcifdata/svanstroud/hepattn/src/hepattn/experiments/trackml/logs/HC-v3_20250612-T220925/ckpts/epoch=015-val_loss=0.19298_train_eval.h5
+  hit_eval_val: /share/rcifdata/svanstroud/hepattn/src/hepattn/experiments/trackml/logs/HC-v3_20250612-T220925/ckpts/epoch=015-val_loss=0.19298_val_eval.h5
+  hit_eval_test: /share/rcifdata/svanstroud/hepattn/src/hepattn/experiments/trackml/logs/HC-v3_20250612-T220925/ckpts/epoch=015-val_loss=0.19298_test_eval.h5
 
   num_workers: 10
   num_train: -1
@@ -19,7 +21,7 @@ data:
   hit_volume_ids: [7, 8, 9]
 
   # Minimum pt for a particle to be deemed reconstructible
-  particle_min_pt: 1.0
+  particle_min_pt: 0.9
 
   # Maximum absolute eta for a particle to be deemed reconstructible
   particle_max_abs_eta: 4.0
@@ -28,7 +30,7 @@ data:
   particle_min_num_hits: 3
 
   # Maximum number of reconstructable particles allowed in an event
-  event_max_num_particles: 2000
+  event_max_num_particles: &num_objects 2200
 
   # Define which inputs will be available to the model
   inputs:
@@ -68,7 +70,7 @@ trainer:
   log_every_n_steps: 50
   default_root_dir: logs
   gradient_clip_val: 0.1
-  enable_progress_bar: True
+  enable_progress_bar: true
 
   # Specify loggers here
   logger:
@@ -93,7 +95,7 @@ trainer:
     - class_path: lightning.pytorch.callbacks.LearningRateMonitor
     - class_path: lightning.pytorch.callbacks.TQDMProgressBar
       init_args:
-        refresh_rate: 1
+        refresh_rate: 50
 
 model:
   optimizer: Lion
@@ -114,7 +116,7 @@ model:
     class_path: hepattn.models.MaskFormer
     init_args:
       dim: &dim 256
-      num_queries: 2000
+      num_queries: *num_objects
       input_sort_field: phi
       input_nets:
         class_path: torch.nn.ModuleList
@@ -198,13 +200,13 @@ model:
                 output_object: track
                 target_object: particle
                 losses:
-                  mask_ce: 100.0
-                  #mask_dice: 2.0
-                  #mask_focal: 50.0
+                  #mask_ce: 100.0
+                  mask_dice: 2.0
+                  mask_focal: 50.0
                 costs:
-                  mask_ce: 100.0
-                  #mask_dice: 2.0
-                  #mask_focal: 50.0
+                  #mask_ce: 100.0
+                  mask_dice: 2.0
+                  mask_focal: 50.0
                 dim: *dim
                 null_weight: 1.0
 
