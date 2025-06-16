@@ -16,8 +16,6 @@ jobs:
           pixi-version: v0.48.1
           cache: true
           locked: true
-          auth-host: prefix.dev
-          auth-token: ${{ secrets.PREFIX_DEV_TOKEN }}
       # Step 3: Build Pixi environment using the lockfile and pyproject.toml
       - name: Install Pixi Environment
         run: pixi install --locked --file ./pyproject.toml
