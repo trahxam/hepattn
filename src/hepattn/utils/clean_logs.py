@@ -2,16 +2,27 @@ import argparse
 import shutil
 from pathlib import Path
 
-
 def delete_dirs_without_subdir(path, subdir, dry_run):
     folder_path = Path(path)
     count = 0
+    
     for directory in folder_path.iterdir():
-        if directory.is_dir() and not (directory / subdir).is_dir():
+        if not directory.is_dir():
+            continue
+        
+        # Check if directory contains only yaml files
+        files = list(directory.glob("*"))
+        if not files or not all(file.suffix == ".yaml" for file in files):
+            continue
+        
+        # Delete directory if it doesn't contain the required subdirectory
+        # (indicates that no checkpoints were saved)
+        if not (directory / subdir).is_dir():
             print(f"Deleting directory: {directory}")
             if not dry_run:
                 shutil.rmtree(directory)
             count += 1
+
     print(f"Deleted {count} directories")
 
 
