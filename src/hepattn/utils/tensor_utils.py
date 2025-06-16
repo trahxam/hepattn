@@ -87,7 +87,7 @@ def pad_to_size(x: Tensor, target_shape: tuple, pad_value: float) -> Tensor:
     current_shape = tuple(x.shape)
     if len(target_shape) != x.dim():
         raise ValueError(f"Target shape must have the same number of dimensions as x: {current_shape} vs {target_shape}")
-    
+
     _target_shape = []
 
     # Check if any target dimension is smaller than x
@@ -96,7 +96,7 @@ def pad_to_size(x: Tensor, target_shape: tuple, pad_value: float) -> Tensor:
             target = current
             continue
         if current > target:
-            raise ValueError(f"Cannot pad: dimension {i} of x is {cur}, which is larger than target {tgt}.")
+            raise ValueError(f"Cannot pad: dimension {i} of x is {current}, which is larger than target {target}.")
 
         _target_shape.append(target)
 
