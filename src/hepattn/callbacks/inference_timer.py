@@ -15,10 +15,8 @@ class InferenceTimer(Callback):
         self.n_warm_start = 10
         self._tmp_dims = None
 
-    def setup(self, trainer, pl_module, stage):
-        assert trainer.global_rank == 0, "InferenceTimer should only be used with a single process."
-
     def on_test_start(self, trainer, pl_module):
+        assert trainer.global_rank == 0, "InferenceTimer should only be used with a single process."
         model = pl_module
         if hasattr(model, "model"):
             model = model.model
