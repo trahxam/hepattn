@@ -463,9 +463,9 @@ class ClassificationTask(nn.Module):
         self.class_weights = class_weights
         self.loss_weight = loss_weight
         self.multilabel = multilabel
-
         self.class_net = Dense(dim, len(classes))
-        self.class_weights_values = torch.tensor([class_weights[class_name] for class_name in self.classes])
+        if self.class_weights is not None:
+            self.class_weights_values = torch.tensor([class_weights[class_name] for class_name in self.classes])
 
     def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:
         # Now get the class logits from the embedding (..., N, ) -> (..., E)
@@ -474,23 +474,43 @@ class ClassificationTask(nn.Module):
     
     def predict(self, outputs, threshold=0.5):
         # Split the regression vectior into the separate fields
-        logits = outputs[self.output_object + "_logits"]
+        logits = outputs[self.output_object + "_logits"].detach()
         if self.multilabel:
             predictions = torch.nn.functional.sigmoid(logits) >= threshold
         else:
-            predictions = torch.nn.functional.softmax(logits, dim=-1)
+            predictions = torch.nn.functional.one_hot(torch.argmax(logits, dim=-1), num_classes=len(self.classes))
         return {self.output_object + "_" + class_name: predictions[..., i] for i, class_name in enumerate(self.classes)}
 
     def loss(self, outputs, targets):
         # Get the targets and predictions
         target = torch.stack([targets[self.target_object + "_" + class_name] for class_name in self.classes], dim=-1)
         logits = outputs[f"{self.output_object}_logits"]
+
         # Put the class weights into a tensor with the correct dtype
-        class_weights = self.class_weights_values.type_as(target)
+        class_weights = None
+        if self.class_weights is not None:
+            class_weights = self.class_weights_values.type_as(target)
+
         # Compute the loss, using the class weights
-        losses = torch.nn.functional.binary_cross_entropy_with_logits(logits, target, pos_weight=class_weights, reduction="none")
+        # losses = torch.nn.functional.binary_cross_entropy_with_logits(logits, target, pos_weight=class_weights, reduction="none")
+        losses = torch.nn.functional.cross_entropy(
+            logits.view(-1, logits.shape[-1]),
+            target.view(-1, target.shape[-1]),
+            weight=class_weights,
+            reduction="none",
+            )
+
         # Only consider valid targets
-        losses = losses[targets[f"{self.target_object}_valid"]]
+        losses = losses[targets[f"{self.target_object}_valid"].view(-1)]
         return {"bce": self.loss_weight * losses.mean()}
 
+    def metrics(self, preds, targets):
+        metrics = {}
+        for class_name in self.classes:
+            target = targets[f"{self.target_object}_{class_name}"][targets[f"{self.target_object}_valid"]].bool()
+            pred = preds[f"{self.output_object}_{class_name}"][targets[f"{self.target_object}_valid"]].bool()
 
+            metrics[f"{class_name}_eff"] = (target & pred).sum() / target.sum()
+            metrics[f"{class_name}_pur"] = (target & pred).sum() / pred.sum()
+
+        return metrics
