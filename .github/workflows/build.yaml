@@ -14,6 +14,4 @@ jobs:
           pixi-version: v0.48.1
           cache: true
           locked: true
-      # Step 3: Verify Pixi environment
-      - name: Verify Pixi Environment
         run: pixi run test
