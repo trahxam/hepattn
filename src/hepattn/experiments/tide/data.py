@@ -180,7 +180,7 @@ class ROIDataset(Dataset):
                 "tau": [4, 5],
                 "other": [6],
             }
-            
+
             for track in ["sudo", "sisp", "reco"]:
                 # Load in track fields
                 for field in ["pt", "eta", "phi", "z0", "d0", "vx", "vy", "vz", "q", "origin"]:
@@ -217,7 +217,7 @@ class ROIDataset(Dataset):
                 roi[f"roi_has_{origin_class}"] = np.any(roi[f"sudo_from_{origin_class}"], keepdims=True)
 
             # roi["roi_has_b"] = np.any(roi[f"sudo_bhad_pt"] >= 5.0, keepdims=True)
-            
+
             # Used to keep track of which ROIs have already been assigned a label for the labelling priority
             assigned_class = np.array([False])
             for origin_class in track_orgin_class_ids:
@@ -469,13 +469,16 @@ class ROICollator:
                 size = (self.max_num_obj, hit_max_sizes[hit])
 
             k = f"{target_name}_valid"
-            batched_targets[k] = pad_and_concat([t[k] for t in targets], size, False)
+            if target_name == "roi":
+                batched_targets[k] = torch.cat([t[k] for t in targets]).squeeze(-1)
+            else:
+                batched_targets[k] = pad_and_concat([t[k] for t in targets], size, False)
 
             for field in fields:
                 k = f"{target_name}_{field}"
 
                 if target_name == "roi":
-                    batched_targets[k] = torch.cat([t[k] for t in targets], dim=-1)
+                    batched_targets[k] = torch.cat([t[k] for t in targets]).squeeze(-1)
                 else:
                     batched_targets[k] = pad_and_concat([t[k] for t in targets], size, torch.nan)
 

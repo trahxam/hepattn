@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import pytest
 import torch
 import yaml
 
@@ -38,7 +37,7 @@ for origin_class in ["b", "c", "tau", "other"]:
 print("ROI labelled with this origin:")
 for origin_class in ["b", "c", "tau", "other"]:
     frac = torch.mean(targets[f"roi_is_{origin_class}"].float()).item()
-    print(f"{origin_class}, {frac:3f}, {(1/frac):.3f}")
+    print(f"{origin_class}, {frac:3f}, {(1 / frac):.3f}")
 
 # Plot the global hit cluster coordinates
 
@@ -86,5 +85,3 @@ for i, hit in enumerate(hits):
 
 fig.tight_layout()
 fig.savefig(output_dir / "tide_hit_global_coords_cylindricalpng")
-
-
