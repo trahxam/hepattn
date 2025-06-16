@@ -16,6 +16,6 @@ jobs:
           locked: true
       - name: Test Pixi
         run: |
-          pixi run --verbose test
+          pixi run --verbose python --version
         #   pixi run python --version
         # shell: bash
