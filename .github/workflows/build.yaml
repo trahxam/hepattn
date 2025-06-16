@@ -16,9 +16,6 @@ jobs:
           pixi-version: v0.48.1
           cache: true
           locked: true
-      # Step 3: Build Pixi environment using the lockfile and pyproject.toml
-      - name: Install Pixi Environment
-        run: pixi install --locked --file ./pyproject.toml
-      # Step 4: Verify Pixi environment
+      # Step 3: Verify Pixi environment
       - name: Verify Pixi Environment
-        run: pixi check
+        run: pixi shell
