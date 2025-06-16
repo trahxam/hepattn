@@ -4,8 +4,8 @@
 #SBATCH -p GPU
 #SBATCH --nodes=1
 #SBATCH --export=ALL
-#SBATCH --gres=gpu:l40s:1
-#SBATCH --ntasks-per-node=1
+#SBATCH --gres=gpu:a100:1
+#SBATCH --ntasks-per-node=1         # must match number of devices
 #SBATCH --cpus-per-task=10
 #SBATCH --mem=50G
 #SBATCH --output=/share/rcifdata/svanstroud/slurm_logs/slurm-%j.%x.out
@@ -38,8 +38,8 @@ nvidia-smi
 echo "Running training script..."
 
 # Python command that will be run
-PYTORCH_CMD="python run_filtering.py fit --config configs/filtering.yaml"
-# PYTORCH_CMD="python run_tracking.py fit --config configs/tracking.yaml"
+#PYTORCH_CMD="python run_filtering.py fit --config configs/filtering.yaml"
+PYTORCH_CMD="python run_tracking.py fit --config configs/tracking.yaml --trainer.devices 1"
 
 # Do testing instead
 #PYTORCH_CMD="python run_filtering.py test --config /share/rcifdata/svanstroud/hepattn/logs/ec_eta4_20250409-T184858/config.yaml --ckpt_path /share/rcifdata/svanstroud/hepattn/logs/ec_eta4_20250409-T184858/ckpts/epoch=029-val_loss=0.05526.ckpt"
@@ -48,12 +48,9 @@ PYTORCH_CMD="python run_filtering.py fit --config configs/filtering.yaml"
 PIXI_CMD="pixi run $PYTORCH_CMD"
 
 # Apptainer command that runs the pixi command inside the pixi apptainer image
-APPTAINER_CMD="apptainer run --nv --bind /share/rcifdata/ /share/rcifdata/svanstroud/hepattn/pixi.sif $PIXI_CMD"
+APPTAINER_CMD="srun apptainer run --nv --bind /share/rcifdata/ /share/rcifdata/svanstroud/hepattn/pixi.sif $PIXI_CMD"
 
 # Run the final command
 echo "Running command: $APPTAINER_CMD"
 $APPTAINER_CMD
 echo "Done!"
-
-# Interactive shell command
-# apptainer shell --nv --bind /share/rcifdata/maxhart /share/rcifdata/svanstroud/hepattn/pixi.sif
