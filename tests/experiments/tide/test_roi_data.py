@@ -20,7 +20,7 @@ class TestROIDataModule:
         config["num_workers"] = 0
 
         datamodule = ROIDataModule(**config)
-        datamodule.setup(stage="test")
+        datamodule.setup(stage="fit")
 
         return datamodule
 
