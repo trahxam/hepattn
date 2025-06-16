@@ -7,7 +7,6 @@ from torch.nn.attention.flex_attention import BlockMask, _score_mod_signature, f
 from torch.nn.functional import scaled_dot_product_attention
 
 from hepattn.models.norm import LayerNorm
-from hepattn.flex import relative_position_wrapped, sliding_window_mask
 
 ATTN_TYPES = {
     "torch": scaled_dot_product_attention,
@@ -135,7 +134,6 @@ class Attention(nn.Module):
         window_size: int | None = None,
         value_residual: bool = False,
         qkv_norm: bool = False,
-        
     ) -> None:
         super().__init__()
         assert dim % num_heads == 0, "num_heads must divide dim."
@@ -349,11 +347,11 @@ class Attention(nn.Module):
             if attn_bias is not None:
                 # Torch expects the head dim first so have to permute
                 attn_bias = attn_bias.permute(0, 3, 1, 2)
-                
+
                 # Combine the bias with the attention mask if both are specified
                 if attn_mask is not None:
                     attn_bias = attn_bias.masked_fill(~attn_mask, float("-inf"))
-                
+
                 attn_mask = attn_bias
             out = self.attn(q, k, v, attn_mask=attn_mask)
         elif self.attn_type == "flash":

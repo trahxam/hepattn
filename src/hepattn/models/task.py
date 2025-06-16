@@ -154,7 +154,7 @@ class HitFilterTask(Task):
         self.mask_keys = mask_keys
 
         # Internal
-        self.input_objects = [f"{input_object}_embed"]
+        self.input_objects = [f"{hit_name}_embed"]
         self.net = Dense(dim, 1)
 
     def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:
@@ -470,7 +470,7 @@ class ClassificationTask(nn.Module):
         # Now get the class logits from the embedding (..., N, ) -> (..., E)
         x = self.class_net(x[f"{self.input_object}_embed"])
         return {f"{self.output_object}_logits": x}
-    
+
     def predict(self, outputs, threshold=0.5):
         # Split the regression vectior into the separate fields
         logits = outputs[self.output_object + "_logits"].detach()
@@ -497,7 +497,7 @@ class ClassificationTask(nn.Module):
             target.view(-1, target.shape[-1]),
             weight=class_weights,
             reduction="none",
-            )
+        )
 
         # Only consider valid targets
         losses = losses[targets[f"{self.target_object}_valid"].view(-1)]

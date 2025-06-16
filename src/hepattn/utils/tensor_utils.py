@@ -1,6 +1,5 @@
 import numpy as np
 import torch
-
 from torch import Tensor
 
 
@@ -61,7 +60,7 @@ def tensor_to_numpy(tensor: Tensor) -> np.ndarray:
     return tensor.numpy()
 
 
-def pad_to_size(x: Tensor, target_shape: tuple, pad_value: float | int) -> Tensor:
+def pad_to_size(x: Tensor, target_shape: tuple, pad_value: float) -> Tensor:
     """
     Pads a tensor to a specified target shape with a constant value.
     The function creates a new tensor of shape target_shape, fills it with pad_value,
@@ -109,7 +108,7 @@ def pad_to_size(x: Tensor, target_shape: tuple, pad_value: float | int) -> Tenso
     return new_tensor
 
 
-def pad_and_concat(items: list[Tensor], target_size: tuple[int], pad_value: float | int) -> Tensor:
+def pad_and_concat(items: list[Tensor], target_size: tuple[int], pad_value: float) -> Tensor:
     """
     Pads and concatenates a list of tensors to a uniform target size.
     Each tensor in the input list is padded to match the specified target_size,

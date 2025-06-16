@@ -1,8 +1,7 @@
 import torch
-from torch import nn
 
-from hepattn.models.pooling import Pooling
 from hepattn.models.dense import Dense
+from hepattn.models.pooling import Pooling
 
 
 def test_pooling():
@@ -19,7 +18,7 @@ def test_pooling():
 
     inputs = {
         "x_embed": torch.randn(batch_size, seq_len, dim),
-        "x_valid": torch.randn(batch_size, seq_len, dim) >= 0.5,
+        "x_valid": torch.randn(batch_size, seq_len) >= 0.5,
     }
 
     outputs = pooling_layer(inputs)

@@ -2,7 +2,6 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pytest
 import yaml
 
 from hepattn.experiments.cld.data import CLDDataModule
