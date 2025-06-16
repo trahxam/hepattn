@@ -3,8 +3,6 @@ on: [push, pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
-    # container:
-    #   image: ghcr.io/prefix-dev/pixi:0.45.0-noble-cuda-12.6.3
     steps:
       # Step 1: Check out the repository
       - name: Checkout repository
@@ -18,4 +16,6 @@ jobs:
           locked: true
       # Step 3: Verify Pixi environment
       - name: Verify Pixi Environment
-        run: pixi shell
+        run: |
+          pixi run test
+          pixi run python --version
