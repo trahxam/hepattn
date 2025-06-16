@@ -74,6 +74,7 @@ def pad_to_size(x: Tensor, target_shape: tuple, pad_value: float) -> Tensor:
         The input tensor to pad.
     target_shape : tuple of int
         The desired shape of the output tensor. Must have the same number of dimensions as x.
+        A value of -1 indicates that the ith target dimension should match the ith dimension of the input shape.
     pad_value : float or int
         The constant value to use for padding.
 
@@ -86,11 +87,20 @@ def pad_to_size(x: Tensor, target_shape: tuple, pad_value: float) -> Tensor:
     current_shape = tuple(x.shape)
     if len(target_shape) != x.dim():
         raise ValueError(f"Target shape must have the same number of dimensions as x: {current_shape} vs {target_shape}")
+    
+    _target_shape = []
 
     # Check if any target dimension is smaller than x
-    for i, (cur, tgt) in enumerate(zip(current_shape, target_shape, strict=False)):
-        if cur > tgt:
+    for i, (current, target) in enumerate(zip(current_shape, target_shape, strict=False)):
+        if target == -1:
+            target = current
+            continue
+        if current > target:
             raise ValueError(f"Cannot pad: dimension {i} of x is {cur}, which is larger than target {tgt}.")
+
+        _target_shape.append(target)
+
+    target_shape = tuple(_target_shape)
 
     # If x is already the correct shape, just return it
     if current_shape == target_shape:
