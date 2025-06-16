@@ -107,9 +107,12 @@ class ROIDataset(Dataset):
             self.register_file(file_path)
             total_num_rois = len(self.roi_id_to_file_path)
 
-            if total_num_rois >= self.num_samples:
-                print(f"Finished registering {total_num_rois} ROIs from {len(self.file_paths)} files")
+            if len(self.roi_id_to_file_path) >= self.num_samples:
                 break
+
+        print(f"Finished registering {len(self.roi_id_to_file_path)} ROIs from {len(self.file_paths)} files")
+        
+
 
     def register_file(self, file_path):
         with h5py.File(file_path, "r") as file:
