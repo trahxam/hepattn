@@ -92,9 +92,10 @@ def pad_to_size(x: Tensor, target_shape: tuple, pad_value: float) -> Tensor:
 
     # Check if any target dimension is smaller than x
     for i, (current, target) in enumerate(zip(current_shape, target_shape, strict=False)):
+        # -1 indicates that the target dim should just be the input dim
         if target == -1:
             target = current
-            continue
+
         if current > target:
             raise ValueError(f"Cannot pad: dimension {i} of x is {current}, which is larger than target {target}.")
 
