@@ -33,5 +33,6 @@ python run_tracking.py test --config PATH
 ## Batch Submit
 
 ```shell
-sbatch /share/rcifdata/svanstroud/hepattn/src/hepattn/experiments/trackml/submit_training_hypatia.sh
+sbatch /share/rcifdata/svanstroud/hepattn/src/hepattn/experiments/trackml/submit/submit_trackml_filtering.sh
+sbatch /share/rcifdata/svanstroud/hepattn/src/hepattn/experiments/trackml/submit/submit_trackml_tracking.sh
 ```
