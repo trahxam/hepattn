@@ -33,7 +33,7 @@ class Matcher(nn.Module):
         self,
         default_solver: str = "scipy",
         adaptive_solver: bool = True,
-        adaptive_check_interval: int = 100,
+        adaptive_check_interval: int = 1000,
     ):
         super().__init__()
         """ Used to match predictions to targets based on a given cost matrix.
@@ -89,15 +89,22 @@ class Matcher(nn.Module):
         solver_times = {}
 
         # For each solver, compute the time to match the entire batch
+        print(f"Adaptive LAP Solver: Running adaptive solver check. Current solver is {self.solver}.")
         for solver_name, solver in solvers.items():
             # Switch to the solver we are testing
             self.solver = solver
             t_start = time.time()
             self.compute_matching(costs)
             solver_times[solver_name] = time.time() - t_start
+            print(f"Adaptive LAP Solver: Evaluated {solver_name}, took {solver_times[solver_name]:.2f}s")
 
         # Get the solver that was the fastest
         fastest_solver = min(solver_times, key=solver_times.get)
+
+        if fastest_solver != self.solver:
+            print(f"Adaptive LAP Solver: Switching solver from {self.solver} to {fastest_solver}")
+        else:
+            print(f"Adaptive LAP Solver: Keeping solver {self.solver}")
 
         # Set the new solver to be the solver with the fastest time for the cost batch
         self.solver = solvers[fastest_solver]
