@@ -438,7 +438,7 @@ class ObjectHitRegressionTask(RegressionTask):
         return x_obj_hit
 
 
-class ClassificationTask(nn.Module):
+class ClassificationTask(Task):
     def __init__(
         self,
         name: str,
@@ -450,6 +450,7 @@ class ClassificationTask(nn.Module):
         class_weights: dict[str, float] | None = None,
         loss_weight: float = 1.0,
         multilabel: bool = False,
+        permute_loss: bool = True,
     ):
         super().__init__()
 
@@ -463,8 +464,13 @@ class ClassificationTask(nn.Module):
         self.loss_weight = loss_weight
         self.multilabel = multilabel
         self.class_net = Dense(dim, len(classes))
+        self.permute_loss = permute_loss
+
         if self.class_weights is not None:
             self.class_weights_values = torch.tensor([class_weights[class_name] for class_name in self.classes])
+
+        self.inputs = [input_object + "_embed"]
+        self.outputs = [output_object + "_logits"]
 
     def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:
         # Now get the class logits from the embedding (..., N, ) -> (..., E)

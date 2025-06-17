@@ -14,6 +14,7 @@ class MaskFormer(nn.Module):
         tasks: nn.ModuleList,
         num_queries: int,
         dim: int,
+        pooling: nn.Module | None = None,
         matcher: nn.Module | None = None,
         input_sort_field: str | None = None,
         use_attn_masks: bool = True,
@@ -56,6 +57,7 @@ class MaskFormer(nn.Module):
         self.input_nets = input_nets
         self.encoder = encoder
         self.decoder_layers = nn.ModuleList([MaskFormerDecoderLayer(**decoder_layer_config) for _ in range(num_decoder_layers)])
+        self.pooling = pooling
         self.tasks = tasks
         self.matcher = matcher
         self.num_queries = num_queries
@@ -118,7 +120,11 @@ class MaskFormer(nn.Module):
 
         # Generate the queries that represent objects
         x["query_embed"] = self.query_initial.expand(batch_size, -1, -1)
-        x["query_valid"] = torch.full((batch_size, self.num_queries), True)
+        x["query_valid"] = torch.full((batch_size, self.num_queries), True, device=x["query_embed"].device)
+
+        # Do any pooling if desired
+        if self.pooling is not None:
+            x = x | self.pooling(x)
 
         # Pass encoded inputs through decoder to produce outputs
         outputs = {}
@@ -172,6 +178,10 @@ class MaskFormer(nn.Module):
             # Unmerge the updated features back into the separate input types
             for input_name in input_names:
                 x[input_name + "_embed"] = x["key_embed"][..., x[f"key_is_{input_name}"], :]
+
+            # Do any pooling if desired
+            if self.pooling is not None:
+                x = x | self.pooling(x)
 
         # Get the final outputs - we don't need to compute attention masks or update things here
         outputs["final"] = {}
@@ -245,6 +255,11 @@ class MaskFormer(nn.Module):
 
             # Apply the permutation in place
             for task in self.tasks:
+                # Some tasks, such as hit-level or sample-level tasks, do not need permutation
+                if hasattr(task, "permute_loss"):
+                    if not task.permute_loss:
+                        continue
+
                 for output_name in task.outputs:
                     outputs[layer_name][task.name][output_name] = outputs[layer_name][task.name][output_name][batch_idxs, pred_idxs]
 
