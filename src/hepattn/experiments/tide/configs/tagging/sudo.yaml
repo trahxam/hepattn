@@ -1,4 +1,4 @@
-name: TIDE_10M_250_40trk_F32_tagging_sudo
+name: TIDE_10M_250_40trk_F32_tagging_sudo_TSS
 
 data:
   inputs:
@@ -21,6 +21,15 @@ data:
         - vx
         - vy
         - vz
+        # Hit summary statistics
+        - num_pix
+        - num_sct
+        - num_shared_pix
+        - num_shared_sct
+        - num_layer_0_pix
+        - num_layer_1_pix
+        - num_shared_layer_0_pix
+        - num_shared_layer_1_pix
 
 model:
   model:
@@ -50,10 +59,19 @@ model:
                   - vx
                   - vy
                   - vz
+                  # Hit summary statistics
+                  - num_pix
+                  - num_sct
+                  - num_shared_pix
+                  - num_shared_sct
+                  - num_layer_0_pix
+                  - num_layer_1_pix
+                  - num_shared_layer_0_pix
+                  - num_shared_layer_1_pix
                 net:
                   class_path: hepattn.models.Dense
                   init_args:
-                    input_size: 12
+                    input_size: 20
                     output_size: *dim
                 posenc:
                   class_path: hepattn.models.posenc.FourierPositionEncoder

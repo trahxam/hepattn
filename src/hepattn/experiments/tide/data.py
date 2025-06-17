@@ -311,9 +311,13 @@ class ROIDataset(Dataset):
                 # Mark the hits as valid inputs
                 roi[f"{hit}_valid"] = np.full_like(roi[f"{hit}_x"], True)
 
-            # Add the charge and log charge for the pixel
-            roi[f"pix_charge"] = file[f"{roi_id}/pix_charge"][:]
-            roi[f"pix_log_charge"] = np.log10(1.0 + np.clip(roi[f"pix_charge"], a_min=0.0, a_max=1e12))
+                # Add layer and BEC info
+                roi[f"{hit}_bec"] = file[f"{roi_id}/{hit}_bec"][:]
+                roi[f"{hit}_layer"] = file[f"{roi_id}/{hit}_layer"][:]
+
+                # Add charge info
+                roi[f"{hit}_charge"] = file[f"{roi_id}/{hit}_charge"][:]
+                roi[f"{hit}_log_charge"] = np.log10(1.0 + np.clip(roi[f"{hit}_charge"], a_min=0.0, a_max=1e12))
 
             # Pixel specific fields
             for field in ["lshift", "pitches"]:
@@ -342,6 +346,24 @@ class ROIDataset(Dataset):
             # Drop any ROIs that dropped more tracks than allowed
             if num_dropped_tracks > self.roi_max_num_dropped_tracks:
                 return None
+
+            # Calculate track summary statistics
+            for track in ["sudo", "sisp", "reco"]:
+                for hit in ["pix", "sct"]:
+                    # Number of hits
+                    roi[f"{track}_num_{hit}"] = roi[f"{track}_{hit}_valid"].sum(-1)
+                    # Number of shared hits
+                    hit_is_shared = roi[f"{track}_{hit}_valid"].sum(-2) > 1
+                    roi[f"{track}_num_shared_{hit}"] = (roi[f"{track}_{hit}_valid"] & hit_is_shared[None, :]).sum(-1)
+                
+                # Number of hits on pixel layers
+                for layer in [0, 1, 2]:
+                    pix_on_layer = np.isclose(roi["pix_layer"], layer) # Avoid FPE
+                    pix_is_shared = roi[f"{track}_pix_valid"].sum(-2) > 1
+                    pix_shared_on_layer = pix_on_layer & pix_is_shared
+                    
+                    roi[f"{track}_num_layer_{layer}_pix"] = (roi[f"{track}_pix_valid"] & pix_on_layer[None, :]).sum(-1)
+                    roi[f"{track}_num_shared_layer_{layer}_pix"] = (roi[f"{track}_pix_valid"] & pix_shared_on_layer[None, :]).sum(-1)
 
             # Drop any invalid track slots
             for track in ["sudo", "sisp", "reco"]:

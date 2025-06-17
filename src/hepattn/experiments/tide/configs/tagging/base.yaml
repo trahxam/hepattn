@@ -1,11 +1,11 @@
-name: TIDE_10M_250_40trk_F32_tagging
+name: TIDE_10M_100_40trk_F32_tagging
 
 data:
-  batch_size: 250
+  batch_size: 100
   train_dir: /share/rcifdata/maxhart/data/ambi/train/
   val_dir: /share/rcifdata/maxhart/data/ambi/val/
   test_dir: /share/rcifdata/maxhart/data/ambi/test/
-  num_workers: 20
+  num_workers: 10
   num_train: 10000000
   num_test: 10000
   num_val: 10000
@@ -36,6 +36,9 @@ data:
       - x
       - y
       - z
+      # Layer and bec info
+      - layer
+      - bec
       # Conformal coords
       - u
       - v
@@ -81,6 +84,9 @@ data:
       - x
       - y
       - z
+      # Layer and bec info
+      - layer
+      - bec
       # Conformal coords
       - u
       - v
@@ -153,6 +159,15 @@ data:
       - from_c
       - from_tau
       - from_other
+      # Hit summary statistics
+      - num_pix
+      - num_sct
+      - num_shared_pix
+      - num_shared_sct
+      - num_layer_0_pix
+      - num_layer_1_pix
+      - num_shared_layer_0_pix
+      - num_shared_layer_1_pix
 
     roi:
       - eta
@@ -197,7 +212,7 @@ trainer:
     - class_path: hepattn.callbacks.PredictionWriter
       init_args:
         write_inputs: false
-        write_outputs: false
+        write_outputs: true
         write_preds: true
         write_targets: false
         write_losses: false
@@ -211,9 +226,9 @@ model:
   optimizer: lion
 
   lrs_config:
-    initial: 1e-6
-    max: 1e-4
-    end: 1e-5
+    initial: 1e-7
+    max: 1e-5
+    end: 1e-6
     pct_start: 0.01
     skip_scheduler: false
     weight_decay: 1e-5

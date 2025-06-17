@@ -1,4 +1,4 @@
-name: TIDE_5M_100_32trk_F32_tagging_reco
+name: TIDE_10M_100_40trk_F32_tagging_reco
 
 data:
   inputs:
