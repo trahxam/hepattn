@@ -112,8 +112,6 @@ class ROIDataset(Dataset):
 
         print(f"Finished registering {len(self.roi_id_to_file_path)} ROIs from {len(self.file_paths)} files")
         
-
-
     def register_file(self, file_path):
         with h5py.File(file_path, "r") as file:
             roi_ids = list(file.keys())
