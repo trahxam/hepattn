@@ -31,6 +31,7 @@ class TestROIDataModule:
         data_iterator = iter(dataloader)
 
         output_dir = Path("tests/outputs/tide/")
+        output_dir.mkdir(exist_ok=True, parents=True)
 
         inputs, _ = next(data_iterator)
 
