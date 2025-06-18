@@ -57,9 +57,9 @@ def test_plot_cld_hit_coords(cld_datamodule):
         particle_abs_deta[diag_idx, diag_idx] = torch.inf
         particle_dr[diag_idx, diag_idx] = torch.inf
 
-        particle_min_abs_dphi = torch.min(particle_abs_dphi, dim=-1).to_numpy()
-        particle_min_abs_deta = torch.min(particle_abs_deta, dim=-1).to_numpy()
-        particle_min_dr = torch.min(particle_dr, dim=-1).to_numpy()
+        particle_min_abs_dphi = torch.min(particle_abs_dphi, dim=-1)[0]
+        particle_min_abs_deta = torch.min(particle_abs_deta, dim=-1)[0]
+        particle_min_dr = torch.min(particle_dr, dim=-1)[0]
 
         pts.append(particle_pt)
         dphis.append(particle_min_abs_dphi)
