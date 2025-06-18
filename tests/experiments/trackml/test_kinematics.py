@@ -46,6 +46,7 @@ class TestTrackMLEvent:
 
         return dataset
 
+    @pytest.mark.requiresdata
     def test_trackml_plot_kinematics(self, trackml_dataset):
         fig = plot_trackml_kinematics(trackml_dataset)
         output_dir = Path("tests/outputs/trackml/")

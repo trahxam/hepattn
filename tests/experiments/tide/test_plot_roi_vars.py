@@ -26,6 +26,7 @@ class TestROIDataModule:
 
         return datamodule
 
+    @pytest.mark.requiresdata
     def test_plot_roi_hit_vars(self, roi_datamodule):
         dataloader = roi_datamodule.test_dataloader()
         data_iterator = iter(dataloader)
@@ -99,6 +100,7 @@ class TestROIDataModule:
         fig.tight_layout()
         fig.savefig(output_dir / Path("tide_hit_local_coords.png"))
 
+    @pytest.mark.requiresdata
     def test_plot_roi_track_vars(self, roi_datamodule):
         dataloader = roi_datamodule.test_dataloader()
         data_iterator = iter(dataloader)
