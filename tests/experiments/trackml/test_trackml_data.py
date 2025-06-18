@@ -5,7 +5,7 @@ import pytest
 import torch
 
 from hepattn.experiments.trackml.data import TrackMLDataset
-from hepattn.experiments.trackml.plot_event import plot_trackml_event_reconstruction
+from hepattn.experiments.trackml.eval.plot_event import plot_trackml_event_reconstruction
 from hepattn.models.matcher import Matcher
 
 plt.rcParams["figure.dpi"] = 300
