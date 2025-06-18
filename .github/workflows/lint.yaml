@@ -15,17 +15,11 @@ jobs:
           version: "0.8.0"
           args: "--version"
 
-      - name: Where am I
-        run: pwd && ls -la
-
       - name: Run ruff check
-        run: ruff -v --config ./pyproject.toml check --fix .
-
-      - name: Check python version
-        run: python --version
+        run: ruff check --fix
 
       - name: Run ruff format
-        run: ruff -v --config ./pyproject.toml format .
+        run: ruff format
 
       #- name: Run pyright
       #  run: uv run pyright
