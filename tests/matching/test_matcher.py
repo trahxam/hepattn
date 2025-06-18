@@ -2,7 +2,7 @@ import pytest
 import torch
 
 from hepattn.models.loss import mask_ce_costs, mask_dice_costs, mask_focal_costs
-from hepattn.models.matcher import Matcher
+from hepattn.models.matcher import SOLVERS, Matcher
 
 BATCH_SIZE = 2
 SEQ_LEN = 10
@@ -24,7 +24,7 @@ class TestMatcher:
         costs_dice = mask_dice_costs(pred_mask, true_mask)
         costs_focal = mask_focal_costs(pred_mask, true_mask)
 
-        for solver in ["scipy"]:
+        for solver in SOLVERS:
             matcher = Matcher(default_solver=solver, adaptive_solver=False)
 
             for costs in [costs_ce, costs_dice, costs_focal]:
