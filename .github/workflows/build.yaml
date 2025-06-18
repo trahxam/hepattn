@@ -16,6 +16,6 @@ jobs:
           locked: true
       - name: Test Pixi
         run: |
-          pixi run --verbose python --version
-        #   pixi run python --version
-        # shell: bash
+          pixi run python --version
+      - name: Run pytest defined in pyproject.toml
+        run: pixi run test-ci
