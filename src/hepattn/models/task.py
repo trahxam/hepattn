@@ -231,7 +231,7 @@ class ObjectHitMaskTask(Task):
     def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:
         # Produce new task-specific embeddings for the hits and objects
         x_object = self.object_net(x[self.input_object + "_embed"])
-        x_hit = x[self.input_hit + "_embed"]
+        x_hit = self.hit_net(x[self.input_hit + "_embed"])
 
         # Object-hit probability is the dot product between the hit and object embedding
         object_hit_logit = torch.einsum("bnc,bmc->bnm", x_object, x_hit)
