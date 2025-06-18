@@ -25,6 +25,7 @@ class TestCLDDataModule:
 
         return datamodule
 
+    @pytest.mark.requiresdata
     def test_cld_masks(self, cld_datamodule):
         dataloader = cld_datamodule.train_dataloader()
         dataset = dataloader.dataset
@@ -63,6 +64,7 @@ class TestCLDDataModule:
 
                     # All valid hits
 
+    @pytest.mark.requiresdata
     def test_cld_event_display_merged_inputs(self, cld_datamodule):
         # Plot an event display directly from dataloader with merged
         # inputs to verify things look correct

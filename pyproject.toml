@@ -69,7 +69,7 @@ cuda = "12.3.*"
 cmd = "pytest -xsv"
 
 [tool.pixi.tasks.test-ci]
-cmd = "pytest -xsv -m 'not gpu'"
+cmd = "pytest -xsv -m 'not gpu and not requiresdata'"
 
 [tool.ruff]
 src = ["src"]
@@ -85,4 +85,5 @@ filterwarnings = [
 ]
 markers = [
     "gpu: mark test to run on GPU",
+    "requiresdata: mark test that requires data not present in the repository",
 ]

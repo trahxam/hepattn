@@ -66,6 +66,7 @@ class TestITkEvent:
 
         return dataset
 
+    @pytest.mark.requiresdata
     def test_itk_event_display(self, itk_dataset):
         # Plot an event display directly from dataloader to verify things look correct
         inputs, targets = itk_dataset.load_event(itk_dataset.sample_ids[0])

@@ -61,6 +61,7 @@ class TestTrackMLEvent:
 
         return dataset[0]
 
+    @pytest.mark.requiresdata
     def test_trackml_event_masks(self, trackml_event):
         _inputs, targets = trackml_event
 
@@ -70,6 +71,7 @@ class TestTrackMLEvent:
         # Invalid particle slots should have no hits
         assert torch.all(~particle_hit_mask[~particle_valid.unsqueeze(-1).expand_as(particle_hit_mask)])
 
+    @pytest.mark.requiresdata
     def test_trackml_event_display(self, trackml_event):
         # Quick event display plotted directly from dataloader to verify things look correct
         inputs, targets = trackml_event
