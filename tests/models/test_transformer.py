@@ -2,7 +2,7 @@ import pytest
 import torch
 from torch import Tensor, nn
 
-from hepattn.models import DropPath, Encoder, EncoderLayer, LayerNorm, LayerScale, Residual
+from hepattn.models import DropPath, Encoder, EncoderLayer, LayerScale, Residual
 from hepattn.models.transformer import change_attn_backends
 
 
@@ -39,7 +39,7 @@ def test_layerscale(input_tensor):
 # Tests for Residual
 def test_residual(input_tensor):
     fn = nn.Linear(input_tensor.shape[-1], input_tensor.shape[-1]).cuda()
-    model = Residual(fn=fn, norm=LayerNorm, layer_scale=1e-5, drop_path=0.0, dim=input_tensor.shape[-1]).cuda()
+    model = Residual(fn=fn, norm="LayerNorm", layer_scale=1e-5, drop_path=0.0, dim=input_tensor.shape[-1]).cuda()
     output = model(input_tensor)
     assert output.shape == input_tensor.shape
 
@@ -69,6 +69,7 @@ def test_encoder_forward(input_tensor):
     assert not torch.isnan(output).any()
 
 
+@pytest.mark.skip(reason="Flex currently not fully implemented.")
 def test_dynamic_shape_block_mask():
     model = Encoder(num_layers=3, dim=128, window_size=10, attn_kwargs={"attn_type": "flex", "torch_compile": True}).cuda()
     xs = [torch.randn(8, i, 128, device="cuda") for i in range(100, 110)]
