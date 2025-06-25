@@ -6,6 +6,7 @@ import torch
 
 from hepattn.experiments.trackml.data import TrackMLDataset
 from hepattn.experiments.trackml.eval.plot_event import plot_trackml_event_reconstruction
+from hepattn.experiments.trackml.prep import preprocess
 from hepattn.models.matcher import Matcher
 
 plt.rcParams["figure.dpi"] = 300
@@ -39,8 +40,8 @@ class TestTrackMLEvent:
             "particle": ["pt", "eta", "phi"],
         }
 
-        dirpath = "/share/rcifdata/maxhart/data/trackml/raw/train/"
-        num_events = 10
+        dirpath = "data/trackml/prepped/"
+        num_events = 2
         hit_volume_ids = [8]
         particle_min_pt = 1.0
         particle_max_abs_eta = 2.5
@@ -61,7 +62,12 @@ class TestTrackMLEvent:
 
         return dataset[0]
 
-    @pytest.mark.requiresdata
+    def test_trackml_preprocess(self):
+        input_dir = Path("data/trackml/raw/")
+        output_dir = Path("data/trackml/prepped")
+        output_dir.mkdir(exist_ok=True, parents=True)
+        preprocess(input_dir, output_dir, False)
+
     def test_trackml_event_masks(self, trackml_event):
         _inputs, targets = trackml_event
 
@@ -71,13 +77,13 @@ class TestTrackMLEvent:
         # Invalid particle slots should have no hits
         assert torch.all(~particle_hit_mask[~particle_valid.unsqueeze(-1).expand_as(particle_hit_mask)])
 
-    @pytest.mark.requiresdata
     def test_trackml_event_display(self, trackml_event):
         # Quick event display plotted directly from dataloader to verify things look correct
         inputs, targets = trackml_event
-
+        output_dir = Path("tests/outputs/trackml/")
+        output_dir.mkdir(exist_ok=True, parents=True)
         fig = plot_trackml_event_reconstruction(inputs, targets)
-        fig.savefig(Path("tests/outputs/trackml/trackml_event.png"))
+        fig.savefig(output_dir / "trackml_event.png")
 
     def test_trackml_matcher(self):
         Matcher(
