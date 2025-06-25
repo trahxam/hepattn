@@ -64,6 +64,7 @@ ninja = "*"
 git = "*"
 cuda = "12.3.*"
 "ruamel.yaml" = ">=0.18.10,<0.19"
+git-lfs = ">=3.6.1,<4"
 
 [tool.pixi.tasks.test]
 cmd = "pytest -xsv"
