@@ -61,11 +61,11 @@ class ObjectValidTask(Task):
         name : str
             Name of the task - will be used as the key to separate task outputs.
         input_object : str
-            Name of the input object feature
+            Name of the input object object
         output_object : str
-            Name of the output object feature which will denote if the predicted object slot is used or not.
+            Name of the output object object which will denote if the predicted object slot is used or not.
         target_object: str
-            Name of the target object feature that we want to predict is valid or not.
+            Name of the target object object that we want to predict is valid or not.
         losses : dict[str, float]
             Dict specifying which losses to use. Keys denote the loss function name,
             whiel value denotes loss weight.
@@ -73,7 +73,7 @@ class ObjectValidTask(Task):
             Dict specifying which costs to use. Keys denote the cost function name,
             whiel value denotes cost weight.
         dim : int
-            Embedding dimension of the input features.
+            Embedding dimension of the input objects.
         null_weight : float
             Weight applied to the null class in the loss. Useful if many instances of
             the target class are null, and we need to reweight to overcome class imbalance.
@@ -111,7 +111,7 @@ class ObjectValidTask(Task):
         for cost_fn, cost_weight in self.costs.items():
             costs[cost_fn] = cost_weight * cost_fns[cost_fn](output, target)
             # Set the costs of invalid objects to be (basically) inf
-            costs[cost_fn][~targets[self.target_object + "_valid"].unsqueeze(-2).expand_as(costs[cost_fn])] = COST_PAD_VALUE
+            # costs[cost_fn][~targets[self.target_object + "_valid"].unsqueeze(-2).expand_as(costs[cost_fn])] = COST_PAD_VALUE
         return costs
 
     def loss(self, outputs, targets):
@@ -335,7 +335,7 @@ class RegressionTask(Task):
         # Compute the loss
         loss = torch.nn.functional.smooth_l1_loss(output, target, reduction="none")
 
-        # Average over all the features
+        # Average over all the objects
         loss = torch.mean(loss, dim=-1)
 
         # Compute the regression loss only for valid objects
@@ -356,6 +356,159 @@ class RegressionTask(Task):
             metrics[field + "_std_rel_err"] = torch.std(err / target)
 
         return metrics
+
+
+class GaussianRegressionTask(Task):
+    def __init__(
+        self,
+        name: str,
+        output_object: str,
+        target_object: str,
+        fields: list[str],
+        loss_weight: float,
+        cost_weight: float,
+    ):
+        super().__init__()
+
+        self.name = name
+        self.output_object = output_object
+        self.target_object = target_object
+        self.fields = fields
+        self.loss_weight = loss_weight
+        self.cost_weight = cost_weight
+        self.k = len(fields)
+        # For multivaraite gaussian case we have extra DoFs from the variance and covariance terms
+        self.ndofs = self.k + int(self.k*(self.k+1)/2)
+
+    def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:
+        latent = self.latent(x)
+        k = self.k
+        triu_idx = torch.triu_indices(k, k, device=latent.device)
+
+        # Mean vector
+        mu = latent[...,:k]
+        # Upper-diagonal Cholesky decomposition of the precision matrix
+        U = torch.zeros(latent.size()[:-1] + torch.Size((k, k)), device=latent.device)
+        U[...,triu_idx[0,:],triu_idx[1,:]] = latent[...,k:]
+
+        Ubar = U.clone()
+        # Make sure the diagonal entries are positive (as variance is always positive)
+        Ubar[...,torch.arange(k),torch.arange(k)] = torch.exp(U[...,torch.arange(k),torch.arange(k)])
+
+        return {
+            self.output_object + "_mu": mu,
+            self.output_object + "_U": U,
+            self.output_object + "_Ubar": Ubar
+        }
+
+    def predict(self, outputs: dict[str, Tensor]) -> dict[str, Tensor]:
+        preds = outputs
+        mu = outputs[self.output_object + "_mu"]
+        Ubar = outputs[self.output_object + "_Ubar"]
+        U = outputs[self.output_object + "_U"]
+
+        # Calculate the precision matrix
+        precs = torch.einsum("...kj,...kl->...jl", Ubar, Ubar)
+
+        # Get the predicted mean for each field
+        for i, field in enumerate(self.fields):
+            preds[self.output_object + "_" + field] = mu[...,i]
+
+        # Get the predicted precision for each field and the predicted covariance / coprecision
+        for i, field_i in enumerate(self.fields):
+            for j, field_j in enumerate(self.fields):
+                if i > j: continue
+                preds[field_i + "_" + field_j + "_prec"] = precs[...,i,j]
+
+        return preds
+
+    def loss(self, outputs: dict[str, Tensor], targets: dict[str, Tensor]) -> dict[str, Tensor]:
+        y = torch.stack([targets[self.target_object + "_" + field] for field in self.fields], dim=-1)
+
+        # Compute the standardised score vector between the targets and the predicted distribution paramaters
+        z = torch.einsum("...ij,...j->...i", outputs[self.output_object + "_Ubar"], y - outputs[self.output_object + "_mu"])
+        # Compute the NLL from the score vector
+        zsq = torch.einsum("...i,...i->...", z, z)
+        jac = torch.sum(torch.diagonal(outputs[self.output_object + "_U"], offset=0, dim1=-2, dim2=-1), dim=-1)
+        nll = -0.5 * zsq + jac
+
+        # Only compute NLL for valid tracks or track-hit pairs
+        nll = nll[targets[self.target_object + "_valid"]]
+        # Take the average and apply the task weight
+        nll = -self.loss_weight * nll.mean()
+
+        return {"nll": nll}
+
+    def metrics(self, preds: dict[str, Tensor], targets: dict[str, Tensor]) -> dict[str, Tensor]:
+        y = torch.stack([targets[self.target_object + "_" + field] for field in self.fields], dim=-1) # Point target
+        res = y - preds[self.output_object + "_mu"] # Residual
+        z = torch.einsum("...ij,...j->...i", preds[self.output_object + "_Ubar"], res) # Scaled resdiaul / z score
+
+        # Select only values that havea valid target
+        valid_mask = targets[self.target_object + "_valid"]
+
+        metrics = {}
+        for i, field in enumerate(self.fields):
+            metrics[field + "_rmse"] = torch.sqrt(torch.mean(torch.square(res[...,i][valid_mask])))
+            # The mean and standard deviation of the pulls to check predictions are calibrated
+            metrics[field + "_pull_mean"] = torch.mean(z[...,i][valid_mask])
+            metrics[field + "_pull_std"] = torch.std(z[...,i][valid_mask])
+
+        return metrics
+
+
+class ObjectGaussianRegressionTask(GaussianRegressionTask):
+    def __init__(
+        self,
+        name: str,
+        input_object: str,
+        output_object: str,
+        target_object: str,
+        fields: list[str],
+        loss_weight: float,
+        cost_weight: float,
+        dim: int,
+    ):
+        super().__init__(name, output_object, target_object, fields, loss_weight, cost_weight)
+
+        self.input_object = input_object
+        self.inputs = [input_object + "_embed"]
+        self.outputs = [
+            output_object + "_mu",
+            output_object + "_Ubar",
+            output_object + "_U",            
+            ]
+
+        self.dim = dim
+        self.net = Dense(self.dim, self.ndofs)
+
+    def latent(self, x: dict[str, Tensor]) -> Tensor:
+        return self.net(x[self.input_object + "_embed"])
+
+    def cost(self, outputs, targets):
+        mu = outputs[self.output_object + "_mu"].to(torch.float32) # (B, N, D)
+        Ubar = outputs[self.output_object + "_Ubar"].to(torch.float32) # (B, N, D, D)
+        U = outputs[self.output_object + "_U"].to(torch.float32)
+        y = torch.stack([targets[self.target_object + "_" + field] for field in self.fields], dim=-1).to(torch.float32) # (B, N, D)
+        
+        # Now we need compute the Gaussian NLL for every target/pred pair, remember costs have shape (batch, pred, true)
+        num_objects = y.shape[1] # num_objects = N
+        mu = mu.unsqueeze(2).expand(-1, -1, num_objects, -1) # (B, N, N, D)
+        Ubar = Ubar.unsqueeze(2).expand(-1, -1, num_objects, -1, -1) # (B, N, N, D, D)
+        U = U.unsqueeze(2).expand(-1, -1, num_objects, -1, -1)
+        diagU = torch.diagonal(U, offset=0, dim1=-2, dim2=-1) # (B, N, N, D)
+        y = y.unsqueeze(1).expand(-1, num_objects, -1, -1) # (B, N, N, D)
+
+        # Compute the standardised score vector between the targets and the predicted distribution paramaters
+        z = torch.einsum("...ij,...j->...i", Ubar, y - mu) # (B, N, N, D)
+        # Compute the NLL from the score vector
+        zsq = torch.einsum("...i,...i->...", z, z) # (B, N, N)
+        jac = torch.sum(diagU, dim=-1) # (B, N, N)
+
+        nll = -0.5 * zsq + jac
+        costs = -nll
+
+        return {"nll": self.cost_weight * costs}
 
 
 class ObjectRegressionTask(RegressionTask):
@@ -385,12 +538,18 @@ class ObjectRegressionTask(RegressionTask):
     def cost(self, outputs, targets):
         output = outputs[self.output_object + "_regr"].detach().to(torch.float32)
         target = torch.stack([targets[self.target_object + "_" + field] for field in self.fields], dim=-1).to(torch.float32)
+        num_objects = output.shape[1]
         # Index from the front so it works for both object and mask regression
-        costs = torch.nn.functional.smooth_l1_loss(output.unsqueeze(2), target.unsqueeze(1), reduction="none")
+        # The expand is not necessary but stops a broadcasting warning from smooth_l1_loss
+        costs = torch.nn.functional.smooth_l1_loss(
+            output.unsqueeze(2).expand(-1, -1, num_objects, -1),
+            target.unsqueeze(1).expand(-1, num_objects, -1, -1),
+            reduction="none",
+            )
         # Average over the regression fields dimension
         costs = costs.mean(-1)
         # Set the costs of invalid objects to be inf
-        costs[~targets[self.target_object + "_valid"].unsqueeze(-2).expand_as(costs)] = COST_PAD_VALUE
+        # costs[~targets[self.target_object + "_valid"].unsqueeze(-2).expand_as(costs)] = COST_PAD_VALUE
         return {"regr_smooth_l1": self.cost_weight * costs}
 
 
