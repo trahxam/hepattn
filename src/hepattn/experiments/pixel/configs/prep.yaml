@@ -3,7 +3,7 @@ preprocessing:
   input_dir: /share/lustre/maxhart/data/pixsplit/user.hart.mc23_13p6TeV.801172.JZ7.e8514_e8528_s4162_s4114_r14327.RadDamage.Mid2024.new.DAOD_IDTIDE_EXT0/
 
   # Directory where the output preprocesed files will be saved
-  output_dir: /share/rcifdata/maxhart/data/pixsplit/mc23_prepped/train
+  output_dir: /share/rcifdata/maxhart/data/pixsplit/mc23_prepped/tmp
 
   input_file_extension: .root
 
@@ -11,12 +11,12 @@ preprocessing:
   random_seed: 0
 
   # Maximum number of samples to be read in (-1 = use all available samples)
-  max_num_samples: 100000
+  max_num_samples: -1
 
   # Defines subsampling rate for each cluster multiplicity
   # If none is given, then all clusters of that multiplicity are saved
   cluster_multiplicity_subsample_frac:
-    1: 0.01
+    1: 0.25
 
   # Name of the tree in the ROOT file under which the data is contained
   tree_name: CollectionTree;1
@@ -27,72 +27,85 @@ preprocessing:
   # Mapping of names used in the ROOT file to shorter names saved by the preprocessing
   # First the cluster fields that have a fixed size per cluster
   cluster_fields:
-    bec: cluster_bec
-    layer: cluster_layer
-    phi_module: cluster_module_phi
-    eta_module: cluster_module_eta
-    eta_pixel_index: cluster_eta_index
-    phi_pixel_index: cluster_phi_index
-    sizePhi: cluster_size_x
-    sizeZ: cluster_size_y
-    nRDO: cluster_num_rdo
+    charge: charge
+    identifier: identifier
+    # rdoIdentifierList
+    localX: local_X
+    localY: local_y
+    localXError: local_x_err
+    localYError: local_y_err
+    localXYCorrelation: local_xy_corr
+    globalX: global_x
+    globalY: global_y
+    globalZ: global_z
+    bec: bec
+    layer: layer
+    phi_module: module_phi
+    eta_module: module_eta
+    eta_pixel_index: eta_index
+    phi_pixel_index: phi_index
+    sizePhi: size_phi
+    sizeZ: size_z
+    nRDO: num_rdo
     #ToT
     #LVL1A
-    isFake: cluster_is_fake
-    gangedPixel: cluster_is_ganged
-    isSplit: cluster_is_split
-    splitProbability1: cluster_split_prob_1
-    splitProbability2: cluster_split_prob_2
-    NN_sizeX: cluster_width_x
-    NN_sizeY: cluster_width_y
+    isFake: is_fake
+    gangedPixel: is_ganged
+    isSplit: is_split
+    splitProbability1: split_prob_1
+    splitProbability2: split_prob_2
+    NN_sizeX: charge_matrix_size_x
+    NN_sizeY: charge_matrix_size_y
     #NN_phiBS
     #NN_thetaBS
     #NN_matrixOfToT
-    NN_matrixOfCharge: cluster_charge_matrix
-    NN_vectorOfPitchesY: cluster_pitch_vector
-    NN_etaPixelIndexWeightedPosition: cluster_weighted_eta_index
-    NN_phiPixelIndexWeightedPosition: cluster_weighted_phi_index
-    NN_localPhiPixelIndexWeightedPosition: cluster_local_weighted_phi_index
-    NN_localEtaPixelIndexWeightedPosition: cluster_local_weighted_eta_index
-    hasBSError: cluster_bs_error
-    DCSState: cluster_dcs_state
-    BiasVoltage: cluster_bias_voltage
-    Temperature: cluster_temperature
-    DepletionVoltage: cluster_depletion_voltage
-    LorentzShift: cluster_lorentz_shift
+    NN_matrixOfCharge: charge_matrix
+    NN_vectorOfPitchesY: pitch_vector
+    NN_etaPixelIndexWeightedPosition: weighted_eta_index
+    NN_phiPixelIndexWeightedPosition: weighted_phi_index
+    NN_localPhiPixelIndexWeightedPosition: local_weighted_phi_index
+    NN_localEtaPixelIndexWeightedPosition: local_weighted_eta_index
+    hasBSError: bs_error
+    DCSState: dcs_state
+    BiasVoltage: bias_voltage
+    Temperature: temperature
+    DepletionVoltage: depletion_voltage
+    LorentzShift: lorentz_shift
     #detectorElementID
     #waferID
-    #centroid_xphi: cluster_centroid_phi
-    #centroid_xeta: cluster_centroid_eta
+    #centroid_xphi: centroid_phi
+    #centroid_xeta: centroid_eta
     #omegax
     #omegay
     #truth_barcode
-    #broken
+    broken: broken
     #sihit_barcode
 
   # Which fields are associated to particles on a cluster
   particle_fields:
-    NN_positions_indexX: particle_index_x
-    NN_positions_indexY: particle_index_y
-    NN_positionsX: particle_x
-    NN_positionsY: particle_y
-    NN_theta: particle_theta
-    NN_phi: particle_phi
-    NN_barcode: particle_barcode
-    NN_pdgid: particle_pdgid
-    NN_energyDep: particle_edep
-    NN_trueP: particle_p
-    NN_motherBarcode: particle_mother_barcode
-    NN_motherPdgid: particle_mother_pdgid
-    NN_pathlengthX: particle_pathlen_x
-    NN_pathlengthY: particle_pathlen_y
-    NN_pathlengthZ: particle_pathlen_z
+    NN_positions_indexX: index_x
+    NN_positions_indexY: index_y
+    NN_positionsX: x
+    NN_positionsY: y
+    NN_theta: theta
+    NN_phi: phi
+    NN_barcode: barcode
+    NN_pdgid: pdgid
+    NN_energyDep: edep
+    NN_trueP: p
+    NN_motherBarcode: mother_barcode
+    NN_motherPdgid: mother_pdgid
+    NN_pathlengthX: pathlen_x
+    NN_pathlengthY: pathlen_y
+    NN_pathlengthZ: pathlen_z
+    truth_barcode: truth_barcode
+    sihit_barcode: sihit_barcode
 
-  # Which fields are associated to a cell / RDO on a cluster
-  cell_fields:
-    rdo_phi_pixel_index: cell_phi_index
-    rdo_eta_pixel_index: cell_eta_index
-    rdo_charge: cell_charge
+  # Which fields are associated to a pixel / RDO on a cluster
+  pixel_fields:
+    rdo_phi_pixel_index: phi_index
+    rdo_eta_pixel_index: eta_index
+    rdo_charge: charge
     #rdo_tot
     #rdo_Cterm
     #rdo_Aterm

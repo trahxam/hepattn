@@ -1,12 +1,11 @@
 import random
-from pathlib import Path
-
 import h5py
 import numpy as np
 import torch
 from lightning import LightningDataModule
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
+from pathlib import Path
 
 from hepattn.utils.tensor_utils import pad_to_size
 
@@ -18,23 +17,29 @@ class PixelClusterDataset(Dataset):
         inputs: dict,
         targets: dict,
         num_clusters: int = 1000000,
-        cluster_multiplicity_sample_frac: dict[int, float] | None = None,
+        cluster_multiplicities: list[int] | None = None,
+        cluster_multiplicity_subsample_frac: dict[int, float] | None = None,
         particle_max_x: float = 10.0,
         particle_max_y: float = 8.0,
-        particle_allow_notruth: bool = True,
+        particle_allow_notruth: bool = False,
         particle_allow_secondary: bool = True,
         cluster_regions: list[int] | None = None,
         cluster_layers: list[int] | None = None,
-        cluster_min_num_particles=1,
-        cluster_max_num_particles=32,
+        cluster_min_multiplicity=1,
+        cluster_max_multiplicity=32,
+        cluster_max_width_x = 100,
+        cluster_max_width_y = 100,
+        cluster_allow_notruth_particle: bool = False,
+        cluster_allow_dropped_particle: bool = False,
+        cluster_max_abs_eta: float = 4.0,
         precision: int = 32,
     ):
         if cluster_layers is None:
             cluster_layers = [0, 1, 2, 4, 5, 6]
         if cluster_regions is None:
             cluster_regions = [-2, -1, 0, 1, 2]
-        if cluster_multiplicity_sample_frac is None:
-            cluster_multiplicity_sample_frac = {}
+        if cluster_multiplicity_subsample_frac is None:
+            cluster_multiplicity_subsample_frac = {}
 
         super().__init__()
 
@@ -48,9 +53,15 @@ class PixelClusterDataset(Dataset):
         self.particle_allow_secondary = particle_allow_secondary
         self.cluster_regions = cluster_regions
         self.cluster_layers = cluster_layers
-        self.cluster_multiplicity_sample_frac = cluster_multiplicity_sample_frac
-        self.cluster_max_num_particles = cluster_max_num_particles
-        self.cluster_min_num_particles = cluster_min_num_particles
+        self.cluster_multiplicity_subsample_frac = cluster_multiplicity_subsample_frac
+        self.cluster_multiplicities = cluster_multiplicities
+        self.cluster_max_multiplicity = cluster_max_multiplicity
+        self.cluster_min_multiplicity = cluster_min_multiplicity
+        self.cluster_max_width_x = cluster_max_width_x
+        self.cluster_max_width_y = cluster_max_width_y
+        self.cluster_max_abs_eta = cluster_max_abs_eta
+        self.cluster_allow_notruth_particle = cluster_allow_notruth_particle
+        self.cluster_allow_dropped_particle = cluster_allow_dropped_particle
         self.precision = precision
 
         self.precision_type = {
@@ -59,9 +70,8 @@ class PixelClusterDataset(Dataset):
             64: torch.float64,
         }[precision]
 
-        # Set the global random sampling seed
-        self.sampling_seed = 42
-        np.random.seed(self.sampling_seed)  # noqa: NPY002
+        # Set the dataset random number generate
+        self.rng = np.random.default_rng()
 
         # Files that are available to read from
         self.available_file_paths = list(Path(self.dirpath).glob("*.h5"))
@@ -78,7 +88,7 @@ class PixelClusterDataset(Dataset):
         self.cluster_id_to_idx = {}
 
         # Map the cluster ID to its index in its file
-        self.cluster_id_to_file_idx = {}
+        self.cluster_id_to_idx = {}
 
         # Clusters that are known to fail the selection
         self.rejected_cluster_ids = []
@@ -103,7 +113,7 @@ class PixelClusterDataset(Dataset):
 
             for idx, cluster_id in enumerate(cluster_ids):
                 self.cluster_id_to_file_path[cluster_id] = file_path
-                self.cluster_id_to_file_idx[cluster_id] = idx
+                self.cluster_id_to_idx[cluster_id] = idx
                 self.unevaluated_cluster_ids.append(int(cluster_id))
 
             print(f"Registered {len(cluster_ids)} clusters from {file_path}")
@@ -135,7 +145,7 @@ class PixelClusterDataset(Dataset):
                     if len(unregistered_file_paths) == 0:
                         raise StopIteration("Ran out of clusters that pass the selection, and have no new files left to read from.")
 
-                    # Load a random How new file then continue
+                    # Load a random new file then continue
                     self.register_file(next(iter(unregistered_file_paths)))
 
                 # Randomly sample an ID from the set of unevaluated IDs
@@ -179,67 +189,104 @@ class PixelClusterDataset(Dataset):
 
     def load_cluster(self, cluster_id):
         file_path = self.cluster_id_to_file_path[cluster_id]
-        file_idx = self.cluster_id_to_file_idx[cluster_id]
+        idx = self.cluster_id_to_idx[cluster_id]
 
         x = {"cluster_id": cluster_id}
 
         with h5py.File(file_path) as file:
+            ########################################################################
+            # First apply cluster cuts that are independent of
+            # any particle cuts that might be applied
+            ########################################################################
+
+            # If true, then the cluster is dropped if it contains a particle with a zero barcode
+            x["particle_barcode"] = file["particle_barcode"][idx]
+            if not self.cluster_allow_notruth_particle:
+                if np.any(np.isclose(x["particle_barcode"], 0)):
+                    return None
+            
             # Apply region cut using barrel endcap flag
-            x["cluster_bec"] = file["cluster_bec"][file_idx]
+            x["cluster_bec"] = file["cluster_bec"][idx]
             if x["cluster_bec"] not in self.cluster_regions:
                 return None
 
             # Apply layer cut
-            x["cluster_layer"] = file["cluster_layer"][file_idx]
+            x["cluster_layer"] = file["cluster_layer"][idx]
             if x["cluster_layer"] not in self.cluster_layers:
                 return None
 
-            # Build the cluster cell coordinates
-            x["cluster_eta_index"] = file["cluster_eta_index"][file_idx]
-            x["cluster_phi_index"] = file["cluster_phi_index"][file_idx]
+            # Add cluster global coords
+            for coord in ["x", "y", "z"]:
+                x[f"cluster_global_{coord}"] = file[f"cluster_global_{coord}"][idx]
 
-            x["cluster_module_eta"] = file["cluster_module_eta"][file_idx]
-            x["cluster_module_phi"] = file["cluster_module_phi"][file_idx]
+            x["cluster_global_r"] = np.sqrt(x["cluster_global_x"] ** 2 + x["cluster_global_x"] ** 2)
+            x["cluster_global_s"] = np.sqrt(x["cluster_global_x"] ** 2 + x["cluster_global_x"] ** 2 + x["cluster_global_z"] ** 2)
 
-            x["cell_eta_index"] = file["cell_eta_index"][file_idx]
-            x["cell_phi_index"] = file["cell_phi_index"][file_idx]
+            with np.errstate(divide="ignore", invalid="ignore"):
+                x["cluster_global_theta"] = np.arccos(x["cluster_global_z"] / x["cluster_global_s"])
+                x["cluster_global_eta"] = -np.log(np.tan(x["cluster_global_theta"] / 2))
+
+            x["cluster_global_phi"] = np.arctan2(x["cluster_global_y"], x["cluster_global_x"])
+
+            # Apply cluster eta / theta cuts
+            if not np.isfinite(x["cluster_global_eta"]):
+                return None
+
+            if not np.isfinite(x["cluster_global_theta"]):
+                return None
+
+            if np.abs(x["cluster_global_eta"]) > self.cluster_max_abs_eta:
+                return None
+
+            # Build the cluster pixel coordinates
+            x["pixel_eta_index"] = file["pixel_eta_index"][idx]
+            x["pixel_phi_index"] = file["pixel_phi_index"][idx]
 
             # Convert the charge to 100 * ke
-            x["cell_charge"] = file["cell_charge"][file_idx] / 100000.0
+            x["pixel_charge"] = file["pixel_charge"][idx] / 100000.0
 
-            x["cell_y"] = x["cell_eta_index"] - file["cluster_weighted_eta_index"][file_idx]
-            x["cell_x"] = x["cell_phi_index"] - file["cluster_weighted_phi_index"][file_idx]
+            # Transform the pixel coordinates from the module plane frame to the cluster centroid frame
+            x["pixel_y"] = x["pixel_eta_index"] - file["cluster_weighted_eta_index"][idx]
+            x["pixel_x"] = x["pixel_phi_index"] - file["cluster_weighted_phi_index"][idx]
 
-            x["cluster_size_x"] = file["cluster_size_x"][file_idx]
-            x["cluster_size_y"] = file["cluster_size_y"][file_idx]
+            # Calculate the width of the cluster in x and y
+            x["cluster_width_x"] = np.max(x["pixel_x"]) - np.min(x["pixel_x"])
+            x["cluster_width_y"] = np.max(x["pixel_y"]) - np.min(x["pixel_y"])
 
-            x["cluster_width_x"] = np.max(x["cell_x"]) - np.min(x["cell_x"])
-            x["cluster_width_y"] = np.max(x["cell_y"]) - np.min(x["cell_y"])
+            # Apply cluster width cuts
+            if x["cluster_width_x"] > self.cluster_max_width_x:
+                return None
 
-            # Add the charge matrix and pitch vector
-            x["cluster_charge_matrix"] = file["cluster_charge_matrix"][file_idx]
+            if x["cluster_width_y"] > self.cluster_max_width_y:
+                return None
+
+            # Add the charge matrix and pitch vector, again convert charge to ke / 100
+            x["cluster_charge_matrix"] = file["cluster_charge_matrix"][idx] / 100000.0
             x["cluster_charge_matrix"] = np.flipud(x["cluster_charge_matrix"].reshape(7, 7).T).flatten()
-            x["cluster_pitch_vector"] = file["cluster_pitch_vector"][file_idx]
+            x["cluster_pitch_vector"] = file["cluster_pitch_vector"][idx]
 
             # Add the particle info
-            x["particle_barcode"] = file["particle_barcode"][file_idx]
-
-            x["particle_x"] = file["particle_index_x"][file_idx]
-            x["particle_y"] = file["particle_index_y"][file_idx]
-
-            x["particle_theta"] = file["particle_theta"][file_idx]
-            x["particle_phi"] = file["particle_phi"][file_idx]
+            for field in ["index_x", "index_y", "theta", "phi", "edep", "p"]:
+                x[f"particle_{field}"] = file[f"particle_{field}"][idx]
+            
+            x["particle_x"] = x["particle_index_x"]
+            x["particle_y"] = x["particle_index_y"]
 
             # Convert MeV to GeV and TeV
-            x["particle_p"] = file["particle_p"][file_idx] / 1000.0
-            x["particle_p_tev"] = x["particle_p"] / 1000.0
+            x["particle_p"] = x["particle_p"]  / 1000.0
 
+            # Get particle PDGID
+            x["particle_pdgid"] = file["particle_pdgid"][idx]
+
+            # Particle barcode / truth classes
             x["particle_valid"] = x["particle_barcode"] > -1
             x["particle_notruth"] = x["particle_barcode"] <= 0
             x["particle_secondary"] = x["particle_barcode"] >= 200000
             x["particle_primary"] = (x["particle_barcode"] > 0) & (x["particle_barcode"] <= 100000)
 
+            ########################################################################
             # Apply any particle cuts
+            ########################################################################
 
             # Ignore particles with no barcode if specified
             if not self.particle_allow_notruth:
@@ -253,6 +300,37 @@ class PixelClusterDataset(Dataset):
             x["particle_valid"] = x["particle_valid"] & (np.abs(x["particle_x"]) <= self.particle_max_x)
             x["particle_valid"] = x["particle_valid"] & (np.abs(x["particle_y"]) <= self.particle_max_y)
 
+            # If specified, drop the cluster if any particles failed the particle cuts
+            if not self.cluster_allow_dropped_particle:
+                if np.any(~x["particle_valid"]):
+                    return None
+
+            ########################################################################
+            # Now we have performed the particle cuts, we can apply cluster cuts that depent on the particles
+            ########################################################################
+            x["cluster_multiplicity"] = np.sum(x["particle_valid"])
+
+            # Apply cluster multiplicity cut
+            if self.cluster_multiplicities is not None:
+                if x["cluster_multiplicity"] not in self.cluster_multiplicities:
+                    return None
+
+            # Apply multiplicity subsampling
+            if x["cluster_multiplicity"] in self.cluster_multiplicity_subsample_frac:
+                # Reject the cluster with probability 1 - subsample rate
+                if self.rng.random() > self.cluster_multiplicity_subsample_frac[x["cluster_multiplicity"]]:
+                    return None
+
+            if np.sum(x["particle_valid"]) < self.cluster_min_multiplicity:
+                return None
+
+            if np.sum(x["particle_valid"]) > self.cluster_max_multiplicity:
+                return None
+
+            ########################################################################
+            # Now return the particle fields
+            ########################################################################
+
             particle_fields = [
                 "x",
                 "y",
@@ -260,35 +338,57 @@ class PixelClusterDataset(Dataset):
                 "phi",
                 "p",
                 "barcode",
-                "p_tev",
                 "primary",
                 "secondary",
                 "notruth",
+                "pdgid",
             ]
 
             for field in particle_fields:
                 x[f"particle_{field}"] = x[f"particle_{field}"][x["particle_valid"]]
 
+            # Get the angle of the leading p particle
+            x["cluster_leading_phi"] = x["particle_phi"][np.argmax(x["particle_p"])]
+            x["cluster_leading_theta"] = x["particle_theta"][np.argmax(x["particle_p"])]
+
             x["particle_valid"] = x["particle_valid"][x["particle_valid"]]
 
-            if len(x["particle_valid"]) < self.cluster_min_num_particles:
-                return None
 
-            if len(x["particle_valid"]) > self.cluster_max_num_particles:
-                return None
 
-            # Now we have applied the particle cuts, make any cluster cuts
-            # that depend on the particles
+            ########################################################################
+            # Now return the cluster fields
+            ########################################################################
+
+            cluster_scalar_fields = [
+                "id",
+                "bec",
+                "layer",
+                "width_x",
+                "width_y",
+                "multiplicity",
+                "leading_theta",
+                "leading_phi",
+                "global_x",
+                "global_y",
+                "global_z",
+                "global_r",
+                "global_s",
+                "global_theta",
+                "global_eta",
+                "global_phi"
+            ]
+
+            # Add the cluster fields onto the pixels
+            x["pixel_valid"] = x["pixel_charge"] > 0
+            for field in cluster_scalar_fields:
+                x[f"pixel_cluster_{field}"] = np.full_like(x["pixel_valid"], x[f"cluster_{field}"])
 
             # Put scalars into arrays
-            x["cluster_id"] = np.array([cluster_id])
-            x["cluster_bec"] = np.array([x["cluster_bec"]])
-            x["cluster_layer"] = np.array([x["cluster_layer"]])
-            x["cluster_size_x"] = np.array([x["cluster_size_x"]])
-            x["cluster_size_y"] = np.array([x["cluster_size_y"]])
+            for field in cluster_scalar_fields:
+                x[f"cluster_{field}"] = np.array([x[f"cluster_{field}"]])
 
             x["cluster_valid"] = np.array([True])
-            x["cell_valid"] = x["cell_charge"] > 0
+            
 
         return x
 
@@ -315,7 +415,12 @@ class PixelClusterCollator:
         batched_targets = {}
         for input_name, fields in self.dataset_inputs.items():
             k = f"{input_name}_valid"
-            batched_inputs[k] = pad_and_concat([i[k] for i in inputs], (hit_max_sizes[input_name],), False)
+
+            if input_name == "cluster":
+                batched_inputs[k] = torch.cat([i[k] for i in inputs], dim=0)
+
+            elif input_name == "pixel":
+                batched_inputs[k] = pad_and_concat([i[k] for i in inputs], (hit_max_sizes[input_name],), False)
 
             # Some tasks might require to know hit padding info for loss masking
             batched_targets[k] = batched_inputs[k]
@@ -323,33 +428,34 @@ class PixelClusterCollator:
             for field in fields:
                 k = f"{input_name}_{field}"
 
-                # Handle scalar case
-                if next(iter(inputs))[k].ndim == 1:
-                    torch.cat([i[k] for i in inputs], dim=-1)
-                    continue
+                if input_name == "cluster":
+                    batched_inputs[k] = torch.cat([i[k] for i in inputs], dim=0)
 
-                # If the field is a vector we need to adjust the target size accordingly
-                # TODO: Make this nicer
-                if next(iter(inputs))[k].ndim == 3:
-                    size = (hit_max_sizes[input_name], next(iter(inputs))[k].shape[-1])
-                else:
-                    size = (hit_max_sizes[input_name],)
-
-                batched_inputs[k] = pad_and_concat([i[k] for i in inputs], size, 0.0)
+                elif input_name == "pixel":
+                    batched_inputs[k] = pad_and_concat([i[k] for i in inputs], (hit_max_sizes["pixel"],), 0.0)
 
         for target_name, fields in self.dataset_targets.items():
-            if len(target_name.split("_")) == 1:
-                size = (self.max_num_obj,)
-            else:
-                hit = target_name.split("_")[1]
-                size = (self.max_num_obj, hit_max_sizes[hit])
-
             k = f"{target_name}_valid"
-            batched_targets[k] = pad_and_concat([t[k] for t in targets], size, False)
+            
+            if target_name == "cluster":
+                batched_targets[k] = torch.cat([t[k] for t in targets], dim=0)
+
+            elif target_name == "particle":
+                batched_targets[k] = pad_and_concat([t[k] for t in targets], (self.max_num_obj,), False)
+
+            elif target_name == "particle_pixel":
+                batched_targets[k] = pad_and_concat([t[k] for t in targets], (self.max_num_obj, hit_max_sizes["pixel"]), False)
 
             for field in fields:
                 k = f"{target_name}_{field}"
-                batched_targets[k] = pad_and_concat([t[k] for t in targets], size, 0)
+                if target_name == "cluster":
+                    batched_targets[k] = torch.cat([t[k] for t in targets], dim=0)
+
+                elif target_name == "particle":
+                    batched_targets[k] = pad_and_concat([t[k] for t in targets], (self.max_num_obj,), 0.0)
+
+                elif target_name == "particle_pixel":
+                    batched_targets[k] = pad_and_concat([t[k] for t in targets], (self.max_num_obj, hit_max_sizes["pixel"]), 0.0)
 
         # Batch the metadata
         batched_targets["sample_id"] = torch.cat([t["sample_id"] for t in targets], dim=-1)
@@ -425,7 +531,7 @@ class PixelClusterDataModule(LightningDataModule):
         return DataLoader(
             dataset=dataset,
             batch_size=self.batch_size,
-            collate_fn=PixelClusterCollator(dataset.inputs, dataset.targets, dataset.cluster_max_num_particles),
+            collate_fn=PixelClusterCollator(dataset.inputs, dataset.targets, dataset.cluster_max_multiplicity),
             sampler=None,
             num_workers=self.num_workers,
             shuffle=shuffle,

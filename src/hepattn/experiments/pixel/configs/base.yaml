@@ -1,9 +1,9 @@
-name: pixel
+name: pixel_8_mini
 
 data:
-  train_dir: /share/rcifdata/maxhart/data/pixsplit/mc23_prepped/train
-  val_dir: /share/rcifdata/maxhart/data/pixsplit/mc23_prepped/train
-  test_dir: /share/rcifdata/maxhart/data/pixsplit/mc23_prepped/train
+  train_dir: /share/rcifdata/maxhart/data/pixsplit/mc23_prepped/new/
+  val_dir: /share/rcifdata/maxhart/data/pixsplit/mc23_prepped/new/
+  test_dir: /share/rcifdata/maxhart/data/pixsplit/mc23_prepped/new/
 
   num_train: 1000000
   num_val: 10000
@@ -11,11 +11,18 @@ data:
 
   num_workers: 8
 
-  batch_size: 250
+  batch_size: 100
 
-  cluster_multiplicity_sample_frac:
-    0: 0.0
-    1: 0.25
+  # If specified only clusters with these multiplicities will be given
+  cluster_multiplicities:
+
+  # If specified, clusters with this multiplicity are retained at the spcified rate
+  cluster_multiplicity_subsample_frac:
+    1: 0.25 # Retain 1-particle clusters 65% of the time
+
+  # Maximum x / y for a particle to be marked as a valid target
+  particle_max_x: 8
+  particle_max_y: 8
 
   # Whether to consider particles without a barcode as valid or not
   particle_allow_notruth: false
@@ -23,32 +30,55 @@ data:
   # Whether to consider secondary particles as valid or not
   particle_allow_secondary: true
 
-  # Which detector regions should be included
-  # 0 is barrel and 2 is endcap
+  # Which detector regions should be included, 0 is barrel and +/-2 is endcap
   cluster_regions: [-2, -1, 0, 1, 2]
 
   # Which tracker layers should be included
   cluster_layers: [0, 1, 2, 3]
 
-  # If specified only clusters with these multiplicities will be given
-  #cluster_multiplicity: []
+  # The minimum and maximum cluster multiplicities to allow
+  cluster_min_multiplicity: 1
+  cluster_max_multiplicity: &cluster_max_multiplicity 8
 
-  cluster_min_num_particles: 1
-  cluster_max_num_particles: &num_tracks 8
+  # The maximum x/y width in pixels of a cluster for it to not be dropped
+  cluster_max_width_x: 32
+  cluster_max_width_y: 32
+
+  # The maximum absolute global eta of a cluster for it to not be dropped
+  cluster_max_abs_eta: 2.5
+  
+  # If set to true, clusters containing a notruth particle will be dropped
+  cluster_allow_notruth_particle: false
+
+  # If set to true, clusters containing any particle that did not pass the particle selection are dropped
+  cluster_allow_dropped_particle: false  
 
   inputs:
     cluster:
       - bec
       - layer
-      - size_x
-      - size_y
-      #- charge_matrix
+      - width_x
+      - width_y
+      - pitch_vector
+      - charge_matrix
+      - global_x
+      - global_y
+      - global_z
+      - global_r
+      - global_theta
+      - global_eta
+      - global_phi
+      - leading_theta
+      - leading_phi
 
-
-    cell:
+    pixel:
       - x
       - y
       - charge
+      - cluster_global_eta
+      - cluster_global_phi
+      - cluster_leading_theta
+      - cluster_leading_phi
 
   targets:
     particle:
@@ -61,6 +91,10 @@ data:
       - primary
       - secondary
       - notruth
+      - pdgid
+    
+    cluster:
+      - multiplicity
 
 # Training stuff here
 trainer:
@@ -85,7 +119,7 @@ trainer:
 
   # Specify any callback here
   callbacks:
-    - class_path: hepattn.callbacks.Metadata
+    - class_path: hepattn.callbacks.SaveConfig
     - class_path: hepattn.callbacks.Checkpoint
       init_args:
         monitor: train/loss
@@ -119,8 +153,8 @@ model:
   model:
     class_path: hepattn.models.MaskFormer
     init_args:
-      dim: &dim 128
-      num_queries: *num_tracks
+      dim: &dim 64
+      num_queries: *cluster_max_multiplicity
       input_sort_field: x
       use_attn_masks: false
       use_query_masks: false
@@ -131,20 +165,24 @@ model:
           modules:
             - class_path: hepattn.models.InputNet
               init_args:
-                input_name: cell
+                input_name: pixel
                 fields:
                   - x
                   - y
                   - charge
+                  - cluster_global_eta
+                  - cluster_global_phi
+                  - cluster_leading_theta
+                  - cluster_leading_phi
                 net:
                   class_path: hepattn.models.Dense
                   init_args:
-                    input_size: 3
+                    input_size: 7
                     output_size: *dim
                 posenc:
                   class_path: hepattn.models.posenc.FourierPositionEncoder
                   init_args:
-                    input_name: cell
+                    input_name: pixel
                     dim: *dim
                     fields:
                       - x
@@ -157,7 +195,7 @@ model:
           dim: *dim
           attn_type: torch
 
-      num_decoder_layers: 4
+      num_decoder_layers: 1
       decoder_layer_config:
         dim: *dim
         mask_attention: false
@@ -180,14 +218,14 @@ model:
                 output_object: track
                 target_object: particle
                 losses:
-                  object_ce: 0.01
+                  object_ce: 1.0
                 costs:
-                  object_ce: 0.01
+                  object_ce: 1.0
                 dim: *dim
 
-            - class_path: hepattn.models.task.ObjectRegressionTask
+            - class_path: hepattn.models.task.ObjectGaussianRegressionTask
               init_args:
-                name: track_regression
+                name: track_regr
                 input_object: query
                 output_object: track
                 target_object: particle
