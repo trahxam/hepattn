@@ -57,9 +57,9 @@ def preprocess_file(
 
     cluster_fields = config["cluster_fields"]
     particle_fields = config["particle_fields"]
-    cell_fields = config["cell_fields"]
+    pixel_fields = config["pixel_fields"]
 
-    fields = cluster_fields | particle_fields | cell_fields
+    fields = cluster_fields | particle_fields | pixel_fields
 
     with h5py.File(out_file_path_tmp, "w") as out_file:
         # Save the cluster multiplicity for easy selection
@@ -82,19 +82,19 @@ def preprocess_file(
             # If the field is a per-cluster field, we can just save it as a regular array dataset
             if field in cluster_fields:
                 field_data = ak.to_numpy(field_data)
-                out_file.create_dataset(alias, data=field_data)
+                out_file.create_dataset(f"cluster_{alias}", data=field_data)
 
             # If the field is a particle field, we need to save it as a variable length dataset
             if field in particle_fields:
                 # TODO: This is very slow, can it be faster?
                 field_data = ak.to_list(field_data)
                 field_data = [np.array(field_data[i]) for i in range(len(field_data))]
-                out_file.create_dataset(alias, data=field_data, dtype=h5py.vlen_dtype(np.float32))
+                out_file.create_dataset(f"particle_{alias}", data=field_data, dtype=h5py.vlen_dtype(np.float32))
 
-            # Cells are also variable length
-            if field in cell_fields:
+            # Pixels are also variable length
+            if field in pixel_fields:
                 field_data = [ak.to_numpy(field_data[i]) for i in range(len(field_data))]
-                out_file.create_dataset(alias, data=field_data, dtype=h5py.vlen_dtype(np.float32))
+                out_file.create_dataset(f"pixel_{alias}", data=field_data, dtype=h5py.vlen_dtype(np.float32))
 
             if verbose:
                 print(f"Preprocessed {field} of shape {out_file[alias].shape} and dtype {out_file[alias].dtype}")
@@ -104,7 +104,7 @@ def preprocess_file(
     print(f"Preprocessed and saved {out_file_path}")
 
 
-def preprocess_files(config_path: str, overwrite: bool, parallel: bool = False):
+def preprocess_files(config_path: str, overwrite: bool, parallel: bool = False, verbose: bool = False,):
     """Preprpocess root files into parquet files.
 
     Parameters
@@ -144,7 +144,7 @@ def preprocess_files(config_path: str, overwrite: bool, parallel: bool = False):
 
     # Now preprocess the files
     for file_name in target_file_names:
-        preprocess_file(input_dir, output_dir, file_name, config, overwrite=overwrite)
+        preprocess_file(input_dir, output_dir, file_name, config, overwrite=overwrite, verbose=verbose)
 
 
 if __name__ == "__main__":
