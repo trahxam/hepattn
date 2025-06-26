@@ -247,6 +247,14 @@ data:
       - energy_hcal
       - calib_energy_ecal
       - calib_energy_hcal
+      - is_neutral_hadron
+      - is_charged_hadron
+      - is_photon
+      - is_electron
+      - is_muon
+      - is_tau
+      - is_neutrino
+      - is_other
 
     particle_vtxd:
       - pos.x
