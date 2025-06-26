@@ -326,6 +326,21 @@ class CLDDataset(Dataset):
         event["particle.isCharged"] = np.abs(event["particle.charge"]) > 0
         event["particle.isNeutral"] = ~event["particle.isCharged"]
 
+        # Add one-hot particle class labels
+        particle_class_id_to_name = {
+            0: "neutral_hadron",
+            1: "charged_hadron",
+            3: "photon",
+            4: "electron",
+            5: "muon",
+            6: "tau",
+            7: "neutrino",
+            -1: "other",
+        }
+
+        for class_id, class_name in particle_class_id_to_name.items():
+            event[f"particle.is_{class_name}"] = np.isclose(event["particle.class"], class_id)
+
         # Compute angular isolation
         dphi = event["particle.mom.phi"][:, None] - event["particle.mom.phi"][None, :]
         deta = event["particle.mom.eta"][:, None] - event["particle.mom.eta"][None, :]
