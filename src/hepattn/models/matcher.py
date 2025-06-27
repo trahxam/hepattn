@@ -107,7 +107,7 @@ class Matcher(nn.Module):
             self.solver = solver
             start_time = time.time()
             self.compute_matching(costs)
-            solver_times[solver_name] = time.time() - t_start
+            solver_times[solver_name] = time.time() - start_time
             print(f"Adaptive LAP Solver: Evaluated {solver_name}, took {solver_times[solver_name]:.2f}s")
 
         # Get the solver that was the fastest
