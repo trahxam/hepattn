@@ -62,11 +62,10 @@ def tensor_to_numpy(tensor: Tensor) -> np.ndarray:
 
 def pad_to_size(x: Tensor, target_shape: tuple, pad_value: float) -> Tensor:
     """
-    Pads a tensor to a specified target shape with a constant value.
-    The function creates a new tensor of shape target_shape, fills it with pad_value,
-    and copies the values from the input tensor x into the upper-left corner
-    (i.e., starting from index 0 along each dimension). The shape of x must not
-    exceed the target shape in any dimension.
+    Pads a tensor `x` to exactly match `target_shape`, using `pad_value`.
+    Works even if some dimensions of `x` are zero. If x is already the
+    right shape, returns x unchanged. If any dimension of x is bigger
+    than target_shape, raises a ValueError.
 
     Parameters
     ----------
@@ -78,11 +77,12 @@ def pad_to_size(x: Tensor, target_shape: tuple, pad_value: float) -> Tensor:
     pad_value : float or int
         The constant value to use for padding.
 
-    Returns
-    -------
-    torch.Tensor
-        A tensor of shape target_shape, with x copied into the top-left region and
-        remaining elements filled with pad_value.
+    Returns:
+        torch.Tensor of shape `target_shape`, where the upper left block is x
+        and the rest is `pad_value`.
+
+    Raises:
+        ValueError if len(target_shape) != x.dim() or if any target < current
     """
     current_shape = tuple(x.shape)
     if len(target_shape) != x.dim():

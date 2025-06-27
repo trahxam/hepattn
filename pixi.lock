@@ -73,6 +73,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/gcc_linux-64-13.3.0-hc28eda2_10.conda
       - conda: https://conda.anaconda.org/nvidia/linux-64/gds-tools-1.14.0.30-4.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/git-2.49.0-pl5321h59d505e_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/git-lfs-3.6.1-h59e48b9_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/gmp-6.3.0-hac33072_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/gxx_impl_linux-64-13.3.0-hae580e1_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/gxx_linux-64-13.3.0-h6834431_10.conda
@@ -1436,6 +1437,14 @@ packages:
   purls: []
   size: 10702380
   timestamp: 1742298221381
+- conda: https://conda.anaconda.org/conda-forge/linux-64/git-lfs-3.6.1-h59e48b9_0.conda
+  sha256: 8d19c90ca60cc6506e4b71bf44c3f2bc2f0bcbd8cb4ae0330a08bbe3c3e4e771
+  md5: 11441555eb6ac9b1205220403a3a0d40
+  license: MIT
+  license_family: MIT
+  purls: []
+  size: 4056843
+  timestamp: 1736896138998
 - conda: https://conda.anaconda.org/conda-forge/linux-64/gmp-6.3.0-hac33072_2.conda
   sha256: 309cf4f04fec0c31b6771a5809a1909b4b3154a2208f52351e1ada006f4c750c
   md5: c94a5994ef49749880a8139cf9afcbe1
@@ -1482,7 +1491,7 @@ packages:
 - pypi: .
   name: hepattn
   version: 0.1.0
-  sha256: 8de0918c6e51707bc526b7c09eb0c37bed83f27b3e4b73a0f9dfa37c145b2975
+  sha256: 97ef1714ec500133cf79488ebcad6388ccbda9a40730827c1320727903bf3fa2
   requires_dist:
   - packaging
   - wheel

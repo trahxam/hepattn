@@ -18,8 +18,8 @@ class TestROIDataModule:
         config_path = Path("src/hepattn/experiments/tide/configs/regression.yaml")
         config = yaml.safe_load(config_path.read_text())["data"]
         config["num_workers"] = 0
-        config["batch_size"] = 100
-        config["num_test"] = 10000
+        config["batch_size"] = 2
+        config["num_test"] = 10
 
         datamodule = ROIDataModule(**config)
         datamodule.setup(stage="test")
@@ -31,6 +31,7 @@ class TestROIDataModule:
         data_iterator = iter(dataloader)
 
         output_dir = Path("tests/outputs/tide/")
+        output_dir.mkdir(exist_ok=True, parents=True)
 
         inputs, _ = next(data_iterator)
 

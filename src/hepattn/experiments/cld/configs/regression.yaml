@@ -14,10 +14,10 @@ model:
                 output_object: flow
                 target_object: particle
                 losses:
-                  object_ce: 0.1
+                  object_bce: 0.1
                 costs:
-                  object_ce: 10.0
-                dim: &dim 256
+                  object_bce: 10.0
+                dim: *dim
                 null_weight: 1.0
                 mask_queries: false
 
@@ -29,11 +29,11 @@ model:
                 output_object: flow
                 target_object: particle
                 losses:
-                  mask_ce: 10.0
+                  mask_bce: 10.0
                   #mask_dice: 2.0
                   #mask_focal: 100.0
                 costs:
-                  mask_ce: 10.0
+                  mask_bce: 10.0
                   #mask_dice: 2.0
                   #mask_focal: 50.0
                 dim: *dim
@@ -47,11 +47,11 @@ model:
                 output_object: flow
                 target_object: particle
                 losses:
-                  mask_ce: 10.0
+                  mask_bce: 10.0
                   #mask_dice: 2.0
                   #mask_focal: 100.0
                 costs:
-                  mask_ce: 10.0
+                  mask_bce: 10.0
                   #mask_dice: 2.0
                   #mask_focal: 50.0
                 dim: *dim
@@ -65,11 +65,11 @@ model:
                 output_object: flow
                 target_object: particle
                 losses:
-                  mask_ce: 0.1
+                  mask_bce: 0.1
                   #mask_dice: 2.0
                   #mask_focal: 10.0
                 costs:
-                  mask_ce: 0.1
+                  mask_bce: 0.1
                   #mask_dice: 2.0
                   #mask_focal: 50.0
                 dim: *dim
@@ -83,11 +83,11 @@ model:
                 output_object: flow
                 target_object: particle
                 losses:
-                  mask_ce: 0.5
+                  mask_bce: 0.5
                   #mask_dice: 2.0
                   # mask_focal: 50.0
                 costs:
-                  mask_ce: 0.5
+                  mask_bce: 0.5
                   #mask_dice: 2.0
                   #mask_focal: 50.0
                 dim: *dim

@@ -2,10 +2,10 @@ name: TIDE_1M_100_32trk_F32_pixel
 
 data:
   batch_size: 100
-  train_dir: /share/rcifdata/maxhart/data/ambi/train/
-  val_dir: /share/rcifdata/maxhart/data/ambi/val/
-  test_dir: /share/rcifdata/maxhart/data/ambi/test/
-  num_workers: 10
+  train_dir: data/tide/prepped/
+  val_dir: data/tide/prepped/
+  test_dir: data/tide/prepped/
+  num_workers: 1
   num_train: 1000000
   num_test: 10000
   num_val: 10000
@@ -432,9 +432,9 @@ model:
                 output_object: pred
                 target_object: sudo
                 losses:
-                  object_ce: 0.1
+                  object_bce: 1.0
                 costs:
-                  object_ce: 10.0
+                  object_bce: 1.0
                 dim: *dim
                 null_weight: 1.0
                 mask_queries: false
@@ -447,10 +447,8 @@ model:
                 output_object: pred
                 target_object: sudo
                 losses:
-                  mask_ce: 10.0
-                  mask_focal: 10.0
+                  mask_bce: 1.0
                 costs:
-                  mask_ce: 10.0
-                  mask_focal: 10.0
+                  mask_bce: 1.0
                 dim: *dim
                 null_weight: 1.0

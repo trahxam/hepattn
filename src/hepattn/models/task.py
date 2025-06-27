@@ -8,13 +8,11 @@ from torch import Tensor, nn
 from hepattn.models.dense import Dense
 from hepattn.models.loss import cost_fns, focal_loss, loss_fns
 
-# Pick a value that is safe for float16
-COST_PAD_VALUE = 1e4
-
 
 class Task(nn.Module, ABC):
     def __init__(self):
         super().__init__()
+        self.has_intermediate_loss = False
 
     @abstractmethod
     def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:
@@ -111,8 +109,6 @@ class ObjectValidTask(Task):
         costs = {}
         for cost_fn, cost_weight in self.costs.items():
             costs[cost_fn] = cost_weight * cost_fns[cost_fn](output, target)
-            # Set the costs of invalid objects to be (basically) inf
-            # costs[cost_fn][~targets[self.target_object + "_valid"].unsqueeze(-2).expand_as(costs[cost_fn])] = COST_PAD_VALUE
         return costs
 
     def loss(self, outputs, targets):
@@ -212,6 +208,8 @@ class ObjectHitMaskTask(Task):
     ):
         super().__init__()
 
+
+
         self.name = name
         self.input_hit = input_hit
         self.input_object = input_object
@@ -224,6 +222,7 @@ class ObjectHitMaskTask(Task):
         self.dim = dim
         self.null_weight = null_weight
         self.mask_attn = mask_attn
+        self.has_intermediate_loss = mask_attn
 
         self.output_object_hit = output_object + "_" + input_hit
         self.target_object_hit = target_object + "_" + input_hit
@@ -268,8 +267,6 @@ class ObjectHitMaskTask(Task):
         costs = {}
         for cost_fn, cost_weight in self.costs.items():
             costs[cost_fn] = cost_weight * cost_fns[cost_fn](output, target)
-            # Set the costs of invalid objects to be (basically) inf
-            costs[cost_fn][~targets[self.target_object + "_valid"].unsqueeze(-2).expand_as(costs[cost_fn])] = COST_PAD_VALUE
         return costs
 
     def loss(self, outputs, targets):

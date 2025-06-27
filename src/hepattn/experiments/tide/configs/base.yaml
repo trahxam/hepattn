@@ -2,11 +2,11 @@ name: TIDE_5M_100_32trk_F32
 
 data:
   batch_size: 100
-  train_dir: /share/rcifdata/maxhart/data/ambi/train/
-  val_dir: /share/rcifdata/maxhart/data/ambi/val/
-  test_dir: /share/rcifdata/maxhart/data/ambi/test/
-  num_workers: 10
-  num_train: 5000000
+  train_dir: data/tide/prepped/
+  val_dir: data/tide/prepped/
+  test_dir: data/tide/prepped/
+  num_workers: 14
+  num_train: 1000000
   num_test: 10000
   num_val: 10000
   precision: single
@@ -131,8 +131,7 @@ data:
       - d0
       - q
       - qopt
-      # Track paramaters in the ROI frame
-      - dtheta
+      # Track paramaters in ROI frame
       - deta
       - dphi
       - dz0
@@ -173,8 +172,7 @@ data:
       - d0
       - q
       - qopt
-      # Track paramaters in the ROI frame
-      - dtheta
+      # Track paramaters in ROI frame
       - deta
       - dphi
       - dz0
@@ -193,8 +191,7 @@ data:
       - d0
       - q
       - qopt
-      # Track paramaters in the ROI frame
-      - dtheta
+      # Track paramaters in ROI frame
       - deta
       - dphi
       - dz0
@@ -432,9 +429,9 @@ model:
                 output_object: pred
                 target_object: sudo
                 losses:
-                  object_ce: 1.0
+                  object_bce: 1.0
                 costs:
-                  object_ce: 100.0
+                  object_bce: 100.0
                 dim: *dim
                 null_weight: 1.0
                 mask_queries: false
@@ -447,9 +444,9 @@ model:
                 output_object: pred
                 target_object: sudo
                 losses:
-                  mask_ce: 100.0
+                  mask_bce: 100.0
                 costs:
-                  mask_ce: 100.0
+                  mask_bce: 100.0
                 dim: *dim
                 null_weight: 1.0
 
@@ -461,9 +458,9 @@ model:
                 output_object: pred
                 target_object: sudo
                 losses:
-                  mask_ce: 50.0
+                  mask_bce: 50.0
                 costs:
-                  mask_ce: 50.0
+                  mask_bce: 50.0
                 dim: *dim
                 null_weight: 1.0
 
