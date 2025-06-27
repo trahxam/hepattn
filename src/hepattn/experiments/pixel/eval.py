@@ -86,7 +86,7 @@ def main():
     fig, ax = plt.subplots(1, 2)
     fig.set_size_inches(8, 2)
 
-    bins = np.linspace(-1, 1, 16)
+    bins = np.linspace(-1, 1, 24)
 
     for multiplicity in [1, 2, 3, 4]:
         mask = (data["true_multiplicity"] == data["pred_multiplicity"]) & (data["true_multiplicity"] == multiplicity)

@@ -1,4 +1,4 @@
-name: pixel_mini
+name: pixel_micro
 
 data:
   train_dir: /share/rcifdata/maxhart/data/pixsplit/mc23_prepped/new/
@@ -195,11 +195,11 @@ model:
       encoder:
         class_path: hepattn.models.Encoder
         init_args:
-          num_layers: 2
+          num_layers: 1
           dim: *dim
           attn_type: torch
 
-      num_decoder_layers: 2
+      num_decoder_layers: 1
       decoder_layer_config:
         dim: *dim
         mask_attention: false
