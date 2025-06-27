@@ -13,7 +13,7 @@ torch.manual_seed(42)
 config_path = Path("src/hepattn/experiments/tide/configs/base.yaml")
 config = yaml.safe_load(config_path.read_text())["data"]
 config["num_workers"] = 0
-config["batch_size"] = 1000
+config["batch_size"] = 250
 config["num_test"] = 10000
 
 datamodule = ROIDataModule(**config)
@@ -84,4 +84,4 @@ for i, hit in enumerate(hits):
         ax[i, j].set_yscale("log")
 
 fig.tight_layout()
-fig.savefig(output_dir / "tide_hit_global_coords_cylindricalpng")
+fig.savefig(output_dir / "tide_hit_global_coords_cylindrical.png")
