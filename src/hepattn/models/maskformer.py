@@ -243,7 +243,8 @@ class MaskFormer(nn.Module):
                     else:
                         layer_costs = cost
 
-            costs[layer_name] = layer_costs.detach()
+            if layer_costs is not None:
+                costs[layer_name] = layer_costs.detach()
 
         # Permute the outputs for each output in each layer
         for layer_name in costs:

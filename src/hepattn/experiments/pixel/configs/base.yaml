@@ -1,4 +1,4 @@
-name: pixel_splitting_256
+name: pixel_mini
 
 data:
   train_dir: /share/rcifdata/maxhart/data/pixsplit/mc23_prepped/new/
@@ -155,7 +155,7 @@ model:
   model:
     class_path: hepattn.models.MaskFormer
     init_args:
-      dim: &dim 256
+      dim: &dim 64
       num_queries: *cluster_max_multiplicity
       input_sort_field: x
       use_attn_masks: false
@@ -195,11 +195,11 @@ model:
       encoder:
         class_path: hepattn.models.Encoder
         init_args:
-          num_layers: 4
+          num_layers: 2
           dim: *dim
           attn_type: torch
 
-      num_decoder_layers: 4
+      num_decoder_layers: 2
       decoder_layer_config:
         dim: *dim
         mask_attention: false
@@ -222,9 +222,9 @@ model:
                 output_object: track
                 target_object: particle
                 losses:
-                  object_ce: 1.0
+                  object_bce: 1.0
                 costs:
-                  object_ce: 1.0
+                  object_bce: 1.0
                 dim: *dim
                 null_weight: 1.0
 
