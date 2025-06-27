@@ -3,11 +3,9 @@ from pathlib import Path
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.optimize import linear_sum_assignment
-from scipy.stats import binned_statistic
 from tqdm import tqdm
 
-#plt.rcParams["text.usetex"] = True
+# plt.rcParams["text.usetex"] = True
 plt.rcParams["figure.dpi"] = 300
 plt.rcParams["font.size"] = 10
 plt.rcParams["figure.constrained_layout.use"] = True
@@ -18,14 +16,11 @@ def sigmoid(x):
 
 
 def main():
+    log_dir = Path("/share/rcifdata/maxhart/hepattn/logs/")
 
     eval_paths = {
-        #"sudo": "/share/rcifdata/maxhart/hepattn/logs/TIDE_10M_250_40trk_F32_tagging_sudo_20250616-T131939/ckpts/epoch=002-train_loss=4.61825_test_eval copy.h5",
-        #"reco": "/share/rcifdata/maxhart/hepattn/logs/TIDE_10M_250_40trk_F32_tagging_sudo_20250616-T131939/ckpts/epoch=002-train_loss=4.61825_test_eval copy.h5",
-        #"reco": "/share/rcifdata/maxhart/hepattn/logs/TIDE_5M_100_32trk_F32_tagging_reco_20250616-T164734/ckpts/epoch=001-train_loss=6.20362_test_eval.h5",
-        # "Reco Tracks + Hits": ,
-        "hits": "/share/rcifdata/maxhart/hepattn/logs/TIDE_10M_100_40trk_F32_tagging_hits_20250618-T161204/ckpts/epoch=000-train_loss=3.10198_test_eval.h5",
-        "tide": "/share/rcifdata/maxhart/hepattn/logs/TIDE_10M_250_40trk_F32_tagging_tide_20250617-T140243/ckpts/epoch=000-train_loss=250.25084_test_eval.h5",
+        "hits": log_dir / Path("TIDE_10M_100_40trk_F32_tagging_hits_20250618-T161204/ckpts/epoch=000-train_loss=3.10198_test_eval.h5"),
+        "tide": log_dir / Path("TIDE_10M_250_40trk_F32_tagging_tide_20250617-T140243/ckpts/epoch=000-train_loss=250.25084_test_eval.h5"),
     }
 
     eval_aliases = {
@@ -59,7 +54,7 @@ def main():
         discriminants = []
 
         with h5py.File(Path(eval_path)) as file:
-            for i, sample_id in tqdm(enumerate(file.keys())):
+            for _i, sample_id in tqdm(enumerate(file.keys())):
                 # Load the targets and predictions
                 targets = file[sample_id]["targets"]
                 outputs = file[sample_id]["outputs"]["final"]["roi_tagging"]
@@ -79,7 +74,7 @@ def main():
                 f_c = 0.2
                 f_tau = 0.01
 
-                discriminant = np.log(p_b / (f_c  * p_c + f_tau * p_tau + (1 - f_c - f_tau) * p_other))
+                discriminant = np.log(p_b / (f_c * p_c + f_tau * p_tau + (1 - f_c - f_tau) * p_other))
                 discriminants.append(discriminant)
 
         labels = {k: np.array(v) for k, v in labels.items()}
@@ -94,17 +89,21 @@ def main():
                 color=eval_colors[eval_name],
                 linestyle=class_linestyles[class_name],
                 label=f"{eval_aliases[eval_name]} {classes_alises[class_name]}",
-                )
+            )
 
         working_points = np.linspace(-5, 5, 1000)
 
         effs = np.array([np.sum((discriminants >= wp) & labels["b"].astype(bool)) / np.sum(labels["b"]) for wp in working_points])
         class_rejs = {}
 
-        class_rejs["notb"] = class_rejs[class_name] = np.array([1 / (np.sum((discriminants >= wp) & (~labels["b"].astype(bool))) / np.sum(~labels["b"].astype(bool))) for wp in working_points])
+        class_rejs["notb"] = class_rejs[class_name] = np.array([
+            1 / (np.sum((discriminants >= wp) & (~labels["b"].astype(bool))) / np.sum(~labels["b"].astype(bool))) for wp in working_points
+        ])
 
         for class_name in class_names:
-            class_rejs[class_name] = np.array([1 / (np.sum((discriminants >= wp) & labels[class_name].astype(bool)) / np.sum(labels[class_name])) for wp in working_points])
+            class_rejs[class_name] = np.array([
+                1 / (np.sum((discriminants >= wp) & labels[class_name].astype(bool)) / np.sum(labels[class_name])) for wp in working_points
+            ])
 
         for ax_idx, class_name in enumerate(["notb", "c", "tau", "other"]):
             ax_rocs[ax_idx].plot(effs, class_rejs[class_name], color=eval_colors[eval_name], label=eval_aliases[eval_name])
@@ -113,7 +112,7 @@ def main():
             ax_rocs[ax_idx].grid(alpha=0.5, linestyle="--")
             ax_rocs[ax_idx].set_xlim(0.2, 1.0)
             ax_rocs[ax_idx].set_ylim(1.0, 100.0)
-        
+
     ax_rocs[-1].set_xlabel(r"$b$ Efficiency")
     ax_rocs[0].legend(fontsize=8)
 
@@ -124,10 +123,10 @@ def main():
     ax_scores.legend(fontsize=8)
 
     fig_scores.tight_layout()
-    fig_scores.savefig(f"src/hepattn/experiments/tide/plots/scores.png")
+    fig_scores.savefig("src/hepattn/experiments/tide/plots/scores.png")
 
     fig_rocs.tight_layout()
-    fig_rocs.savefig(f"/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/tide/plots/rocs.png")
+    fig_rocs.savefig("/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/tide/plots/rocs.png")
 
 
 if __name__ == "__main__":

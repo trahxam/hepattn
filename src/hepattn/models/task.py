@@ -1,8 +1,8 @@
+import math
 from abc import ABC, abstractmethod
 from typing import Literal
 
 import torch
-import math
 from torch import Tensor, nn
 
 from hepattn.models.dense import Dense
@@ -208,8 +208,6 @@ class ObjectHitMaskTask(Task):
     ):
         super().__init__()
 
-
-
         self.name = name
         self.input_hit = input_hit
         self.input_object = input_object
@@ -376,7 +374,7 @@ class GaussianRegressionTask(Task):
         self.cost_weight = cost_weight
         self.k = len(fields)
         # For multivaraite gaussian case we have extra DoFs from the variance and covariance terms
-        self.ndofs = self.k + int(self.k*(self.k+1)/2)
+        self.ndofs = self.k + int(self.k * (self.k + 1) / 2)
         self.likelihood_norm = self.k * 0.5 * math.log(2 * math.pi)
 
     def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:
@@ -385,39 +383,35 @@ class GaussianRegressionTask(Task):
         triu_idx = torch.triu_indices(k, k, device=latent.device)
 
         # Mean vector
-        mu = latent[...,:k]
+        mu = latent[..., :k]
         # Upper-diagonal Cholesky decomposition of the precision matrix
-        U = torch.zeros(latent.size()[:-1] + torch.Size((k, k)), device=latent.device)
-        U[...,triu_idx[0,:],triu_idx[1,:]] = latent[...,k:]
+        u = torch.zeros(latent.size()[:-1] + torch.Size((k, k)), device=latent.device)
+        u[..., triu_idx[0, :], triu_idx[1, :]] = latent[..., k:]
 
-        Ubar = U.clone()
+        ubar = u.clone()
         # Make sure the diagonal entries are positive (as variance is always positive)
-        Ubar[...,torch.arange(k),torch.arange(k)] = torch.exp(U[...,torch.arange(k),torch.arange(k)])
+        ubar[..., torch.arange(k), torch.arange(k)] = torch.exp(u[..., torch.arange(k), torch.arange(k)])
 
-        return {
-            self.output_object + "_mu": mu,
-            self.output_object + "_U": U,
-            self.output_object + "_Ubar": Ubar
-        }
+        return {self.output_object + "_mu": mu, self.output_object + "_u": u, self.output_object + "_ubar": ubar}
 
     def predict(self, outputs: dict[str, Tensor]) -> dict[str, Tensor]:
         preds = outputs
         mu = outputs[self.output_object + "_mu"]
-        Ubar = outputs[self.output_object + "_Ubar"]
-        U = outputs[self.output_object + "_U"]
+        ubar = outputs[self.output_object + "_ubar"]
 
         # Calculate the precision matrix
-        precs = torch.einsum("...kj,...kl->...jl", Ubar, Ubar)
+        precs = torch.einsum("...kj,...kl->...jl", ubar, ubar)
 
         # Get the predicted mean for each field
         for i, field in enumerate(self.fields):
-            preds[self.output_object + "_" + field] = mu[...,i]
+            preds[self.output_object + "_" + field] = mu[..., i]
 
         # Get the predicted precision for each field and the predicted covariance / coprecision
         for i, field_i in enumerate(self.fields):
             for j, field_j in enumerate(self.fields):
-                if i > j: continue
-                preds[field_i + "_" + field_j + "_prec"] = precs[...,i,j]
+                if i > j:
+                    continue
+                preds[field_i + "_" + field_j + "_prec"] = precs[..., i, j]
 
         return preds
 
@@ -425,32 +419,32 @@ class GaussianRegressionTask(Task):
         y = torch.stack([targets[self.target_object + "_" + field] for field in self.fields], dim=-1)
 
         # Compute the standardised score vector between the targets and the predicted distribution paramaters
-        z = torch.einsum("...ij,...j->...i", outputs[self.output_object + "_Ubar"], y - outputs[self.output_object + "_mu"])
+        z = torch.einsum("...ij,...j->...i", outputs[self.output_object + "_ubar"], y - outputs[self.output_object + "_mu"])
         # Compute the NLL from the score vector
         zsq = torch.einsum("...i,...i->...", z, z)
-        jac = torch.sum(torch.diagonal(outputs[self.output_object + "_U"], offset=0, dim1=-2, dim2=-1), dim=-1)
+        jac = torch.sum(torch.diagonal(outputs[self.output_object + "_u"], offset=0, dim1=-2, dim2=-1), dim=-1)
         log_likelihood = self.likelihood_norm - 0.5 * zsq + jac
 
         # Only compute NLL for valid tracks or track-hit pairs
         # nll = nll[targets[self.target_object + "_valid"]]
         log_likelihood = log_likelihood * targets[self.target_object + "_valid"].type_as(log_likelihood)
         # Take the average and apply the task weight
-        return {"nll":  -self.loss_weight * log_likelihood.mean()}
+        return {"nll": -self.loss_weight * log_likelihood.mean()}
 
     def metrics(self, preds: dict[str, Tensor], targets: dict[str, Tensor]) -> dict[str, Tensor]:
-        y = torch.stack([targets[self.target_object + "_" + field] for field in self.fields], dim=-1) # Point target
-        res = y - preds[self.output_object + "_mu"] # Residual
-        z = torch.einsum("...ij,...j->...i", preds[self.output_object + "_Ubar"], res) # Scaled resdiaul / z score
+        y = torch.stack([targets[self.target_object + "_" + field] for field in self.fields], dim=-1)  # Point target
+        res = y - preds[self.output_object + "_mu"]  # Residual
+        z = torch.einsum("...ij,...j->...i", preds[self.output_object + "_ubar"], res)  # Scaled resdiaul / z score
 
         # Select only values that havea valid target
         valid_mask = targets[self.target_object + "_valid"]
 
         metrics = {}
         for i, field in enumerate(self.fields):
-            metrics[field + "_rmse"] = torch.sqrt(torch.mean(torch.square(res[...,i][valid_mask])))
+            metrics[field + "_rmse"] = torch.sqrt(torch.mean(torch.square(res[..., i][valid_mask])))
             # The mean and standard deviation of the pulls to check predictions are calibrated
-            metrics[field + "_pull_mean"] = torch.mean(z[...,i][valid_mask])
-            metrics[field + "_pull_std"] = torch.std(z[...,i][valid_mask])
+            metrics[field + "_pull_mean"] = torch.mean(z[..., i][valid_mask])
+            metrics[field + "_pull_std"] = torch.std(z[..., i][valid_mask])
 
         return metrics
 
@@ -473,9 +467,9 @@ class ObjectGaussianRegressionTask(GaussianRegressionTask):
         self.inputs = [input_object + "_embed"]
         self.outputs = [
             output_object + "_mu",
-            output_object + "_Ubar",
-            output_object + "_U",            
-            ]
+            output_object + "_ubar",
+            output_object + "_u",
+        ]
 
         self.dim = dim
         self.net = Dense(self.dim, self.ndofs)
@@ -484,26 +478,26 @@ class ObjectGaussianRegressionTask(GaussianRegressionTask):
         return self.net(x[self.input_object + "_embed"])
 
     def cost(self, outputs, targets):
-        mu = outputs[self.output_object + "_mu"].to(torch.float32) # (B, N, D)
-        Ubar = outputs[self.output_object + "_Ubar"].to(torch.float32) # (B, N, D, D)
-        U = outputs[self.output_object + "_U"].to(torch.float32)
-        y = torch.stack([targets[self.target_object + "_" + field] for field in self.fields], dim=-1).to(torch.float32) # (B, N, D)
-        
+        mu = outputs[self.output_object + "_mu"].to(torch.float32)  # (B, N, D)
+        ubar = outputs[self.output_object + "_ubar"].to(torch.float32)  # (B, N, D, D)
+        u = outputs[self.output_object + "_u"].to(torch.float32)
+        y = torch.stack([targets[self.target_object + "_" + field] for field in self.fields], dim=-1).to(torch.float32)  # (B, N, D)
+
         # Now we need compute the Gaussian NLL for every target/pred pair, remember costs have shape (batch, pred, true)
-        num_objects = y.shape[1] # num_objects = N
-        mu = mu.unsqueeze(2).expand(-1, -1, num_objects, -1) # (B, N, N, D)
-        Ubar = Ubar.unsqueeze(2).expand(-1, -1, num_objects, -1, -1) # (B, N, N, D, D)
-        U = U.unsqueeze(2).expand(-1, -1, num_objects, -1, -1)
-        diagU = torch.diagonal(U, offset=0, dim1=-2, dim2=-1) # (B, N, N, D)
-        y = y.unsqueeze(1).expand(-1, num_objects, -1, -1) # (B, N, N, D)
+        num_objects = y.shape[1]  # num_objects = N
+        mu = mu.unsqueeze(2).expand(-1, -1, num_objects, -1)  # (B, N, N, D)
+        ubar = ubar.unsqueeze(2).expand(-1, -1, num_objects, -1, -1)  # (B, N, N, D, D)
+        u = u.unsqueeze(2).expand(-1, -1, num_objects, -1, -1)
+        diagu = torch.diagonal(u, offset=0, dim1=-2, dim2=-1)  # (B, N, N, D)
+        y = y.unsqueeze(1).expand(-1, num_objects, -1, -1)  # (B, N, N, D)
 
         # Compute the standardised score vector between the targets and the predicted distribution paramaters
-        z = torch.einsum("...ij,...j->...i", Ubar, y - mu) # (B, N, N, D)
+        z = torch.einsum("...ij,...j->...i", ubar, y - mu)  # (B, N, N, D)
         # Compute the NLL from the score vector
-        zsq = torch.einsum("...i,...i->...", z, z) # (B, N, N)
-        jac = torch.sum(diagU, dim=-1) # (B, N, N)
+        zsq = torch.einsum("...i,...i->...", z, z)  # (B, N, N)
+        jac = torch.sum(diagu, dim=-1)  # (B, N, N)
 
-        log_likelihood = self.likelihood_norm -0.5 * zsq + jac
+        log_likelihood = self.likelihood_norm - 0.5 * zsq + jac
         log_likelihood = log_likelihood * targets[f"{self.target_object}_valid"].unsqueeze(1).type_as(log_likelihood)
         costs = -log_likelihood
 
@@ -544,11 +538,9 @@ class ObjectRegressionTask(RegressionTask):
             output.unsqueeze(2).expand(-1, -1, num_objects, -1),
             target.unsqueeze(1).expand(-1, num_objects, -1, -1),
             reduction="none",
-            )
+        )
         # Average over the regression fields dimension
         costs = costs.mean(-1)
-        # Set the costs of invalid objects to be inf
-        # costs[~targets[self.target_object + "_valid"].unsqueeze(-2).expand_as(costs)] = COST_PAD_VALUE
         return {"regr_smooth_l1": self.cost_weight * costs}
 
 

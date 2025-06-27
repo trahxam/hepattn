@@ -111,12 +111,18 @@ class ROIDataset(Dataset):
                 break
 
         print(f"Finished registering {len(self.roi_id_to_file_path)} ROIs from {len(self.file_paths)} files")
-        
+
     def register_file(self, file_path):
         with h5py.File(file_path, "r") as file:
             roi_ids = list(file.keys())
 
             for roi_id in roi_ids:
+                # Check we are not duplicating ROI IDs
+                msg = f"Attempted to add duplicate ROI ID {roi_id}"
+                assert roi_id not in self.unevaluated_roi_ids, msg
+                assert roi_id not in self.roi_id_to_file_path, msg
+                assert roi_id not in self.roi_id_to_idx, msg
+
                 self.roi_id_to_file_path[roi_id] = file_path
                 self.unevaluated_roi_ids.append(roi_id)
 
@@ -262,7 +268,7 @@ class ROIDataset(Dataset):
                 return None
 
             # Load the track-hit regression targets
-            for field in ["loc_x", "loc_y", "phi", "theta", "energy"]:
+            for field in ["loc_x", "loc_y", "phi", "theta", "energy", "mod_x0", "mod_x1"]:
                 try:
                     roi[f"sudo_pix_{field}"] = load_csr_matrix(f"sudo_pix_valid", f"sudo_pix_{field}", np.float32)
                 except ValueError as e:
@@ -355,13 +361,13 @@ class ROIDataset(Dataset):
                     # Number of shared hits
                     hit_is_shared = roi[f"{track}_{hit}_valid"].sum(-2) > 1
                     roi[f"{track}_num_shared_{hit}"] = (roi[f"{track}_{hit}_valid"] & hit_is_shared[None, :]).sum(-1)
-                
+
                 # Number of hits on pixel layers
                 for layer in [0, 1, 2]:
-                    pix_on_layer = np.isclose(roi["pix_layer"], layer) # Avoid FPE
+                    pix_on_layer = np.isclose(roi["pix_layer"], layer)  # Avoid FPE
                     pix_is_shared = roi[f"{track}_pix_valid"].sum(-2) > 1
                     pix_shared_on_layer = pix_on_layer & pix_is_shared
-                    
+
                     roi[f"{track}_num_layer_{layer}_pix"] = (roi[f"{track}_pix_valid"] & pix_on_layer[None, :]).sum(-1)
                     roi[f"{track}_num_shared_layer_{layer}_pix"] = (roi[f"{track}_pix_valid"] & pix_shared_on_layer[None, :]).sum(-1)
 

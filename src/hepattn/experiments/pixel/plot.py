@@ -1,14 +1,11 @@
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import yaml
-import matplotlib.cm as cm
-
-from matplotlib import colors
+from matplotlib import cm, colors
 from matplotlib.patches import Rectangle
-from pathlib import Path
-from scipy.stats import binned_statistic
-
 
 from hepattn.experiments.pixel.data import PixelClusterDataModule
 
@@ -40,17 +37,19 @@ particle_masks = {
 
 multiplicities, multiplicity_counts = np.unique(targets["cluster_multiplicity"], return_counts=True)
 
-for multiplicity, multiplicity_count in zip(multiplicities, multiplicity_counts):
-    print(f"{str(int(multiplicity)).ljust(4)} | {str(int(multiplicity_count)).ljust(8)} | {(100 * multiplicity_count / len(targets["cluster_multiplicity"])):.2f}%")
+for multiplicity, multiplicity_count in zip(multiplicities, multiplicity_counts, strict=False):
+    multiplicity_str = str(int(multiplicity)).ljust(4)
+    count_str = str(int(multiplicity_count)).ljust(8)
+    pct_str = 100 * multiplicity_count / len(targets["cluster_multiplicity"])
+    print(f"{multiplicity_str} | {count_str} | {pct_str:.2f}%")
 
 # Plot the particle counts
 fig, ax = plt.subplots()
 fig.set_size_inches(8, 2)
 
 for mask_name, particle_mask in particle_masks.items():
-
     pct = 100 * particle_mask.sum() / targets["particle_valid"].sum()
-    print(f"{mask_name.ljust(24)}| {str(particle_mask.sum().item()).ljust(6)}/{str(targets["particle_valid"].sum().item()).ljust(6)} | {pct:.2f}%")
+    print(f"{mask_name.ljust(24)}| {str(particle_mask.sum().item()).ljust(6)}/{str(targets['particle_valid'].sum().item()).ljust(6)} | {pct:.2f}%")
 
     cluster_num_particles = particle_mask.sum(-1)
     ax.hist(
@@ -120,7 +119,7 @@ field_bins = {
     "x": np.linspace(-8, 8, 24),
     "y": np.linspace(-4, 4, 24),
     "theta": np.linspace(-np.pi, np.pi, 24),
-    "phi": np.linspace(-np.pi/4, np.pi/4, 24),
+    "phi": np.linspace(-np.pi / 4, np.pi / 4, 24),
     "p": np.logspace(-1, 4, 24),
 }
 
@@ -279,16 +278,15 @@ for ax_idx in range(len(ax) - 1):
     ax[ax_idx].set_xticklabels([])
     ax[ax_idx].set_yticklabels([])
 
-    ax[ax_idx].imshow(np.zeros(shape=(10, 10)) * np.nan, extent=(lx, ux, ly, uy),)
+    ax[ax_idx].imshow(np.zeros(shape=(10, 10)) * np.nan, extent=(lx, ux, ly, uy))
 
     for j in range(len(inputs["pixel_valid"][i])):
         size = 0.8
         x = inputs["pixel_x"][i][j]
         y = inputs["pixel_y"][i][j]
         charge = inputs["pixel_charge"][i][j]
-        pixel_patch = Rectangle((x - size/2, y - size/2), size, size, color=cmap(norm(charge)))
+        pixel_patch = Rectangle((x - size / 2, y - size / 2), size, size, color=cmap(norm(charge)))
         ax[ax_idx].add_patch(pixel_patch)
-
 
     particles_x = targets["particle_x"][i][targets["particle_valid"][i]]
     particles_y = targets["particle_y"][i][targets["particle_valid"][i]]

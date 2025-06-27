@@ -1,11 +1,12 @@
 import random
+from pathlib import Path
+
 import h5py
 import numpy as np
 import torch
 from lightning import LightningDataModule
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
-from pathlib import Path
 
 from hepattn.utils.tensor_utils import pad_to_size
 
@@ -27,8 +28,8 @@ class PixelClusterDataset(Dataset):
         cluster_layers: list[int] | None = None,
         cluster_min_multiplicity=1,
         cluster_max_multiplicity=32,
-        cluster_max_width_x = 100,
-        cluster_max_width_y = 100,
+        cluster_max_width_x=100,
+        cluster_max_width_y=100,
         cluster_allow_notruth_particle: bool = False,
         cluster_allow_dropped_particle: bool = False,
         cluster_max_abs_eta: float = 4.0,
@@ -204,7 +205,7 @@ class PixelClusterDataset(Dataset):
             if not self.cluster_allow_notruth_particle:
                 if np.any(np.isclose(x["particle_barcode"], 0)):
                     return None
-            
+
             # Apply region cut using barrel endcap flag
             x["cluster_bec"] = file["cluster_bec"][idx]
             if x["cluster_bec"] not in self.cluster_regions:
@@ -268,12 +269,12 @@ class PixelClusterDataset(Dataset):
             # Add the particle info
             for field in ["index_x", "index_y", "theta", "phi", "edep", "p"]:
                 x[f"particle_{field}"] = file[f"particle_{field}"][idx]
-            
+
             x["particle_x"] = x["particle_index_x"]
             x["particle_y"] = x["particle_index_y"]
 
             # Convert MeV to GeV and TeV
-            x["particle_p"] = x["particle_p"]  / 1000.0
+            x["particle_p"] = x["particle_p"] / 1000.0
 
             # Get particle PDGID
             x["particle_pdgid"] = file["particle_pdgid"][idx]
@@ -353,8 +354,6 @@ class PixelClusterDataset(Dataset):
 
             x["particle_valid"] = x["particle_valid"][x["particle_valid"]]
 
-
-
             ########################################################################
             # Now return the cluster fields
             ########################################################################
@@ -375,7 +374,7 @@ class PixelClusterDataset(Dataset):
                 "global_s",
                 "global_theta",
                 "global_eta",
-                "global_phi"
+                "global_phi",
             ]
 
             # Add the cluster fields onto the pixels
@@ -388,7 +387,6 @@ class PixelClusterDataset(Dataset):
                 x[f"cluster_{field}"] = np.array([x[f"cluster_{field}"]])
 
             x["cluster_valid"] = np.array([True])
-            
 
         return x
 
@@ -436,7 +434,7 @@ class PixelClusterCollator:
 
         for target_name, fields in self.dataset_targets.items():
             k = f"{target_name}_valid"
-            
+
             if target_name == "cluster":
                 batched_targets[k] = torch.cat([t[k] for t in targets], dim=0)
 

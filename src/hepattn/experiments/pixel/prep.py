@@ -104,7 +104,7 @@ def preprocess_file(
     print(f"Preprocessed and saved {out_file_path}")
 
 
-def preprocess_files(config_path: str, overwrite: bool, parallel: bool = False, verbose: bool = False,):
+def preprocess_files(config_path: str, overwrite: bool, parallel: bool = False, verbose: bool = False):
     """Preprpocess root files into parquet files.
 
     Parameters

@@ -1,9 +1,9 @@
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import yaml
-import numpy as np
 
 from hepattn.experiments.tide.data import ROIDataModule
 
@@ -15,7 +15,7 @@ def plot_roi(inputs, targets):
 
     # batch_idx = torch.argmax(targets[f"{track}_valid"].sum(-1))
     # batch_idx = torch.argmax(inputs["sct_valid"].sum(-1))
-    batch_idx = torch.argmax(torch.max(targets[f"sudo_pix_valid"].sum(-2), dim=-1)[0])
+    batch_idx = torch.argmax(torch.max(targets["sudo_pix_valid"].sum(-2), dim=-1)[0])
 
     fig, ax = plt.subplots(1, 2)
     fig.set_size_inches(8, 4)
@@ -93,12 +93,12 @@ def plot_roi(inputs, targets):
         ax[ax_idx].imshow(
             pix_charge_matrix,
             extent=(-3.5, 3.5, -3.5, 3.5),
-            )
+        )
 
         for track_idx in range(sudo_valid.shape[-1]):
             if not sudo_pix_valid[track_idx, pix_idx]:
                 continue
-            
+
             ax[ax_idx].scatter(
                 sudo_pix_x[track_idx, pix_idx],
                 sudo_pix_y[track_idx, pix_idx],
@@ -125,5 +125,4 @@ dataset = dataloader.dataset
 data_iterator = iter(dataloader)
 inputs, targets = next(data_iterator)
 
-plot_pixels(inputs, targets)
-#plot_roi(inputs, targets)
+plot_roi(inputs, targets)
