@@ -1,4 +1,4 @@
-name: pixel_8_mini
+name: pixel_splitting_256
 
 data:
   train_dir: /share/rcifdata/maxhart/data/pixsplit/mc23_prepped/new/
@@ -75,6 +75,8 @@ data:
       - x
       - y
       - charge
+      - cluster_layer
+      - cluster_bec
       - cluster_global_eta
       - cluster_global_phi
       - cluster_leading_theta
@@ -153,7 +155,7 @@ model:
   model:
     class_path: hepattn.models.MaskFormer
     init_args:
-      dim: &dim 64
+      dim: &dim 256
       num_queries: *cluster_max_multiplicity
       input_sort_field: x
       use_attn_masks: false
@@ -170,6 +172,8 @@ model:
                   - x
                   - y
                   - charge
+                  - cluster_layer
+                  - cluster_bec
                   - cluster_global_eta
                   - cluster_global_phi
                   - cluster_leading_theta
@@ -177,7 +181,7 @@ model:
                 net:
                   class_path: hepattn.models.Dense
                   init_args:
-                    input_size: 7
+                    input_size: 9
                     output_size: *dim
                 posenc:
                   class_path: hepattn.models.posenc.FourierPositionEncoder
@@ -195,7 +199,7 @@ model:
           dim: *dim
           attn_type: torch
 
-      num_decoder_layers: 1
+      num_decoder_layers: 4
       decoder_layer_config:
         dim: *dim
         mask_attention: false
@@ -222,6 +226,7 @@ model:
                 costs:
                   object_ce: 1.0
                 dim: *dim
+                null_weight: 1.0
 
             - class_path: hepattn.models.task.ObjectGaussianRegressionTask
               init_args:
