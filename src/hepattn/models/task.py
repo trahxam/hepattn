@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Literal
 
 import torch
+import math
 from torch import Tensor, nn
 
 from hepattn.models.dense import Dense
@@ -379,6 +380,7 @@ class GaussianRegressionTask(Task):
         self.k = len(fields)
         # For multivaraite gaussian case we have extra DoFs from the variance and covariance terms
         self.ndofs = self.k + int(self.k*(self.k+1)/2)
+        self.likelihood_norm = self.k * 0.5 * math.log(2 * math.pi)
 
     def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:
         latent = self.latent(x)
@@ -430,14 +432,13 @@ class GaussianRegressionTask(Task):
         # Compute the NLL from the score vector
         zsq = torch.einsum("...i,...i->...", z, z)
         jac = torch.sum(torch.diagonal(outputs[self.output_object + "_U"], offset=0, dim1=-2, dim2=-1), dim=-1)
-        nll = -0.5 * zsq + jac
+        log_likelihood = self.likelihood_norm - 0.5 * zsq + jac
 
         # Only compute NLL for valid tracks or track-hit pairs
-        nll = nll[targets[self.target_object + "_valid"]]
+        # nll = nll[targets[self.target_object + "_valid"]]
+        log_likelihood = log_likelihood * targets[self.target_object + "_valid"].type_as(log_likelihood)
         # Take the average and apply the task weight
-        nll = -self.loss_weight * nll.mean()
-
-        return {"nll": nll}
+        return {"nll":  -self.loss_weight * log_likelihood.mean()}
 
     def metrics(self, preds: dict[str, Tensor], targets: dict[str, Tensor]) -> dict[str, Tensor]:
         y = torch.stack([targets[self.target_object + "_" + field] for field in self.fields], dim=-1) # Point target
@@ -505,8 +506,9 @@ class ObjectGaussianRegressionTask(GaussianRegressionTask):
         zsq = torch.einsum("...i,...i->...", z, z) # (B, N, N)
         jac = torch.sum(diagU, dim=-1) # (B, N, N)
 
-        nll = -0.5 * zsq + jac
-        costs = -nll
+        log_likelihood = self.likelihood_norm -0.5 * zsq + jac
+        log_likelihood = log_likelihood * targets[f"{self.target_object}_valid"].unsqueeze(1).type_as(log_likelihood)
+        costs = -log_likelihood
 
         return {"nll": self.cost_weight * costs}
 
