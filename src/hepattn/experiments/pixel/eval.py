@@ -20,7 +20,7 @@ def sigmoid(x):
 
 
 def main():
-    eval_path = Path("/share/rcifdata/maxhart/hepattn/logs/pixel_8_20250625-T182728/ckpts/epoch=004-train_loss=-9.87515_new_eval.h5")
+    eval_path = Path("/share/rcifdata/maxhart/hepattn/logs/pixel_mini_20250627-T112451/ckpts/epoch=007-train_loss=-0.68976_new_eval.h5")
 
     data = {
         "true_valid": [],
@@ -37,7 +37,7 @@ def main():
             sample_outputs = file[sample_id]["outputs"]["final"]
 
             data["true_valid"].append(sample_targets["particle_valid"][0])
-            data["pred_valid"].append(sigmoid(sample_outputs["track_valid"]["track_logit"][0]) >= 0.3)
+            data["pred_valid"].append(sigmoid(sample_outputs["track_valid"]["track_logit"][0]) >= 0.5)
             data["true_x"].append(sample_targets["particle_x"][0])
             data["true_y"].append(sample_targets["particle_y"][0])
             data["pred_x"].append(sample_outputs["track_regr"]["track_x"][0])
