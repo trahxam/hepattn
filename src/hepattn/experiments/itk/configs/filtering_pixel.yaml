@@ -1,4 +1,4 @@
-name: ITk_filtering_pixel_region135_3pix_eta4_900mev
+name: ITk_filtering_pixel_region135_3pix_eta4_900mev_FFPE
 
 data:
   train_dir: /share/rcifdata/maxhart/data/itk/train/
@@ -20,7 +20,7 @@ data:
   particle_min_num_hits:
     pixel: 3
 
-  event_max_num_particles: 20000
+  event_max_num_particles: 10000
 
   inputs:
     pixel:
@@ -188,12 +188,12 @@ model:
                       - eta
                       - phi
                     dim: *dim
-                    scale: 0.1
+                    scale: 1.0
 
       encoder:
         class_path: hepattn.models.Encoder
         init_args:
-          num_layers: 12
+          num_layers: 10
           dim: *dim
           attn_type: flash
           window_size: 1024
