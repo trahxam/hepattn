@@ -15,6 +15,7 @@ class MaskFormer(nn.Module):
         tasks: nn.ModuleList,
         num_queries: int,
         dim: int,
+        target_object: str = "particle",
         pooling: nn.Module | None = None,
         matcher: nn.Module | None = None,
         input_sort_field: str | None = None,
@@ -43,6 +44,8 @@ class MaskFormer(nn.Module):
             The number of object-level queries to initialize and decode.
         dim : int
             The dimensionality of the query and key embeddings.
+        target_object : str
+            The target object name which is used to mark valid/invalid objects during matching.
         input_sort_field : str or None, optional
             An optional key used to sort the input objects (e.g., for windowed attention).
         use_attn_masks : bool, optional
@@ -57,6 +60,7 @@ class MaskFormer(nn.Module):
         self.decoder_layers = nn.ModuleList([MaskFormerDecoderLayer(**decoder_layer_config) for _ in range(num_decoder_layers)])
         self.pooling = pooling
         self.tasks = tasks
+        self.target_object = target_object
         self.matcher = matcher
         self.num_queries = num_queries
         self.query_initial = nn.Parameter(torch.randn(num_queries, dim))
@@ -223,7 +227,7 @@ class MaskFormer(nn.Module):
         """
         # Will hold the costs between all pairs of objects - cost axes are (batch, pred, true)
         costs = {}
-        batch_idxs = torch.arange(targets["particle_valid"].shape[0]).unsqueeze(1)
+        batch_idxs = torch.arange(targets[f"{self.target_object}_valid"].shape[0]).unsqueeze(1)
         for layer_name, layer_outputs in outputs.items():
             layer_costs = None
 
@@ -249,7 +253,7 @@ class MaskFormer(nn.Module):
         # Permute the outputs for each output in each layer
         for layer_name in costs:
             # Get the indicies that can permute the predictions to yield their optimal matching
-            pred_idxs = self.matcher(costs[layer_name], targets["particle_valid"])
+            pred_idxs = self.matcher(costs[layer_name], targets[f"{self.target_object}_valid"])
 
             # Apply the permutation in place
             for task in self.tasks:
