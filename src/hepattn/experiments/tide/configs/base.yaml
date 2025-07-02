@@ -1,12 +1,12 @@
-name: TIDE_5M_100_32trk_F32
+name: TIDE_32trk_F32
 
 data:
   batch_size: 100
   train_dir: data/tide/prepped/
   val_dir: data/tide/prepped/
   test_dir: data/tide/prepped/
-  num_workers: 14
-  num_train: 1000000
+  num_workers: 8
+  num_train: 100000
   num_test: 10000
   num_val: 10000
   precision: single
@@ -24,7 +24,7 @@ data:
     sct: 4
 
   # Maximum number of tracks allowed in an ROI before we drop the ROI
-  roi_max_num_tracks: &num_tracks 40
+  roi_max_num_tracks: &num_tracks 32
 
   # The maximum number of tracks that can be dropped from track
   # cuts before we drop the entire ROI
@@ -245,7 +245,7 @@ trainer:
 
   # Specify any callback here
   callbacks:
-    - class_path: hepattn.callbacks.Metadata
+    - class_path: hepattn.callbacks.SaveConfig
     - class_path: hepattn.callbacks.Checkpoint
       init_args:
         monitor: train/loss
@@ -284,6 +284,7 @@ model:
       input_sort_field: phi
       use_attn_masks: true
       use_query_masks: false
+      target_object: sudo
 
       input_nets:
         class_path: torch.nn.ModuleList
@@ -400,13 +401,11 @@ model:
       encoder:
         class_path: hepattn.models.Encoder
         init_args:
-          num_layers: 8
+          num_layers: 4
           dim: *dim
           attn_type: torch
-          # window_size: 1024
-          # window_wrap: false
 
-      num_decoder_layers: 8
+      num_decoder_layers: 4
       decoder_layer_config:
         dim: *dim
         mask_attention: true
@@ -463,33 +462,3 @@ model:
                   mask_bce: 50.0
                 dim: *dim
                 null_weight: 1.0
-
-            - class_path: hepattn.models.task.ObjectRegressionTask
-              init_args:
-                name: pred_regression
-                input_object: query
-                output_object: pred
-                target_object: sudo
-                dim: *dim
-                loss_weight: 10.0
-                fields:
-                  - scaled_qopt
-                  - scaled_dtheta
-                  - scaled_dphi
-                  - scaled_d0
-                  - scaled_dz0
-
-            - class_path: hepattn.models.task.ObjectHitRegressionTask
-              init_args:
-                name: pred_pix_regression
-                input_hit: pix
-                input_object: query
-                output_object: pred_pix
-                target_object: sudo_pix
-                dim: *dim
-                loss_weight: 10.0
-                fields:
-                  - loc_x
-                  - loc_y
-                  - theta
-                  - phi
