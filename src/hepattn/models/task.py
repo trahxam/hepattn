@@ -167,7 +167,7 @@ class HitFilterTask(Task):
         if self.loss_fn == "bce":
             pos_weight = 1 / target.float().mean()
             loss = nn.functional.binary_cross_entropy_with_logits(output, target, pos_weight=pos_weight)
-            return {f"{self.input_object}_{self.loss_fn}": loss}
+            return {f"{self.hit_name}_{self.loss_fn}": loss}
             weight = 1 / target.float().mean()
             loss = nn.functional.binary_cross_entropy_with_logits(output, target, pos_weight=weight)
             return {f"{self.hit_name}_{self.loss_fn}": loss}
