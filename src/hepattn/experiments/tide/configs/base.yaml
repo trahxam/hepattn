@@ -5,8 +5,8 @@ data:
   train_dir: data/tide/prepped/
   val_dir: data/tide/prepped/
   test_dir: data/tide/prepped/
-  num_workers: 8
-  num_train: 100000
+  num_workers: 10
+  num_train: 1000000
   num_test: 10000
   num_val: 10000
   precision: single
@@ -430,7 +430,7 @@ model:
                 losses:
                   object_bce: 1.0
                 costs:
-                  object_bce: 100.0
+                  object_bce: 10.0
                 dim: *dim
                 null_weight: 1.0
                 mask_queries: false
@@ -443,9 +443,9 @@ model:
                 output_object: pred
                 target_object: sudo
                 losses:
-                  mask_bce: 100.0
+                  mask_bce: 10.0
                 costs:
-                  mask_bce: 100.0
+                  mask_bce: 10.0
                 dim: *dim
                 null_weight: 1.0
 
@@ -457,8 +457,8 @@ model:
                 output_object: pred
                 target_object: sudo
                 losses:
-                  mask_bce: 50.0
+                  mask_bce: 5.0
                 costs:
-                  mask_bce: 50.0
+                  mask_bce: 5.0
                 dim: *dim
                 null_weight: 1.0

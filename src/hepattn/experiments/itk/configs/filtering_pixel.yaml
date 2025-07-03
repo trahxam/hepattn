@@ -24,6 +24,9 @@ data:
 
   inputs:
     pixel:
+      # Used to ID the hit for dumping
+      - hit_id
+
       # TrackML style global coordinates derived from x/y/z
       - x
       - y
