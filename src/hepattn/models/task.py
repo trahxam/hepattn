@@ -172,7 +172,7 @@ class HitFilterTask(Task):
             loss = nn.functional.binary_cross_entropy_with_logits(output, target, pos_weight=weight)
             return {f"{self.hit_name}_{self.loss_fn}": loss}
         if self.loss_fn == "focal":
-            loss = focal_loss(output, target)
+            loss = mask_focal_loss(output, target)
             return {f"{self.hit_name}_{self.loss_fn}": loss}
         if self.loss_fn == "both":
             pos_weight = 1 / target.float().mean()
