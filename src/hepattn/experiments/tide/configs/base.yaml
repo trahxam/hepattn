@@ -131,10 +131,6 @@ data:
       - d0
       - q
       - qopt
-      # Track paramaters in ROI frame
-      - deta
-      - dphi
-      - dz0
       # Vertex location in global frame
       - vx
       - vy
