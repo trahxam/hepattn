@@ -260,9 +260,13 @@ data:
       - pos.x
       - pos.y
       - pos.z
+      - pos.r
+      - pos.theta
+      - pos.phi
       - mom.x
       - mom.y
       - mom.z
+      - mom.r
       - mom.rinv
       - mom.theta
       - mom.phi
@@ -271,9 +275,13 @@ data:
       - pos.x
       - pos.y
       - pos.z
+      - pos.r
+      - pos.theta
+      - pos.phi
       - mom.x
       - mom.y
       - mom.z
+      - mom.r
       - mom.rinv
       - mom.theta
       - mom.phi
@@ -281,10 +289,12 @@ data:
     particle_ecal:
       - energy
       - energy_frac
+      - log_energy
 
     particle_hcal:
       - energy
       - energy_frac
+      - log_energy
 
     particle_muon:
       - energy
