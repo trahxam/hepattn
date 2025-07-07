@@ -36,7 +36,8 @@ particle_masks = {
     "Primary or Secondary": (targets["particle_primary"].to(torch.bool) | targets["particle_secondary"].to(torch.bool)) & targets["particle_valid"],
 }
 
-print("Cluster multiplicities:")
+print(f"\nCluster multiplicities ({targets["cluster_valid"].float().sum()} clusters\n")
+
 multiplicities, multiplicity_counts = np.unique(targets["cluster_multiplicity"], return_counts=True)
 
 single_cluster_count = multiplicity_counts[0]
@@ -62,16 +63,18 @@ particle_class_label_to_name = {v: k for k, v in particle_class_name_to_label.it
 
 
 class_labels, class_counts = np.unique(targets["particle_class_label"][targets["particle_valid"]], return_counts=True)
+num_particles = targets["particle_valid"].float().sum()
 
-print("Particle classes:")
+print(f"\nParticle classes ({num_particles} particles)\n")
+
 for class_label, class_count in zip(class_labels, class_counts, strict=False):
     class_name = particle_class_label_to_name[class_label].ljust(12)
     count_str = str(int(class_count)).ljust(8)
     pct_str = 100 * class_count / targets["particle_valid"].sum()
-    print(f"{class_name} | {count_str} | {pct_str:.2f}%")
+    weight = num_particles / class_count
+    print(f"{class_name} | {count_str} | {pct_str:.2f}% | {weight:.2f}")
 
-
-# print(torch.unique(targets["particle_pdgid"][targets["particle_class_label"] == 6]))
+print(f"\nParticle truth types ({num_particles} particles)\n")
 
 # Plot the particle counts
 fig, ax = plt.subplots()
@@ -79,7 +82,9 @@ fig.set_size_inches(8, 2)
 
 for mask_name, particle_mask in particle_masks.items():
     pct = 100 * particle_mask.sum() / targets["particle_valid"].sum()
-    print(f"{mask_name.ljust(24)}| {str(particle_mask.sum().item()).ljust(6)}/ {str(targets["particle_valid"].sum().item()).ljust(6)} | {pct:.2f}%")
+    num_type = particle_mask.sum().item()
+    weight = num_particles / num_type
+    print(f"{mask_name.ljust(24)}| {str(num_type).ljust(6)} | {pct:.2f}% | {weight:.2f}")
 
     cluster_num_particles = particle_mask.sum(-1)
     ax.hist(
