@@ -1,9 +1,9 @@
-name: pixel_micro
+name: pixel_enriched_noclass
 
 data:
   train_dir: /share/rcifdata/maxhart/data/pixsplit/mc23_prepped_enriched/train/
-  val_dir: /share/rcifdata/maxhart/data/pixsplit/mc23_prepped_enriched/train/
-  test_dir: /share/rcifdata/maxhart/data/pixsplit/mc23_prepped_enriched/train/
+  val_dir: /share/rcifdata/maxhart/data/pixsplit/mc23_prepped_enriched/val/
+  test_dir: /share/rcifdata/maxhart/data/pixsplit/mc23_prepped_enriched/test/
 
   num_train: 1000000
   num_val: 10000
@@ -20,11 +20,10 @@ data:
 
   # If specified, clusters with this multiplicity are retained at the spcified rate
   cluster_multiplicity_subsample_frac:
-    1: 1.0
 
   # Maximum x / y for a particle to be marked as a valid target
-  particle_max_x: 5
-  particle_max_y: 5
+  particle_max_x: 8
+  particle_max_y: 8
 
   # Whether to consider particles without a barcode as valid or not
   particle_allow_notruth: true
@@ -40,14 +39,14 @@ data:
 
   # The minimum and maximum cluster multiplicities to allow
   cluster_min_multiplicity: 1
-  cluster_max_multiplicity: &cluster_max_multiplicity 3
+  cluster_max_multiplicity: &cluster_max_multiplicity 8
 
   # The maximum x/y width in pixels of a cluster for it to not be dropped
-  cluster_max_width_x: 7
-  cluster_max_width_y: 7
+  cluster_max_width_x: 16
+  cluster_max_width_y: 16
 
   # The maximum absolute global eta of a cluster for it to not be dropped
-  cluster_max_abs_eta: 4.0
+  cluster_max_abs_eta: 2.8
   
   # If set to true, clusters containing a notruth particle will be dropped
   cluster_allow_notruth_particle: true
@@ -158,7 +157,7 @@ model:
   model:
     class_path: hepattn.models.MaskFormer
     init_args:
-      dim: &dim 64
+      dim: &dim 128
       num_queries: *cluster_max_multiplicity
       input_sort_field: x
       use_attn_masks: false
@@ -198,11 +197,11 @@ model:
       encoder:
         class_path: hepattn.models.Encoder
         init_args:
-          num_layers: 1
+          num_layers: 2
           dim: *dim
           attn_type: torch
 
-      num_decoder_layers: 1
+      num_decoder_layers: 2
       decoder_layer_config:
         dim: *dim
         mask_attention: false
@@ -240,6 +239,27 @@ model:
                 fields:
                   - x
                   - y
+                  # - theta
+                  # - phi
                 loss_weight: 1.0
                 cost_weight: 1.0
                 dim: *dim
+
+            # - class_path: hepattn.models.task.ClassificationTask
+            #   init_args:
+            #     name: track_class
+            #     input_object: query
+            #     output_object: track
+            #     target_object: particle
+            #     classes:
+            #       - primary
+            #       - secondary
+            #       - notruth
+            #     class_weights:
+            #       primary: 1.00
+            #       secondary: 8.68
+            #       notruth: 2.04
+            #     loss_weight: 0.1
+            #     dim: *dim
+
+
