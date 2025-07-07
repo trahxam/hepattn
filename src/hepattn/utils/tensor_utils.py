@@ -21,7 +21,7 @@ def get_torch_dtype(dtype: torch.dtype | str) -> torch.dtype:
     if not isinstance(dtype, torch.dtype):
         dtype = getattr(torch, dtype)
         assert isinstance(dtype, torch.dtype)
-    
+
     return dtype
 
 
@@ -37,7 +37,7 @@ def get_module_dtype(module: torch.nn.Module) -> torch.dtype:
     Returns
     -------
     torch.dtype
-        The dtype of the module’s parameters if available; otherwise, the dtype of its buffers.
+        The dtype of the modules parameters if available; otherwise, the dtype of its buffers.
     """
     # Prefer parameters if available
     for param in module.parameters(recurse=True):
@@ -45,7 +45,7 @@ def get_module_dtype(module: torch.nn.Module) -> torch.dtype:
     # Fall back to buffers if no parameters exist
     for buffer in module.buffers(recurse=True):
         return buffer.dtype
-        
+
     raise ValueError("Module has no parameters or buffers to infer dtype from.")
 
 

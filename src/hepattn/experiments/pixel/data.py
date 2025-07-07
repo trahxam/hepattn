@@ -5,12 +5,11 @@ import h5py
 import numpy as np
 import torch
 from lightning import LightningDataModule
+from particle.pdgid import is_hadron
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
-from particle.pdgid import is_hadron
 
 from hepattn.utils.tensor_utils import pad_to_size
-
 
 # Necessary to stop this
 # https://discuss.pytorch.org/t/runtimeerror-received-0-items-of-ancdata/4999/2
@@ -20,16 +19,15 @@ torch.multiprocessing.set_sharing_strategy("file_system")
 def pdgid_to_class(pdgid):
     if np.abs(pdgid) == 11:
         return "electron"
-    elif np.abs(pdgid) == 13:
+    if np.abs(pdgid) == 13:
         return "muon"
-    elif np.abs(pdgid) == 15:
+    if np.abs(pdgid) == 15:
         return "tau"
-    elif pdgid == 22:
+    if pdgid == 22:
         return "photon"
-    elif is_hadron(pdgid):
+    if is_hadron(pdgid):
         return "hadron"
-    else:
-        return "other"
+    return "other"
 
 
 class PixelClusterDataset(Dataset):

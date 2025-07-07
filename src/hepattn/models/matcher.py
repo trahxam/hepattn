@@ -1,11 +1,10 @@
 import time
+from multiprocessing.pool import ThreadPool as Pool
 
+import numpy as np
 import scipy
 import torch
-import numpy as np
 from torch import nn
-
-from multiprocessing.pool import ThreadPool as Pool
 
 import lap1015
 

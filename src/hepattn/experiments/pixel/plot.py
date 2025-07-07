@@ -5,8 +5,8 @@ import numpy as np
 import torch
 import yaml
 from matplotlib import cm, colors
-from matplotlib.patches import Rectangle
 from matplotlib.lines import Line2D
+from matplotlib.patches import Rectangle
 
 from hepattn.experiments.pixel.data import PixelClusterDataModule
 
@@ -163,7 +163,6 @@ for i, field in enumerate(fields):
 
 fig.tight_layout()
 fig.savefig("src/hepattn/experiments/pixel/plots/cluster_global_coords_cartesian.png")
-
 
 
 fig, ax = plt.subplots(nrows=1, ncols=2)
@@ -328,7 +327,7 @@ ax = ax.flatten()
 
 idx = torch.argsort(targets["particle_valid"].sum(-1), descending=True)
 idx = torch.argsort(inputs["pixel_valid"].sum(-1), descending=True)
-#idx = np.arange(len(targets["particle_valid"]))
+# idx = np.arange(len(targets["particle_valid"]))
 
 pixel_charge = inputs["pixel_charge"][inputs["pixel_valid"]]
 norm = colors.LogNorm(vmin=0.01, vmax=1.0)

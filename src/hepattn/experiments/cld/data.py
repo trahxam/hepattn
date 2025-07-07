@@ -10,7 +10,6 @@ from torch.utils.data import DataLoader, Dataset
 from hepattn.utils.array_utils import masked_angle_diff_last_axis, masked_diff_last_axis
 from hepattn.utils.tensor_utils import pad_to_size
 
-
 torch.multiprocessing.set_sharing_strategy("file_system")
 
 

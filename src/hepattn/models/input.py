@@ -1,4 +1,3 @@
-import torch
 from torch import Tensor, nn
 
 from hepattn.utils.tensor_utils import concat_tensors, get_module_dtype, get_torch_dtype
@@ -34,7 +33,7 @@ class InputNet(nn.Module):
 
         # Record the global model dtype incase we want to have the input net at a different precision
         self.output_dtype = get_module_dtype(self)
-        
+
         # If specified, change the embed and posenc networks to have a different dtype
         if input_dtype is not None:
             self.input_dtype = get_torch_dtype(input_dtype)
