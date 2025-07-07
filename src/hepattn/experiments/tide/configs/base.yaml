@@ -139,6 +139,11 @@ data:
       - vx
       - vy
       - vz
+      # Track paramaters in ROI frame
+      - dtheta
+      - deta
+      - dphi
+      - dz0
       # Scaled fields for the regression
       - scaled_dz0
       - scaled_d0
@@ -173,6 +178,7 @@ data:
       - q
       - qopt
       # Track paramaters in ROI frame
+      - dtheta
       - deta
       - dphi
       - dz0
@@ -192,6 +198,7 @@ data:
       - q
       - qopt
       # Track paramaters in ROI frame
+      - dtheta
       - deta
       - dphi
       - dz0
