@@ -3,6 +3,52 @@ import torch
 from torch import Tensor
 
 
+def get_torch_dtype(dtype: torch.dtype | str) -> torch.dtype:
+    """
+    Convert a string or torch.dtype to a valid torch.dtype.
+
+    Parameters
+    ----------
+    dtype : str or torch.dtype
+        The desired data type, either as a string (e.g., "float32", "int64")
+        or an existing `torch.dtype` object.
+
+    Returns
+    -------
+    torch.dtype
+        A valid PyTorch dtype corresponding to the input.
+    """
+    if not isinstance(dtype, torch.dtype):
+        dtype = getattr(torch, dtype)
+        assert isinstance(dtype, torch.dtype)
+    
+    return dtype
+
+
+def get_module_dtype(module: torch.nn.Module) -> torch.dtype:
+    """
+    Get the dtype of a PyTorch nn.Module by inspecting its parameters or buffers.
+
+    Parameters
+    ----------
+    module : torch.nn.Module
+        The PyTorch module whose dtype is to be determined.
+
+    Returns
+    -------
+    torch.dtype
+        The dtype of the module’s parameters if available; otherwise, the dtype of its buffers.
+    """
+    # Prefer parameters if available
+    for param in module.parameters(recurse=True):
+        return param.dtype
+    # Fall back to buffers if no parameters exist
+    for buffer in module.buffers(recurse=True):
+        return buffer.dtype
+        
+    raise ValueError("Module has no parameters or buffers to infer dtype from.")
+
+
 def concat_tensors(tensors: list[Tensor]) -> Tensor:
     """
     Concatenates a list of tensors along the last dimension, ensuring 3D shape.
