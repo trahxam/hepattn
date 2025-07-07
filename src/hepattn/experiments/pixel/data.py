@@ -12,6 +12,11 @@ from particle.pdgid import is_hadron
 from hepattn.utils.tensor_utils import pad_to_size
 
 
+# Necessary to stop this
+# https://discuss.pytorch.org/t/runtimeerror-received-0-items-of-ancdata/4999/2
+torch.multiprocessing.set_sharing_strategy("file_system")
+
+
 def pdgid_to_class(pdgid):
     if np.abs(pdgid) == 11:
         return "electron"

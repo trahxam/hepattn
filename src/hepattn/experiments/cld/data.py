@@ -11,6 +11,9 @@ from hepattn.utils.array_utils import masked_angle_diff_last_axis, masked_diff_l
 from hepattn.utils.tensor_utils import pad_to_size
 
 
+torch.multiprocessing.set_sharing_strategy("file_system")
+
+
 class CLDDataset(Dataset):
     def __init__(
         self,
@@ -629,6 +632,7 @@ class CLDCollator:
 
             k = f"{target_name}_valid"
             batched_targets[k] = pad_and_concat([t[k] for t in targets], size, False)
+            batched_inputs[k] = batched_targets[k]
 
             for field in fields:
                 k = f"{target_name}_{field}"
