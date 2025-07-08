@@ -90,7 +90,7 @@ class CLI(LightningCLI):
                 sc[f"{log}.init_args.save_dir"] = log_dir_timestamp
 
             # Set the matmul precision for training
-            torch.set_float32_matmul_precision(self.config.matmul_precision)
+            torch.set_float32_matmul_precision(sc["matmul_precision"])
 
         if self.subcommand == "test":
             # Modify callbacks when testing
@@ -114,15 +114,16 @@ class CLI(LightningCLI):
     def after_instantiate_classes(self) -> None:
         sc = self.config[self.subcommand]
 
-        # Workaround to store ckpt dir for prediction writer since trainer.ckpt_path gets set to none somewhere
-        # TODO: Figure out what causes trainer.ckpt_path to be set to none
-        if "ckpt_path" in sc:
-            self.trainer.ckpt_path = sc["ckpt_path"]
-            self.trainer.ckpt_dir = Path(self.trainer.ckpt_path).parent
-            self.trainer.ckpt_name = str(Path(self.trainer.ckpt_path).stem)
+        if self.subcommand == "test":
+            # Workaround to store ckpt dir for prediction writer since trainer.ckpt_path gets set to none somewhere
+            # TODO: Figure out what causes trainer.ckpt_path to be set to none
+            if "ckpt_path" in sc:
+                self.trainer.ckpt_path = sc["ckpt_path"]
+                self.trainer.ckpt_dir = Path(self.trainer.ckpt_path).parent
+                self.trainer.ckpt_name = str(Path(self.trainer.ckpt_path).stem)
 
-        # After instantiating classes, set the checkpoint path if not provided
-        if self.subcommand == "test" and not self.trainer.ckpt_path:
-            config = self.config[self.subcommand]["config"]
-            assert len(config) == 1
-            self.trainer.ckpt_path = get_best_epoch(Path(config[0].rel_path))
+            # After instantiating classes, set the checkpoint path if not provided
+            if not self.trainer.ckpt_path:
+                config = self.config[self.subcommand]["config"]
+                assert len(config) == 1
+                self.trainer.ckpt_path = get_best_epoch(Path(config[0].rel_path))
