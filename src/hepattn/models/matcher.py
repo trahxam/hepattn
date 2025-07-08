@@ -6,7 +6,7 @@ import scipy
 import torch
 from torch import nn
 
-import lap1015
+from hepattn.utils.import_utils import check_import_safe
 
 
 def solve_scipy(cost):
@@ -14,19 +14,23 @@ def solve_scipy(cost):
     return col_idx
 
 
-def solve_1015_early(cost):
-    return lap1015.lap_early(cost)
-
-
-def solve_1015_late(cost):
-    return lap1015.lap_late(cost)
-
-
 SOLVERS = {
     "scipy": solve_scipy,
-    # "1015_early": solve_1015_early,
-    "1015_late": solve_1015_late,
 }
+
+# Some compiled extension can cause SIGKILL errors if compiled for the wrong arch
+# So we have to check they won't kill everything when we import them
+if check_import_safe("lap1015"):
+    import lap1015
+
+    def solve_1015_early(cost):
+        return lap1015.lap_early(cost)
+
+    def solve_1015_late(cost):
+        return lap1015.lap_late(cost)
+
+    SOLVERS["lap1015_late"] = solve_1015_late
+    # SOLVERS["lap1015_early"] = lap1015_early
 
 
 def match_individual(solver_fn, cost: np.ndarray, default_idx: torch.Tensor) -> torch.Tensor:
