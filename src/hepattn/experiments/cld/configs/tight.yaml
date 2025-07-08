@@ -3,8 +3,8 @@ name: CLD_5_350_charged_10MeV_noise_neutrals_F16_fixed
 data:
   # Paths to preprocessed data directories
   train_dir: /share/rcifdata/maxhart/data/cld/prepped/train/
-  val_dir: /share/rcifdata/maxhart/data/cld/prepped/train/
-  test_dir: /share/rcifdata/maxhart/data/cld/prepped/train/
+  val_dir: /share/rcifdata/maxhart/data/cld/prepped/val/
+  test_dir: /share/rcifdata/maxhart/data/cld/prepped/test/
 
   # Number of events to include in each set
   num_workers: 10
