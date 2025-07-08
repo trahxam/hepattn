@@ -58,7 +58,7 @@ class CLI(LightningCLI):
             type=str,
             choices=["highest", "high", "medium", "low"],
             default="high",
-            help="Precision setting for float32 matrix multiplications."
+            help="Precision setting for float32 matrix multiplications.",
         )
 
         parser.link_arguments("name", "trainer.logger.init_args.experiment_name")
@@ -112,7 +112,16 @@ class CLI(LightningCLI):
             torch.set_float32_matmul_precision("highest")
 
     def after_instantiate_classes(self) -> None:
-        """After instantiating classes, set the checkpoint path if not provided."""
+        sc = self.config[self.subcommand]
+
+        # Workaround to store ckpt dir for prediction writer since trainer.ckpt_path gets set to none somewhere
+        # TODO: Figure out what causes trainer.ckpt_path to be set to none
+        if "ckpt_path" in sc:
+            self.trainer.ckpt_path = sc["ckpt_path"]
+            self.trainer.ckpt_dir = Path(self.trainer.ckpt_path).parent
+            self.trainer.ckpt_name = str(Path(self.trainer.ckpt_path).stem)
+
+        # After instantiating classes, set the checkpoint path if not provided
         if self.subcommand == "test" and not self.trainer.ckpt_path:
             config = self.config[self.subcommand]["config"]
             assert len(config) == 1
