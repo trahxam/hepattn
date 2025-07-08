@@ -129,7 +129,7 @@ class HitFilterTask(Task):
     def __init__(
         self,
         name: str,
-        hit_name: str,
+        input_object: str,
         target_field: str,
         dim: int,
         threshold: float = 0.1,
@@ -140,7 +140,7 @@ class HitFilterTask(Task):
         super().__init__()
 
         self.name = name
-        self.hit_name = hit_name
+        self.input_object = input_object
         self.target_field = target_field
         self.dim = dim
         self.threshold = threshold
@@ -148,39 +148,39 @@ class HitFilterTask(Task):
         self.mask_keys = mask_keys
 
         # Internal
-        self.input_objects = [f"{hit_name}_embed"]
+        self.input_objects = [f"{input_object}_embed"]
         self.net = Dense(dim, 1)
 
     def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:
-        x_logit = self.net(x[f"{self.hit_name}_embed"])
-        return {f"{self.hit_name}_logit": x_logit.squeeze(-1)}
+        x_logit = self.net(x[f"{self.input_object}_embed"])
+        return {f"{self.input_object}_logit": x_logit.squeeze(-1)}
 
     def predict(self, outputs: dict) -> dict:
-        return {f"{self.hit_name}_{self.target_field}": outputs[f"{self.hit_name}_logit"].sigmoid() >= self.threshold}
+        return {f"{self.input_object}_{self.target_field}": outputs[f"{self.input_object}_logit"].sigmoid() >= self.threshold}
 
     def loss(self, outputs: dict, targets: dict) -> dict:
         # Pick out the field that denotes whether a hit is on a reconstructable object or not
-        output = outputs[f"{self.hit_name}_logit"]
-        target = targets[f"{self.hit_name}_{self.target_field}"].type_as(output)
+        output = outputs[f"{self.input_object}_logit"]
+        target = targets[f"{self.input_object}_{self.target_field}"].type_as(output)
 
         # Calculate the BCE loss with class weighting
         if self.loss_fn == "bce":
             pos_weight = 1 / target.float().mean()
             loss = nn.functional.binary_cross_entropy_with_logits(output, target, pos_weight=pos_weight)
-            return {f"{self.hit_name}_{self.loss_fn}": loss}
+            return {f"{self.input_object}_{self.loss_fn}": loss}
             weight = 1 / target.float().mean()
             loss = nn.functional.binary_cross_entropy_with_logits(output, target, pos_weight=weight)
-            return {f"{self.hit_name}_{self.loss_fn}": loss}
+            return {f"{self.input_object}_{self.loss_fn}": loss}
         if self.loss_fn == "focal":
             loss = mask_focal_loss(output, target)
-            return {f"{self.hit_name}_{self.loss_fn}": loss}
+            return {f"{self.input_object}_{self.loss_fn}": loss}
         if self.loss_fn == "both":
             pos_weight = 1 / target.float().mean()
             bce_loss = nn.functional.binary_cross_entropy_with_logits(output, target, pos_weight=pos_weight)
             focal_loss_value = mask_focal_loss(output, target)
             return {
-                f"{self.hit_name}_bce": bce_loss,
-                f"{self.hit_name}_focal": focal_loss_value,
+                f"{self.input_object}_bce": bce_loss,
+                f"{self.input_object}_focal": focal_loss_value,
             }
         raise ValueError(f"Unknown loss function: {self.loss_fn}")
 
@@ -188,7 +188,7 @@ class HitFilterTask(Task):
         if not self.mask_keys:
             return {}
 
-        return {self.input_object: outputs[f"{self.hit_name}_logit"].detach().sigmoid() >= threshold}
+        return {self.input_object: outputs[f"{self.input_object}_logit"].detach().sigmoid() >= threshold}
 
 
 class ObjectHitMaskTask(Task):
