@@ -47,7 +47,20 @@ def get_best_epoch(config_path: Path) -> Path:
 
 class CLI(LightningCLI):
     def add_arguments_to_parser(self, parser) -> None:
-        parser.add_argument("--name", default="hepattn", help="Name for this training run.")
+        parser.add_argument(
+            "--name",
+            default="hepattn",
+            help="Name for this training run.",
+        )
+
+        parser.add_argument(
+            "--matmul_precision",
+            type=str,
+            choices=["highest", "high", "medium", "low"],
+            default="high",
+            help="Precision setting for float32 matrix multiplications."
+        )
+
         parser.link_arguments("name", "trainer.logger.init_args.experiment_name")
         parser.link_arguments("name", "model.name")
         parser.link_arguments("trainer.default_root_dir", "trainer.logger.init_args.save_dir")
@@ -76,6 +89,9 @@ class CLI(LightningCLI):
             if sc[log]:
                 sc[f"{log}.init_args.save_dir"] = log_dir_timestamp
 
+            # Set the matmul precision for training
+            torch.set_float32_matmul_precision(self.config.matmul_precision)
+
         if self.subcommand == "test":
             # Modify callbacks when testing
             self.save_config_callback = None
@@ -91,6 +107,9 @@ class CLI(LightningCLI):
                 sc["trainer.devices"] = "1"
             if isinstance(n_devices, list) and len(n_devices) > 1:
                 raise ValueError("Testing requires --trainer.devices=1")
+
+            # Always test at highest precision
+            torch.set_float32_matmul_precision("highest")
 
     def after_instantiate_classes(self) -> None:
         """After instantiating classes, set the checkpoint path if not provided."""
