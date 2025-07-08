@@ -138,7 +138,7 @@ class Matcher(nn.Module):
         # For each solver, compute the time to match the entire batch
         for solver in SOLVERS:
             # Switch to the solver we are testing
-            self.solver = solver_name
+            self.solver = solver
             start_time = time.time()
             self.compute_matching(costs)
             solver_times[solver] = time.time() - start_time
