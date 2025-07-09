@@ -1,4 +1,5 @@
 import time
+import warnings
 from multiprocessing.pool import ThreadPool as Pool
 
 import numpy as np
@@ -31,6 +32,13 @@ if check_import_safe("lap1015"):
 
     SOLVERS["lap1015_late"] = solve_1015_late
     # SOLVERS["lap1015_early"] = lap1015_early
+else:
+    warnings.warn("""Failed to import lap1015 solver. This could be because it is not installed,
+    or because it was built targeting a different architecture than supported on the current machine.
+    Rebuilding the package on the current machine may fix this.""",
+    ImportWarning,
+    stacklevel=2,
+    )
 
 
 def match_individual(solver_fn, cost: np.ndarray, default_idx: torch.Tensor) -> torch.Tensor:
