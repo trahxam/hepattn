@@ -89,9 +89,6 @@ class CLI(LightningCLI):
             if sc[log]:
                 sc[f"{log}.init_args.save_dir"] = log_dir_timestamp
 
-            # Set the matmul precision for training
-            torch.set_float32_matmul_precision(sc["matmul_precision"])
-
         if self.subcommand == "test":
             # Modify callbacks when testing
             self.save_config_callback = None
@@ -108,8 +105,8 @@ class CLI(LightningCLI):
             if isinstance(n_devices, list) and len(n_devices) > 1:
                 raise ValueError("Testing requires --trainer.devices=1")
 
-            # Always test at highest precision
-            torch.set_float32_matmul_precision("highest")
+        # Set the matmul precision
+        torch.set_float32_matmul_precision(sc["matmul_precision"])
 
     def after_instantiate_classes(self) -> None:
         sc = self.config[self.subcommand]
