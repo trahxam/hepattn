@@ -1,5 +1,5 @@
 import torch
-from torch import Tensor, nn
+from torch import BoolTensor, Tensor, nn
 
 from hepattn.models.dense import Dense
 
@@ -20,6 +20,10 @@ class Pooling(nn.Module):
             Dimensionality of the input embeddings.
         pool_net : nn.Module, optional
             Optional network applied to input objects before pooling.
+        input_object : str | None
+            Name of input object for the pooling.
+        output_object : str | None
+            Name of output object for the pooling.
         """
 
         super().__init__()
@@ -30,16 +34,15 @@ class Pooling(nn.Module):
         self.weight_net = Dense(dim, 1)
         self.pool_net = pool_net
 
-    def forward(self, inputs: dict[str, Tensor]) -> dict[str, Tensor]:
-        x = inputs[self.input_object + "_embed"]  # (..., N, E)
+    def forward(self, x: Tensor, x_valid: BoolTensor) -> Tensor:
         if self.pool_net is not None:
             x = self.pool_net(x)  # (..., N, E) -> (..., N, E)
         # Calculate a weight that will be used to pool the new embeddings (..., N, E) -> (..., N, 1)
         w = self.weight_net(x).squeeze(-1)  # (..., N)
         # Set weights of padded entries to zero and make sure they sum to one
-        w = w.masked_fill(~inputs[self.input_object + "_valid"], -torch.inf)
+        w = w.masked_fill(~x_valid, -torch.inf)
         w = torch.softmax(w, dim=-1)  # (..., N)
-        w = w.masked_fill(~inputs[self.input_object + "_valid"], 0.0)
+        w = w.masked_fill(~x_valid, 0.0)
         # Weighted sum of all the embeddings (..., N, E) -> (..., E)
         x = torch.sum(x * w.unsqueeze(-1), dim=-2)
-        return {self.output_object + "_embed": x}
+        return x

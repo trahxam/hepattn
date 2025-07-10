@@ -1,8 +1,8 @@
+import warnings
 from pathlib import Path
 
 import numpy as np
 import torch
-import warnings
 from lightning import Callback
 
 from hepattn.utils.cuda_timer import cuda_timer
@@ -33,10 +33,10 @@ class InferenceTimer(Callback):
         matmul_precision = torch.get_float32_matmul_precision()
         if matmul_precision in {"high", "highest"}:
             warnings.warn(
-            f"""The current float32 matmul precision is set to {matmul_precision},
+                f"""The current float32 matmul precision is set to {matmul_precision},
             which may impact inference times. Consider if `low` or `medium` matmul
             precision can be used instead.""",
-            UserWarning,
+                UserWarning,
             )
 
     def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):

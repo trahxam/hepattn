@@ -53,8 +53,10 @@ class Tagger(nn.Module):
         for input_name in input_names:
             x[input_name + "_embed"] = x["key_embed"][..., x[f"key_is_{input_name}"], :]
 
-        # Compute and add the pooled embeddings to out embedding set
-        x = x | self.pooling(x)
+        # Do any pooling if desired
+        if self.pooling is not None:
+            x_pooled = self.pooling(x[f"{self.pooling.input_name}_embed"], x[f"{self.pooling.input_name}_valid"])
+            x[f"{self.pooling.output_name}_embed"] = x | x_pooled
 
         # Get the final outputs
         outputs = {"final": {}}
