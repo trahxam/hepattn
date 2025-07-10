@@ -21,6 +21,6 @@ def test_pooling():
         "x_valid": torch.randn(batch_size, seq_len) >= 0.5,
     }
 
-    outputs = pooling_layer(inputs)
+    outputs = pooling_layer(inputs["x_embed"], inputs["x_valid"])
 
-    assert outputs["y_embed"].shape == (batch_size, dim)
+    assert outputs.shape == (batch_size, dim)
