@@ -5,12 +5,12 @@ from multiprocessing.pool import ThreadPool as Pool
 import numpy as np
 import scipy
 import torch
-from torch import nn
+from torch import Tensor, nn
 
 from hepattn.utils.import_utils import check_import_safe
 
 
-def solve_scipy(cost):
+def solve_scipy(cost: np.ndarray) -> np.ndarray:
     _, col_idx = scipy.optimize.linear_sum_assignment(cost)
     return col_idx
 
@@ -33,22 +33,23 @@ if check_import_safe("lap1015"):
     SOLVERS["lap1015_late"] = solve_1015_late
     # SOLVERS["lap1015_early"] = lap1015_early
 else:
-    warnings.warn("""Failed to import lap1015 solver. This could be because it is not installed,
+    warnings.warn(
+        """Failed to import lap1015 solver. This could be because it is not installed,
     or because it was built targeting a different architecture than supported on the current machine.
     Rebuilding the package on the current machine may fix this.""",
-    ImportWarning,
-    stacklevel=2,
+        ImportWarning,
+        stacklevel=2,
     )
 
 
-def match_individual(solver_fn, cost: np.ndarray, default_idx: torch.Tensor) -> torch.Tensor:
+def match_individual(solver_fn, cost: np.ndarray, default_idx: Tensor) -> Tensor:
     pred_idx = torch.as_tensor(solver_fn(cost))
     if solver_fn == SOLVERS["scipy"]:
         pred_idx = torch.concatenate([pred_idx, default_idx[~torch.isin(default_idx, pred_idx)]])
     return pred_idx
 
 
-def match_parallel(solver_fn, costs: np.ndarray, batch_obj_lengths: torch.Tensor, n_jobs: int = 8) -> torch.Tensor:
+def match_parallel(solver_fn, costs: np.ndarray, batch_obj_lengths: Tensor, n_jobs: int = 8) -> Tensor:
     default_idx = torch.arange(costs.shape[2])
     with Pool(processes=n_jobs) as pool:
         # Prepare the arguments for the parallel function
@@ -96,12 +97,12 @@ class Matcher(nn.Module):
         self.parallel_solver = parallel_solver
         self.n_jobs = n_jobs
         self.step = 0
+        self.verbose = verbose
 
-    def compute_matching(self, costs, object_valid_mask=None):
+    def compute_matching(self, costs: np.ndarray, object_valid_mask: np.ndarray | None = None) -> np.ndarray:
         if object_valid_mask is None:
             object_valid_mask = torch.ones((costs.shape[0], costs.shape[1]), dtype=bool)
 
-        object_valid_mask = object_valid_mask.detach().bool()
         batch_obj_lengths = torch.sum(object_valid_mask, dim=1).unsqueeze(-1)
 
         idxs = []
@@ -125,15 +126,18 @@ class Matcher(nn.Module):
         return pred_idxs
 
     @torch.no_grad()
-    def forward(self, costs, object_valid_mask=None):
+    def forward(self, costs: Tensor, object_valid_mask: Tensor | None = None) -> Tensor:
         # Cost matrix dimensions are batch, pred, true
         # Solvers need numpy arrays on the cpu
         costs = costs.detach().to(torch.float32).cpu().numpy()
 
+        if object_valid_mask is not None:
+            object_valid_mask = object_valid_mask = object_valid_mask.detach().bool()
+
         # If we are at a check interval, use the current cost batch to see which
         # solver is the fastest, and set that to be the new solver
         if self.adaptive_solver and self.step % self.adaptive_check_interval == 0:
-            self.adapt_solver(costs)
+            self.adapt_solver(costs, object_valid_mask)
 
         pred_idxs = self.compute_matching(costs, object_valid_mask)
         self.step += 1
@@ -141,7 +145,7 @@ class Matcher(nn.Module):
         assert torch.all(pred_idxs >= 0), "Matcher error!"
         return pred_idxs
 
-    def adapt_solver(self, costs):
+    def adapt_solver(self, costs: np.ndarray, object_valid_mask: np.ndarray | None = None) -> None:
         solver_times = {}
 
         if self.verbose:
@@ -152,7 +156,7 @@ class Matcher(nn.Module):
             # Switch to the solver we are testing
             self.solver = solver
             start_time = time.time()
-            self.compute_matching(costs)
+            self.compute_matching(costs, object_valid_mask)
             solver_times[solver] = time.time() - start_time
 
             if self.verbose:
