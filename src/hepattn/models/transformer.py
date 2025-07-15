@@ -1,7 +1,7 @@
 from functools import partial
 
 import torch
-from torch import Tensor, nn
+from torch import BoolTensor, Tensor, nn
 from torch.nn.attention.flex_attention import create_block_mask, create_mask
 
 from hepattn.flex import relative_position, relative_position_wrapped
@@ -193,11 +193,11 @@ class Encoder(nn.Module):
         self.score_mod = SCORE_MODS[score_mod] if score_mod else None
         self.value_residual = value_residual
 
-        # handle masking
+        # Handle masking
         self.mask_mod = None
         self.q_len = None
 
-        # handle attention
+        # Handle attention
         attn_kwargs = layer_kwargs.get("attn_kwargs", None) or {}
         attn_kwargs["attn_type"] = attn_type
         if value_residual:
@@ -213,12 +213,16 @@ class Encoder(nn.Module):
         for layer in self.layers:
             self.attn_type = layer.attn.fn.set_backend(self.attn_type)
 
-    def forward(self, x: Tensor, x_sort_value: Tensor | None = None, **kwargs) -> Tensor:
+    def forward(self, x: Tensor, x_sort_value: Tensor | None = None, kv_mask: BoolTensor | None = None, **kwargs) -> Tensor:
         # If value to sort on is provided, use it to sort the tokens
         # We don't need to use the stable sort assuming that the sort values are unique
         if x_sort_value is not None:
             x_sort_idx = torch.argsort(x_sort_value, axis=-1)
             x = torch.gather(x, -2, x_sort_idx.unsqueeze(-1).expand_as(x))
+
+            # If sorting the keys, we need to sort the kv mask also!
+            if kv_mask is not None:
+                kv_mask = torch.gather(kv_mask, -1, x_sort_idx)
 
         # Initialise sliding window mask
         if self.mask_mod is None and self.attn_type != "flash" and self.window_size:
@@ -243,13 +247,14 @@ class Encoder(nn.Module):
         # Apply layers
         initial_values = {} if self.value_residual else None
         for layer in self.layers:
-            x = layer(x, attn_mask=attn_mask, score_mod=self.score_mod, initial_values=initial_values, **kwargs)
+            x = layer(x, kv_mask=kv_mask, attn_mask=attn_mask, score_mod=self.score_mod, initial_values=initial_values, **kwargs)
 
         # Remove wrapping for flash attention with sliding window
         if self.attn_type == "flash" and self.window_wrap:
             x = x[:, self.window_size // 2 : -self.window_size // 2]
 
         # If we sorted the tokens, undo the sorting
+        # The sorting applied to the kv mask does not need to be undone since gather is not an inplace op
         if x_sort_value is not None:
             x_unsort_idx = torch.argsort(x_sort_idx, axis=-1)
             x = torch.gather(x, -2, x_unsort_idx.unsqueeze(-1).expand_as(x))
