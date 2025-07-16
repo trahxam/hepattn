@@ -4,7 +4,6 @@ from torch import Tensor, nn
 from hepattn.models.decoder import MaskFormerDecoderLayer
 from hepattn.models.task import ObjectHitMaskTask
 
-
 class MaskFormer(nn.Module):
     def __init__(
         self,
@@ -21,6 +20,7 @@ class MaskFormer(nn.Module):
         input_sort_field: str | None = None,
         use_attn_masks: bool = True,
         use_query_masks: bool = True,
+        log_attn_mask: bool = False,
     ):
         """
         Initializes the MaskFormer model, which is a modular transformer-style architecture designed
@@ -67,10 +67,13 @@ class MaskFormer(nn.Module):
         self.input_sort_field = input_sort_field
         self.use_attn_masks = use_attn_masks
         self.use_query_masks = use_query_masks
+        self.log_attn_mask = log_attn_mask
+        self.log_step = 0
 
     def forward(self, inputs: dict[str, Tensor]) -> dict[str, Tensor]:
         # Atomic input names
         input_names = [input_net.input_name for input_net in self.input_nets]
+        self.log_step+=1
 
         assert "key" not in input_names, "'key' input name is reserved."
         assert "query" not in input_names, "'query' input name is reserved."
@@ -171,6 +174,20 @@ class MaskFormer(nn.Module):
             # If no attention masks were specified, set it to none to avoid redundant masking
             else:
                 attn_mask = None
+
+            if (
+                self.log_attn_mask
+                and (attn_mask is not None)
+                and (self.log_step % 1000 == 0)
+            ):
+                if not hasattr(self, "attn_masks_to_log"):
+                    self.attn_masks_to_log = {}
+                if layer_index == 0 or layer_index == len(self.decoder_layers) - 1:
+                    self.attn_masks_to_log[layer_index] = {
+                        "mask": attn_mask[0].detach().cpu().clone(),
+                        "step": self.log_step,
+                        "layer": layer_index,
+                    }
 
             # Update the keys and queries
             x["query_embed"], x["key_embed"] = decoder_layer(
