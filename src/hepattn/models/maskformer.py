@@ -2,13 +2,13 @@ import torch
 from torch import Tensor, nn
 
 from hepattn.models.decoder import MaskFormerDecoderLayer
-from hepattn.models.task import ObjectHitMaskTask
+from hepattn.models.task import IncidenceRegressionTask, ObjectClassificationTask
 
 class MaskFormer(nn.Module):
     def __init__(
         self,
         input_nets: nn.ModuleList,
-        encoder: nn.Module,
+        encoder: nn.Module | None,
         decoder_layer_config: dict,
         num_decoder_layers: int,
         tasks: nn.ModuleList,
@@ -20,6 +20,7 @@ class MaskFormer(nn.Module):
         input_sort_field: str | None = None,
         use_attn_masks: bool = True,
         use_query_masks: bool = True,
+        raw_variables: list[str] | None = None,
         log_attn_mask: bool = False,
     ):
         """
@@ -52,6 +53,8 @@ class MaskFormer(nn.Module):
             If True, attention masks will be used to control which input objects are attended to.
         use_query_masks : bool, optional
             If True, query masks will be used to control which queries are valid during attention.
+        raw_variables : list[str] or None, optional
+            A list of variable names that passed to tasks without embedding.
         """
         super().__init__()
 
@@ -67,6 +70,7 @@ class MaskFormer(nn.Module):
         self.input_sort_field = input_sort_field
         self.use_attn_masks = use_attn_masks
         self.use_query_masks = use_query_masks
+        self.raw_variables = raw_variables or []
         self.log_attn_mask = log_attn_mask
         self.log_step = 0
 
@@ -79,6 +83,11 @@ class MaskFormer(nn.Module):
         assert "query" not in input_names, "'query' input name is reserved."
 
         x = {}
+
+        for raw_var in self.raw_variables:
+            # If the raw variable is present in the inputs, add it directly to the output
+            if raw_var in inputs:
+                x[raw_var] = inputs[raw_var]
 
         # Embed the input objects
         for input_net in self.input_nets:
@@ -143,6 +152,13 @@ class MaskFormer(nn.Module):
                 # Get the outputs of the task given the current embeddings and record them
                 task_outputs = task(x)
 
+                # Need this for incidence-based regression task
+                if isinstance(task, IncidenceRegressionTask):
+                    # Assume that the incidence task has only one output
+                    x["incidence"] = task_outputs[task.outputs[0]].detach()
+                if isinstance(task, ObjectClassificationTask):
+                    # Assume that the classification task has only one output
+                    x["class_probs"] = task_outputs[task.outputs[0]].detach()
                 outputs[f"layer_{layer_index}"][task.name] = task_outputs
 
                 # Here we check if each task has an attention mask to contribute, then after
@@ -208,6 +224,14 @@ class MaskFormer(nn.Module):
         for task in self.tasks:
             outputs["final"][task.name] = task(x)
 
+            # Need this for incidence-based regression task
+            if isinstance(task, IncidenceRegressionTask):
+                # Assume that the incidence task has only one output
+                x["incidence"] = outputs["final"][task.name][task.outputs[0]].detach()
+            if isinstance(task, ObjectClassificationTask):
+                # Assume that the classification task has only one output
+                x["class_probs"] = outputs["final"][task.name][task.outputs[0]].detach()
+
         return outputs
 
     def predict(self, outputs: dict) -> dict:
@@ -241,7 +265,7 @@ class MaskFormer(nn.Module):
         ----------
         outputs:
             The outputs produces the forward pass of the model.
-        outputs:
+        targets:
             The data containing the targets.
         """
         # Will hold the costs between all pairs of objects - cost axes are (batch, pred, true)
@@ -266,13 +290,20 @@ class MaskFormer(nn.Module):
                     else:
                         layer_costs = cost
 
+            # Added to allow completely turning off inter layer loss
+            # Possibly redundant as completely switching them off performs worse
             if layer_costs is not None:
-                costs[layer_name] = layer_costs.detach()
+                layer_costs = layer_costs.detach()
+
+            costs[layer_name] = layer_costs
 
         # Permute the outputs for each output in each layer
-        for layer_name in costs:
+        for layer_name, cost in costs.items():
+            if cost is None:
+                continue
+
             # Get the indicies that can permute the predictions to yield their optimal matching
-            pred_idxs = self.matcher(costs[layer_name], targets[f"{self.target_object}_valid"])
+            pred_idxs = self.matcher(cost, targets[f"{self.target_object}_valid"])
 
             # Apply the permutation in place
             for task in self.tasks:
@@ -289,9 +320,10 @@ class MaskFormer(nn.Module):
         for layer_name in outputs:
             losses[layer_name] = {}
             for task in self.tasks:
-                # Skip tasks that are not ObjectHitMaskTask for intermediate layers
-                if layer_name != "final" and not isinstance(task, ObjectHitMaskTask):
+                if layer_name != "final" and not task.has_intermediate_loss:
                     continue
-                losses[layer_name][task.name] = task.loss(outputs[layer_name][task.name], targets)
+                # In case if some tasks needed to get access to other task's output
+                extra_kwargs = task.loss_kwargs(outputs[layer_name], targets)
+                losses[layer_name][task.name] = task.loss(outputs[layer_name][task.name], targets, **extra_kwargs)
 
         return losses
