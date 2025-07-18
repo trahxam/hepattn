@@ -61,19 +61,19 @@ def masked_angle_diff_last_axis(ax, ay, az, mask) -> np.ma.MaskedArray:
 
 
 def join_structured_arrays(arrays: list):
-    """Join a list of structured numpy arrays. Taken from hepformer repo
+    """Join a list of structured numpy arrays. Taken from hepformer repo.
 
     See https://github.com/numpy/numpy/issues/7811
 
-    Parameters
-    ----------
-    arrays : list
-        List of structured numpy arrays to join
+    Args:
+        arrays (list): List of structured numpy arrays to join
 
-    Returns
-    -------
-    np.array
+    Returns:
+        np.array: Merged structured array
         A merged structured array
+
+    Raises:
+        ValueError: If the input list is empty or if the arrays do not have the same
     """
     if not arrays:
         raise ValueError("Input list of arrays cannot be empty.")
@@ -91,29 +91,27 @@ def join_structured_arrays(arrays: list):
 
 
 def maybe_pad(x: np.ndarray, target_shape: tuple, pad_value: float = 0.0) -> np.ndarray:
-    """
-    Pads a numpy array `x` to match `target_shape`, using `pad_value`.
+    """Pads a numpy array `x` to match `target_shape`, using `pad_value`.
     numpy version of pad_to_size from hepattn.utils.tensor_utils.
 
-    Parameters
-    ----------
-    x : np.ndarray
-        The input array to pad.
-    target_shape : tuple of int
-        The desired shape of the output array. Use -1 to match input dim.
-    pad_value : float
+    Args:
+        x (np.ndarray): The input array to pad.
+        target_shape (tuple of int): The desired shape of the output array. Use -1 to match input dim.
+        pad_value (float): The constant value to use for padding.
         The constant value to use for padding.
 
-    Returns
-    -------
-    np.ndarray
-        Padded array of shape `target_shape`.
+    Returns:
+        np.ndarray: Padded array of shape `target_shape`.
+
+    Raises:
+        ValueError: If `target_shape` does not have the same number of dimensions as `x` or if any dimension of `x` is larger than the corresponding
+        dimension in `target_shape
     """
     current_shape = x.shape
     if len(target_shape) != x.ndim:
         raise ValueError(f"Target shape must have the same number of dimensions as x: {current_shape} vs {target_shape}")
 
-    _target_shape = []
+    target_shape_ = []
 
     for i, (current, target) in enumerate(zip(current_shape, target_shape, strict=False)):
         if target == -1:
@@ -122,9 +120,9 @@ def maybe_pad(x: np.ndarray, target_shape: tuple, pad_value: float = 0.0) -> np.
         if current > target:
             raise ValueError(f"Cannot pad: dimension {i} of x is {current}, which is larger than target {target}.")
 
-        _target_shape.append(target)
+        target_shape_.append(target)
 
-    target_shape = tuple(_target_shape)
+    target_shape = tuple(target_shape_)
 
     if current_shape == target_shape:
         return x
