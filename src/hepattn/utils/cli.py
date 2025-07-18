@@ -97,6 +97,13 @@ class CLI(LightningCLI):
                 if hasattr(c, "init_args") and hasattr(c.init_args, "refresh_rate"):
                     c.init_args.refresh_rate = 1
 
+            # Use the best epoch for testing
+            if sc["ckpt_path"] is None:
+                config = sc["config"]
+                assert len(config) == 1
+                best_epoch_path = get_best_epoch(Path(config[0].rel_path))
+                sc["ckpt_path"] = best_epoch_path
+
             # Ensure only one device is used for testing
             n_devices = sc["trainer.devices"]
             if (isinstance(n_devices, str | int)) and int(n_devices) > 1:
