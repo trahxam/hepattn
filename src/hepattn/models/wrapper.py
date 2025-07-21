@@ -3,7 +3,7 @@ from typing import Literal
 import torch
 from lightning import LightningModule
 from lion_pytorch import Lion
-from torch import nn
+from torch import Tensor, nn
 from torch.optim import AdamW
 from torchjd import mtl_backward
 from torchjd.aggregation import UPGrad
@@ -32,27 +32,28 @@ class ModelWrapper(LightningModule):
         if mtl:
             self.automatic_optimization = False
 
-    def forward(self, inputs):
+    def forward(self, inputs: dict[str, Tensor]) -> dict[str, Tensor]:
         return self.model(inputs)
 
-    def predict(self, outputs):
+    def predict(self, outputs: dict[str, Tensor]) -> dict[str, Tensor]:
         return self.model.predict(outputs)
 
-    def log_losses(self, losses, stage):
+    def aggregate_losses(self, losses: dict[str, Tensor], stage: str | None = None) -> Tensor:
         total_loss = 0
 
-        # Log the losses from each task from each layer
+        # TODO: Add MTL strategy here
         for layer_name, layer_losses in losses.items():
             for task_name, task_losses in layer_losses.items():
                 for loss_name, loss_value in task_losses.items():
-                    self.log(f"{stage}/{layer_name}_{task_name}_{loss_name}", loss_value, sync_dist=True)
                     total_loss += loss_value
 
-        # Log the total loss
-        self.log(f"{stage}/loss", total_loss, sync_dist=True)
+                    # Log the indiviual losses if a stage is specified
+                    if stage is not None:
+                        self.log(f"{stage}/{layer_name}_{task_name}_{loss_name}", loss_value, sync_dist=True)
+
         return total_loss
 
-    def log_task_metrics(self, preds, targets, stage):
+    def log_task_metrics(self, preds: dict[str, Tensor], targets: dict[str, Tensor], stage: str) -> None:
         # Log any task specific metrics
         for task in self.model.tasks:
             # Check that the task actually has some metrics to log
@@ -66,7 +67,7 @@ class ModelWrapper(LightningModule):
             if task_metrics:
                 self.log_dict({f"{stage}/final_{task.name}_{k}": v for k, v in task_metrics.items()})
 
-    def log_metrics(self, preds, targets, stage):
+    def log_metrics(self, preds: dict[str, Tensor], targets: dict[str, Tensor], stage: str) -> None:
         # First log any task metrics
         self.log_task_metrics(preds, targets, stage)
 
@@ -74,37 +75,32 @@ class ModelWrapper(LightningModule):
         if hasattr(self, "log_custom_metrics"):
             self.log_custom_metrics(preds, targets, stage)
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch: tuple[dict[str, Tensor], dict[str, Tensor]], batch_idx: int) -> Tensor:
         inputs, targets = batch
 
         # Get the model outputs
         outputs = self.model(inputs)
 
-        # Compute and log losses
+        # Compute losses then aggregate and log them
         losses = self.model.loss(outputs, targets)
-        total_loss = self.log_losses(losses, "train")
+        total_loss = self.aggregate_losses(losses, "train")
 
-        # Get the predictions from the model
-        if batch_idx % self.trainer.log_every_n_steps == 0:  # avoid calling predict if possible
+        # Get the predictions from the model, avoid calling predict if possible
+        if batch_idx % self.trainer.log_every_n_steps == 0:
             preds = self.predict(outputs)
             self.log_metrics(preds, targets, "train")
 
-        # Use Jacobian Descent for Multi Task Learning https://arxiv.org/abs/2406.16232
-        if self.mtl:
-            self.mlt_opt(losses, outputs)
-            return None
-
         return total_loss
 
-    def validation_step(self, batch):
+    def validation_step(self, batch: tuple[dict[str, Tensor], dict[str, Tensor]]) -> Tensor:
         inputs, targets = batch
 
         # Get the raw model outputs
         outputs = self.model(inputs)
 
-        # Compute and log losses
+        # Compute losses then aggregate and log them
         losses = self.model.loss(outputs, targets)
-        total_loss = self.log_losses(losses, "val")
+        total_loss = self.aggregate_losses(losses, "val")
 
         # Get the predictions from the model
         preds = self.model.predict(outputs)
@@ -112,7 +108,7 @@ class ModelWrapper(LightningModule):
 
         return total_loss
 
-    def test_step(self, batch):
+    def test_step(self, batch: tuple[dict[str, Tensor], dict[str, Tensor]]) -> Tensor:
         inputs, targets = batch
         outputs = self.model(inputs)
 
@@ -124,7 +120,7 @@ class ModelWrapper(LightningModule):
 
         return outputs, preds, losses
 
-    def on_train_start(self):
+    def on_train_start(self) -> None:
         # Manually overwride the learning rate in case we are starting
         # from a checkpoint that had a LRS and now we want a flat LR
         if self.lrs_config.get("skip_scheduler"):
@@ -154,6 +150,7 @@ class ModelWrapper(LightningModule):
             )
             sch = {"scheduler": sch, "interval": "step"}
             return [opt], [sch]
+
         print("Skipping learning rate scheduler.")
         return opt
 
