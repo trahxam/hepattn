@@ -23,6 +23,8 @@ class MaskFormer(nn.Module):
         use_query_masks: bool = True,
         raw_variables: list[str] | None = None,
         log_attn_mask: bool = False,
+        query_posenc: nn.Module | None = None,
+        preserve_posenc: bool = False,
     ):
         """Initializes the MaskFormer model, which is a modular transformer-style architecture designed
         for multi-task object inference with attention-based decoding and optional encoder blocks.
@@ -73,6 +75,8 @@ class MaskFormer(nn.Module):
         self.raw_variables = raw_variables or []
         self.log_attn_mask = log_attn_mask
         self.log_step = 0
+        self.query_posenc = query_posenc
+        self.preserve_posenc = preserve_posenc
 
     def forward(self, inputs: dict[str, Tensor]) -> dict[str, Tensor]:
         # Atomic input names
@@ -130,6 +134,22 @@ class MaskFormer(nn.Module):
         # These are just views into the tensor that old all the merged hits
         for input_name in input_names:
             x[input_name + "_embed"] = x["key_embed"][..., x[f"key_is_{input_name}"], :]
+
+        # Store input positional encodings if we need to preserve them
+        if self.preserve_key_posenc:
+            input_posencs = []
+            for input_net in self.input_nets:
+                if input_net.posenc is not None:
+                    # Get just the positional encoding part
+                    posenc = input_net.posenc(inputs)
+                    input_posencs.append(posenc)
+                else:
+                    raise ValueError(f"Input net {input_net.input_name} has no positional encoding.")
+
+            x["key_posenc"] = torch.concatenate(input_posencs, dim=-2)
+
+        if self.preserve_key_embed:
+            x["key_embed_original"] = x["key_embed"].clone()
 
         # Generate the queries that represent objects
         x["query_embed"] = self.query_initial.expand(batch_size, -1, -1)
@@ -205,10 +225,16 @@ class MaskFormer(nn.Module):
                         "layer": layer_index,
                     }
 
+            # Add query positional encodings
+            x = self.add_query_posenc(x)
+
             # Update the keys and queries
             x["query_embed"], x["key_embed"] = decoder_layer(
                 x["query_embed"], x["key_embed"], attn_mask=attn_mask, q_mask=query_mask, kv_mask=x.get("key_valid")
             )
+
+            # Re-add original embeddings (similar to SAM's prompt token re-addition)
+            x = self.re_add_original_embeddings(x)
 
             # Unmerge the updated features back into the separate input types
             for input_name in input_names:
@@ -233,6 +259,23 @@ class MaskFormer(nn.Module):
                 x["class_probs"] = outputs["final"][task.name][task.outputs[0]].detach()
 
         return outputs
+    
+    def re_add_original_embeddings(self, x: dict):
+        # Re-add original query embeddings (similar to SAM's prompt token re-addition)
+        if (self.preserve_posenc):
+            x["key_embed"] = x["key_embed"] + x["key_posenc"]
+            if (self.query_posenc is not None):
+                x["query_embed"] = x["query_embed"] + x["query_posenc"]
+        return x
+    
+    def add_query_posenc(self, x: dict):
+        if self.query_posenc is not None:
+            # The query positional encoding is static, so we compute it once and cache it in `x`.
+            if "query_posenc" not in x:
+                x["query_phi"] = 2 * torch.pi * (torch.arange(self.num_queries, device=x["query_embed"].device) / self.num_queries - 0.5)
+                x["query_posenc"] = self.query_posenc(x)
+            x["query_embed"] = x["query_embed"] + x["query_posenc"]
+        return x
 
     def predict(self, outputs: dict) -> dict:
         """Takes the raw model outputs and produces a set of actual inferences / predictions.
