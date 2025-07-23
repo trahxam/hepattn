@@ -33,11 +33,12 @@ if check_import_safe("lap1015"):
     SOLVERS["lap1015_late"] = solve_1015_late
     # SOLVERS["lap1015_early"] = lap1015_early
 else:
-    warnings.warn("""Failed to import lap1015 solver. This could be because it is not installed,
+    warnings.warn(
+        """Failed to import lap1015 solver. This could be because it is not installed,
     or because it was built targeting a different architecture than supported on the current machine.
     Rebuilding the package on the current machine may fix this.""",
-    ImportWarning,
-    stacklevel=2,
+        ImportWarning,
+        stacklevel=2,
     )
 
 
@@ -110,8 +111,7 @@ class Matcher(nn.Module):
 
         if self.parallel_solver:
             # If we are using a parallel solver, we can use it to speed up the matching
-            pred_idxs = match_parallel(SOLVERS[self.solver], costs, batch_obj_lengths, n_jobs=self.n_jobs)
-            return pred_idxs
+            return match_parallel(SOLVERS[self.solver], costs, batch_obj_lengths, n_jobs=self.n_jobs)
 
         # Do the matching sequentially for each example in the batch
         for k in range(len(costs)):
@@ -122,8 +122,7 @@ class Matcher(nn.Module):
             # These indicies can be used to permute the predictions so they now match the truth objects
             idxs.append(pred_idx)
 
-        pred_idxs = torch.stack(idxs)
-        return pred_idxs
+        return torch.stack(idxs)
 
     @torch.no_grad()
     def forward(self, costs, object_valid_mask=None):
