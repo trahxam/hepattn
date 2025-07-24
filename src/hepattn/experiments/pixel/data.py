@@ -386,6 +386,11 @@ class PixelClusterDataset(Dataset):
 
             x["particle_valid"] = x["particle_valid"][x["particle_valid"]]
 
+            # Sort particles by ascending x, needed if we use a model that is not permutation invariant
+            sort_idx = np.argsort(x["particle_x"])
+            for field in particle_fields:
+                x[f"particle_{field}"] = x[f"particle_{field}"][sort_idx]
+
             ########################################################################
             # Now return the cluster fields
             ########################################################################
