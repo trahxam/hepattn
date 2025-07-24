@@ -50,6 +50,10 @@ class ModelWrapper(LightningModule):
                     # Log the indiviual losses if a stage is specified
                     if stage is not None:
                         self.log(f"{stage}/{layer_name}_{task_name}_{loss_name}", loss_value, sync_dist=True)
+        
+        # Log the total loss
+        if stage is not None:
+            self.log(f"{stage}/loss", total_loss, sync_dist=True)
 
         return total_loss
 
@@ -83,7 +87,7 @@ class ModelWrapper(LightningModule):
 
         # Compute losses then aggregate and log them
         losses = self.model.loss(outputs, targets)
-        total_loss = self.aggregate_losses(losses, "train")
+        total_loss = self.aggregate_losses(losses, stage="train")
 
         # Get the predictions from the model, avoid calling predict if possible
         if batch_idx % self.trainer.log_every_n_steps == 0:
@@ -100,7 +104,7 @@ class ModelWrapper(LightningModule):
 
         # Compute losses then aggregate and log them
         losses = self.model.loss(outputs, targets)
-        total_loss = self.aggregate_losses(losses, "val")
+        total_loss = self.aggregate_losses(losses, stage="val")
 
         # Get the predictions from the model
         preds = self.model.predict(outputs)
