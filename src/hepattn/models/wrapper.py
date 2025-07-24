@@ -50,7 +50,7 @@ class ModelWrapper(LightningModule):
                     # Log the indiviual losses if a stage is specified
                     if stage is not None:
                         self.log(f"{stage}/{layer_name}_{task_name}_{loss_name}", loss_value, sync_dist=True)
-        
+
         # Log the total loss
         if stage is not None:
             self.log(f"{stage}/loss", total_loss, sync_dist=True)
