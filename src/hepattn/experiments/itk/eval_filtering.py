@@ -48,7 +48,7 @@ def main():
         particle_min_pt=recon_min_pt,
         particle_max_abs_eta=recon_max_eta,
         particle_min_num_hits={"pixel": recon_min_num_pixel},
-        event_max_num_particles=10000,
+        event_max_num_particles=12000,
     )
 
     # Give the test eval file we are evaluating and setup the file
@@ -74,7 +74,7 @@ def main():
     nominal_wp = 0.025
 
     # Iterate over the events
-    for idx in tqdm(range(10)):
+    for idx in tqdm(range(len(dataset.sample_ids))):
         # Load the data from the event
         sample_id = dataset.sample_ids[idx]
 
@@ -88,6 +88,9 @@ def main():
         dump_data_df = pd.DataFrame({
             "hit_id": inputs["pixel_hit_id"],
             "logit": hit_logits,
+            "global_x": inputs["pixel_cluster_x"],
+            "global_y": inputs["pixel_cluster_y"],
+            "global_z": inputs["pixel_cluster_z"],
             })
         dump_data_df.to_csv(dump_path / f"{event_name}.csv", index=False)
 

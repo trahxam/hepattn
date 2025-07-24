@@ -265,7 +265,7 @@ class ObjectHitMaskTask(Task):
         costs = {}
         # sample_weight = target + self.null_weight * (1 - target)
         for cost_fn, cost_weight in self.costs.items():
-            costs[cost_fn] = cost_weight * cost_fns[cost_fn](output, target)
+            costs[cost_fn] = cost_weight * cost_fns[cost_fn](output, target, input_pad_mask=targets[self.input_hit + "_valid"])
         return costs
 
     def loss(self, outputs, targets):
