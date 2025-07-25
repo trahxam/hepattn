@@ -1,26 +1,45 @@
-name: CLD_5_320_10MeV_neutrals_F16_bce
+name: CLD_5_320_10MeV_neutrals
+
+matmul_precision: high
 
 data:
   # Paths to preprocessed data directories
-  train_dir: /share/rcifdata/maxhart/data/cld/prepped/train/
-  val_dir: /share/rcifdata/maxhart/data/cld/prepped/val/
-  test_dir: /share/rcifdata/maxhart/data/cld/prepped/test/
+  train_dir: /share/lustre/maxhart/data/cld/prepped/reco/
+  val_dir: /share/lustre/maxhart/data/cld/prepped/reco/
+  test_dir: /share/lustre/maxhart/data/cld/prepped/reco/
 
   # Number of events to include in each set
-  num_workers: 10
+  num_workers: 6
   num_train: -1
   num_test: 1000
   num_val: 100
 
+  # Minibatch size / number of events used per training step
   batch_size: 5
+  
+  # Precision of any float values returned by the dataloader
+  input_dtype: float32
+  target_dtype: float32
 
-  precision: 32
+  input_pad_value: 0.0
+  target_pad_value: 0.0
 
   # Minimum pT for a particle to be deemed reconstructve in GeV
   particle_min_pt: 0.01
+  particle_max_abs_eta: 4.0
+
+  # Whether to include charged / neutral particles as targets
+  include_charged: true
+  include_neutral: true
 
   # Number of query slots / particles to generate per event
-  event_max_num_particles: &num_particles 320
+  force_pad_sizes:
+    particle: &num_particles 320
+    pandora: *num_particles
+
+  skip_pad_items: []
+
+  sampling_seed: 42
 
   # Charged particle cuts based on hit content
   charged_particle_min_num_hits:
@@ -47,13 +66,13 @@ data:
   particle_hit_deflection_cuts:
     vtxd:
       max_angle: 0.25
-      max_angle_xy: 0.25
-      max_angle_rz: 0.25
+      max_angle_xy: -1
+      max_angle_rz: -1
       num_passes: 8
     trkr:
       max_angle: 1.0
-      max_angle_xy: 1.0
-      max_angle_rz: 1.0
+      max_angle_xy: -1
+      max_angle_rz: -1
       num_passes: 12
 
   # Cuts on maximum distance between subsequent hit
@@ -64,10 +83,6 @@ data:
     trkr:
       max_dist: 1.5
       num_passes: 12
-
-  # Whether to include charged / neutral particles as targets
-  include_charged: true
-  include_neutral: true
 
   truth_filter_hits: []
     #- vtxd
@@ -298,6 +313,19 @@ data:
 
     particle_muon:
       - energy
+
+    pandora:
+      - PDG
+    
+    pandora_vtxd: []
+
+    pandora_trkr: []
+
+    pandora_ecal: []
+
+    pandora_hcal: []
+
+    pandora_muon: []
 
 # Training stuff here
 trainer:
@@ -532,7 +560,7 @@ model:
                 losses:
                   object_bce: 0.1
                 costs:
-                  object_bce: 10.0
+                  object_bce: 1.0
                 dim: *dim
                 null_weight: 1.0
                 mask_queries: false
@@ -545,13 +573,13 @@ model:
                 output_object: flow
                 target_object: particle
                 losses:
-                  mask_bce: 10.0
-                  #mask_dice: 10.0
-                  #mask_focal: 10.0
+                  mask_bce: 0.25
+                  mask_dice: 0.75
+                  #mask_focal: 1.0
                 costs:
-                  mask_bce: 10.0
-                  #mask_dice: 10.0
-                  #mask_focal: 10.0
+                  #mask_bce: 1.0
+                  mask_dice: 1.0
+                  #mask_focal: 1.0
                 dim: *dim
                 null_weight: 1.0
 
@@ -563,13 +591,13 @@ model:
                 output_object: flow
                 target_object: particle
                 losses:
-                  mask_bce: 10.0
-                  #mask_dice: 10.0
-                  #mask_focal: 10.0
+                  mask_bce: 0.25
+                  mask_dice: 0.75
+                  #mask_focal: 1.0
                 costs:
-                  mask_bce: 10.0
-                  #mask_dice: 10.0
-                  #mask_focal: 10.0
+                  #mask_bce: 1.0
+                  mask_dice: 1.0
+                  #mask_focal: 1.0
                 dim: *dim
                 null_weight: 1.0
 
@@ -582,13 +610,13 @@ model:
                 target_object: particle
                 target_field: valid
                 losses:
-                  mask_bce: 0.1
-                  #mask_dice: 0.1
-                  #mask_focal: 0.1
+                  mask_bce: 0.25
+                  mask_dice: 0.75
+                  #mask_focal: 1.0
                 costs:
-                  mask_bce: 0.1
-                  #mask_dice: 0.1
-                  #mask_focal: 0.1
+                  #mask_bce: 1.0
+                  mask_dice: 1.0
+                  #mask_focal: 1.0
                 dim: *dim
                 null_weight: 1.0
 
@@ -601,13 +629,13 @@ model:
                 target_object: particle
                 target_field: valid
                 losses:
-                  mask_bce: 0.1
-                  #mask_dice: 0.1
-                  #mask_focal: 0.1
+                  mask_bce: 0.25
+                  mask_dice: 0.75
+                  #mask_focal: 1.0
                 costs:
-                  mask_bce: 0.1
-                  #mask_dice: 0.1
-                  #mask_focal: 0.1
+                  #mask_bce: 1.0
+                  mask_dice: 1.0
+                  #mask_focal: 1.0
                 dim: *dim
                 null_weight: 1.0
 

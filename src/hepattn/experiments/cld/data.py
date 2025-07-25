@@ -9,36 +9,44 @@ from torch.utils.data import DataLoader, Dataset
 
 from hepattn.utils.array_utils import masked_angle_diff_last_axis, masked_diff_last_axis
 from hepattn.utils.tensor_utils import pad_to_size
+from hepattn.utils.data import LRSMDataset, LRSMDataModule
+
+from typing import Dict, List, Any
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 
 
-class CLDDataset(Dataset):
+class CLDDataset(LRSMDataset):
     def __init__(
         self,
         dirpath: str,
-        inputs: dict,
-        targets: dict,
-        merge_inputs: dict[str, list[str]] | None = None,
-        num_events: int = -1,
-        particle_min_pt: float = 0.1,
+        num_samples: int,
+        inputs: Dict[str, List[str]],
+        targets: Dict[str, List[str]],
+        input_dtype: str = "float32",
+        target_dtype: str = "float32",
+        input_pad_value: float = 0.0,
+        target_pad_value: float = 0.0,
+        force_pad_sizes: Dict[str, int] | None = None,
+        skip_pad_items: List[str] | None = None,
+        sampling_seed: int = 42,
+        sample_reject_warn_limit: int = 10,
+        merge_inputs: Dict[str, List[str]] | None = None,
+        particle_min_pt: float = 0.01,
+        particle_max_abs_eta: float = 4.0,
         include_neutral: bool = True,
         include_charged: bool = True,
-        charged_particle_min_num_hits: dict[str, int] | None = None,
-        charged_particle_max_num_hits: dict[str, int] | None = None,
-        neutral_particle_min_num_hits: dict[str, int] | None = None,
-        neutral_particle_max_num_hits: dict[str, int] | None = None,
-        particle_cut_veto_min_num_hits: dict[str, int] | None = None,
-        particle_max_abs_eta: float = 4.0,
-        particle_hit_min_p_ratio: dict[str, float] | None = None,
-        particle_hit_deflection_cuts: dict[str, dict] | None = None,
-        particle_hit_separation_cuts: dict[str, dict] | None = None,
-        particle_min_calib_calo_energy: dict[str, float] | None = None,
-        truth_filter_hits: list[str] | None = None,
-        event_max_num_particles: int = 256,
+        charged_particle_min_num_hits: Dict[str, int] | None = None,
+        charged_particle_max_num_hits: Dict[str, int] | None = None,
+        neutral_particle_min_num_hits: Dict[str, int] | None = None,
+        neutral_particle_max_num_hits: Dict[str, int] | None = None,
+        particle_cut_veto_min_num_hits: Dict[str, int] | None = None,
+        particle_hit_min_p_ratio: Dict[str, float] | None = None,
+        particle_hit_deflection_cuts: Dict[str, Dict[str, float | int]] | None = None,
+        particle_hit_separation_cuts: Dict[str, Dict[str, float | int]] | None = None,
+        particle_min_calib_calo_energy: Dict[str, float] | None = None,
+        truth_filter_hits: List[str] | None = None,
         calo_energy_thresh: float = 1e-6,
-        random_seed: int = 42,
-        precision: str | int = 16,
     ):
         if truth_filter_hits is None:
             truth_filter_hits = []
@@ -62,13 +70,23 @@ class CLDDataset(Dataset):
             particle_min_calib_calo_energy = {}
         if merge_inputs is None:
             merge_inputs = {}
-        super().__init__()
 
-        self.dirpath = dirpath
-        self.inputs = inputs
-        self.targets = targets
+        super().__init__(
+            dirpath,
+            num_samples,
+            inputs,
+            targets,
+            input_dtype,
+            target_dtype,
+            input_pad_value,
+            target_pad_value,
+            force_pad_sizes,
+            skip_pad_items,
+            sampling_seed,
+            sample_reject_warn_limit,
+        )
+
         self.merge_inputs = merge_inputs
-        self.num_events = num_events
         self.particle_min_pt = particle_min_pt
         self.include_neutral = include_neutral
         self.include_charged = include_charged
@@ -82,31 +100,18 @@ class CLDDataset(Dataset):
         self.particle_hit_deflection_cuts = particle_hit_deflection_cuts
         self.particle_hit_separation_cuts = particle_hit_separation_cuts
         self.truth_filter_hits = truth_filter_hits
-        self.event_max_num_particles = event_max_num_particles
         self.calo_energy_thresh = calo_energy_thresh
-        self.random_seed = random_seed
-        self.precision = precision
-        self.precision_type = {
-            "16": torch.float16,
-            "bf16": torch.bfloat16,
-            "32": torch.float32,
-            "64": torch.float64,
-        }[str(precision)]
-
-        # Global random state initialisation
-        np.random.default_rng(42)
-        seed_everything(42, workers=True)
 
         # Setup the number of events that will be used
         event_filenames = list(Path(self.dirpath).rglob("*reco*.npz"))
         num_available_events = len(event_filenames)
-        num_requested_events = num_available_events if num_events == -1 else num_events
-        self.num_events = min(num_available_events, num_requested_events)
+        num_requested_events = num_available_events if num_samples == -1 else num_samples
+        self.num_samples = min(num_available_events, num_requested_events)
 
-        print(f"Found {num_available_events} available events, {num_requested_events} requested, {self.num_events} used")
+        print(f"Found {num_available_events} available events, {num_requested_events} requested, {self.num_samples} used")
 
         # Allow us to select events by index
-        self.event_filenames = event_filenames[: self.num_events]
+        self.event_filenames = event_filenames[: self.num_samples]
 
         def event_filenames_to_sample_id(event_filename):
             id_parts = str(event_filename.stem).split("_")
@@ -117,21 +122,33 @@ class CLDDataset(Dataset):
 
         # Define the sample identifiers unique to each sample, uses the file name
         # Example: reco_p8_ee_tt_ecm365_12012864_7_329 -> 1201286470329
-        self.sample_ids = np.array([event_filenames_to_sample_id(f) for f in self.event_filenames], dtype=np.int64)
-        self.sample_ids_to_event_filenames = {self.sample_ids[i]: str(self.event_filenames[i]) for i in range(len(self.sample_ids))}
+        self.unevaluated_sample_ids = [event_filenames_to_sample_id(f) for f in self.event_filenames]
+        self.sample_ids_to_event_filenames = {self.unevaluated_sample_ids[i]: str(self.event_filenames[i]) for i in range(len(self.unevaluated_sample_ids))}
         self.event_filenames_to_sample_ids = {v: k for k, v in self.sample_ids_to_event_filenames.items()}
 
-    def __len__(self):
-        return int(self.num_events)
-
-    def load_event(self, sample_id):
+    def load_sample(self, sample_id: int) -> Dict[str, np.ndarray] | None:
         """Loads a single CLD event from a preprocessed npz file."""
         event_filename = self.sample_ids_to_event_filenames[sample_id]
 
-        # Load the event
-        with np.load(event_filename, allow_pickle=True) as archive:
-            event = {key: archive[key] for key in archive.files}
+        # Load the event, taking care to deal with partially preprocessed / malformed events
+        try:
+            with np.load(event_filename, allow_pickle=True) as archive:
+                event = {key: archive[key] for key in archive.files}
+        except EOFError as exception:
+            print(f"Encountered exception {exception} while loading sample {sample_id} so skipping it")
+            return None
 
+        # Rename from legacy
+        aliases = {
+            "reco_flow": "pandora",
+            "reco_cluster": "topocluster",
+            "reco_track": "sitrack",
+        }
+        for k in list(event.keys()):
+            for name, alias in aliases.items():
+                if k.startswith(name):
+                    event[k.replace(name, alias)] = event[k]
+            
         def convert_mm_to_m(i, p):
             # Convert a spatial coordinate from mm to m inplace
             for coord in ["x", "y", "z"]:
@@ -175,12 +192,6 @@ class CLDDataset(Dataset):
 
         items = hits + cols + cons
 
-        # Make sure everything is sorted in time
-        item_orderings = {}
-        for item in items:
-            if f"{item}.time" in event:
-                item_orderings[item] = np.argsort(event[f"{item}.time"])
-
         # It is important to do the mm -> m conversion first, so that all other
         # distance fields are also in m, which is required to not to cause nans in the positional encoding
         # Add extra coordinates for tracker + hit positions
@@ -219,8 +230,10 @@ class CLDDataset(Dataset):
 
         for field in particle_mom_fields:
             add_cylindrical_coords("particle", field)
+            add_cylindrical_coords("pandora", field)
 
         event["particle.mom.qopt"] = event["particle.charge"] / event["particle.mom.r"]
+        event["pandora.mom.qopt"] = event["pandora.charge"] / event["pandora.mom.r"]
 
         # Merge inputs, first check all requested merged inputs have the same
         # fields and that the fields are given in the same order
@@ -235,10 +248,14 @@ class CLDDataset(Dataset):
         # Particle count includes invaliud particles, since the linking indices were built
         # before any of these particle selections were made
         event["particle_valid"] = np.full_like(event["particle.PDG"], True, np.bool)
+        event["pandora_valid"] = np.full_like(event["pandora.PDG"], True, np.bool)
+
         num_particles = len(event["particle_valid"])
 
         particle_hit_masks = [("particle", hit) for hit in hits]
-        masks = particle_hit_masks
+        pandora_hit_masks = [("pandora", hit) for hit in hits]
+
+        masks = particle_hit_masks + pandora_hit_masks
 
         def load_csr_mask(src, tgt):
             data = (event[f"{src}_to_{tgt}_data"], event[f"{src}_to_{tgt}_indices"], event[f"{src}_to_{tgt}_indptr"])
@@ -274,6 +291,7 @@ class CLDDataset(Dataset):
 
         particle_trkrhit_fields = {("particle", f"{hit}_col", hit): col_fields for hit in trkr_hits}
         particle_calohit_fields = {("particle", f"{hit}_con", hit): con_fields for hit in calo_hits}
+
         particle_hit_fields = particle_trkrhit_fields | particle_calohit_fields
 
         for (src, link, tgt), fields in particle_hit_fields.items():
@@ -301,16 +319,19 @@ class CLDDataset(Dataset):
                 where=particle_total_energy > self.calo_energy_thresh,
             )
 
+        object_names = ["particle", "pandora"]
+
         # Merge together any masks
         if self.merge_inputs:
-            for merged_input_name, input_names in self.merge_inputs.items():
-                event[f"particle_{merged_input_name}_valid"] = np.concatenate([event[f"particle_{hit}_valid"] for hit in input_names], axis=-1)
+            for object_name in object_names:
+                for merged_input_name, input_names in self.merge_inputs.items():
+                    event[f"{object_name}_{merged_input_name}_valid"] = np.concatenate([event[f"{object_name}_{hit}_valid"] for hit in input_names], axis=-1)
 
-                if f"particle_{merged_input_name}" in self.targets:
-                    for field in self.targets[f"particle_{merged_input_name}"]:
-                        event[f"particle_{merged_input_name}.{field}"] = np.concatenate(
-                            [event[f"particle_{hit}.{field}"] for hit in input_names], axis=-1
-                        )
+                    if f"{object_name}_{merged_input_name}" in self.targets:
+                        for field in self.targets[f"{object_name}_{merged_input_name}"]:
+                            event[f"{object_name}_{merged_input_name}.{field}"] = np.concatenate(
+                                [event[f"{object_name}_{hit}.{field}"] for hit in input_names], axis=-1
+                            )
 
         calo_hit_calibrations = {
             "ecal": 37.0,
@@ -382,7 +403,7 @@ class CLDDataset(Dataset):
 
         # Apply hit cuts based on angular deflection
         for item_name, cut in self.particle_hit_deflection_cuts.items():
-            for _ in range(cut["num_passes"]):
+            for _ in range(int(cut["num_passes"])):
                 # Indices for sorting based on time
                 idx = np.argsort(event[f"{item_name}.time"])
 
@@ -414,7 +435,7 @@ class CLDDataset(Dataset):
 
         # Apply hit cuts based on distance between consecutive hits on particles
         for item_name, cut in self.particle_hit_separation_cuts.items():
-            for _ in range(cut["num_passes"]):
+            for _ in range(int(cut["num_passes"])):
                 idx = np.argsort(event[f"{item_name}.time"])
 
                 mask = event[f"particle_{item_name}_valid"][:, idx]
@@ -434,27 +455,6 @@ class CLDDataset(Dataset):
 
                 # event[f"particle_valid"] = event[f"particle_valid"] & (dr <= max_dist).all(-1)
                 event[f"particle_{item_name}_valid"] = event[f"particle_{item_name}_valid"] & (dr <= cut["max_dist"])
-
-        # Merge the hits if they do not appear in the angular deflection and hit separation cuts
-        # all_cut_names = set(self.charged_particle_min_num_hits) | set(self.charged_particle_max_num_hits)
-        # cut_names = set(self.particle_hit_deflection_cuts) | set(self.particle_hit_separation_cuts)
-        # # Pick out the field that needs to be merged
-        # merge_name = all_cut_names - cut_names
-
-        # Pick out the input names beside the ones needed to be merged
-        # to_merge = {}
-        # for merged_input_name, input_names in self.merge_inputs.items():
-        #     if merged_input_name in merge_name:
-        #         continue
-        #     for names in input_names:
-        #         to_merge[names] = merged_input_name
-
-        # # Pick out the merged field name by matching the input names then merge
-        # for merge_name in to_merge:
-        #     input_names = self.merge_inputs.get(merge_name, [])
-        #     merged_input_name = list(dict.fromkeys(to_merge.get(hit_name) for hit_name in input_names))
-        #     particle_hit_valid = [event[f"particle_{hit_name}_valid"] for hit_name in merged_input_name]
-        #     event[f"particle_{merge_name}_valid"] = np.concatenate(particle_hit_valid, axis=-1)
 
         # Above seems to be tedious, an alternative but not generalised
         num_hit_cut_names = list(dict.fromkeys(self.charged_particle_min_num_hits))
@@ -545,102 +545,21 @@ class CLDDataset(Dataset):
                 for field in fields:
                     event[f"{target_name}.{field}"] = event[f"{target_name}.{field}"][particle_valid, ...]
 
-        # Pick out the inputs that have actually been requested
-        inputs = {}
-        targets = {}
         for input_name, fields in self.inputs.items():
-            inputs[f"{input_name}_valid"] = ~np.isnan(event[f"{input_name}.type"])
-            targets[f"{input_name}_valid"] = inputs[f"{input_name}_valid"]
+            event[f"{input_name}_valid"] = ~np.isnan(event[f"{input_name}.type"])
 
             for field in fields:
-                inputs[f"{input_name}_{field}"] = event[f"{input_name}.{field}"]
+                event[f"{input_name}_{field}"] = event[f"{input_name}.{field}"]
 
         # Now pick out the targets
         for target_name, fields in self.targets.items():
-            targets[f"{target_name}_valid"] = event[f"{target_name}_valid"]
             for field in fields:
-                targets[f"{target_name}_{field}"] = event[f"{target_name}.{field}"]
+                event[f"{target_name}_{field}"] = event[f"{target_name}.{field}"]
 
         # Add any metadata
-        targets["sample_id"] = self.event_filenames_to_sample_ids[str(event_filename)]
+        event["sample_id"] = self.event_filenames_to_sample_ids[str(event_filename)]
 
-        return inputs, targets
-
-    def __getitem__(self, idx):
-        inputs, targets = self.load_event(self.sample_ids[idx])
-
-        # Convert to a torch tensor of the correct dtype and add the batch dimension
-        inputs_out = {}
-        targets_out = {}
-        for input_name, fields in self.inputs.items():
-            inputs_out[f"{input_name}_valid"] = torch.from_numpy(inputs[f"{input_name}_valid"]).bool().unsqueeze(0)
-            # Some tasks might require to know hit padding info for loss masking
-            targets_out[f"{input_name}_valid"] = inputs_out[f"{input_name}_valid"]
-            for field in fields:
-                inputs_out[f"{input_name}_{field}"] = torch.from_numpy(inputs[f"{input_name}_{field}"]).to(self.precision_type).unsqueeze(0)
-
-        # Convert the targets
-        for target_name, fields in self.targets.items():
-            targets_out[f"{target_name}_valid"] = torch.from_numpy(targets[f"{target_name}_valid"]).bool().unsqueeze(0)
-            for field in fields:
-                targets_out[f"{target_name}_{field}"] = torch.from_numpy(targets[f"{target_name}_{field}"]).to(self.precision_type).unsqueeze(0)
-
-        # Convert the metedata
-        targets_out["sample_id"] = torch.tensor([targets["sample_id"]], dtype=torch.int64)
-
-        return inputs_out, targets_out
-
-
-def pad_and_concat(items: list[Tensor], target_size: tuple[int], pad_value) -> Tensor:
-    """Takes a list of tensors, pads them to a given size, and then concatenates them along the a new dimension at zero."""
-    return torch.cat([pad_to_size(item, (1, *target_size), pad_value) for item in items], dim=0)
-
-
-class CLDCollator:
-    def __init__(self, dataset_inputs, dataset_targets, max_num_obj):
-        self.dataset_inputs = dataset_inputs
-        self.dataset_targets = dataset_targets
-        self.max_num_obj = max_num_obj
-
-    def __call__(self, batch):
-        inputs, targets = zip(*batch, strict=False)
-
-        hit_max_sizes = {}
-        for input_name in self.dataset_inputs:
-            hit_max_sizes[input_name] = max(event[f"{input_name}_valid"].shape[-1] for event in inputs)
-
-        batched_inputs = {}
-        batched_targets = {}
-        for input_name, fields in self.dataset_inputs.items():
-            k = f"{input_name}_valid"
-            batched_inputs[k] = pad_and_concat([i[k] for i in inputs], (hit_max_sizes[input_name],), False)
-
-            # Some tasks might require to know hit padding info for loss masking
-            batched_targets[k] = batched_inputs[k]
-
-            for field in fields:
-                k = f"{input_name}_{field}"
-                batched_inputs[k] = pad_and_concat([i[k] for i in inputs], (hit_max_sizes[input_name],), 0.0)
-
-        for target_name, fields in self.dataset_targets.items():
-            if target_name == "particle":
-                size = (self.max_num_obj,)
-            else:
-                hit = target_name.split("_")[1]
-                size = (self.max_num_obj, hit_max_sizes[hit])
-
-            k = f"{target_name}_valid"
-            batched_targets[k] = pad_and_concat([t[k] for t in targets], size, False)
-            batched_inputs[k] = batched_targets[k]
-
-            for field in fields:
-                k = f"{target_name}_{field}"
-                batched_targets[k] = pad_and_concat([t[k] for t in targets], size, 0.0)
-
-        # Batch the metadata
-        batched_targets["sample_id"] = torch.cat([t["sample_id"] for t in targets], dim=-1)
-
-        return batched_inputs, batched_targets
+        return event
 
 
 class CLDDataModule(LightningDataModule):
@@ -671,27 +590,22 @@ class CLDDataModule(LightningDataModule):
         self.kwargs = kwargs
 
     def setup(self, stage: str):
-        if stage == "fit" or stage == "test":
-            self.train_dset = CLDDataset(dirpath=self.train_dir, num_events=self.num_train, **self.kwargs)
-
         if stage == "fit":
-            self.val_dset = CLDDataset(dirpath=self.val_dir, num_events=self.num_val, **self.kwargs)
-
-        # Only print train/val dataset details when actually training
-        if stage == "fit":
+            self.train_dset = CLDDataset(dirpath=self.train_dir, num_samples=self.num_train, **self.kwargs)
+            self.val_dset = CLDDataset(dirpath=self.val_dir, num_samples=self.num_val, **self.kwargs)
             print(f"Created training dataset with {len(self.train_dset):,} events")
             print(f"Created validation dataset with {len(self.val_dset):,} events")
 
         if stage == "test":
             assert self.test_dir is not None, "No test file specified, see --data.test_dir"
-            self.test_dset = CLDDataset(dirpath=self.test_dir, num_events=self.num_test, **self.kwargs)
+            self.test_dset = CLDDataset(dirpath=self.test_dir, num_samples=self.num_test, **self.kwargs)
             print(f"Created test dataset with {len(self.test_dset):,} events")
 
-    def get_dataloader(self, stage: str, dataset: CLDDataset, shuffle: bool):
+    def get_dataloader(self, dataset: CLDDataset, shuffle: bool):
         return DataLoader(
             dataset=dataset,
             batch_size=self.batch_size,
-            collate_fn=CLDCollator(dataset.inputs, dataset.targets, dataset.event_max_num_particles),
+            collate_fn=dataset.collate_fn,
             sampler=None,
             num_workers=self.num_workers,
             shuffle=shuffle,
@@ -699,10 +613,10 @@ class CLDDataModule(LightningDataModule):
         )
 
     def train_dataloader(self):
-        return self.get_dataloader(dataset=self.train_dset, stage="fit", shuffle=True)
+        return self.get_dataloader(dataset=self.train_dset, shuffle=True)
 
     def val_dataloader(self):
-        return self.get_dataloader(dataset=self.val_dset, stage="test", shuffle=False)
+        return self.get_dataloader(dataset=self.val_dset, shuffle=False)
 
     def test_dataloader(self):
-        return self.get_dataloader(dataset=self.test_dset, stage="test", shuffle=False)
+        return self.get_dataloader(dataset=self.test_dset, shuffle=False)
