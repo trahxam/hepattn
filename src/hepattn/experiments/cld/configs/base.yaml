@@ -250,8 +250,8 @@ data:
       - spin.z
       - colorFlow.a
       - colorFlow.b
-      - isCharged
-      - isNeutral
+      - is_charged
+      - is_neutral
       - num_vtxd
       - num_trkr
       - num_ecal

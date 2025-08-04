@@ -124,7 +124,6 @@ class CLDDataset(LRSMDataset):
         # Example: reco_p8_ee_tt_ecm365_12012864_7_329 -> 1201286470329
         self.unevaluated_sample_ids = [event_filenames_to_sample_id(f) for f in self.event_filenames]
         self.sample_ids_to_event_filenames = {self.unevaluated_sample_ids[i]: str(self.event_filenames[i]) for i in range(len(self.unevaluated_sample_ids))}
-        self.event_filenames_to_sample_ids = {v: k for k, v in self.sample_ids_to_event_filenames.items()}
 
     def load_sample(self, sample_id: int) -> Dict[str, np.ndarray] | None:
         """Loads a single CLD event from a preprocessed npz file."""
@@ -346,8 +345,8 @@ class CLDDataset(LRSMDataset):
             event[f"particle.calib_energy_{calo_hit}"] = calo_hit_calibrations[calo_hit] * event[f"particle.energy_{calo_hit}"]
 
         # Add extra labels for particles
-        event["particle.isCharged"] = np.abs(event["particle.charge"]) > 0
-        event["particle.isNeutral"] = ~event["particle.isCharged"]
+        event["particle.is_charged"] = np.abs(event["particle.charge"]) > 0
+        event["particle.is_neutral"] = ~event["particle.is_charged"]
 
         # Add one-hot particle class labels
         particle_class_id_to_name = {
@@ -377,17 +376,17 @@ class CLDDataset(LRSMDataset):
         # Place a max no. of sihit cut first to get rid of charged looper tracks
         for hit_name, max_num_hits in self.charged_particle_max_num_hits.items():
             particle_cuts[f"before_cut_charged_max_{hit_name}"] = ~(
-                event["particle.isCharged"] & (event[f"particle_{hit_name}_valid"].sum(-1) > max_num_hits)
+                event["particle.is_charged"] & (event[f"particle_{hit_name}_valid"].sum(-1) > max_num_hits)
             )
 
         # Add the eta cut
         particle_cuts["max_eta"] = np.abs(event["particle.mom.eta"]) <= self.particle_max_abs_eta
 
         if not self.include_charged:
-            particle_cuts["not_charged"] = ~event["particle.isCharged"]
+            particle_cuts["not_charged"] = ~event["particle.is_charged"]
 
         if not self.include_neutral:
-            particle_cuts["not_neutral"] = ~event["particle.isNeutral"]
+            particle_cuts["not_neutral"] = ~event["particle.is_neutral"]
 
         for item_name, min_ratio in self.particle_hit_min_p_ratio.items():
             mask = event[f"particle_{item_name}_valid"]
@@ -468,16 +467,16 @@ class CLDDataset(LRSMDataset):
 
         # Now we have built the masks, we can apply hit/counting based cuts
         for hit_name, min_num_hits in self.charged_particle_min_num_hits.items():
-            particle_cuts[f"charged_min_{hit_name}"] = ~(event["particle.isCharged"] & (event[f"particle_{hit_name}_valid"].sum(-1) < min_num_hits))
+            particle_cuts[f"charged_min_{hit_name}"] = ~(event["particle.is_charged"] & (event[f"particle_{hit_name}_valid"].sum(-1) < min_num_hits))
 
         for hit_name, max_num_hits in self.charged_particle_max_num_hits.items():
-            particle_cuts[f"charged_max_{hit_name}"] = ~(event["particle.isCharged"] & (event[f"particle_{hit_name}_valid"].sum(-1) > max_num_hits))
+            particle_cuts[f"charged_max_{hit_name}"] = ~(event["particle.is_charged"] & (event[f"particle_{hit_name}_valid"].sum(-1) > max_num_hits))
 
         for hit_name, min_num_hits in self.neutral_particle_min_num_hits.items():
-            particle_cuts[f"neutral_min_{hit_name}"] = ~(event["particle.isNeutral"] & (event[f"particle_{hit_name}_valid"].sum(-1) < min_num_hits))
+            particle_cuts[f"neutral_min_{hit_name}"] = ~(event["particle.is_neutral"] & (event[f"particle_{hit_name}_valid"].sum(-1) < min_num_hits))
 
         for hit_name, max_num_hits in self.neutral_particle_max_num_hits.items():
-            particle_cuts[f"neutral_max_{hit_name}"] = ~(event["particle.isNeutral"] & (event[f"particle_{hit_name}_valid"].sum(-1) > max_num_hits))
+            particle_cuts[f"neutral_max_{hit_name}"] = ~(event["particle.is_neutral"] & (event[f"particle_{hit_name}_valid"].sum(-1) > max_num_hits))
 
         # Apply the particle cuts
         for cut_mask in particle_cuts.values():
@@ -557,7 +556,7 @@ class CLDDataset(LRSMDataset):
                 event[f"{target_name}_{field}"] = event[f"{target_name}.{field}"]
 
         # Add any metadata
-        event["sample_id"] = self.event_filenames_to_sample_ids[str(event_filename)]
+        event["sample_id"] = sample_id
 
         return event
 
