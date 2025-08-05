@@ -1,8 +1,9 @@
 import torch
 import torch.nn.functional as F
+from torch import Tensor, BoolTensor
 
 
-def object_bce_loss(pred_logits, targets, sample_weight=None):
+def object_bce_loss(pred_logits: Tensor, targets: Tensor, sample_weight: Tensor | None = None) -> Tensor:
     """
     Loss function for binary object classification.
 
@@ -17,7 +18,7 @@ def object_bce_loss(pred_logits, targets, sample_weight=None):
     return F.binary_cross_entropy_with_logits(pred_logits, targets, weight=sample_weight)
 
 
-def object_bce_cost(pred_logits, targets):
+def object_bce_cost(pred_logits: Tensor, targets: Tensor) -> Tensor:
     """
     Compute batched binary object classification cost for object matching.
     Approximate the CE loss using -probs[target_class].
@@ -30,12 +31,19 @@ def object_bce_cost(pred_logits, targets):
     Returns:
         cost_class: [batch_size, num_objects, num_objects] - classification cost matrix
     """
-    probs = pred_logits.sigmoid().unsqueeze(-1)
-    targets = targets.unsqueeze(1)
-    return -probs * targets - (1 - probs) * (1 - targets)
+    num_objects = pred_logits.shape[-1]
+
+    # Expansion is performed explicitly since broadcastng insie the loss raises a warning
+    pred_logits = pred_logits.unsqueeze(-1).expand(-1, -1, num_objects) # (B, N) -> (B, N, 1)
+    targets = targets.unsqueeze(1).expand(-1, num_objects, -1).type_as(pred_logits) # (B, N) -> (B, 1, N)
+
+    # Compute the BCE loss
+    loss = F.binary_cross_entropy_with_logits(pred_logits, targets, reduction="none")
+
+    return loss
 
 
-def object_ce_cost(pred_logits, targets):
+def object_ce_cost(pred_logits: Tensor, targets: Tensor) -> Tensor:
     """
     Compute batched multiclass object classification cost for object matching.
     Approximate the CE loss using -probs[target_class].
@@ -58,7 +66,13 @@ def object_ce_cost(pred_logits, targets):
     return -torch.gather(probs, dim=2, index=index)
 
 
-def mask_dice_loss(pred_logits, targets, object_valid_mask=None, input_pad_mask=None, sample_weight=None):  # noqa: ARG001
+def mask_dice_loss(
+    pred_logits: Tensor,
+    targets: Tensor,
+    object_valid_mask: BoolTensor | None = None,
+    input_pad_mask: Tensor | None = None,
+    sample_weight: Tensor | None = None,
+    ) -> Tensor:  # noqa: ARG001
     """
     Compute the DICE loss for binary masks.
 
@@ -81,13 +95,20 @@ def mask_dice_loss(pred_logits, targets, object_valid_mask=None, input_pad_mask=
     if input_pad_mask is not None:
         probs = probs * input_pad_mask.unsqueeze(1)
 
+    eps = 1e-3
+
     numerator = 2 * (probs * targets).sum(-1)
     denominator = probs.sum(-1) + targets.sum(-1)
-    loss = 1 - (numerator + 1) / (denominator + 1)
+    loss = 1 - (numerator + eps) / (denominator + eps)
     return loss.mean()
 
 
-def mask_dice_cost(pred_logits, targets, input_pad_mask=None, sample_weight=None):
+def mask_dice_cost(
+    pred_logits: Tensor,
+    targets: Tensor,
+    input_pad_mask: BoolTensor | None = None,
+    sample_weight: Tensor | None = None,
+    ) -> Tensor:
     """
     Compute DICE costs.
     Invalid objects are handled later in the matching process.
@@ -104,17 +125,20 @@ def mask_dice_cost(pred_logits, targets, input_pad_mask=None, sample_weight=None
     assert sample_weight is None
     inputs = pred_logits.sigmoid()
 
-    # apply input padding mask
+    # Apply input padding mask
     if input_pad_mask is not None:
         inputs = inputs * input_pad_mask.unsqueeze(1)
 
+    eps = 1e-3
+
     numerator = 2 * torch.einsum("bnc,bmc->bnm", inputs, targets)
     denominator = inputs.sum(-1).unsqueeze(2) + targets.sum(-1).unsqueeze(1)
-    cost = 1 - (numerator + 1) / (denominator + 1)
+    cost = 1 - (numerator + eps) / (denominator + eps)
+
     return cost
 
 
-def mask_iou_cost(pred_logits, targets, input_pad_mask=None, eps=1e-6):
+def mask_iou_cost(pred_logits: Tensor, targets: Tensor, input_pad_mask: Tensor | None = None, sample_weight: Tensor | None = None,):
     # Apply input padding mask
     probs = pred_logits.sigmoid()
     if input_pad_mask is not None:
@@ -122,6 +146,8 @@ def mask_iou_cost(pred_logits, targets, input_pad_mask=None, eps=1e-6):
 
     num_pred = probs.sum(-1).unsqueeze(2)
     num_targets = targets.sum(-1).unsqueeze(1)
+
+    eps = 1e-3
 
     # Context manager necessary to overwrite global autocast to ensure float32 cost is returned
     with torch.autocast(device_type="cuda", enabled=False):
@@ -131,7 +157,14 @@ def mask_iou_cost(pred_logits, targets, input_pad_mask=None, eps=1e-6):
     return cost
 
 
-def mask_focal_loss(pred_logits, targets, gamma=2.0, object_valid_mask=None, input_pad_mask=None, sample_weight=None):
+def mask_focal_loss(
+    pred_logits: Tensor,
+    targets: Tensor,
+    gamma: float = 2.0,
+    object_valid_mask: Tensor | None = None,
+    input_pad_mask: BoolTensor | None = None,
+    sample_weight: Tensor | None = None,
+    ):
     """
     Compute the focal loss for binary classification.
 
@@ -162,15 +195,22 @@ def mask_focal_loss(pred_logits, targets, gamma=2.0, object_valid_mask=None, inp
     p_t = pred * targets + (1 - pred) * (1 - targets)
     loss = ce_loss * ((1 - p_t) ** gamma)
 
-    # normalise by valid elements such that each mask contributes equally
+    # Normalise by valid elements such that each mask contributes equally
     if input_pad_mask is not None:
         valid_counts = input_pad_mask.sum(-1, keepdim=True)
         loss = loss.sum(-1) / valid_counts
         return loss.mean()
+
     return loss.mean(-1).mean()
 
 
-def mask_focal_cost(pred_logits, targets, gamma=2.0, input_pad_mask=None, sample_weight=None):
+def mask_focal_cost(
+    pred_logits: Tensor,
+    targets: Tensor, 
+    gamma: float = 2.0,
+    input_pad_mask: BoolTensor | None = None, 
+    sample_weight: Tensor | None = None,
+    ):
     """
     Compute focal costs for binary masks.
     Invalid objects are handled later in the matching process.
@@ -185,7 +225,7 @@ def mask_focal_cost(pred_logits, targets, gamma=2.0, input_pad_mask=None, sample
     Returns:
         cost: [batch_size, num_objects, num_objects] - focal cost matrix
     """
-
+    pred_logits = torch.clamp(pred_logits, -100, 100)
     pred = pred_logits.sigmoid()
     focal_pos = ((1 - pred) ** gamma) * F.binary_cross_entropy_with_logits(pred_logits, torch.ones_like(pred), weight=sample_weight, reduction="none")
     focal_neg = (pred**gamma) * F.binary_cross_entropy_with_logits(pred_logits, torch.zeros_like(pred), weight=sample_weight, reduction="none")
@@ -202,7 +242,13 @@ def mask_focal_cost(pred_logits, targets, gamma=2.0, input_pad_mask=None, sample
     return cost
 
 
-def mask_bce_loss(pred_logits, targets, object_valid_mask=None, input_pad_mask=None, sample_weight=None):
+def mask_bce_loss(
+    pred_logits: Tensor,
+    targets: Tensor, 
+    object_valid_mask: BoolTensor | None = None,
+    input_pad_mask: BoolTensor | None = None, 
+    sample_weight: Tensor | None = None,
+):
     """
     Compute the binary cross-entropy loss for binary masks.
 
@@ -227,15 +273,21 @@ def mask_bce_loss(pred_logits, targets, object_valid_mask=None, input_pad_mask=N
     if input_pad_mask is not None:
         loss = loss * input_pad_mask.unsqueeze(1)
 
-    # normalise by valid elements such that each mask contributes equally
+    # Normalise by valid elements such that each mask contributes equally
     if input_pad_mask is not None:
         valid_counts = input_pad_mask.sum(-1, keepdim=True)
-        loss = loss.sum(-1) / valid_counts
+        loss = loss.sum(-1) / (valid_counts + 1)
         return loss.mean()
+
     return loss.mean(-1).mean()
 
 
-def mask_bce_cost(pred_logits, targets, input_pad_mask=None, sample_weight=None):
+def mask_bce_cost(
+    pred_logits: Tensor,
+    targets: Tensor,
+    input_pad_mask: BoolTensor | None = None,
+    sample_weight: Tensor | None = None,
+    ):
     """
     Compute binary cross-entropy costs for binary masks.
 
@@ -248,6 +300,7 @@ def mask_bce_cost(pred_logits, targets, input_pad_mask=None, sample_weight=None)
     Returns:
         cost: [batch_size, num_objects, num_objects] - binary cross-entropy cost
     """
+
     pred_logits = torch.clamp(pred_logits, -100, 100)
 
     pos = F.binary_cross_entropy_with_logits(pred_logits, torch.ones_like(pred_logits), weight=sample_weight, reduction="none")
@@ -255,12 +308,15 @@ def mask_bce_cost(pred_logits, targets, input_pad_mask=None, sample_weight=None)
 
     # Apply input padding mask
     if input_pad_mask is not None:
-        pos = pos * input_pad_mask.unsqueeze(1)
+        pos = pos * input_pad_mask.unsqueeze(1) 
         neg = neg * input_pad_mask.unsqueeze(1)
 
     # Context manager necessary to overwrite global autocast to ensure float32 cost is returned
     with torch.autocast(device_type="cuda", enabled=False):
         cost = torch.einsum("bnc,bmc->bnm", pos, targets) + torch.einsum("bnc,bmc->bnm", neg, (1 - targets))
+
+    # Normalise by the number of hits
+    cost = cost / (input_pad_mask.sum(-1, keepdim=True).unsqueeze(-1) + 1)
 
     return cost
 
