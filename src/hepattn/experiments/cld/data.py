@@ -122,8 +122,8 @@ class CLDDataset(LRSMDataset):
 
         # Define the sample identifiers unique to each sample, uses the file name
         # Example: reco_p8_ee_tt_ecm365_12012864_7_329 -> 1201286470329
-        self.unevaluated_sample_ids = [event_filenames_to_sample_id(f) for f in self.event_filenames]
-        self.sample_ids_to_event_filenames = {self.unevaluated_sample_ids[i]: str(self.event_filenames[i]) for i in range(len(self.unevaluated_sample_ids))}
+        self.sample_ids = [event_filenames_to_sample_id(f) for f in self.event_filenames]
+        self.sample_ids_to_event_filenames = {self.sample_ids[i]: str(self.event_filenames[i]) for i in range(len(self.sample_ids))}
 
     def load_sample(self, sample_id: int) -> Dict[str, np.ndarray] | None:
         """Loads a single CLD event from a preprocessed npz file."""
@@ -600,22 +600,21 @@ class CLDDataModule(LightningDataModule):
             self.test_dset = CLDDataset(dirpath=self.test_dir, num_samples=self.num_test, **self.kwargs)
             print(f"Created test dataset with {len(self.test_dset):,} events")
 
-    def get_dataloader(self, dataset: CLDDataset, shuffle: bool):
+    def get_dataloader(self, dataset: CLDDataset):
         return DataLoader(
             dataset=dataset,
             batch_size=self.batch_size,
             collate_fn=dataset.collate_fn,
             sampler=None,
             num_workers=self.num_workers,
-            shuffle=shuffle,
             pin_memory=self.pin_memory,
         )
 
     def train_dataloader(self):
-        return self.get_dataloader(dataset=self.train_dset, shuffle=True)
+        return self.get_dataloader(dataset=self.train_dset)
 
     def val_dataloader(self):
-        return self.get_dataloader(dataset=self.val_dset, shuffle=False)
+        return self.get_dataloader(dataset=self.val_dset)
 
     def test_dataloader(self):
-        return self.get_dataloader(dataset=self.test_dset, shuffle=False)
+        return self.get_dataloader(dataset=self.test_dset)

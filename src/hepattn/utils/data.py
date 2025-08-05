@@ -1,19 +1,20 @@
 
 import numpy as np
 import torch
+import random
 from pathlib import Path
 from abc import ABC, abstractmethod
 from lightning import LightningDataModule, seed_everything
 from numpy import ndarray
 from torch import Tensor
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, IterableDataset, get_worker_info
 
 from hepattn.utils.tensor_utils import pad_to_size
 
 from typing import Dict, List, Any
 
 
-class LRSMDataset(Dataset):
+class LRSMDataset(IterableDataset):
     def __init__(
         self,
         dirpath: str,
@@ -28,6 +29,7 @@ class LRSMDataset(Dataset):
         skip_pad_items: List[str] | None = None,
         sampling_seed: int = 42,
         sample_reject_warn_limit: int = 10,
+        verbose: bool = False,
     ):
         """
         A PyTorch Dataset that does lazy rejection sampling with memoisation.
@@ -86,6 +88,7 @@ class LRSMDataset(Dataset):
         self.sampling_seed = sampling_seed
         self.sample_reject_warn_limit = sample_reject_warn_limit
         self.dirpath = Path(self.dirpath)
+        self.verbose = verbose
 
         # Setup input and target datatypes
         dtypes = {
@@ -98,16 +101,11 @@ class LRSMDataset(Dataset):
         self.target_dtype = dtypes[target_dtype]
 
         # Setup random number generators and seeds
-        seed_everything(sampling_seed, workers=True)
+        seed_everything(sampling_seed, workers=False)
         self.rng = np.random.default_rng()
 
-        # Map the sample ID to the sample index in the dataset
-        # Sample IDs in the values of this must have passed the selection / been accepted
-        self.sample_idx_to_sample_id = {}
-        # Sample IDs that are known to fail the selection
-        self.rejected_sample_ids = []
-        # Sample IDs that have not yet been evaluated on the selection
-        self.unevaluated_sample_ids = []
+        self.sample_ids = None
+        self.rejected_sample_ids = set()
 
         # At the start, we load enough files so that we will have enough for the requested sample size
         # As we read through the dataset, some IDs will be rejected, and so we will load more
@@ -151,69 +149,7 @@ class LRSMDataset(Dataset):
         """
         return int(self.num_samples)
 
-    def __getitem__(self, sample_idx: int) -> tuple[dict[str, Tensor], dict[str, Tensor]]:
-        """
-        Retrieves a processed sample consisting of input and target tensors for the given index.
-
-        Samples are lazily drawn and filtered to meet selection criteria, padded appropriately,
-        and converted to PyTorch tensors of the specified precision.
-
-        Parameters
-        ----------
-        sample_idx : int
-            Index of the sample to retrieve.
-
-        Returns
-        -------
-        inputs : dict[str, torch.Tensor]
-            Dictionary containing input feature tensors with shape (1, ..., feature_dim).
-        targets : dict[str, torch.Tensor]
-            Dictionary containing target tensors and metadata including 'sample_id'.
-        """
-        # Attempt to load the sample with the given ID
-        # First check if an sample has already been evaluated, accepted, and assigned to this index
-        if sample_idx in self.sample_idx_to_sample_id:
-            # If its been assigned to an index, we know it passes the selection, and so we can go ahead and load it
-            sample_id = self.sample_idx_to_sample_id[sample_idx]
-            sample = self.load_sample(sample_id)
-        else:
-            sample = None
-
-            # Keep trying sample IDs from the set of unevaluated sample IDs until we eventually get an sample that
-            # passes the selection
-            num_attempts = 1
-            while sample is None:
-                # Check we still have some samples left
-                if len(self.unevaluated_sample_ids) == 0:
-                    # If not, we try load in more samples
-                    self.register_new_samples()
-
-                    # Check if we now have more samples available
-                    # If not we must have ran out of data
-                    if len(self.unevaluated_sample_ids) == 0:
-                        raise StopIteration("""Ran out of samples that pass the selection,
-                            even after attempting to register more samples.""")
-
-                # Randomly sample an ID from the set of unevaluated IDs
-                sample_id = self.rng.choice(self.unevaluated_sample_ids)
-
-                # Load this sample ID and see if it passes the selection
-                sample = self.load_sample(sample_id)
-
-                # This sample ID has been evaluated on the selection now
-                self.unevaluated_sample_ids.remove(sample_id)
-                num_attempts += 1
-
-                if num_attempts >= self.sample_reject_warn_limit:
-                    print(f"Took {num_attempts} to load sample with index {sample_idx}. Consider a looser selection.")
-
-                # If the sample passes the selection, add it to the accepted list and map it to a dataset index
-                if sample is not None:
-                    self.sample_idx_to_sample_id[sample_idx] = sample_id
-                # If the sample fails the selection, add it to the rejected list and try again
-                else:
-                    self.rejected_sample_ids.append(sample_id)
-
+    def _prep_sample(self, sample: dict[str, np.ndarray]) -> tuple[dict[str, Tensor], dict[str, Tensor]]:
         for item_name, fields in (self.inputs | self.targets).items():
             k = f"{item_name}_valid"
             sample[k] = torch.from_numpy(sample[k])
@@ -263,10 +199,42 @@ class LRSMDataset(Dataset):
             for field in fields:
                 targets[f"{target_name}_{field}"] = sample[f"{target_name}_{field}"].to(self.target_dtype).unsqueeze(0)
 
-        # Convert the metedata
-        targets["sample_id"] = torch.tensor(sample_id, dtype=torch.int64)
-
         return inputs, targets
+
+    def __iter__(self) -> tuple[dict[str, Tensor], dict[str, Tensor]]:
+        worker_info = get_worker_info()
+        num_workers = worker_info.num_workers if worker_info is not None else 1
+        worker_id = worker_info.id if worker_info is not None else 0
+
+        # Shuffle using worker ID as seed
+        sample_ids = list(self.sample_ids)
+        random.Random(worker_id + self.sampling_seed).shuffle(sample_ids)
+
+        for idx, sample_id in enumerate(self.sample_ids):
+            # Check that this sample_id has been assigned to this worker
+            if idx % num_workers != worker_id:
+                continue
+
+            # Check if we have already rejected this sample_id
+            if sample_id in self.rejected_sample_ids:
+                continue
+
+            # Attempt to load the sample with this sample_id
+            sample = self.load_sample(sample_id)
+
+            # If the sample was not rejected, prepare it and return it to the iterator
+            if sample is not None:
+                # Convert dict of numpy arrays into tuple of dict of tensors
+                inputs, targets = self._prep_sample(sample)
+
+                # Convert the metedata
+                targets["sample_id"] = torch.tensor(sample_id, dtype=torch.int64)
+
+                yield inputs, targets
+            
+            # If this sample was rejected, keep a log of it so we don't have to evaluate it again
+            else:
+                self.rejected_sample_ids.add(sample_id)
 
     def collate_fn(self, batch: list[tuple[dict[str, Tensor], dict[str, Tensor]]]) -> tuple[dict[str, Tensor], dict[str, Tensor]]:
         """
