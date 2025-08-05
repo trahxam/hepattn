@@ -25,15 +25,15 @@ def sigmoid(x):
 
 
 def main():
-    config_path = Path("/share/rcifdata/maxhart/hepattn/logs/CLD_TRKECALHCAL_5_96_TF_charged_10MeV_F32_costwt_20250518-T144640/config.yaml")
+    config_path = Path("/share/rcifdata/maxhart/hepattn/logs/CLD_5_320_10MeV_neutrals_F16_focal_20250716-T105435/config.yaml")
     eval_path = Path(
-        "/share/rcifdata/maxhart/hepattn/logs/CLD_TRKECALHCAL_5_96_TF_charged_10MeV_F32_costwt_20250518-T144640/ckpts/epoch=006-train_loss=10.25808_train_eval.h5"
+        "/share/rcifdata/maxhart/hepattn/logs/CLD_5_320_10MeV_neutrals_F16_focal_20250716-T105435/ckpts/epoch=000-train_loss=11.36078_test_eval.h5"
     )
 
     # Now create the dataset
     config = yaml.safe_load(config_path.read_text())["data"]
 
-    config["dirpath"] = Path("/share/rcifdata/maxhart/data/cld/prepped/train/")
+    config["dirpath"] = Path("/share/rcifdata/maxhart/data/cld/prepped/test/")
 
     # Remve keys that are normally for the datamodule
     config_del_keys = [
@@ -96,8 +96,6 @@ def main():
         "mom.qopt": ("$p_T$ [GeV] (qopt)", np.geomspace(0.01, 100.0, 32), "log"),
         "mom.eta": (r"$\eta$", np.linspace(-4, 4, 32), "linear"),
         "mom.phi": (r"$\phi$", np.linspace(-np.pi, np.pi, 32), "linear"),
-        "mom.sinphi": (r"$\sin\phi$", np.linspace(-np.pi, np.pi, 32), "linear"),
-        "mom.cosphi": (r"$\cos\phi$", np.linspace(-np.pi, np.pi, 32), "linear"),
         "vtx.r": ("Vertex $r_0$ [m]", np.linspace(0.0, 0.05, 32), "linear"),
         "vtx.z": ("Vertex $z_0$ [m]", np.linspace(-0.5, 0.5, 32), "linear"),
         "isolation": (r"$\Delta R$ Isolation", np.logspace(-4, 0, 32), "log"),
@@ -119,13 +117,22 @@ def main():
 
         inputs, targets = dataset.load_event(sample_id)
 
+        # Loading a single event from the dataloader does not pad the particles, so we have to apply the
+        # particle / object padding that was used for the model to both the particles and the masks
+        particle_pad_size = dataset.event_max_num_particles - len(targets["particle_valid"])
+        particle_valid = np.pad(targets["particle_valid"], ((0, particle_pad_size),), constant_values=False)
+
+        for hit in hits:
+            if hit in ["vtxd", "trkr"]:
+                particle_valid = particle_valid & (particle_hit_valid.sum(-1) >= 6)
+            elif hit in ["ecal"]:
+                particle_valid = particle_valid & (particle_hit_valid.sum(-1) >= 100)
+            elif hit in ["hcal"]:
+                particle_valid = particle_valid & (particle_hit_valid.sum(-1) >= 50)
+
         for hit in hits:
             hit_valid = targets[f"{hit}_valid"]
 
-            # Loading a single event from the dataloader does not pad the particles, so we have to apply the
-            # particle / object padding that was used for the model to both the particles and the masks
-            particle_pad_size = dataset.event_max_num_particles - len(targets["particle_valid"])
-            particle_valid = np.pad(targets["particle_valid"], ((0, particle_pad_size),), constant_values=False)
 
             particle_hit_valid = np.pad(targets[f"particle_{hit}_valid"], ((0, particle_pad_size), (0, 0)), constant_values=False)
 
@@ -138,7 +145,7 @@ def main():
                 # The masks will have had the particle padding applied, but also the hit padding (since they are batched)
                 flow_hit_valid = preds[f"flow_{hit}_assignment/flow_{hit}_valid"][0][:, : len(hit_valid)]
 
-            particle_valid = particle_valid & (particle_hit_valid.sum(-1) > 0)
+            
 
             hit_iou = (particle_hit_valid & flow_hit_valid).sum(-1) / (particle_hit_valid | flow_hit_valid).sum(-1)
 
