@@ -8,6 +8,9 @@ def plot_hist_to_ax(ax, values, bins, value_errors=None, color="cornflowerblue",
 
         ax.plot(px, py, color=color, linewidth=1.0, label=label if bin_idx == 0 else None)
 
+        if color is None:
+            color = "cornflowerblue"
+
         if value_errors is not None:
             pe = np.array([value_errors[bin_idx], value_errors[bin_idx]])
             ax.fill_between(px, py - pe, py + pe, color=color, alpha=0.1, ec="none")
