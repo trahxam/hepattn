@@ -80,6 +80,27 @@ def concat_tensors(tensors: list[Tensor]) -> Tensor:
     return torch.concatenate(x, dim=-1)
 
 
+def merge_batches(batches: list[dict[str, Tensor]]) -> dict[str, Tensor]:
+    """
+    Merges a list of batched dictionaries by concatenating tensors along the batch dimension.
+
+    This function assumes that each dictionary in the list has the same keys and that the
+    corresponding tensors can be concatenated along dimension 0.
+
+    Parameters
+    ----------
+    batches : list of dict[str, Tensor]
+        A list where each element is a dictionary containing batched tensors. All dictionaries must have
+        the same keys, and the tensors under each key must be compatible for concatenation along the first dimension.
+
+    Returns
+    -------
+    dict[str, Tensor]
+        A single dictionary with the same keys, where each value is a concatenation of the tensors from all input batches.
+    """
+    return {k: torch.cat([batch[k] for batch in batches], dim=0) for k in batches[0]}
+
+
 def tensor_to_numpy(tensor: Tensor) -> np.ndarray:
     """
     Converts a PyTorch tensor to a NumPy array, handling device transfer and dtype conversion.
