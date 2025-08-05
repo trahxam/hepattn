@@ -17,7 +17,9 @@ def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec, object_name
     cycler = [colormap(i) for i in range(colormap.N)]
 
     if batch_idx is None:
-        batch_idx = torch.argmax(reconstruction["particle_valid"].sum(-1))
+        batch_idx = torch.argmax(reconstruction[f"{object_name}_valid"].sum(-1))
+    
+    batch_idx = batch_idx = torch.argmax(reconstruction[f"particle_valid"].sum(-1))
 
     sihit_names = ["vtb", "vte", "itb", "ite", "otb", "ote", "sihit", "vtxd", "trkr"]
     ecal_names = ["ecb", "ece", "ecal"]
@@ -32,11 +34,11 @@ def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec, object_name
 
             num_particles = reconstruction[f"{object_name}_{input_name}_valid"][batch_idx].shape[-2]
 
-            for mcparticle_idx in range(num_particles):
+            for object_idx in range(num_particles):
                 # Plots invalid particle if valid set to be False
-                if reconstruction[f"{object_name}_valid"][batch_idx][mcparticle_idx].item() == valid:
-                    color = cycler[mcparticle_idx % len(cycler)]
-                    mask = reconstruction[f"{object_name}_{input_name}_valid"][batch_idx][mcparticle_idx]
+                if reconstruction[f"{object_name}_valid"][batch_idx][object_idx].item() == valid:
+                    color = cycler[object_idx % len(cycler)]
+                    mask = reconstruction[f"{object_name}_{input_name}_valid"][batch_idx][object_idx]
 
                     # Tracker hit
                     if input_name in sihit_names:
@@ -44,27 +46,6 @@ def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec, object_name
                         idx = torch.argsort(inputs[f"{input_name}_time"][batch_idx][mask], dim=-1)
 
                         ax[ax_idx].plot(x[mask][idx], y[mask][idx], color=color, marker="o", alpha=0.75, linewidth=1.0, ms=2.0)
-
-                        # Uncomment to leave a box denoting particle index for trkr hit
-                        # if input_name == "trkr" and mask.any():
-                        #     end_x = x[mask][idx][-1].item()
-                        #     end_y = y[mask][idx][-1].item()
-                        #     ax[ax_idx].text(
-                        #         end_x,
-                        #         end_y,
-                        #         str(mcparticle_idx),
-                        #         fontsize=5,
-                        #         color="black",
-                        #         ha="center",
-                        #         va="center",
-                        #         bbox={
-                        #             "boxstyle": "round,pad=0.2",
-                        #             "facecolor": "white",
-                        #             "edgecolor": "black",
-                        #             "linewidth": 0.5,
-                        #             "alpha": 0.5,
-                        #         },
-                        #     )
 
                     # ECAL hit
                     elif input_name in ecal_names:
@@ -77,6 +58,28 @@ def plot_cld_event_reconstruction(inputs, reconstruction, axes_spec, object_name
                     # Muon hit
                     elif input_name == "muon":
                         ax[ax_idx].scatter(x[mask], y[mask], color=color, marker="x", alpha=0.75, s=4.0)
+
+                    # Uncomment to leave a box denoting particle index for trkr hit
+                    if input_name in ["trkr", "hcal"] and mask.any():
+                        idx = torch.argsort(inputs[f"{input_name}_time"][batch_idx][mask], dim=-1)
+                        end_x = x[mask][idx][-1].item()
+                        end_y = y[mask][idx][-1].item()
+                        ax[ax_idx].text(
+                            end_x,
+                            end_y,
+                            str(object_idx),
+                            fontsize=5,
+                            color="black",
+                            ha="center",
+                            va="center",
+                            bbox={
+                                "boxstyle": "round,pad=0.2",
+                                "facecolor": "white",
+                                "edgecolor": "black",
+                                "linewidth": 0.5,
+                                "alpha": 0.5,
+                            },
+                        )
 
             ax[ax_idx].set_xlabel(ax_spec["x"])
             ax[ax_idx].set_ylabel(ax_spec["y"])
