@@ -48,7 +48,7 @@ def main():
         particle_min_pt=recon_min_pt,
         particle_max_abs_eta=recon_max_eta,
         particle_min_num_hits={"pixel": recon_min_num_pixel},
-        event_max_num_particles=12000,
+        event_max_num_particles=10000,
     )
 
     # Give the test eval file we are evaluating and setup the file

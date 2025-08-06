@@ -1,5 +1,3 @@
-# ruff: noqa: E501
-
 from pathlib import Path
 
 import h5py
@@ -96,6 +94,8 @@ def main():
         "mom.qopt": ("$p_T$ [GeV] (qopt)", np.geomspace(0.01, 100.0, 32), "log"),
         "mom.eta": (r"$\eta$", np.linspace(-4, 4, 32), "linear"),
         "mom.phi": (r"$\phi$", np.linspace(-np.pi, np.pi, 32), "linear"),
+        "mom.sinphi": (r"$\sin\phi$", np.linspace(-np.pi, np.pi, 32), "linear"),
+        "mom.cosphi": (r"$\cos\phi$", np.linspace(-np.pi, np.pi, 32), "linear"),
         "vtx.r": ("Vertex $r_0$ [m]", np.linspace(0.0, 0.05, 32), "linear"),
         "vtx.z": ("Vertex $z_0$ [m]", np.linspace(-0.5, 0.5, 32), "linear"),
         "isolation": (r"$\Delta R$ Isolation", np.logspace(-4, 0, 32), "log"),
@@ -145,7 +145,7 @@ def main():
                 # The masks will have had the particle padding applied, but also the hit padding (since they are batched)
                 flow_hit_valid = preds[f"flow_{hit}_assignment/flow_{hit}_valid"][0][:, : len(hit_valid)]
 
-            
+            particle_valid &= particle_hit_valid.sum(-1) > 0
 
             hit_iou = (particle_hit_valid & flow_hit_valid).sum(-1) / (particle_hit_valid | flow_hit_valid).sum(-1)
 

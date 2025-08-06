@@ -1,5 +1,3 @@
-# ruff: noqa: E501
-
 from pathlib import Path
 
 import h5py
@@ -71,8 +69,15 @@ def main():
     for i in range(conf_mat.shape[0]):
         for j in range(conf_mat.shape[1]):
             if conf_mat[i, j] > 0:
-                ax.text(x=j, y=i, s=f"{np.round(conf_mat[i, j], 2)}", va="center", ha="center", fontsize=6,
-                path_effects=[patheffects.withStroke(linewidth=0.0, foreground="white")])
+                ax.text(
+                    x=j,
+                    y=i,
+                    s=f"{np.round(conf_mat[i, j], 2)}",
+                    va="center",
+                    ha="center",
+                    fontsize=6,
+                    path_effects=[patheffects.withStroke(linewidth=0.0, foreground="white")],
+                )
 
     ax.set_xticks(labels - 1, [str(i) for i in labels])
     ax.set_yticks(labels - 1, reversed([str(i) for i in labels]))

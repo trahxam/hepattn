@@ -4,7 +4,6 @@ import torch.nn.functional as F
 
 def test_weighted_binary_cross_entropy_equivalence():
     """Test that weighted BCE with logits gives same result as manual weighting."""
-
     # Test case 1: [batch_size, num_targets] - classification task
     batch_size, num_targets = 32, 10
 
@@ -35,7 +34,6 @@ def test_weighted_binary_cross_entropy_equivalence():
 
 def test_weighted_binary_cross_entropy_3d():
     """Test weighted BCE for 3D tensors - object detection scenario."""
-
     # Test case 2: [batch_size, num_targets, num_inputs] - object detection task
     batch_size, num_targets, num_inputs = 16, 5, 8
 
@@ -66,7 +64,6 @@ def test_weighted_binary_cross_entropy_3d():
 
 def test_edge_cases():
     """Test edge cases with zero weights and extreme values."""
-
     # Test with some zero weights
     pred_logits = torch.randn(4, 3)
     true = torch.randint(0, 2, (4, 3)).float()
@@ -87,7 +84,6 @@ def test_edge_cases():
 
 def test_gradient_equivalence():
     """Test that gradients are the same for both methods."""
-
     # Create tensors with gradients
     pred_logits_builtin = torch.randn(8, 4, requires_grad=True)
     pred_logits_manual = pred_logits_builtin.clone().detach().requires_grad_(True)
@@ -108,7 +104,8 @@ def test_gradient_equivalence():
     print("✓ Gradient equivalence passed")
 
 
-def test_focal_loss_sample_weight(gamma=2.0):
+def test_focal_loss_sample_weight():
+    gamma = 2.0
     shape = (100, 50)
     # generate dummy inputs
     pred_logits = torch.randn(*shape, requires_grad=True)
@@ -125,7 +122,7 @@ def test_focal_loss_sample_weight(gamma=2.0):
     ce_loss = F.binary_cross_entropy_with_logits(pred_logits, targets.type_as(pred_logits), reduction="none")
     p_t = pred * targets + (1 - pred) * (1 - targets)
     loss = ce_loss * ((1 - p_t) ** gamma)
-    loss = loss * sample_weight
+    loss *= sample_weight
     loss2 = loss.mean()
 
     torch.testing.assert_close(loss1, loss2, rtol=1e-6, atol=1e-6)

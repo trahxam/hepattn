@@ -27,7 +27,7 @@ class RMSNorm(nn.Module):
 
 
 class SimpleRMSNorm(nn.Module):
-    """From X-transformers"""
+    """From X-transformers."""
 
     def __init__(self, dim: int):
         super().__init__()
@@ -38,7 +38,7 @@ class SimpleRMSNorm(nn.Module):
 
 
 class DyT(nn.Module):
-    """2503.10622"""
+    """2503.10622."""
 
     def __init__(self, dim: int, alpha_init_value: float = 0.5):
         super().__init__()

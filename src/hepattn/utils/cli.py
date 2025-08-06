@@ -7,6 +7,8 @@ import torch
 from jsonargparse.typing import register_type
 from lightning.pytorch.cli import LightningCLI
 
+torch._dynamo.config.capture_scalar_outputs = True  # noqa: SLF001
+
 
 # Add support for converting yaml lists to tensors
 def serializer(x: torch.Tensor) -> list:
@@ -23,15 +25,14 @@ register_type(torch.Tensor, serializer, deserializer)
 def get_best_epoch(config_path: Path) -> Path:
     """Find the best perfoming epoch.
 
-    Parameters
-    ----------
-    config_path : Path
-        Path to saved training config file.
+    Args:
+        config_path (Path): Path to saved training config file.
 
-    Returns
-    -------
-    Path
-        Path to best checkpoint for the training run.
+    Returns:
+        Path: Path to best checkpoint for the training run.
+
+    Raises:
+        FileNotFoundError: If no checkpoints are found in the expected directory.
     """
     ckpt_dir = Path(config_path.parent / "ckpts")
     print(f"No --ckpt_path specified, looking for best checkpoint in {ckpt_dir.resolve()!r}")
@@ -96,6 +97,13 @@ class CLI(LightningCLI):
             for c in sc["trainer.callbacks"]:
                 if hasattr(c, "init_args") and hasattr(c.init_args, "refresh_rate"):
                     c.init_args.refresh_rate = 1
+
+            # Use the best epoch for testing
+            if sc["ckpt_path"] is None:
+                config = sc["config"]
+                assert len(config) == 1
+                best_epoch_path = get_best_epoch(Path(config[0].rel_path))
+                sc["ckpt_path"] = best_epoch_path
 
             # Ensure only one device is used for testing
             n_devices = sc["trainer.devices"]
