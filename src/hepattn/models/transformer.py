@@ -1,7 +1,7 @@
 from functools import partial
 
 import torch
-from torch import BoolTensor, Tensor, nn
+from torch import Tensor, nn
 from torch.nn.attention.flex_attention import create_block_mask, create_mask
 
 from hepattn.flex import relative_position, relative_position_wrapped
@@ -197,12 +197,19 @@ class Encoder(nn.Module):
         self.window_wrap = window_wrap
         self.score_mod = SCORE_MODS[score_mod] if score_mod else None
         self.value_residual = value_residual
+        self.num_register_tokens = num_register_tokens
 
-        # Handle masking
+        # Initialize register tokens if specified
+        if self.num_register_tokens is not None:
+            self.register_tokens = nn.Parameter(torch.randn(1, self.num_register_tokens, dim))
+        else:
+            self.register_tokens = None
+
+        # handle masking
         self.mask_mod = None
         self.seq_len = None
 
-        # Handle attention
+        # handle attention
         attn_kwargs = layer_kwargs.get("attn_kwargs", None) or {}
         attn_kwargs["attn_type"] = attn_type
         layer_kwargs["value_residual"] = self.value_residual
@@ -268,7 +275,7 @@ class Encoder(nn.Module):
         # Apply layers
         initial_values = {} if self.value_residual else None
         for layer in self.layers:
-            x = layer(x, kv_mask=kv_mask, attn_mask=attn_mask, score_mod=self.score_mod, initial_values=initial_values, **kwargs)
+            x = layer(x, attn_mask=attn_mask, score_mod=self.score_mod, initial_values=initial_values, **kwargs)
 
         # Remove wrapping for flash attention with sliding window
         if self.attn_type == "flash" and self.window_wrap:

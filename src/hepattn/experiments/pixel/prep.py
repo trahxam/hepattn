@@ -53,8 +53,8 @@ def preprocess_file(
         subsample_mask = rng_generator.uniform(size=len(cluster_mask)) > float(subsample_frac)
 
         # Remove clusters that have this multiplicity but fail the subsample mask
-        cluster_mask = cluster_mask & (~(multiplicity_mask & subsample_mask))
-
+        cluster_mask &= ~(multiplicity_mask & subsample_mask)
+        
     cluster_fields = config["cluster_fields"]
     particle_fields = config["particle_fields"]
     pixel_fields = config["pixel_fields"]
@@ -114,7 +114,6 @@ def preprocess_files(config_path: str, overwrite: bool, parallel: bool = False, 
     output_dir : str
         Directory of where to save output numpy files
     """
-
     with Path.open(config_path) as f:
         config = yaml.safe_load(f)["preprocessing"]
 

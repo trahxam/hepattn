@@ -6,8 +6,7 @@ from hepattn.models.dense import Dense
 
 class Pooling(nn.Module):
     def __init__(self, input_object: str, output_object: str, dim: int, pool_net: nn.Module | None = None) -> None:
-        """
-        A pooling module that applies optional transformation and weighted aggregation
+        """A pooling module that applies optional transformation and weighted aggregation
         over input objects.
 
         Parameters
@@ -25,7 +24,6 @@ class Pooling(nn.Module):
         output_object : str | None
             Name of output object for the pooling.
         """
-
         super().__init__()
 
         self.input_object = input_object
@@ -44,5 +42,4 @@ class Pooling(nn.Module):
         w = torch.softmax(w, dim=-1)  # (..., N)
         w = w.masked_fill(~x_valid, 0.0)
         # Weighted sum of all the embeddings (..., N, E) -> (..., E)
-        x = torch.sum(x * w.unsqueeze(-1), dim=-2)
-        return x
+        return torch.sum(x * w.unsqueeze(-1), dim=-2)

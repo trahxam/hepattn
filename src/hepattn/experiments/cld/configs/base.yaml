@@ -346,6 +346,7 @@ trainer:
       project_name: cld
 
   callbacks:
+    - class_path: hepattn.callbacks.Compile
     - class_path: hepattn.callbacks.InferenceTimer
     - class_path: hepattn.callbacks.SaveConfig
     - class_path: hepattn.callbacks.Checkpoint
@@ -544,8 +545,7 @@ model:
         init_args:
           default_solver: scipy
           adaptive_solver: false
-          adaptive_check_interval: 1000
-          parallel_solver: false
+          parallel_solver: true
 
       tasks:
         class_path: torch.nn.ModuleList
