@@ -1,0 +1,167 @@
+eval:
+  # Define metrics which give a score between pairs of objects which can
+  # be used to match the objects to eachother
+  match_metrics:
+    default:
+      vtxd:
+        weight: 1.0
+        metric: iou
+        field: valid
+
+      trkr:
+        weight: 1.0
+        metric: iou
+        field: valid
+
+      ecal:
+        weight: 1.0
+        metric: iou
+        field: valid
+
+      hcal:
+        weight: 1.0
+        metric: iou
+        field: valid
+  
+  # Define binary metrics which evaluate to true if all of its conditions are met
+  binary_metrics:
+    # This will be true if both the vtxd dice >= 0.25 and the trkr dice >= 0.75
+    charged_reconstucted_loose:
+      vtxd:
+        thresh: 0.5
+        metric: dice
+        field: valid
+      trkr:
+        thresh: 0.75
+        metric: dice
+        field: valid
+
+    charged_hadron_reconstructed_loose:
+      vtxd:
+        thresh: 0.25
+        metric: dice
+        field: valid
+      trkr:
+        thresh: 0.75
+        metric: dice
+        field: valid
+      ecal:
+        thresh: 0.5
+        metric: dice
+        field: valid
+      hcal:
+        thresh: 0.5
+        metric: dice
+        field: valid
+
+    charged_hadron_reconstructed_tight:
+      vtxd:
+        thresh: 0.25
+        metric: dice
+        field: valid
+      trkr:
+        thresh: 0.75
+        metric: dice
+        field: valid
+      ecal:
+        thresh: 0.75
+        metric: dice
+        field: valid
+      hcal:
+        thresh: 0.75
+        metric: dice
+        field: valid
+
+    neutral_hadron_reconstructed_loose:
+      ecal:
+        thresh: 0.5
+        metric: dice
+        field: valid
+      hcal:
+        thresh: 0.5
+        metric: dice
+        field: valid
+
+    photon_reconstructed_loose:
+      ecal:
+        thresh: 0.5
+        metric: dice
+        field: valid
+
+    lepton_reconstructed_loose:
+      vtxd:
+        thresh: 0.25
+        metric: dice
+        field: valid
+      trkr:
+        thresh: 0.75
+        metric: dice
+        field: valid
+      ecal:
+        thresh: 0.5
+        metric: dice
+        field: valid
+
+  selections:
+    charged_hadron_reconstructable:
+      - is_charged_hadron
+      - has_tracker_hits
+      - has_calo_hits
+
+    neutral_hadron_reconstructable:
+      - is_neutral_hadron
+      - has_calo_hits
+
+    photon_reconstructable:
+      - is_photon
+      - has_ecal_hits
+    
+    electron_reconstructable:
+      - is_electron
+      - has_tracker_hits
+      - has_ecal_hits
+    
+    charged_reconstructable:
+      - is_charged
+      - has_tracker_hits
+
+  plots:
+    pt_charged_had:
+      object_name: particle
+      field: mom.r
+      selection: charged_hadron_reconstructable
+      xlabel: "Truth Particle $p_T$ [GeV]"
+      ylabel: "Charged Hadron Efficiency"
+      min: 0.01
+      max: 100.0
+      num_bins: 32
+      scale: log
+      items:
+        pandora_loose:
+          denominator: charged_hadron_reconstructable
+          numerator: pandora_charged_hadron_reconstructed_loose
+          label: "Pandora Loose"
+          color: cornflowerblue
+
+        pandora_tight:
+          denominator: charged_hadron_reconstructable
+          numerator: pandora_charged_hadron_reconstructed_tight
+          label: "Pandora Tight"
+          color: mediumseagreen
+
+    pt_charged:
+      object_name: particle
+      field: mom.r
+      selection: charged_reconstructable
+      xlabel: "Truth Particle $p_T$ [GeV]"
+      ylabel: "Tracking Efficiency"
+      min: 0.01
+      max: 100.0
+      num_bins: 32
+      scale: log
+      items:
+        pandora_loose:
+          denominator: charged_reconstructable
+          numerator: pandora_charged_reconstucted_loose
+          label: "Pandora Loose"
+          color: cornflowerblue
