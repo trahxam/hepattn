@@ -1,0 +1,459 @@
+name: CLD_fitting
+
+data:
+  # Paths to preprocessed data directories
+  train_dir: /share/rcifdata/maxhart/data/cld/prepped/train/
+  val_dir: /share/rcifdata/maxhart/data/cld/prepped/val/
+  test_dir: /share/rcifdata/maxhart/data/cld/prepped/test/
+
+  # Number of events to include in each set
+  num_workers: 4
+  num_train: -1
+  num_test: 1000
+  num_val: 100
+
+  batch_size: 10
+
+  precision: 32
+
+  # Minimum pT for a particle to be deemed reconstructve in GeV
+  particle_min_pt: 0.01
+
+  # Number of query slots / particles to generate per event
+  event_max_num_particles: &num_particles 240
+
+  # Charged particle cuts based on hit content
+  charged_particle_min_num_hits:
+    vtxd: 4
+    trkr: 4
+    sihit: 8
+
+  # Charged particle cuts based on hit content
+  charged_particle_max_num_hits:
+    vtxd: 12
+    trkr: 12
+    sihit: 24
+
+  # Cuts on minimum fraction of particle pT a hit should have
+  particle_hit_min_p_ratio:
+    vtxd: 0.01
+    trkr: 0.01
+
+  # Cuts on maximum deflection between subsequent hits
+  particle_hit_deflection_cuts:
+    vtxd:
+      max_angle: 0.25
+      max_angle_xy: 0.25
+      max_angle_rz: 0.25
+      num_passes: 8
+    trkr:
+      max_angle: 1.0
+      max_angle_xy: 1.0
+      max_angle_rz: 1.0
+      num_passes: 12
+
+  # Cuts on maximum distance between subsequent hit
+  particle_hit_separation_cuts:
+    vtxd:
+      max_dist: 0.25
+      num_passes: 8
+    trkr:
+      max_dist: 1.5
+      num_passes: 12
+
+  # Whether to include charged / neutral particles as targets
+  include_charged: true
+  include_neutral: false
+
+  truth_filter_hits: []
+    #- vtxd
+    #- trkr
+    #- ecal
+    #- hcal
+    #- muon
+
+  merge_inputs:
+    vtxd:
+      - vtb
+      - vte
+
+    trkr:
+      - itb
+      - ite
+      - otb
+      - ote
+
+    sihit:
+      - vtb
+      - vte
+      - itb
+      - ite
+      - otb
+      - ote
+
+    ecal:
+      - ecb
+      - ece
+
+    hcal:
+      - hcb
+      - hce
+      - hco
+
+    muon:
+      - msb
+      - mse
+
+  inputs:
+    vtxd:
+      - type
+      - quality
+      - pos.x
+      - pos.y
+      - pos.z
+      - pos.s
+      - pos.r
+      - pos.theta
+      - pos.eta
+      - pos.phi
+      - pos.u
+      - pos.v
+      - eDep
+      - eDepError
+      - time
+      - u.a
+      - u.b
+      - v.a
+      - v.b
+      - du
+      - dv
+
+    trkr:
+      - type
+      - quality
+      - pos.x
+      - pos.y
+      - pos.z
+      - pos.s
+      - pos.r
+      - pos.theta
+      - pos.eta
+      - pos.phi
+      - pos.u
+      - pos.v
+      - eDep
+      - eDepError
+      - time
+      - u.a
+      - u.b
+      - v.a
+      - v.b
+      - du
+      - dv
+
+    sihit:
+      - type
+
+    ecal:
+      - type
+      - pos.x
+      - pos.y
+      - pos.z
+      - pos.s
+      - pos.r
+      - pos.theta
+      - pos.eta
+      - pos.phi
+      - pos.u
+      - pos.v
+      - energy
+      - log_energy
+      - energyError
+      - time
+
+    hcal:
+      - type
+      - pos.x
+      - pos.y
+      - pos.z
+      - pos.s
+      - pos.r
+      - pos.theta
+      - pos.eta
+      - pos.phi
+      - pos.u
+      - pos.v
+      - energy
+      - log_energy
+      - energyError
+      - time
+
+    muon:
+      - type
+      - pos.x
+      - pos.y
+      - pos.z
+      - pos.s
+      - pos.r
+      - pos.theta
+      - pos.eta
+      - pos.phi
+      - pos.u
+      - pos.v
+      - energy
+      - log_energy
+      - energyError
+      - time
+
+  targets:
+    particle:
+      - PDG
+      - charge
+      - time
+      - mass
+      - vtx.x
+      - vtx.y
+      - vtx.z
+      - vtx.r
+      - vtx.sinphi
+      - vtx.cosphi
+      - mom.x
+      - mom.y
+      - mom.z
+      - mom.r
+      - mom.eta
+      - mom.phi
+      - mom.sinphi
+      - mom.cosphi
+      - mom.theta
+      - mom.eta_drad
+      - mom.phi_drad
+      - mom.rinv
+      - mom.qopt
+      - spin.x
+      - spin.y
+      - spin.z
+      - colorFlow.a
+      - colorFlow.b
+      - isCharged
+      - isNeutral
+      - num_vtxd
+      - num_trkr
+      - num_ecal
+      - num_hcal
+      - num_sihit
+      - isolation
+      - energy_ecal
+      - energy_hcal
+      - calib_energy_ecal
+      - calib_energy_hcal
+      - is_neutral_hadron
+      - is_charged_hadron
+      - is_photon
+      - is_electron
+      - is_muon
+      - is_tau
+      - is_neutrino
+      - is_other
+
+    particle_vtxd:
+      - pos.x
+      - pos.y
+      - pos.z
+      - mom.x
+      - mom.y
+      - mom.z
+      - mom.rinv
+      - mom.theta
+      - mom.phi
+
+    particle_trkr:
+      - pos.x
+      - pos.y
+      - pos.z
+      - mom.x
+      - mom.y
+      - mom.z
+      - mom.rinv
+      - mom.theta
+      - mom.phi
+
+    particle_ecal:
+      - energy
+      - energy_frac
+
+    particle_hcal:
+      - energy
+      - energy_frac
+
+    particle_muon:
+      - energy
+
+# Training stuff here
+trainer:
+  max_epochs: 10
+  accelerator: gpu
+  devices: 1
+  precision: 32
+  log_every_n_steps: 10
+  default_root_dir: logs
+  gradient_clip_val: 0.1
+  accumulate_grad_batches: 1
+  enable_progress_bar: True
+
+  # Specify loggers here
+  logger:
+    class_path: lightning.pytorch.loggers.CometLogger
+    init_args:
+      project_name: cld
+
+  callbacks:
+    - class_path: hepattn.callbacks.InferenceTimer
+    - class_path: hepattn.callbacks.SaveConfig
+    - class_path: hepattn.callbacks.Checkpoint
+      init_args:
+        monitor: train/loss
+        every_n_train_steps: 1000
+    - class_path: hepattn.callbacks.PredictionWriter
+      init_args:
+        write_inputs: false
+        write_outputs: true
+        write_preds: true
+        write_targets: false
+        write_losses: false
+    - class_path: lightning.pytorch.callbacks.ModelSummary
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+    - class_path: lightning.pytorch.callbacks.TQDMProgressBar
+      init_args:
+        refresh_rate: 50
+
+model:
+  optimizer: lion
+
+  lrs_config:
+    initial: 1e-5
+    max: 5e-5
+    end: 1e-5
+    pct_start: 0.01
+    skip_scheduler: false
+    weight_decay: 1e-5
+
+  mtl: false
+
+  model:
+    class_path: hepattn.models.fitter.Fitter
+    init_args:
+      dim: &dim 256
+
+      input_nets:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: hepattn.models.InputNet
+              init_args:
+                input_name: vtxd
+                dtype: float32
+                fields:
+                  - pos.x
+                  - pos.y
+                  - pos.z
+                  - pos.s
+                  - pos.r
+                  - pos.theta
+                  - pos.phi
+                  - u.a
+                  - u.b
+                  - v.a
+                  - v.b
+                  - du
+                  - dv
+                net:
+                  class_path: hepattn.models.Dense
+                  init_args:
+                    input_size: 13
+                    output_size: *dim
+                posenc:
+                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  init_args:
+                    input_name: vtxd
+                    dim: *dim
+                    fields:
+                      - pos.x
+                      - pos.y
+                      - pos.z
+                      - pos.r
+                      - pos.theta
+                      - pos.phi
+
+            - class_path: hepattn.models.InputNet
+              init_args:
+                input_name: trkr
+                dtype: float32
+                fields:
+                  - pos.x
+                  - pos.y
+                  - pos.z
+                  - pos.s
+                  - pos.r
+                  - pos.theta
+                  - pos.phi
+                  - u.a
+                  - u.b
+                  - v.a
+                  - v.b
+                  - du
+                  - dv
+                net:
+                  class_path: hepattn.models.Dense
+                  init_args:
+                    input_size: 13
+                    output_size: *dim
+                posenc:
+                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  init_args:
+                    input_name: trkr
+                    dim: *dim
+                    fields:
+                      - pos.x
+                      - pos.y
+                      - pos.z
+                      - pos.r
+                      - pos.theta
+                      - pos.phi
+
+      encoder:
+        class_path: hepattn.models.Encoder
+        init_args:
+          num_layers: 2
+          dim: *dim
+          attn_type: torch
+
+      num_decoder_layers: 8
+      decoder_layer_config:
+        dim: *dim
+        mask_attention: true
+
+      tasks:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: hepattn.models.task.ObjectGaussianRegressionTask
+              init_args:
+                name: flow_regression
+                input_object: query
+                output_object: flow
+                target_object: particle
+                dim: *dim
+                loss_weight: 1.0
+                cost_weight: 1.0
+                fields:
+                  - mom.qopt
+                  - mom.theta
+                  - mom.sinphi
+                  - mom.cosphi
+                  - vtx.sinphi
+                  - vtx.cosphi
+                  - vtx.r
+                  - vtx.z
+
+
