@@ -1,4 +1,4 @@
-name: CLD_5_320_10MeV_neutrals
+name: CLD_4_320_10MeV_neutrals_v2_loss
 
 matmul_precision: high
 
@@ -9,13 +9,13 @@ data:
   test_dir: /share/lustre/maxhart/data/cld/prepped/reco/
 
   # Number of events to include in each set
-  num_workers: 6
+  num_workers: 4
   num_train: -1
   num_test: 1000
   num_val: 100
 
   # Minibatch size / number of events used per training step
-  batch_size: 5
+  batch_size: 4
   
   # Precision of any float values returned by the dataloader
   input_dtype: float32
@@ -332,7 +332,7 @@ trainer:
   max_epochs: 10
   accelerator: gpu
   devices: 1
-  precision: 16
+  precision: bf16-mixed
   log_every_n_steps: 10
   default_root_dir: logs
   gradient_clip_val: 0.1
@@ -371,11 +371,11 @@ model:
 
   lrs_config:
     initial: 1e-5
-    max: 5e-5
-    end: 1e-5
+    max: 4e-5
+    end: 1e-6
     pct_start: 0.01
     skip_scheduler: false
-    weight_decay: 1e-5
+    weight_decay: 0.001
 
   mtl: false
 
@@ -531,6 +531,10 @@ model:
           attn_type: flash-varlen
           window_size: 1024
           window_wrap: true
+          hybrid_norm: true
+          value_residual: true
+          attn_kwargs:
+            num_heads: 8
 
       decoder:
         num_decoder_layers: 8
@@ -539,6 +543,9 @@ model:
         use_query_masks: false
         decoder_layer_config:
           dim: *dim
+          hybrid_norm: true
+          attn_kwargs:
+            num_heads: 8
 
       matcher:
         class_path: hepattn.models.matcher.Matcher
