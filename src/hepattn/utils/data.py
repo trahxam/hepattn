@@ -149,7 +149,7 @@ class LRSMDataset(IterableDataset):
         """
         return int(self.num_samples)
 
-    def _prep_sample(self, sample: dict[str, np.ndarray]) -> tuple[dict[str, Tensor], dict[str, Tensor]]:
+    def prep_sample(self, sample: dict[str, np.ndarray]) -> tuple[dict[str, Tensor], dict[str, Tensor]]:
         for item_name, fields in (self.inputs | self.targets).items():
             k = f"{item_name}_valid"
             sample[k] = torch.from_numpy(sample[k])
@@ -225,7 +225,7 @@ class LRSMDataset(IterableDataset):
             # If the sample was not rejected, prepare it and return it to the iterator
             if sample is not None:
                 # Convert dict of numpy arrays into tuple of dict of tensors
-                inputs, targets = self._prep_sample(sample)
+                inputs, targets = self.prep_sample(sample)
 
                 # Convert the metedata
                 targets["sample_id"] = torch.tensor(sample_id, dtype=torch.int64)
