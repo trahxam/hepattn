@@ -7,7 +7,7 @@ from hepattn.utils.metrics import mask_metric_cost, mask_metric_score
 from hepattn.models.matcher import Matcher
 
 
-def apply_matching(data: dict[str, Tensor], true: str, pred: str, costs: Tensor) -> dict[str, Tensor]:
+def apply_matching(data: dict[str, Tensor], true: str, pred: str, costs: Tensor, matcher: Matcher) -> dict[str, Tensor]:
     """
     Applies bipartite matching between predicted and true objects using the provided cost tensor.
     
@@ -32,13 +32,6 @@ def apply_matching(data: dict[str, Tensor], true: str, pred: str, costs: Tensor)
         Updated `data` dictionary with predicted object fields permuted to align with matched true objects.
     """
     
-    # Setup the matcher - use the same machinery as the model as a consistency check
-    matcher = Matcher(
-        default_solver="scipy",
-        adaptive_solver=False,
-        parallel_solver=False,
-        )
-
     batch_idxs = torch.arange(data[f"{true}_valid"].shape[0]).unsqueeze(1)
 
     # Compute the matching, remember costs have shape (batch, pred, true)
