@@ -26,7 +26,7 @@ eval:
   # Define binary metrics which evaluate to true if all of its conditions are met
   binary_metrics:
     # This will be true if both the vtxd dice >= 0.25 and the trkr dice >= 0.75
-    charged_reconstucted_loose:
+    charged_reconstructed_loose:
       vtxd:
         thresh: 0.5
         metric: dice
@@ -88,7 +88,7 @@ eval:
         metric: dice
         field: valid
 
-    lepton_reconstructed_loose:
+    electron_reconstructed_loose:
       vtxd:
         thresh: 0.25
         metric: dice
@@ -125,43 +125,268 @@ eval:
       - is_charged
       - has_tracker_hits
 
-  plots:
-    pt_charged_had:
+  bins:
+    pt_full:
+      min: 0.01
+      max: 100.0
+      num: 32
+      scale: log
+    
+    sihit:
+      min: 0
+      max: 20
+      num: 19
+      scale: linear
+
+    isolation_full:
+      min: 0.0001
+      max: 1
+      num: 32
+      scale: log
+
+  histograms:
+    # Charged hadron
+    pandora_charged_hadron_pt_loose:
       object_name: particle
       field: mom.r
+      bins: pt_full
       selection: charged_hadron_reconstructable
+      denominator: charged_hadron_reconstructable
+      numerator: pandora_charged_hadron_reconstructed_loose
+
+    flow_charged_hadron_pt_loose:
+      object_name: particle
+      field: mom.r
+      bins: pt_full
+      selection: charged_hadron_reconstructable
+      denominator: charged_hadron_reconstructable
+      numerator: flow_charged_hadron_reconstructed_loose
+      
+    pandora_charged_hadron_pt_tight:
+      object_name: particle
+      field: mom.r
+      bins: pt_full
+      selection: charged_hadron_reconstructable
+      denominator: charged_hadron_reconstructable
+      numerator: pandora_charged_hadron_reconstructed_tight
+
+    flow_charged_hadron_pt_tight:
+      object_name: particle
+      field: mom.r
+      bins: pt_full
+      selection: charged_hadron_reconstructable
+      denominator: charged_hadron_reconstructable
+      numerator: flow_charged_hadron_reconstructed_tight
+
+    # Neutral hadron
+    pandora_neutral_hadron_pt_loose:
+      object_name: particle
+      field: mom.r
+      bins: pt_full
+      selection: neutral_hadron_reconstructable
+      denominator: neutral_hadron_reconstructable
+      numerator: pandora_neutral_hadron_reconstructed_loose
+
+    flow_neutral_hadron_pt_loose:
+      object_name: particle
+      field: mom.r
+      bins: pt_full
+      selection: neutral_hadron_reconstructable
+      denominator: neutral_hadron_reconstructable
+      numerator: flow_neutral_hadron_reconstructed_loose
+    
+    # Photon
+    pandora_photon_pt_loose:
+      object_name: particle
+      field: mom.r
+      bins: pt_full
+      selection: photon_reconstructable
+      denominator: photon_reconstructable
+      numerator: pandora_photon_reconstructed_loose
+
+    flow_photon_pt_loose:
+      object_name: particle
+      field: mom.r
+      bins: pt_full
+      selection: photon_reconstructable
+      denominator: photon_reconstructable
+      numerator: flow_photon_reconstructed_loose
+
+    # Electron
+    pandora_electron_pt_loose:
+      object_name: particle
+      field: mom.r
+      bins: pt_full
+      selection: electron_reconstructable
+      denominator: electron_reconstructable
+      numerator: pandora_electron_reconstructed_loose
+
+    flow_electron_pt_loose:
+      object_name: particle
+      field: mom.r
+      bins: pt_full
+      selection: electron_reconstructable
+      denominator: electron_reconstructable
+      numerator: flow_electron_reconstructed_loose
+    
+    flow_charged_pt_loose:
+      object_name: particle
+      field: mom.r
+      bins: pt_full
+      selection: charged_reconstructable
+      denominator: charged_reconstructable
+      numerator: flow_charged_reconstructed_loose
+    
+    # Charged
+    pandora_charged_pt_loose:
+      object_name: particle
+      field: mom.r
+      bins: pt_full
+      selection: charged_reconstructable
+      denominator: charged_reconstructable
+      numerator: pandora_charged_reconstructed_loose
+
+    particle_charged_pt_loose:
+      object_name: particle
+      field: mom.r
+      bins: pt_full
+      selection: charged_reconstructable
+      denominator: charged_reconstructable
+      numerator: particle_charged_reconstructed_loose
+
+    pandora_charged_isolation_loose:
+      object_name: particle
+      field: isolation
+      bins: isolation_full
+      selection: charged_reconstructable
+      denominator: charged_reconstructable
+      numerator: pandora_charged_reconstructed_loose
+    
+    flow_charged_isolation_loose:
+      object_name: particle
+      field: isolation
+      bins: isolation_full
+      selection: charged_reconstructable
+      denominator: charged_reconstructable
+      numerator: flow_charged_reconstructed_loose
+
+
+  histogram_plots:
+    pt_charged_had_loose:
       xlabel: "Truth Particle $p_T$ [GeV]"
       ylabel: "Charged Hadron Efficiency"
-      min: 0.01
-      max: 100.0
-      num_bins: 32
       scale: log
+      
       items:
         pandora_loose:
-          denominator: charged_hadron_reconstructable
-          numerator: pandora_charged_hadron_reconstructed_loose
+          histogram: pandora_charged_hadron_pt_loose
           label: "Pandora Loose"
           color: cornflowerblue
+        
+        flow_loose:
+          histogram: flow_charged_hadron_pt_loose
+          label: "FlowFormer Loose"
+          color: mediumvioletred
+    
+    pt_neutral_had_loose:
+      xlabel: "Truth Particle $p_T$ [GeV]"
+      ylabel: "Neutral Hadron Efficiency"
+      scale: log
+      
+      items:
+        pandora_loose:
+          histogram: pandora_neutral_hadron_pt_loose
+          label: "Pandora Loose"
+          color: cornflowerblue
+        
+        flow_loose:
+          histogram: flow_neutral_hadron_pt_loose
+          label: "FlowFormer Loose"
+          color: mediumvioletred
+    
 
+    pt_charged_had_tight:
+      xlabel: "Truth Particle $p_T$ [GeV]"
+      ylabel: "Charged Hadron Efficiency"
+      scale: log
+      
+      items:
         pandora_tight:
-          denominator: charged_hadron_reconstructable
-          numerator: pandora_charged_hadron_reconstructed_tight
-          label: "Pandora Tight"
-          color: mediumseagreen
+          histogram: pandora_charged_hadron_pt_tight
+          label: "Pandora Loose"
+          color: cornflowerblue
+        
+        flow_tight:
+          histogram: flow_charged_hadron_pt_tight
+          label: "FlowFormer Loose"
+          color: mediumvioletred
+    
+    pt_photon_loose:
+      xlabel: "Truth Particle $p_T$ [GeV]"
+      ylabel: "Photon Efficiency"
+      scale: log
+      
+      items:
+        pandora_tight:
+          histogram: pandora_photon_pt_loose
+          label: "Pandora Loose"
+          color: cornflowerblue
+        
+        flow_tight:
+          histogram: flow_photon_pt_loose
+          label: "FlowFormer Loose"
+          color: mediumvioletred
+    
+    pt_electron_loose:
+      xlabel: "Truth Particle $p_T$ [GeV]"
+      ylabel: "Electron Efficiency"
+      scale: log
+      
+      items:
+        pandora_tight:
+          histogram: pandora_electron_pt_loose
+          label: "Pandora Loose"
+          color: cornflowerblue
+        
+        flow_tight:
+          histogram: flow_electron_pt_loose
+          label: "FlowFormer Loose"
+          color: mediumvioletred
+    
 
-    pt_charged:
-      object_name: particle
-      field: mom.r
-      selection: charged_reconstructable
+    pt_charged_loose:
       xlabel: "Truth Particle $p_T$ [GeV]"
       ylabel: "Tracking Efficiency"
-      min: 0.01
-      max: 100.0
-      num_bins: 32
       scale: log
+      
       items:
-        pandora_loose:
-          denominator: charged_reconstructable
-          numerator: pandora_charged_reconstucted_loose
+        pandora_tight:
+          histogram: pandora_charged_pt_loose
           label: "Pandora Loose"
           color: cornflowerblue
+        
+        flow_tight:
+          histogram: flow_charged_pt_loose
+          label: "FlowFormer Loose"
+          color: mediumvioletred
+        
+        particle_tight:
+          histogram: particle_charged_pt_loose
+          label: "Truth"
+          color: black
+    
+    isolation_charged_loose:
+      xlabel: "Truth Particle Angular Isolation"
+      ylabel: "Tracking Efficiency"
+      scale: log
+      
+      items:
+        pandora_tight:
+          histogram: pandora_charged_isolation_loose
+          label: "Pandora Loose"
+          color: cornflowerblue
+        
+        flow_tight:
+          histogram: flow_charged_isolation_loose
+          label: "FlowFormer Loose"
+          color: mediumvioletred

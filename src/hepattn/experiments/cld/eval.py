@@ -1,218 +1,179 @@
+# ruff: noqa: E501
+
 from pathlib import Path
 
-import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import yaml
+import time
+import h5py
 from scipy.stats import binned_statistic
 from tqdm import tqdm
+from torch import Tensor
 
-from hepattn.experiments.cld.data import CLDDataset
+from hepattn.experiments.cld.data import CLDDataset, CLDDataModule
 from hepattn.experiments.cld.plot_event import plot_cld_event_reconstruction
-from hepattn.utils.eval_plots import bayesian_binomial_error, plot_hist_to_ax
+
+from hepattn.utils.plot import bayesian_binomial_error, plot_hist_to_ax
+from hepattn.utils.eval import apply_matching, calc_cost, calc_binary_reco_metrics, calculate_selections
+from hepattn.utils.tensor_utils import merge_batches
+from hepattn.models.matcher import Matcher
+
 
 plt.rcParams["text.usetex"] = False
 plt.rcParams["figure.dpi"] = 300
 plt.rcParams["font.size"] = 10
 plt.rcParams["figure.constrained_layout.use"] = True
 
+# Setup the dataset to load truth and pandora info from
+config_path = Path("src/hepattn/experiments/cld/configs/base.yaml")
+config = yaml.safe_load(config_path.read_text())["data"]
 
-def sigmoid(x):
-    return 1 / (1 + np.exp(-np.clip(x, -10, 10)))
+# Need to overwrite whatever is in the config
+config["num_workers"] = 0
+config["batch_size"] = 1
+
+# Load the entire test set, so that we can access any sample id
+config["num_test"] = -1
 
 
-def main():
-    config_path = Path("/share/rcifdata/maxhart/hepattn/logs/CLD_5_320_10MeV_neutrals_F16_focal_20250716-T105435/config.yaml")
-    eval_path = Path(
-        "/share/rcifdata/maxhart/hepattn/logs/CLD_5_320_10MeV_neutrals_F16_focal_20250716-T105435/ckpts/epoch=000-train_loss=11.36078_test_eval.h5"
-    )
 
-    # Now create the dataset
-    config = yaml.safe_load(config_path.read_text())["data"]
+# Get the dataset object
+datamodule = CLDDataModule(**config)
+datamodule.setup(stage="test")
+dataset = datamodule.test_dataloader().dataset
 
-    config["dirpath"] = Path("/share/rcifdata/maxhart/data/cld/prepped/test/")
+# Define the test set eval we will look at
+eval_file_path = Path("logs/CLD_5_320_10MeV_neutrals_batched_20250805-T152453/ckpts/epoch=001-train_loss=4.66640_reco_eval.h5")
 
-    # Remve keys that are normally for the datamodule
-    config_del_keys = [
-        "train_dir",
-        "test_dir",
-        "val_dir",
-        "num_train",
-        "num_test",
-        "num_val",
-        "num_workers",
-        "batch_size",
-        "pin_memory",
-    ]
+plot_save_dir = Path("src/hepattn/experiments/cld/eval_plots/")
 
-    for key in config_del_keys:
-        config.pop(key)
+# Load eval config
+eval_config_path = Path("src/hepattn/experiments/cld/eval_config.yaml")
+eval_config = yaml.safe_load(eval_config_path.read_text())["eval"]
 
-    dataset = CLDDataset(**config)
+# Which hits sets will be considered in the eval
+hits = ["vtxd", "trkr", "ecal", "hcal"]
 
-    # Which hits sets will be considered in the eval
-    hits = ["vtxd", "trkr", "ecal", "hcal"]
+# Spec for event displays
+evet_display_cfg = [
+    {"x": "pos.x", "y": "pos.y", "px": "mom.x", "py": "mom.y", "input_names": hits},
+    {"x": "pos.z", "y": "pos.y", "px": "mom.z", "py": "mom.y", "input_names": hits},
+]
 
-    # Where to save all the plots
-    plot_save_dir = Path(__file__).resolve().parent / Path("eval_plots")
+# Setup the matcher - use the same machinery as the model as a consistency check
+matcher = Matcher(default_solver="scipy", adaptive_solver=False, parallel_solver=False,)
 
-    # Spec for event displays
-    axes_spec = [
-        {"x": "pos.x", "y": "pos.y", "px": "mom.x", "py": "mom.y", "input_names": hits},
-        {"x": "pos.z", "y": "pos.y", "px": "mom.z", "py": "mom.y", "input_names": hits},
-    ]
+bin_types = {
+    "linear": np.linspace,
+    "log": np.geomspace,
+}
 
-    # Which sample will be used to produce a sample event display
-    display_sample_idx = 0
+bins = {name: bin_types[cfg["scale"]](cfg["min"], cfg["max"], cfg["num"]) for name, cfg in eval_config["bins"].items()}
+histograms = {name: {i: np.zeros(len(bins[cfg["bins"]]) - 1) for i in ["n", "k"]} for name, cfg in eval_config["histograms"].items()}
 
-    # Get the truth data for the truth event display
-    sample_id = dataset.sample_ids[display_sample_idx]
-    inputs, targets = dataset[display_sample_idx]
+with h5py.File(eval_file_path, "r") as eval_file:
+    for i, sample_id in tqdm(enumerate(eval_file.keys())):
+        data = {}
 
-    # Get the predictions for the reconstruction event display
-    preds = {}
-    with h5py.File(eval_path, "r") as eval_file:
+        # Get the predictions just from the final layer
         final_preds = eval_file[f"{sample_id}/preds/final/"]
-        preds["particle_valid"] = torch.from_numpy(final_preds["flow_valid/flow_valid"][:])
+
+        # Load whether each slot was predicted as valid or not
+        data[f"flow_valid"] = torch.from_numpy(final_preds["flow_valid/flow_valid"][:])
 
         for hit in hits:
-            hit_valid = targets[f"{hit}_valid"][0]
-            preds[f"particle_{hit}_valid"] = torch.from_numpy(final_preds[f"flow_{hit}_assignment/flow_{hit}_valid"][:][:, :, : len(hit_valid)])
+            # Make sure to drop any invalid hit slots from the mask
+            data[f"flow_{hit}_valid"] = torch.from_numpy(final_preds[f"flow_{hit}_assignment/flow_{hit}_valid"][:])
 
-    # Plot the event display for the truth
-    fig = plot_cld_event_reconstruction(inputs, targets, axes_spec)
-    fig.savefig(plot_save_dir / Path("event_display_truth.png"))
+        # Get the sample
+        sample = dataset.load_sample(int(sample_id))
 
-    # Plot the event display for the reconstruction
-    fig = plot_cld_event_reconstruction(inputs, preds, axes_spec)
-    fig.savefig(plot_save_dir / Path("event_display_preds.png"))
+        # Prepare it by adding any necessary padding etc
+        inputs, targets = dataset.prep_sample(sample)
 
-    plot_specs = {
-        "mom.r": ("$p_T$ [GeV]", np.geomspace(0.01, 100.0, 32), "log"),
-        "mom.rinv": ("$p_T$ [GeV] (rinv)", np.geomspace(0.01, 100.0, 32), "log"),
-        "mom.qopt": ("$p_T$ [GeV] (qopt)", np.geomspace(0.01, 100.0, 32), "log"),
-        "mom.eta": (r"$\eta$", np.linspace(-4, 4, 32), "linear"),
-        "mom.phi": (r"$\phi$", np.linspace(-np.pi, np.pi, 32), "linear"),
-        "mom.sinphi": (r"$\sin\phi$", np.linspace(-np.pi, np.pi, 32), "linear"),
-        "mom.cosphi": (r"$\cos\phi$", np.linspace(-np.pi, np.pi, 32), "linear"),
-        "vtx.r": ("Vertex $r_0$ [m]", np.linspace(0.0, 0.05, 32), "linear"),
-        "vtx.z": ("Vertex $z_0$ [m]", np.linspace(-0.5, 0.5, 32), "linear"),
-        "isolation": (r"$\Delta R$ Isolation", np.logspace(-4, 0, 32), "log"),
-        "num_vtxd": ("Number of Vertex Detector Hits", np.arange(0, 20) + 0.5, "linear"),
-        "num_trkr": ("Number of Tracker Hits", np.arange(0, 20) + 0.5, "linear"),
-        "num_ecal": ("Number of ECAL Hits", np.geomspace(1, 10000, 32), "linear"),
-        "num_hcal": ("Number of HCAL Hits", np.geomspace(1, 1000, 32), "linear"),
-    }
+        # Add the input and target data from the dataset
+        data |= targets
 
-    particle_total_valid = {hit: {field: np.zeros(len(plot_specs[field][1]) - 1) for field in plot_specs} for hit in hits}
-    particle_total_eff = {hit: {field: np.zeros(len(plot_specs[field][1]) - 1) for field in plot_specs} for hit in hits}
+        for pred_object in ["particle", "pandora", "flow"]:
+            costs = calc_cost(data, "particle", pred_object, eval_config["match_metrics"]["default"])
 
-    {hit: {field: np.zeros(len(plot_specs[field][1]) - 1) for field in plot_specs} for hit in hits}
-    {hit: {field: np.zeros(len(plot_specs[field][1]) - 1) for field in plot_specs} for hit in hits}
+            data = apply_matching(data, "particle", pred_object, costs, matcher)
 
-    for idx in tqdm(range(100)):
-        # Load the data from the event
-        sample_id = dataset.sample_ids[idx]
+            eff_metrics = calc_binary_reco_metrics(data, "particle", pred_object, eval_config["binary_metrics"])
+            pur_metrics = calc_binary_reco_metrics(data, pred_object, "particle", eval_config["binary_metrics"])
 
-        inputs, targets = dataset.load_event(sample_id)
+            data |= eff_metrics
+            data |= pur_metrics
 
-        # Loading a single event from the dataloader does not pad the particles, so we have to apply the
-        # particle / object padding that was used for the model to both the particles and the masks
-        particle_pad_size = dataset.event_max_num_particles - len(targets["particle_valid"])
-        particle_valid = np.pad(targets["particle_valid"], ((0, particle_pad_size),), constant_values=False)
+            for hit in hits:
+                data[f"{pred_object}_num_{hit}"] = data[f"{pred_object}_{hit}_valid"].sum(-1)
+            
+            data[f"{pred_object}_num_sihit"] = data[f"{pred_object}_num_vtxd"] + data[f"{pred_object}_num_trkr"]
 
-        for hit in hits:
-            if hit in ["vtxd", "trkr"]:
-                particle_valid = particle_valid & (particle_hit_valid.sum(-1) >= 6)
-            elif hit in ["ecal"]:
-                particle_valid = particle_valid & (particle_hit_valid.sum(-1) >= 100)
-            elif hit in ["hcal"]:
-                particle_valid = particle_valid & (particle_hit_valid.sum(-1) >= 50)
+        for object_name in ["particle"]:
+            data[f"{object_name}_has_tracker_hits"] = (data[f"{object_name}_vtxd_valid"].sum(-1) >= 4) & (data[f"{object_name}_trkr_valid"].sum(-1) >= 4)
+            data[f"{object_name}_has_ecal_hits"] = data[f"{object_name}_ecal_valid"].sum(-1) >= 16
+            data[f"{object_name}_has_hcal_hits"] = data[f"{object_name}_ecal_valid"].sum(-1) >= 16
+            data[f"{object_name}_has_calo_hits"] = data[f"{object_name}_has_ecal_hits"] | data[f"{object_name}_has_hcal_hits"]
 
-        for hit in hits:
-            hit_valid = targets[f"{hit}_valid"]
+            selections = calculate_selections(data, object_name, eval_config["selections"])
+            data |= selections
 
+        for name, cfg in eval_config["histograms"].items():
+            selection = data[f"{cfg['object_name']}_{cfg['selection']}"]
 
-            particle_hit_valid = np.pad(targets[f"particle_{hit}_valid"], ((0, particle_pad_size), (0, 0)), constant_values=False)
+            field = data[f"{cfg['object_name']}_{cfg['field']}"][selection].float()
+            n = data[f"{cfg['object_name']}_{cfg['denominator']}"][selection].float()
+            k = data[f"{cfg['object_name']}_{cfg['numerator']}"][selection].float()
 
-            # Load the eval file
-            with h5py.File(eval_path, "r") as eval_file:
-                preds = eval_file[f"{sample_id}/preds/final/"]
+            if n.sum() == 0:
+                continue
+            
+            if k.sum() == 0:
+                continue
 
-                flow_valid = preds["flow_valid/flow_valid"][0]
+            n_binned, _, _ = binned_statistic(field, n, statistic="sum", bins=bins[cfg["bins"]])
+            k_binned, _, _ = binned_statistic(field, k, statistic="sum", bins=bins[cfg["bins"]])
 
-                # The masks will have had the particle padding applied, but also the hit padding (since they are batched)
-                flow_hit_valid = preds[f"flow_{hit}_assignment/flow_{hit}_valid"][0][:, : len(hit_valid)]
+            histograms[name]["n"] += n_binned
+            histograms[name]["k"] += k_binned
 
-            particle_valid &= particle_hit_valid.sum(-1) > 0
-
-            hit_iou = (particle_hit_valid & flow_hit_valid).sum(-1) / (particle_hit_valid | flow_hit_valid).sum(-1)
-
-            matched = particle_valid & flow_valid & (hit_iou >= 0.75)
-
-            particle_eff = particle_valid & matched
-
-            # Fill the particle histograms
-            for field, (_, bins, _) in plot_specs.items():
-                particle_field = np.pad(targets[f"particle_{field}"], ((0, particle_pad_size),), constant_values=0.0)
-
-                # Do overflow binning
-                particle_field = np.clip(particle_field, bins[0], bins[-1])
-
-                num_valid, _, _ = binned_statistic(particle_field, particle_valid, statistic="sum", bins=bins)
-                num_eff, _, _ = binned_statistic(particle_field, particle_eff, statistic="sum", bins=bins)
-
-                particle_total_valid[hit][field] += num_valid
-                particle_total_eff[hit][field] += num_eff
-
-    hit_aliases = {
-        "vtxd": "VTXD",
-        "trkr": "Tracker",
-        "ecal": "ECAL",
-        "hcal": "HCAL",
-    }
-
-    # Now plot everything
-    for field, (alias, bins, scale) in plot_specs.items():
-        for hit in hits:
-            total_valid = particle_total_valid[hit][field]
-            total_eff = particle_total_eff[hit][field]
-
-            # Total effieicny is the total number of effieint particles /
-            # total number of valid (i.e. reconstructable) particles
-            eff = total_eff / total_valid
-            eff_errors = bayesian_binomial_error(total_eff, total_valid)
-
-            # Plot the efficiency
-            fig, ax = plt.subplots()
-            fig.set_size_inches(8, 3)
-
-            plot_hist_to_ax(ax, eff, bins, eff_errors)
-
-            ax.set_xlabel(f"Particle {alias}")
-            ax.set_ylabel(f"Particle {hit_aliases[hit]} Efficiency")
-            ax.set_xscale(scale)
-            ax.legend()
-            ax.grid(zorder=0, alpha=0.25, linestyle="--")
-
-            fig.savefig(plot_save_dir / Path(f"part_{hit}_eff_{field}.png"))
-
-        # Plot distributions of truth quantities
-        fig, ax = plt.subplots()
-        fig.set_size_inches(8, 3)
-
-        plot_hist_to_ax(ax, total_valid, bins, vertical_lines=True)
-
-        ax.set_xlabel(f"Particle {alias}")
-        ax.set_ylabel("Count")
-        ax.set_xscale(scale)
-        ax.set_yscale("log")
-        ax.legend()
-        ax.grid(zorder=0, alpha=0.25, linestyle="--")
-
-        fig.savefig(plot_save_dir / Path(f"part_{field}.png"))
+        if i == 0:
+            for object_name in ["particle", "pandora", "flow"]:
+                fig = plot_cld_event_reconstruction(inputs, data, evet_display_cfg, object_name)
+                fig.savefig(plot_save_dir / Path(f"event_displays/{object_name}.png"))
+    
+        if i == 100:
+            break
 
 
-if __name__ == "__main__":
-    main()
+
+for name, cfg in eval_config["histogram_plots"].items():
+    fig, ax = plt.subplots()
+    fig.set_size_inches(8, 3)
+
+    for item_name, item_cfg in cfg["items"].items():
+        hist_cfg = eval_config["histograms"][item_cfg["histogram"]]
+
+        n_binned = histograms[item_cfg["histogram"]]["n"]
+        k_binned = histograms[item_cfg["histogram"]]["k"]
+        p_binned = k_binned / n_binned
+        p_binned_err = bayesian_binomial_error(k_binned, n_binned)
+        
+
+
+        plot_hist_to_ax(ax, p_binned, bins[hist_cfg["bins"]], p_binned_err, label=item_cfg["label"], color=item_cfg["color"])
+
+    ax.set_xlabel(cfg["xlabel"])
+    ax.set_ylabel(cfg["ylabel"])
+    ax.set_xscale(cfg["scale"])
+
+    ax.legend(fontsize=8)
+    ax.grid(zorder=0, alpha=0.25, linestyle="--")
+
+    fig.savefig(plot_save_dir / Path(f"histograms/{name}.png"))
+
+
+
