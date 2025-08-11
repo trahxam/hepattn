@@ -22,9 +22,9 @@ data:
 
   num_objects: &num_particles 150
 
-  train_path: /share/gpu1/syw24/dmitrii_clic/train_clic_fix.root
-  valid_path: /share/gpu1/syw24/dmitrii_clic/val_clic_fix.root
-  test_path: /share/gpu1/syw24/dmitrii_clic/test_clic_fix.root
+  train_path: /projects/u5ar/data/clic/train_clic_fix.root
+  valid_path: /projects/u5ar/data/clic/val_clic_fix.root
+  test_path: /projects/u5ar/data/clic/test_clic_common_infer.root
 
   num_workers: 16
   num_train: -1
