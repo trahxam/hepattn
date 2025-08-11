@@ -17,7 +17,11 @@ class IndexFirstAxis(torch.autograd.Function):
         second_dim = other_shape.numel()
         # TD [2022-03-04] For some reason torch.gather is a bit faster than indexing.
         # return input[indices]
-        return torch.gather(rearrange(input, "b ... -> b (...)"), 0, repeat(indices, "z -> z d", d=second_dim)).reshape(-1, *other_shape)
+        return torch.gather(
+            rearrange(input, "b ... -> b (...)"),
+            0,
+            repeat(indices, "z -> z d", d=second_dim),
+        ).reshape(-1, *other_shape)
 
     @staticmethod
     def backward(ctx, grad_output):
@@ -172,7 +176,6 @@ def unpad_input_for_concatenated_sequences(hidden_states, attention_mask_in_leng
     Arguments:
         hidden_states: (batch, seqlen, ...)
         attention_mask_in_length: (batch, seqlen), int, a nonzero number (e.g., 1, 2, 3, etc.) means length of concatenated sequence in b-th batch, and 0 means none.
-
     Return:
         hidden_states: (total_nnz, ...), where total_nnz = number of tokens in selected in attention_mask.
         indices: (total_nnz), the indices of non-masked tokens from the flattened input sequence.
@@ -206,7 +209,6 @@ def pad_input(hidden_states, indices, batch, seqlen):
         indices: (total_nnz), the indices that represent the non-masked tokens of the original padded input sequence.
         batch: int, batch size for the padded sequence.
         seqlen: int, maximum sequence length for the padded sequence.
-
     Return:
         hidden_states: (batch, seqlen, ...)
     """
