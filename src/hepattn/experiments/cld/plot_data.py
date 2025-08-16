@@ -1,140 +1,203 @@
 from pathlib import Path
-
+from scipy.stats import binned_statistic
 import matplotlib.pyplot as plt
 import numpy as np
 import yaml
+from tqdm import tqdm
 
 from hepattn.experiments.cld.data import CLDDataModule
+from hepattn.utils.plot import plot_hist_to_ax
+from hepattn.utils.stats import bayesian_binomial_error, combine_mean_std
+
 
 plt.rcParams["figure.dpi"] = 300
 
 
+class CountingHistogram:
+    def __init__(self, bins: np.ndarray):
+        self.bins = bins
+        self.counts = np.zeros(len(bins) - 1, dtype=np.float32)
+
+    def fill(self, values):
+        counts, _, _ = binned_statistic(values, values, statistic="count", bins=self.bins)
+        self.counts += counts
+
+
+class PoissonHistogram:
+    def __init__(self, bins: np.ndarray):
+        self.bins = bins
+        self.n = np.zeros(len(bins) - 1, dtype=np.float32)
+        self.k = np.zeros(len(bins) - 1, dtype=np.float32)
+    
+    def fill(self, x, n, k):
+        n_binned, _, _ = binned_statistic(x, n, statistic="sum", bins=self.bins)
+        k_binned, _, _ = binned_statistic(x, k, statistic="sum", bins=self.bins)
+
+        self.n += n_binned
+        self.k += k_binned
+
+
+class GaussianHistogram:
+    def __init__(self, bins: np.ndarray):
+        self.bins = bins
+        self.n = np.zeros(len(bins) - 1, dtype=np.float32)
+        self.mu = np.zeros(len(bins) - 1, dtype=np.float32)
+        self.sigma = np.zeros(len(bins) - 1, dtype=np.float32)
+    
+    def fill(self, x, values):
+        n, _, _ = binned_statistic(x, values, statistic="count", bins=self.bins)
+        mu, _, _ = binned_statistic(x, values, statistic="mean", bins=self.bins)
+        sig, _, _ = binned_statistic(x, values, statistic="std", bins=self.bins)
+
+        mu, sig, n = combine_mean_std(self.mu, self.sig, self.n, mu, sig, n)
+
+        self.n = n
+        self.mu = mu
+        self.sig = sig
+
+aliases = {
+    "calib_energy_ecal": "Total Calibrated ECAL Energy [GeV]",
+    "calib_energy_hcal": "Total Calibrated HCAL Energy [GeV]",
+    "mom.r": r"$p_T$",
+    "mom.eta": r"$\eta$",
+    "mom.phi": r"$\phi$",
+    "vtx.r": r"Vertex $r$",
+    "isolation": r"Particle Angular Isolation",
+    "num_vtxd": "Num. VTXD Hits",
+    "num_trkr": "Num. Tracker Hits",
+    "num_sihit": "Num. Si Hits",
+    "num_ecal": "Num. ECAL Hits",
+    "num_hcal": "Num. HCAL Hits",
+    "num_muon": "Num. Muon Hits",
+}
+
+scales = {
+    "calib_energy_ecal": "log",
+    "calib_energy_hcal": "log",
+    "mom.r": "log",
+    "mom.eta": "linear",
+    "mom.phi": "linear",
+    "vtx.r": "linear",
+    "isolation": "log",
+    "num_vtxd": "linear",
+    "num_trkr": "linear",
+    "num_sihit": "linear",
+    "num_ecal": "log",
+    "num_hcal": "log",
+    "num_muon": "linear",
+}
+
+bins = {
+    "calib_energy_ecal": np.logspace(-3, 2, 32),
+    "calib_energy_hcal": np.logspace(-3, 2, 32),
+    "mom.r": np.geomspace(0.01, 365, 32),
+    "mom.eta": np.linspace(-3, 3, 32),
+    "mom.phi": np.linspace(-np.pi, np.pi, 32),
+    "vtx.r": np.linspace(0, 500, 32),
+    "isolation": np.geomspace(1e-4, 3.14, 32),
+    "num_vtxd": np.arange(-1, 12) + 0.5,
+    "num_trkr": np.arange(-1, 12) + 0.5,
+    "num_sihit": np.arange(-1, 24) + 0.5,
+    "num_ecal": np.geomspace(1, 1000, 32),
+    "num_hcal": np.geomspace(1, 500, 32),
+    "num_muon": np.arange(-1, 14) + 0.5,
+}
+
+object_name = "particle"
+
+selection_aliases = {
+    "valid": "All",
+    "is_charged": "Charged",
+    "is_charged_hadron": "Charged Hadrons",
+    "is_neutral_hadron": "Neutral Hadrons",
+    "is_electron": "Electrons",
+    "is_photon": "Photons",
+    "is_muon": "Muons",
+}
+
+selection_colours = {
+    "valid": "tab:blue",
+    "is_charged": "tab:orange",
+    "is_charged_hadron": "tab:green",
+    "is_neutral_hadron": "tab:red",
+    "is_electron": "tab:purple",
+    "is_photon": "tab:brown",
+    "is_muon": "tab:pink",
+}
+
+
+hists = {field: {selection: CountingHistogram(bins) for selection in selection_aliases} for field, bins in bins.items()}
+
+# Setup the dataset
 config_path = Path("src/hepattn/experiments/cld/configs/base.yaml")
 config = yaml.safe_load(config_path.read_text())["data"]
-config["num_workers"] = 0
-config["batch_size"] = 25
+config["num_workers"] = 10
+config["batch_size"] = 10
+config["num_test"] = 10000
 
 datamodule = CLDDataModule(**config)
 datamodule.setup(stage="test")
-
-dataloader = datamodule.train_dataloader()
+dataloader = datamodule.test_dataloader()
 data_iterator = iter(dataloader)
 
-inputs, targets = next(data_iterator)
+# Iterate through the dataset
+for i in tqdm(range(1000)):
+    inputs, targets = next(data_iterator)
 
-print("Read data from dataloader")
+    for field, selections in hists.items():
+        for selection, hist in selections.items():
+            values = targets[f"particle_{field}"][targets[f"particle_{selection}"].bool()]
+            hists[field][selection].fill(values)
 
-
-# Plot the particle fields
-
-fields = [
-    ("calib_energy_ecal", "Total Calibrated ECAL Energy [GeV]", "log", np.logspace(-3, 2, 32)),
-    ("calib_energy_hcal", "Total Calibrated HCAL Energy [GeV]", "log", np.logspace(-3, 2, 32)),
-]
-
-selection_masks = {
-    "All": targets["particle_valid"],
-    "Charged": targets["particle_isCharged"],
-    "Neutral": targets["particle_isNeutral"],
+plots = {
+    "particle_pt_eta_phi": [
+        "mom.r",
+        "mom.eta",
+        "mom.phi"
+    ],
+    "particle_calo_energy": [
+        "calib_energy_ecal",
+        "calib_energy_hcal",
+    ],
+    "particle_iso_d0": [
+        "vtx.r",
+        "isolation",
+    ],
+    "particle_num_sihits": [
+        "num_vtxd",
+        "num_trkr",
+        "num_sihit",
+    ],
+    "particle_hits": [
+        "num_ecal",
+        "num_hcal",
+        "num_muon",
+    ],
 }
 
-fig, ax = plt.subplots(1, len(fields))
-fig.set_size_inches(12, 3)
+for plot_name, fields in plots.items():
+    
+    fig, ax = plt.subplots(1, len(fields))
+    fig.set_size_inches(12, 3)
 
-for j, (field, alias, scale, bins) in enumerate(fields):
-    for selection_name, selection_mask in selection_masks.items():
-        ax[j].hist(targets[f"particle_{field}"][selection_mask.bool()], bins=bins, histtype="step", label=selection_name)
-        ax[j].set_yscale("log")
-        ax[j].set_xscale(scale)
-        ax[j].set_xlabel(f"Particle {alias}")
-        ax[j].set_ylabel("Count")
-        ax[j].grid(zorder=0, alpha=0.25, linestyle="--")
-        ax[j].legend(fontsize=8)
+    for ax_idx, field in enumerate(fields):
+        for selection, hist in hists[field].items():
+            plot_hist_to_ax(
+                ax[ax_idx],
+                hist.counts,
+                hist.bins,
+                label=selection_aliases[selection],
+                color=selection_colours[selection],
+                vertical_lines=True,
+                )
 
-fig.tight_layout()
-fig.savefig(Path("src/hepattn/experiments/cld/plots/data/cld_particle_calo_energy.png"))
+        ax[ax_idx].set_yscale("log")
+        ax[ax_idx].set_xscale(scales[field])
+        ax[ax_idx].set_xlabel(f"Particle {aliases[field]}")
+        ax[ax_idx].set_ylabel("Count")
+        ax[ax_idx].grid(zorder=0, alpha=0.25, linestyle="--")
 
+    ax[0].legend(fontsize=6)
 
-fields = [
-    ("mom.eta", r"$\eta$", "linear", np.linspace(-4, 4, 32)),
-    ("mom.r", r"$p_T$", "log", np.logspace(-2, 2, 32)),
-]
-
-selection_masks = {
-    "All": targets["particle_valid"],
-    "Charged": targets["particle_isCharged"],
-    "Neutral": targets["particle_isNeutral"],
-}
-
-fig, ax = plt.subplots(1, len(fields))
-fig.set_size_inches(12, 3)
-
-for j, (field, alias, scale, bins) in enumerate(fields):
-    for selection_name, selection_mask in selection_masks.items():
-        ax[j].hist(targets[f"particle_{field}"][selection_mask.bool()], bins=bins, histtype="step", label=selection_name)
-        ax[j].set_yscale("log")
-        ax[j].set_xscale(scale)
-        ax[j].set_xlabel(f"Particle {alias}")
-        ax[j].set_ylabel("Count")
-        ax[j].grid(zorder=0, alpha=0.25, linestyle="--")
-        ax[j].legend(fontsize=8)
-
-fig.tight_layout()
-fig.savefig(Path("src/hepattn/experiments/cld/plots/data/cld_particle_pt_eta.png"))
-
-
-fields = [
-    ("num_vtxd", "Num. VTXD Hits", "linear", np.arange(-1, 12) + 0.5),
-    ("num_trkr", "Num. Tracker Hits", "linear", np.arange(-1, 12) + 0.5),
-    ("num_sihit", "Num. VTXD + Tracker Hits", "linear", np.arange(-1, 20) + 0.5),
-]
-
-selection_masks = {
-    "All": targets["particle_valid"],
-    "Charged": targets["particle_isCharged"],
-    "Neutral": targets["particle_isNeutral"],
-}
-
-fig, ax = plt.subplots(1, len(fields))
-fig.set_size_inches(12, 3)
-
-for j, (field, alias, scale, bins) in enumerate(fields):
-    for selection_name, selection_mask in selection_masks.items():
-        ax[j].hist(targets[f"particle_{field}"][selection_mask.bool()], bins=bins, histtype="step", label=selection_name)
-        ax[j].set_yscale("log")
-        ax[j].set_xscale(scale)
-        ax[j].set_xlabel(f"Particle {alias}")
-        ax[j].set_ylabel("Count")
-        ax[j].grid(zorder=0, alpha=0.25, linestyle="--")
-        ax[j].legend(fontsize=8)
-
-fig.tight_layout()
-fig.savefig(Path("src/hepattn/experiments/cld/plots/data/cld_particle_sihit_counts.png"))
-
-
-fields = [
-    ("num_ecal", "Num. ECAL Hits", "log", np.geomspace(1, 1000, 32)),
-    ("num_hcal", "Num. HCAL Hits", "log", np.geomspace(1, 400, 32)),
-]
-
-selection_masks = {
-    "All": targets["particle_valid"],
-    "Charged": targets["particle_isCharged"],
-    "Neutral": targets["particle_isNeutral"],
-}
-
-fig, ax = plt.subplots(1, len(fields))
-fig.set_size_inches(12, 3)
-
-for j, (field, alias, scale, bins) in enumerate(fields):
-    for selection_name, selection_mask in selection_masks.items():
-        ax[j].hist(targets[f"particle_{field}"][selection_mask.bool()], bins=bins, histtype="step", label=selection_name)
-        ax[j].set_yscale("log")
-        ax[j].set_xscale(scale)
-        ax[j].set_xlabel(f"Particle {alias}")
-        ax[j].set_ylabel("Count")
-        ax[j].grid(zorder=0, alpha=0.25, linestyle="--")
-        ax[j].legend(fontsize=8)
-
-fig.tight_layout()
-fig.savefig(Path("src/hepattn/experiments/cld/plots/data/cld_particle_calohit_counts.png"))
+    fig.tight_layout()
+    fig.savefig(Path(f"src/hepattn/experiments/cld/plots/data/{plot_name}.png"))

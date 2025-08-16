@@ -1,0 +1,483 @@
+eval:
+  # Define metrics which give a score between pairs of objects which can
+  # be used to match the objects to eachother
+  match_metrics:
+    default:
+      sihit:
+        weight: 1.0
+        metric: iou
+        field: valid
+
+      ecal:
+        weight: 1.0
+        metric: iou
+        field: valid
+
+      hcal:
+        weight: 1.0
+        metric: iou
+        field: valid
+
+      muon:
+        weight: 1.0
+        metric: iou
+        field: valid
+
+  # Define binary metrics which evaluate to true if all of its conditions are met
+  binary_metrics:
+    electron_reconstructed:
+      sihit:
+        thresh: 0.75
+        metric: eff
+        field: valid
+      
+      sihit:
+        thresh: 0.75
+        metric: pur
+        field: valid
+
+      ecal:
+        thresh: 0.75
+        metric: eff
+        field: valid
+
+      ecal:
+        thresh: 0.75
+        metric: pur
+        field: valid
+
+
+    photon_reconstructed:
+      ecal:
+        thresh: 0.75
+        metric: eff
+        field: valid
+
+      ecal:
+        thresh: 0.75
+        metric: pur
+        field: valid
+
+    muon_reconstructed:
+      sihit:
+        thresh: 0.75
+        metric: eff
+        field: valid
+
+      sihit:
+        thresh: 0.75
+        metric: pur
+        field: valid
+
+      ecal:
+        thresh: 0.75
+        metric: eff
+        field: valid
+
+      ecal:
+        thresh: 0.75
+        metric: pur
+        field: valid
+
+      hcal:
+        thresh: 0.75
+        metric: eff
+        field: valid
+
+      hcal:
+        thresh: 0.75
+        metric: pur
+        field: valid
+
+      muon:
+        thresh: 0.75
+        metric: eff
+        field: valid
+
+      muon:
+        thresh: 0.75
+        metric: pur
+        field: valid
+
+  selections:
+    electron_reconstructable:
+      - "is_electron"
+      - "is_primary"
+      - "mom.r >= 0.1"
+      - "mom.abs_eta <= 2.44"
+      - "vtx.r <= 50"
+      - "num_sihit >= 4"
+      - "num_ecal >= 10"
+      - "num_hcal < 10"
+
+    electron_reconstructable_loose:
+      - "is_electron"
+      - "mom.r >= 0.01"
+      - "num_sihit >= 4"
+      - "num_ecal >= 10"
+      - "num_hcal < 10"
+
+    photon_reconstructable:
+      - "is_photon"
+      - "is_primary"
+      - "mom.abs_eta <= 2.44"
+      - "vtx.r <= 50"
+      - "mom.r >= 0.1"
+      - "num_ecal >= 10"
+      - "num_hcal < 10"
+
+    photon_reconstructable_loose:
+      - "is_photon"
+      - "mom.r >= 0.01"
+      - "num_ecal >= 10"
+      - "num_hcal < 10"
+
+    muon_reconstructable:
+      - "is_muon"
+      #- "is_primary"
+      - "mom.r >= 0.1"
+      #- "mom.abs_eta <= 2.44"
+      #- "vtx.r <= 50"
+      - "num_sihit >= 4"
+      - "num_ecal >= 10"
+      - "num_hcal >= 10"
+      - "num_muon >= 4"
+
+  residual_metrics: {}
+
+  residual_histograms: {}
+
+  residual_histogram_plots: {}
+
+  bins:
+    pt_100mev:
+      min: 0.1
+      max: 100.0
+      num: 24
+      scale: log
+
+    pt_full:
+      min: 0.01
+      max: 100.0
+      num: 32
+      scale: log
+
+    energy:
+      min: 0.1
+      max: 100.0
+      num: 32
+      scale: log
+
+    vtx_r_50mm:
+      min: 0
+      max: 50
+      num: 32
+      scale: linear
+    
+    num_sihit:
+      min: 0.5
+      max: 24.5
+      num: 25
+      scale: linear
+
+    isolation_full:
+      min: 0.0001
+      max: 3.14
+      num: 32
+      scale: log
+
+  bulk_metrics:
+    electron_pandora_eff:
+      object_name: particle
+      selection: electron_reconstructable
+      denominator: electron_reconstructable
+      numerator: pandora_electron_reconstructed
+    
+    electron_flow_eff:
+      object_name: particle
+      selection: electron_reconstructable
+      denominator: electron_reconstructable
+      numerator: flow_electron_reconstructed
+    
+    photon_pandora_eff:
+      object_name: particle
+      selection: photon_reconstructable
+      denominator: photon_reconstructable
+      numerator: pandora_photon_reconstructed
+    
+    photon_flow_eff:
+      object_name: particle
+      selection: photon_reconstructable
+      denominator: photon_reconstructable
+      numerator: flow_photon_reconstructed
+
+    muon_pandora_eff:
+      object_name: particle
+      selection: muon_reconstructable
+      denominator: muon_reconstructable
+      numerator: pandora_muon_reconstructed
+
+    muon_flow_eff:
+      object_name: particle
+      selection: muon_reconstructable
+      denominator: muon_reconstructable
+      numerator: flow_muon_reconstructed
+
+    # Bulk purity metrics
+    electron_pandora_pur:
+      object_name: pandora
+      selection: is_electron
+      denominator: is_electron
+      numerator: particle_electron_reconstructed
+
+    electron_flow_pur:
+      object_name: flow
+      selection: is_electron
+      denominator: is_electron
+      numerator: particle_electron_reconstructed
+
+    photon_pandora_pur:
+      object_name: pandora
+      selection: is_photon
+      denominator: is_photon
+      numerator: particle_photon_reconstructed
+
+    photon_flow_pur:
+      object_name: flow
+      selection: is_photon
+      denominator: is_photon
+      numerator: particle_photon_reconstructed
+
+    muon_pandora_pur:
+      object_name: pandora
+      selection: is_muon
+      denominator: is_muon
+      numerator: particle_muon_reconstructed
+
+    muon_flow_pur:
+      object_name: flow
+      selection: is_muon
+      denominator: is_muon
+      numerator: particle_muon_reconstructed
+
+  residual_histograms:
+    pandora_electron_ecal:
+      field: particle_energy_ecal
+      bins: energy
+      selection: particle_electron_reconstructable_loose
+      true_field: particle_energy_ecal
+      pred_field: pandora_energy_ecal
+    
+    flow_electron_ecal:
+      field: particle_energy_ecal
+      bins: energy
+      selection: particle_electron_reconstructable_loose
+      true_field: particle_energy_ecal
+      pred_field: flow_energy_ecal
+
+    pandora_photon_ecal:
+      field: particle_energy_ecal
+      bins: energy
+      selection: particle_photon_reconstructable_loose
+      true_field: particle_energy_ecal
+      pred_field: pandora_energy_ecal
+    
+    flow_photon_ecal:
+      field: particle_energy_ecal
+      bins: energy
+      selection: particle_photon_reconstructable_loose
+      true_field: particle_energy_ecal
+      pred_field: flow_energy_ecal
+    
+
+  histograms:
+    # Charged pt hists
+    pandora_electron:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: electron_reconstructable
+      denominator: electron_reconstructable
+      numerator: pandora_electron_reconstructed
+
+    flow_electron:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: electron_reconstructable
+      denominator: electron_reconstructable
+      numerator: flow_electron_reconstructed
+
+    pandora_electron_loose:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: electron_reconstructable_loose
+      denominator: electron_reconstructable_loose
+      numerator: pandora_electron_reconstructed
+
+    flow_electron_loose:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: electron_reconstructable_loose
+      denominator: electron_reconstructable_loose
+      numerator: flow_electron_reconstructed
+
+    pandora_photon:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: photon_reconstructable
+      denominator: photon_reconstructable
+      numerator: pandora_photon_reconstructed
+
+    flow_photon:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: photon_reconstructable
+      denominator: photon_reconstructable
+      numerator: flow_photon_reconstructed
+    
+    pandora_photon_loose:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: photon_reconstructable_loose
+      denominator: photon_reconstructable_loose
+      numerator: pandora_photon_reconstructed
+
+    flow_photon_loose:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: photon_reconstructable_loose
+      denominator: photon_reconstructable_loose
+      numerator: flow_photon_reconstructed
+
+    pandora_muon:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: muon_reconstructable
+      denominator: muon_reconstructable
+      numerator: pandora_muon_reconstructed
+
+    flow_muon:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: muon_reconstructable
+      denominator: muon_reconstructable
+      numerator: flow_muon_reconstructed
+
+  residual_histogram_plots:
+    ecal:
+      xlabel: "Particle ECAL Energy [GeV]"
+      ylabel: "Error [GeV]"
+      scale: log
+
+      items:
+          pandora_charged:
+            histogram: flow_electron_ecal
+            label: "MaskFormer electrons"
+            color: mediumvioletred
+            linestyle: "-"
+
+          flow_charged:
+            histogram: pandora_electron_ecal
+            label: "Pandora electrons"
+            color: cornflowerblue
+            linestyle: "-"
+
+          pandora_neutral:
+            histogram: flow_photon_ecal
+            label: "MaskFormer photons"
+            color: mediumvioletred
+            linestyle: "--"
+
+          flow_neutral:
+            histogram: pandora_photon_ecal
+            label: "Pandora photons"
+            color: cornflowerblue
+            linestyle: "--"
+
+  histogram_plots:
+    electron:
+      xlabel: "Truth Particle $p_T$ [GeV]"
+      ylabel: "Electron Efficiency"
+      scale: log
+      
+      items:        
+        flow:
+          histogram: flow_electron
+          label: "MaskFormer tight"
+          color: mediumvioletred
+          linestyle: "-"
+        
+        pandora:
+          histogram: pandora_electron
+          label: "Pandora tight"
+          color: cornflowerblue
+          linestyle: "-"
+
+        flow_loose:
+          histogram: flow_electron_loose
+          label: "MaskFormer loose"
+          color: mediumvioletred
+          linestyle: "--"
+        
+        pandora_loose:
+          histogram: pandora_electron_loose
+          label: "Pandora loose"
+          color: cornflowerblue
+          linestyle: "--"
+
+    photon:
+      xlabel: "Truth Particle $p_T$ [GeV]"
+      ylabel: "Photon Efficiency"
+      scale: log
+      
+      items:        
+        flow:
+          histogram: flow_photon
+          label: "MaskFormer tight"
+          color: mediumvioletred
+          linestyle: "-"
+        
+        pandora:
+          histogram: pandora_photon
+          label: "Pandora tight"
+          color: cornflowerblue
+          linestyle: "-"
+
+        flow_loose:
+          histogram: flow_photon_loose
+          label: "MaskFormer loose"
+          color: mediumvioletred
+          linestyle: "--"
+        
+        pandora_loose:
+          histogram: pandora_photon_loose
+          label: "Pandora loose"
+          color: cornflowerblue
+          linestyle: "--"
+
+    muon:
+      xlabel: "Truth Particle $p_T$ [GeV]"
+      ylabel: "Muon Efficiency"
+      scale: log
+      
+      items:        
+        flow:
+          histogram: flow_muon
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+        
+        pandora:
+          histogram: pandora_muon
+          label: "Pandora"
+          color: cornflowerblue
+          linestyle: "-"

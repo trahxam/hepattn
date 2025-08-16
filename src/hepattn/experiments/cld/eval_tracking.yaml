@@ -1,0 +1,434 @@
+eval:
+  # Define metrics which give a score between pairs of objects which can
+  # be used to match the objects to eachother
+  match_metrics:
+    default:
+      sihit:
+        weight: 1.0
+        metric: iou
+        field: valid
+
+  # Define binary metrics which evaluate to true if all of its conditions are met
+  binary_metrics:
+    charged_reconstructed_tight:
+      sihit:
+        thresh: 0.5
+        metric: eff
+        field: valid
+      
+      sihit:
+        thresh: 0.5
+        metric: pur
+        field: valid
+
+    charged_reconstructed_loose:
+      sihit:
+        thresh: 0.75
+        metric: pur
+        field: valid
+
+  selections:
+    charged_reconstructable_tight:
+      - "is_primary"
+      - "mom.r >= 0.1"
+      - "mom.abs_eta <= 2.44"
+      - "vtx.r <= 50"
+      - "num_sihit >= 4"
+      - "isolation >= 0.02"
+
+    charged_reconstructable_loose:
+      - "mom.r >= 0.01"
+      - "mom.abs_eta <= 4"
+      - "vtx.r <= 10000"
+      - "num_sihit >= 3"
+      - "isolation >= 0.0"
+
+  residual_metrics: {}
+
+  residual_histograms: {}
+
+  residual_histogram_plots: {}
+
+  bins:
+    pt_100mev:
+      min: 0.1
+      max: 100.0
+      num: 24
+      scale: log
+
+    pt_full:
+      min: 0.01
+      max: 100.0
+      num: 32
+      scale: log
+
+    vtx_r_50mm:
+      min: 0
+      max: 50
+      num: 32
+      scale: linear
+    
+    num_sihit:
+      min: 0.5
+      max: 24.5
+      num: 25
+      scale: linear
+
+    isolation_full:
+      min: 0.0001
+      max: 3.14
+      num: 32
+      scale: log
+    
+    eta:
+      min: -3
+      max: 3
+      num: 32
+      scale: linear
+
+
+  bulk_metrics:
+    # Bulk efficiency metrics
+    sitrack_charged_eff_tight:
+      object_name: particle
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: sitrack_charged_reconstructed_tight
+    
+    flow_charged_eff_tight:
+      object_name: particle
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: flow_charged_reconstructed_tight
+
+      
+    pandora_charged_eff_tight:
+      object_name: particle
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: pandora_charged_reconstructed_tight
+
+    sitrack_charged_eff_loose:
+      object_name: particle
+      selection: charged_reconstructable_loose
+      denominator: charged_reconstructable_loose
+      numerator: sitrack_charged_reconstructed_tight
+    
+    flow_charged_eff_loose:
+      object_name: particle
+      selection: charged_reconstructable_loose
+      denominator: charged_reconstructable_loose
+      numerator: flow_charged_reconstructed_tight
+
+      
+    pandora_charged_eff_loose:
+      object_name: particle
+      selection: charged_reconstructable_loose
+      denominator: charged_reconstructable_loose
+      numerator: pandora_charged_reconstructed_tight
+
+    # Bulk purity metrics
+    sitrack_charged_pur:
+      object_name: sitrack
+      selection: is_charged
+      denominator: is_charged
+      numerator: particle_charged_reconstructed_tight
+
+    flow_charged_pur:
+      object_name: flow
+      selection: is_charged
+      denominator: is_charged
+      numerator: particle_charged_reconstructed_tight
+
+    pandora_charged_pur:
+      object_name: pandora
+      selection: is_charged
+      denominator: is_charged
+      numerator: particle_charged_reconstructed_tight
+
+  histograms:
+    # Charged pt hists
+    sitrack_charged_pt:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: sitrack_charged_reconstructed_tight
+
+    flow_charged_pt:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: flow_charged_reconstructed_tight
+
+    pandora_charged_pt:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: pandora_charged_reconstructed_tight
+
+    flow_charged_pt_loose:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: flow_charged_reconstructed_loose
+
+    sitrack_charged_pt_loose:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: sitrack_charged_reconstructed_loose
+
+    flow_loose_charged_pt:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: charged_reconstructable_loose
+      denominator: charged_reconstructable_loose
+      numerator: flow_charged_reconstructed_tight
+
+    sitrack_loose_charged_pt:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: charged_reconstructable_loose
+      denominator: charged_reconstructable_loose
+      numerator: sitrack_charged_reconstructed_tight
+
+    pandora_loose_charged_pt:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: charged_reconstructable_loose
+      denominator: charged_reconstructable_loose
+      numerator: pandora_charged_reconstructed_tight
+
+
+
+
+    # Isolation
+    sitrack_charged_isolation:
+      object_name: particle
+      field: isolation
+      bins: isolation_full
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: sitrack_charged_reconstructed_tight
+
+    flow_charged_isolation:
+      object_name: particle
+      field: isolation
+      bins: isolation_full
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: flow_charged_reconstructed_tight
+
+    sitrack_charged_num_sihit:
+      object_name: particle
+      field: num_sihit
+      bins: num_sihit
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: sitrack_charged_reconstructed_tight
+
+    flow_charged_num_sihit:
+      object_name: particle
+      field: num_sihit
+      bins: num_sihit
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: flow_charged_reconstructed_tight
+    
+    sitrack_charged_vtx_r:
+      object_name: particle
+      field: vtx.r
+      bins: vtx_r_50mm
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: sitrack_charged_reconstructed_tight
+
+    flow_charged_vtx_r:
+      object_name: particle
+      field: vtx.r
+      bins: vtx_r_50mm
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: flow_charged_reconstructed_tight
+
+    sitrack_charged_eta:
+      object_name: particle
+      field: mom.eta
+      bins: eta
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: sitrack_charged_reconstructed_tight
+
+    flow_charged_eta:
+      object_name: particle
+      field: mom.eta
+      bins: eta
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: flow_charged_reconstructed_tight
+
+
+  histogram_plots:
+    pt_charged_tight:
+      xlabel: "Truth Particle $p_T$ [GeV]"
+      ylabel: "Tracking Efficiency"
+      scale: log
+      
+      items:        
+        flow:
+          histogram: flow_charged_pt
+          label: "MaskFormer, tight selection, tight reco"
+          color: mediumvioletred
+          linestyle: "-"
+        
+        sitrack:
+          histogram: sitrack_charged_pt
+          label: "Conformal, tight selection, tight reco"
+          color: mediumseagreen
+          linestyle: "-"
+
+    pt_charged_loose:
+      xlabel: "Truth Particle $p_T$ [GeV]"
+      ylabel: "Tracking Efficiency"
+      scale: log
+      
+      items:        
+        flow:
+          histogram: flow_charged_pt_loose
+          label: "MaskFormer, tight selection, loose reco"
+          color: mediumvioletred
+          linestyle: "-"
+        
+        sitrack:
+          histogram: sitrack_charged_pt_loose
+          label: "Conformal, tight selection, loose reco"
+          color: mediumseagreen
+          linestyle: "-"
+
+    pt_charged_tight_all:
+      xlabel: "Truth Particle $p_T$ [GeV]"
+      ylabel: "Tracking Efficiency"
+      scale: log
+      
+      items:        
+        flow:
+          histogram: flow_charged_pt
+          label: "MaskFormer, tight selection, tight reco"
+          color: mediumvioletred
+          linestyle: "-"
+        
+        sitrack:
+          histogram: sitrack_charged_pt
+          label: "Conformal, tight selection, tight reco"
+          color: mediumseagreen
+          linestyle: "-"
+
+        pandora:
+          histogram: pandora_charged_pt
+          label: "Pandora, tight selection, tight reco"
+          color: cornflowerblue
+          linestyle: "-"
+        
+    pt_loose_charged:
+      xlabel: "Particle $p_T$ [GeV]"
+      ylabel: "Tracking Efficiency"
+      scale: log
+      
+      items:        
+        flow:
+          histogram: flow_loose_charged_pt
+          label: "MaskFormer, loose selection, tight reco"
+          color: mediumvioletred
+          linestyle: "-"
+        
+        sitrack:
+          histogram: sitrack_loose_charged_pt
+          label: "Conformal, loose selection, tight reco"
+          color: mediumseagreen
+          linestyle: "-"
+
+    num_sihit_charged:
+      xlabel: "Particle Number of Silicon Tracker Hits"
+      ylabel: "Tracking Efficiency"
+      scale: linear
+      
+      items:
+        sitrack_loose:
+          histogram: sitrack_charged_num_sihit
+          label: "Conformal, loose selection, tight reco"
+          color: mediumseagreen
+          linestyle: "-"
+        
+        flow_loose:
+          histogram: flow_charged_num_sihit
+          label: "MaskFormer, loose selection, tight reco"
+          color: mediumvioletred
+          linestyle: "-"
+
+    isolation_charged:
+      xlabel: "Angular Isolation"
+      ylabel: "Tracking Efficiency"
+      scale: log
+      
+      items:
+        sitrack_loose:
+          histogram: sitrack_charged_isolation
+          label: "Conformal, loose selection, tight reco"
+          color: mediumseagreen
+          linestyle: "-"
+        
+        flow_loose:
+          histogram: flow_charged_isolation
+          label: "MaskFormer loose selection, tight rec"
+          color: mediumvioletred
+          linestyle: "-"
+
+
+    vtx_r_charged:
+      xlabel: "Particle Vertex $r$ [mm]"
+      ylabel: "Tracking Efficiency"
+      scale: linear
+      
+      items:
+        sitrack_loose:
+          histogram: sitrack_charged_vtx_r
+          label: "Conformal loose selection, tight rec"
+          color: mediumseagreen
+          linestyle: "-"
+        
+        flow_loose:
+          histogram: flow_charged_vtx_r
+          label: "MaskFormer loose selection, tight rec"
+          color: mediumvioletred
+          linestyle: "-"
+
+    eta_charged:
+      xlabel: "Particle Pseudorapidity"
+      ylabel: "Tracking Efficiency"
+      scale: linear
+      
+      items:
+        sitrack_loose:
+          histogram: sitrack_charged_eta
+          label: "Conformal loose selection, tight reco"
+          color: mediumseagreen
+          linestyle: "-"
+        
+        flow_loose:
+          histogram: flow_charged_eta
+          label: "MaskFormer loose selection, tight rec"
+          color: mediumvioletred
+          linestyle: "-"
