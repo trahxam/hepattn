@@ -160,6 +160,7 @@ class CLDDataset(LRSMDataset):
             event[f"{i}.{p}.s"] = np.sqrt(event[f"{i}.{p}.x"] ** 2 + event[f"{i}.{p}.y"] ** 2 + event[f"{i}.{p}.z"] ** 2)
             event[f"{i}.{p}.theta"] = np.arccos(event[f"{i}.{p}.z"] / event[f"{i}.{p}.s"])
             event[f"{i}.{p}.eta"] = -np.log(np.tan(event[f"{i}.{p}.theta"] / 2))
+            event[f"{i}.{p}.abs_eta"] = np.abs(event[f"{i}.{p}.eta"])
             event[f"{i}.{p}.phi"] = np.arctan2(event[f"{i}.{p}.y"], event[f"{i}.{p}.x"])
             event[f"{i}.{p}.rinv"] = 1.0 / event[f"{i}.{p}.r"]
             event[f"{i}.{p}.sinphi"] = np.sin(event[f"{i}.{p}.phi"])
@@ -219,17 +220,11 @@ class CLDDataset(LRSMDataset):
             add_cylindrical_coords(item, "mom")
 
         # Add extra coordinates to the start and and positions and momenta for particles
-        particle_pos_fields = ["vtx"]
-        particle_mom_fields = ["mom"]
-
-        for field in particle_pos_fields:
-            convert_mm_to_m("particle", field)
-            add_cylindrical_coords("particle", field)
-            add_conformal_coords("particle", field)
-
-        for field in particle_mom_fields:
-            add_cylindrical_coords("particle", field)
-            add_cylindrical_coords("pandora", field)
+        add_cylindrical_coords("particle", "vtx")
+        add_conformal_coords("particle", "vtx")
+        add_cylindrical_coords("particle", "mom")
+        add_cylindrical_coords("pandora", "mom")
+        add_cylindrical_coords("pandora", "ref")
 
         event["particle.mom.qopt"] = event["particle.charge"] / event["particle.mom.r"]
         event["pandora.mom.qopt"] = event["pandora.charge"] / event["pandora.mom.r"]
@@ -248,13 +243,16 @@ class CLDDataset(LRSMDataset):
         # before any of these particle selections were made
         event["particle_valid"] = np.full_like(event["particle.PDG"], True, np.bool)
         event["pandora_valid"] = np.full_like(event["pandora.PDG"], True, np.bool)
+        event["sitrack_valid"] = np.full_like(event["sitrack.chi2"], True, np.bool)
 
         num_particles = len(event["particle_valid"])
 
         particle_hit_masks = [("particle", hit) for hit in hits]
         pandora_hit_masks = [("pandora", hit) for hit in hits]
+        sitrack_hit_masks = [("sitrack", hit) for hit in trkr_hits]
 
-        masks = particle_hit_masks + pandora_hit_masks
+
+        masks = particle_hit_masks + pandora_hit_masks + sitrack_hit_masks
 
         def load_csr_mask(src, tgt):
             data = (event[f"{src}_to_{tgt}_data"], event[f"{src}_to_{tgt}_indices"], event[f"{src}_to_{tgt}_indptr"])
@@ -318,12 +316,15 @@ class CLDDataset(LRSMDataset):
                 where=particle_total_energy > self.calo_energy_thresh,
             )
 
-        object_names = ["particle", "pandora"]
+        object_names = ["particle", "pandora", "sitrack"]
 
         # Merge together any masks
         if self.merge_inputs:
             for object_name in object_names:
                 for merged_input_name, input_names in self.merge_inputs.items():
+                    # TODO: Clean up this hack
+                    if object_name == "sitrack" and merged_input_name in ["ecal", "hcal", "muon"]: continue
+
                     event[f"{object_name}_{merged_input_name}_valid"] = np.concatenate([event[f"{object_name}_{hit}_valid"] for hit in input_names], axis=-1)
 
                     if f"{object_name}_{merged_input_name}" in self.targets:
@@ -332,6 +333,7 @@ class CLDDataset(LRSMDataset):
                                 [event[f"{object_name}_{hit}.{field}"] for hit in input_names], axis=-1
                             )
 
+        # TODO: Clean this up - maybe everything should just be the calibrated energy?
         calo_hit_calibrations = {
             "ecal": 37.0,
             "hcal": 45.0,
@@ -345,8 +347,14 @@ class CLDDataset(LRSMDataset):
             event[f"particle.calib_energy_{calo_hit}"] = calo_hit_calibrations[calo_hit] * event[f"particle.energy_{calo_hit}"]
 
         # Add extra labels for particles
-        event["particle.is_charged"] = np.abs(event["particle.charge"]) > 0
-        event["particle.is_neutral"] = ~event["particle.is_charged"]
+        for object_name in ["particle", "pandora"]:
+            event[f"{object_name}.is_charged"] = np.abs(event[f"{object_name}.charge"]) > 0
+            event[f"{object_name}.is_neutral"] = ~event[f"{object_name}.is_charged"]
+
+        event["particle.is_primary"] = event["particle.generatorStatus"] == 1
+        event["particle.is_secondary"] = event["particle.generatorStatus"] != 1
+
+        event["particle.calib_energy_calo"] = event["particle.calib_energy_ecal"] + event["particle.calib_energy_hcal"]
 
         # Add one-hot particle class labels
         particle_class_id_to_name = {
@@ -388,6 +396,7 @@ class CLDDataset(LRSMDataset):
         if not self.include_neutral:
             particle_cuts["not_neutral"] = ~event["particle.is_neutral"]
 
+        # TODO: Clean this up...
         for item_name, min_ratio in self.particle_hit_min_p_ratio.items():
             mask = event[f"particle_{item_name}_valid"]
 
@@ -401,6 +410,7 @@ class CLDDataset(LRSMDataset):
             event[f"particle_{item_name}_valid"] = event[f"particle_{item_name}_valid"] & (item_mean_p_ratio >= min_ratio).filled(False)
 
         # Apply hit cuts based on angular deflection
+        # TODO: Clean this up...
         for item_name, cut in self.particle_hit_deflection_cuts.items():
             for _ in range(int(cut["num_passes"])):
                 # Indices for sorting based on time
@@ -433,6 +443,7 @@ class CLDDataset(LRSMDataset):
                 event[f"particle_{item_name}_valid"] = event[f"particle_{item_name}_valid"] & angle_diff_or
 
         # Apply hit cuts based on distance between consecutive hits on particles
+        # TODO: Clean this up...
         for item_name, cut in self.particle_hit_separation_cuts.items():
             for _ in range(int(cut["num_passes"])):
                 idx = np.argsort(event[f"{item_name}.time"])
