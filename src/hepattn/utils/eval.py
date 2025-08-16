@@ -1,10 +1,22 @@
 import numpy as np
 import torch
+import operator
 from scipy.stats import binned_statistic
 from torch import Tensor
 
 from hepattn.utils.metrics import mask_metric_cost, mask_metric_score
 from hepattn.models.matcher import Matcher
+
+
+# Map string to operator function
+ops = {
+    '>': operator.gt,
+    '>=': operator.ge,
+    '<': operator.lt,
+    '<=': operator.le,
+    '==': operator.eq,
+    '!=': operator.ne,
+}
 
 
 def apply_matching(data: dict[str, Tensor], true: str, pred: str, costs: Tensor, matcher: Matcher) -> dict[str, Tensor]:
@@ -172,7 +184,11 @@ def calculate_selections(data: dict[str, Tensor], object_name: str, selection_de
         selection_mask = torch.full_like(data[f"{object_name}_valid"], True)
         
         for selection_requirement in selection_requirements:
-            selection_mask &= data[f"{object_name}_{selection_requirement}"].bool()
+            split = selection_requirement.split(" ")
+            if len(split) == 3:
+                selection_mask &= ops[split[1]](data[f"{object_name}_{split[0]}"], float(split[2]))
+            else:
+                selection_mask &= data[f"{object_name}_{selection_requirement}"].bool()
         
         selections[f"{object_name}_{selection_name}"] = selection_mask
     

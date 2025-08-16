@@ -24,10 +24,10 @@ def mask_metric_cost(
     fp = torch.einsum("bnc,bmc->bnm", preds, (1 - targets))
     fn = torch.einsum("bnc,bmc->bnm", 1 - preds, targets)
 
-    p = tp + fn
-    n = tn + fp
-
     eps = 1e-6
+
+    num_true = torch.sum(targets, dim=-1).unsqueeze(-1)
+    num_pred = torch.sum(preds, dim=-1).unsqueeze(-2)
 
     if metric == "smc":
         score = (tp + tn) / (tp + tn + fp + fn)
@@ -35,12 +35,10 @@ def mask_metric_cost(
         score = 2 * tp / (2 * tp + fp + fn + eps)
     elif metric == "iou" or metric == "jac":
         score = tp / (tp + fp + fn + eps)
-    elif metric == "overlap":
-        score = tp / (torch.minimum(p, n) + eps)
     elif metric == "eff":
-        score = tp / (p + eps)
+        score = tp / (num_true + eps)
     elif metric == "pur":
-        score = tp / (tp + fp + eps)
+        score = tp / (num_pred + eps)
 
     cost = 1 - score
 
@@ -68,10 +66,10 @@ def mask_metric_score(
     fp = torch.sum(preds * (1 - targets), dim=-1)
     fn = torch.sum((1 - preds) * targets, dim=-1)
 
-    p = tp + fn
-    n = tn + fp
+    n_true = torch.sum(targets, dim=-1)
+    n_pred = torch.sum(preds, dim=-1)
 
-    eps = 1
+    eps = 1e-6
 
     if metric == "smc":
         score = (tp + tn) / (tp + tn + fp + fn)
@@ -79,11 +77,9 @@ def mask_metric_score(
         score = 2 * tp / (2 * tp + fp + fn + eps)
     elif metric == "iou" or metric == "jac":
         score = tp / (tp + fp + fn + eps)
-    elif metric == "overlap":
-        score = tp / (torch.minimum(p, n) + eps)
     elif metric == "eff":
-        score = tp / (p + eps)
+        score = tp / (n_true)
     elif metric == "pur":
-        score = tp / (tp + fp + eps)
+        score = tp / (n_pred)
 
     return score
