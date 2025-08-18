@@ -26,75 +26,74 @@ eval:
   # Define binary metrics which evaluate to true if all of its conditions are met
   binary_metrics:
     electron_reconstructed:
-      sihit:
+      - hit: sihit
         thresh: 0.75
         metric: eff
         field: valid
       
-      sihit:
+      - hit: sihit
         thresh: 0.75
         metric: pur
         field: valid
 
-      ecal:
+      - hit: ecal
         thresh: 0.75
         metric: eff
         field: valid
-
-      ecal:
+      
+      - hit: ecal
         thresh: 0.75
         metric: pur
         field: valid
-
 
     photon_reconstructed:
-      ecal:
+      - hit: ecal
         thresh: 0.75
         metric: eff
         field: valid
-
-      ecal:
+      
+      - hit: ecal
         thresh: 0.75
         metric: pur
         field: valid
 
     muon_reconstructed:
-      sihit:
+      - hit: sihit
         thresh: 0.75
         metric: eff
         field: valid
-
-      sihit:
+      
+      - hit: sihit
         thresh: 0.75
         metric: pur
         field: valid
 
-      ecal:
+      - hit: ecal
         thresh: 0.75
         metric: eff
         field: valid
-
-      ecal:
+      
+      - hit: ecal
         thresh: 0.75
         metric: pur
         field: valid
 
-      hcal:
+      - hit: hcal
         thresh: 0.75
         metric: eff
         field: valid
-
-      hcal:
+      
+      - hit: hcal
         thresh: 0.75
         metric: pur
         field: valid
 
-      muon:
+      - hit: muon
         thresh: 0.75
         metric: eff
         field: valid
-
-      muon:
+      
+      - hit: muon
         thresh: 0.75
         metric: pur
         field: valid

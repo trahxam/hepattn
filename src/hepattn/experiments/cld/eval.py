@@ -258,7 +258,7 @@ with h5py.File(eval_file_path, "r") as eval_file:
                 fig = plot_cld_event(data, event_display_cfg, object_name)
                 fig.savefig(event_display_save_dir / Path(f"{object_name}.png"))
     
-        if i == 1000:
+        if i == 2500:
             break
 
 
@@ -347,7 +347,7 @@ for name, cfg in eval_config["residual_histogram_plots"].items():
     ax[1].set_xscale(cfg["scale"])
     ax[1].set_yscale("log")
 
-    ax[0].legend(fontsize=8, loc="upper left")
+    ax[0].legend(fontsize=8)
     ax[0].grid(zorder=0, alpha=0.25, linestyle="--")
     ax[1].grid(zorder=0, alpha=0.25, linestyle="--")
     

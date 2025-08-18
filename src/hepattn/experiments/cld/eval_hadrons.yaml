@@ -21,43 +21,53 @@ eval:
   # Define binary metrics which evaluate to true if all of its conditions are met
   binary_metrics:
     charged_reconstructed:
-      sihit:
+      - hit: sihit
         thresh: 0.5
         metric: eff
         field: valid
 
-      sihit:
+      - hit: sihit
         thresh: 0.5
         metric: pur
         field: valid
 
-      ecal:
+      - hit: ecal
         thresh: 0.5
         metric: eff
         field: valid
 
-      ecal:
+      - hit: ecal
         thresh: 0.5
         metric: pur
         field: valid
 
-      hcal:
+      - hit: hcal
         thresh: 0.5
         metric: eff
         field: valid
 
-      hcal:
+      - hit: hcal
         thresh: 0.5
         metric: pur
         field: valid
 
     neutral_reconstructed:
-      ecal:
+      - hit: ecal
         thresh: 0.5
         metric: eff
         field: valid
-      
-      hcal:
+
+      - hit: ecal
+        thresh: 0.5
+        metric: pur
+        field: valid
+
+      - hit: hcal
+        thresh: 0.5
+        metric: eff
+        field: valid
+
+      - hit: hcal
         thresh: 0.5
         metric: pur
         field: valid
@@ -392,25 +402,25 @@ eval:
       items:        
         flow:
           histogram: flow_charged_pt
-          label: "MaskFormer, tight selection, tight reco"
+          label: "MaskFormer, tight"
           color: mediumvioletred
           linestyle: "-"
         
         pandora:
           histogram: pandora_charged_pt
-          label: "Pandora, tight selection, tight reco"
+          label: "Pandora, tight"
           color: cornflowerblue
           linestyle: "-"
      
         flow_loose:
           histogram: flow_loose_charged_pt
-          label: "MaskFormer, loose selection, tight reco"
+          label: "MaskFormer, loose"
           color: mediumvioletred
           linestyle: "--"
         
         pandora_loose:
           histogram: pandora_loose_charged_pt
-          label: "Pandora, loose selection, tight reco"
+          label: "Pandora, loose"
           color: cornflowerblue
           linestyle: "--"
 
@@ -422,25 +432,25 @@ eval:
       items:        
         flow:
           histogram: flow_neutral_pt
-          label: "MaskFormer, tight selection, tight reco"
+          label: "MaskFormer, tight"
           color: mediumvioletred
           linestyle: "-"
         
         pandora:
           histogram: pandora_neutral_pt
-          label: "Pandora, tight selection, tight reco"
+          label: "Pandora, tight"
           color: cornflowerblue
           linestyle: "-"
     
         flow_loose:
           histogram: flow_loose_neutral_pt
-          label: "MaskFormer, loose selection, tight reco"
+          label: "MaskFormer, loose"
           color: mediumvioletred
           linestyle: "--"
         
         pandora_loose:
           histogram: pandora_loose_neutral_pt
-          label: "Pandora, loose selection, tight reco"
+          label: "Pandora, loose"
           color: cornflowerblue
           linestyle: "--"
 
