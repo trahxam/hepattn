@@ -1,5 +1,6 @@
 import warnings
 from pathlib import Path
+from collections import defaultdict
 
 import numpy as np
 import torch
@@ -12,7 +13,7 @@ class InferenceTimer(Callback):
     def __init__(self):
         super().__init__()
         self.times = []
-        self.dims = []
+        self.dims = defaultdict(list)
         self.n_warm_start = 10
         self._tmp_dims = None
 
@@ -24,7 +25,9 @@ class InferenceTimer(Callback):
         self.old_forward = model.forward
 
         def new_forward(*args, **kwargs):
-            self._tmp_dims = sum(v.shape[1] for v in args[0].values())
+            # Only record valid field sizes, args[0] gets the model inputs
+            self._tmp_dims = {k: v.shape for k, v in args[0].items() if "valid" in k}
+            
             with cuda_timer(self.times):
                 return self.old_forward(*args, **kwargs)
 
@@ -41,20 +44,18 @@ class InferenceTimer(Callback):
 
     def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         if self._tmp_dims is not None:
-            self.dims.append(self._tmp_dims)
+            for k, v in self._tmp_dims.items():
+                self.dims[k].append(v)
             self._tmp_dims = None
 
     def on_test_end(self, trainer, pl_module):
         pl_module.forward = self.old_forward
-        self.times = self.times[self.n_warm_start :]  # ensure warm start
-        self.dims = self.dims[self.n_warm_start :]
 
         if not len(self.times):
             raise ValueError("No times recorded.")
 
         self.times = torch.tensor(self.times)
-        self.mean_time = self.times.mean().item()
-        self.std_time = self.times.std().item()
+        self.dims = {k: torch.tensor(v) for k, v in self.dims.items()}
 
         self.times_path = Path(trainer.log_dir) / "times"
         self.times_path.mkdir(parents=True, exist_ok=True)
@@ -64,7 +65,10 @@ class InferenceTimer(Callback):
 
     def teardown(self, trainer, pl_module, stage):
         if len(self.times):
+            times = torch.tensor(self.times)
+            warm_times =  torch.tensor(self.times[self.n_warm_start :])
             print("-" * 80)
-            print(f"Mean inference time: {self.mean_time:.2f} ± {self.std_time:.2f} ms")
+            print(f"Mean inference time: {times.mean():.2f} ± {times.std():.2f} ms")
+            print(f"Mean inference time (warm start): {warm_times.mean():.2f} ± {warm_times.std():.2f} ms")
             print(f"Saved timing info to {self.times_path}")
             print("-" * 80)
