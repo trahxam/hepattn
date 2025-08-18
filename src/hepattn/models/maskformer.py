@@ -23,14 +23,14 @@ class MaskFormer(nn.Module):
         sorter: nn.Module | None = None,
     ):
         """Initializes the MaskFormer model, which is a modular transformer-style architecture designed
-        for multi-task object inference with attention-based decoding and optional encoder blocks.
+        for multi-task object reconstruction with attention-based decoding and optional encoder blocks.
 
         Parameters
         ----------
         input_nets : nn.ModuleList
-            A list of input modules, each responsible for embedding a specific input type.
+            A list of input modules, each responsible for embedding a specific constituent type.
         encoder : nn.Module
-            An optional encoder module that processes merged input embeddings with optional sorting.
+            An optional encoder module that processes merged constituent embeddings with optional sorting.
         decoder : MaskFormerDecoder
             The decoder module that handles multi-layer decoding and task integration.
         tasks : nn.ModuleList
@@ -42,7 +42,7 @@ class MaskFormer(nn.Module):
         target_object : str
             The target object name which is used to mark valid/invalid objects during matching.
         input_sort_field : str or None, optional
-            An optional key used to sort the input objects (e.g., for windowed attention).
+            An optional key used to sort the input constituents (e.g., for windowed attention).
         raw_variables : list[str] or None, optional
             A list of variable names that passed to tasks without embedding.
         """
@@ -83,7 +83,12 @@ class MaskFormer(nn.Module):
             if raw_var in inputs:
                 x[raw_var] = inputs[raw_var]
 
-        # Embed the input objects
+        # Store input positional encodings if we need to preserve them for the decoder
+        if self.decoder.preserve_posenc:
+            assert all(input_net.posenc is not None for input_net in self.input_nets)
+            x["key_posenc"] = torch.concatenate([input_net.posenc(inputs) for input_net in self.input_nets], dim=-2)
+
+        # Embed the input constituents
         for input_net in self.input_nets:
             input_name = input_net.input_name
             x[input_name + "_embed"] = input_net(inputs)
@@ -97,7 +102,7 @@ class MaskFormer(nn.Module):
                 [torch.full((inputs[i + "_valid"].shape[-1],), i == input_name, device=device, dtype=torch.bool) for i in input_names], dim=-1
             )
 
-        # Merge the input objects and the padding mask into a single set
+        # Merge the input constituents and the padding mask into a single set
         x["key_embed"] = torch.concatenate([x[input_name + "_embed"] for input_name in input_names], dim=-2)
         x["key_valid"] = torch.concatenate([x[input_name + "_valid"] for input_name in input_names], dim=-1)
 
@@ -120,7 +125,7 @@ class MaskFormer(nn.Module):
         if self.sorting is not None:
             x = self.sorting.sort_inputs(x)
 
-        # Pass merged input hits through the encoder
+        # Pass merged input constituents through the encoder
         if self.encoder is not None:
             # Note that a padded feature is a feature that is not valid!
             # Disable encoder's internal sorting if we're using pre-encoder sorting
