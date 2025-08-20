@@ -1,21 +1,21 @@
-name: CLD_4_320_10MeV_neutrals_v2_loss
+name: CLD_8_320_10MeV_neutrals
 
 matmul_precision: high
 
 data:
   # Paths to preprocessed data directories
-  train_dir: /share/lustre/maxhart/data/cld/prepped/reco/
-  val_dir: /share/lustre/maxhart/data/cld/prepped/reco/
-  test_dir: /share/lustre/maxhart/data/cld/prepped/reco/
+  train_dir: /share/rcifdata/maxhart/data/cld/prepped/train/
+  val_dir: /share/rcifdata/maxhart/data/cld/prepped/val/
+  test_dir: /share/rcifdata/maxhart/data/cld/prepped/test/
 
   # Number of events to include in each set
-  num_workers: 4
+  num_workers: 8
   num_train: -1
   num_test: 1000
   num_val: 100
 
   # Minibatch size / number of events used per training step
-  batch_size: 4
+  batch_size: 8
   
   # Precision of any float values returned by the dataloader
   input_dtype: float32
@@ -36,6 +36,7 @@ data:
   force_pad_sizes:
     particle: &num_particles 320
     pandora: *num_particles
+    sitrack: *num_particles
 
   skip_pad_items: []
 
@@ -85,11 +86,6 @@ data:
       num_passes: 12
 
   truth_filter_hits: []
-    #- vtxd
-    #- trkr
-    #- ecal
-    #- hcal
-    #- muon
 
   merge_inputs:
     vtxd:
@@ -230,38 +226,48 @@ data:
       - charge
       - time
       - mass
+      # Particle creation vertex coordinates
       - vtx.x
       - vtx.y
       - vtx.z
       - vtx.r
+      # Production momentum coordinates
       - mom.x
       - mom.y
       - mom.z
       - mom.r
       - mom.eta
+      - mom.abs_eta
       - mom.phi
       - mom.theta
       - mom.eta_drad
       - mom.phi_drad
       - mom.rinv
       - mom.qopt
+      # Spin coordinates
       - spin.x
       - spin.y
       - spin.z
       - colorFlow.a
       - colorFlow.b
-      - is_charged
-      - is_neutral
+      # Constituent count info
       - num_vtxd
       - num_trkr
       - num_ecal
       - num_hcal
       - num_sihit
+      - num_muon
+      # Angular isolation
       - isolation
+      # Calorimeter energy info
       - energy_ecal
       - energy_hcal
       - calib_energy_ecal
       - calib_energy_hcal
+      - calib_energy_calo
+      # Binary particle class info
+      - is_charged
+      - is_neutral
       - is_neutral_hadron
       - is_charged_hadron
       - is_photon
@@ -270,6 +276,8 @@ data:
       - is_tau
       - is_neutrino
       - is_other
+      - is_primary
+      - is_secondary
 
     particle_vtxd:
       - pos.x
@@ -314,8 +322,22 @@ data:
     particle_muon:
       - energy
 
+    # Pandora reconstruction info
     pandora:
       - PDG
+      - charge
+      - ref.x
+      - ref.y
+      - ref.z
+      - ref.r
+      - mom.x
+      - mom.y
+      - mom.z
+      - mom.r
+      - mom.eta
+      - mom.abs_eta
+      - is_charged
+      - is_neutral
     
     pandora_vtxd: []
 
@@ -327,6 +349,16 @@ data:
 
     pandora_muon: []
 
+    # Conformal tracking info
+    sitrack:
+      - type
+      - chi2
+      - ndf
+
+    sitrack_vtxd: []
+
+    sitrack_trkr: []
+
 # Training stuff here
 trainer:
   max_epochs: 10
@@ -335,7 +367,7 @@ trainer:
   precision: bf16-mixed
   log_every_n_steps: 10
   default_root_dir: logs
-  gradient_clip_val: 0.1
+  # gradient_clip_val: 0.1
   accumulate_grad_batches: 1
   enable_progress_bar: True
 
@@ -375,7 +407,7 @@ model:
     end: 1e-6
     pct_start: 0.01
     skip_scheduler: false
-    weight_decay: 0.001
+    weight_decay: 1e-5
 
   mtl: false
 
@@ -421,9 +453,6 @@ model:
                       - pos.x
                       - pos.y
                       - pos.z
-                      - pos.r
-                      - pos.theta
-                      - pos.phi
 
             - class_path: hepattn.models.InputNet
               init_args:
@@ -457,9 +486,6 @@ model:
                       - pos.x
                       - pos.y
                       - pos.z
-                      - pos.r
-                      - pos.theta
-                      - pos.phi
 
             - class_path: hepattn.models.InputNet
               init_args:
@@ -488,9 +514,6 @@ model:
                       - pos.x
                       - pos.y
                       - pos.z
-                      - pos.r
-                      - pos.theta
-                      - pos.phi
 
             - class_path: hepattn.models.InputNet
               init_args:
@@ -519,9 +542,33 @@ model:
                       - pos.x
                       - pos.y
                       - pos.z
-                      - pos.r
-                      - pos.theta
-                      - pos.phi
+
+            - class_path: hepattn.models.InputNet
+              init_args:
+                input_name: muon
+                input_dtype: float32
+                fields:
+                  - pos.x
+                  - pos.y
+                  - pos.z
+                  - pos.s
+                  - pos.r
+                  - pos.theta
+                  - pos.phi
+                net:
+                  class_path: hepattn.models.Dense
+                  init_args:
+                    input_size: 7
+                    output_size: *dim
+                posenc:
+                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  init_args:
+                    input_name: muon
+                    dim: *dim
+                    fields:
+                      - pos.x
+                      - pos.y
+                      - pos.z
 
       encoder:
         class_path: hepattn.models.Encoder
@@ -571,6 +618,7 @@ model:
                 dim: *dim
                 null_weight: 1.0
                 mask_queries: false
+                has_intermediate_loss: False
 
             - class_path: hepattn.models.task.ObjectHitMaskTask
               init_args:
@@ -579,6 +627,7 @@ model:
                 input_object: query
                 output_object: flow
                 target_object: particle
+                has_intermediate_loss: False
                 losses:
                   mask_bce: 0.25
                   mask_dice: 0.75
@@ -597,6 +646,7 @@ model:
                 input_object: query
                 output_object: flow
                 target_object: particle
+                has_intermediate_loss: False
                 losses:
                   mask_bce: 0.25
                   mask_dice: 0.75
@@ -616,6 +666,7 @@ model:
                 output_object: flow
                 target_object: particle
                 target_field: valid
+                has_intermediate_loss: False
                 losses:
                   mask_bce: 0.25
                   mask_dice: 0.75
@@ -635,6 +686,27 @@ model:
                 output_object: flow
                 target_object: particle
                 target_field: valid
+                has_intermediate_loss: False
+                losses:
+                  mask_bce: 0.25
+                  mask_dice: 0.75
+                  #mask_focal: 1.0
+                costs:
+                  #mask_bce: 1.0
+                  mask_dice: 1.0
+                  #mask_focal: 1.0
+                dim: *dim
+                null_weight: 1.0
+
+            - class_path: hepattn.models.task.ObjectHitMaskTask
+              init_args:
+                name: flow_muon_assignment
+                input_hit: muon
+                input_object: query
+                output_object: flow
+                target_object: particle
+                target_field: valid
+                has_intermediate_loss: False
                 losses:
                   mask_bce: 0.25
                   mask_dice: 0.75
