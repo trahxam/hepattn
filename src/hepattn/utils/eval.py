@@ -141,7 +141,8 @@ def calc_binary_reco_metrics(data: dict[str, Tensor], true: str, pred: str, metr
         metric_satisfied = torch.full_like(data[f"{true}_valid"], True)
 
         # Go through all the conditions needed for the metric to be satisfied
-        for constituent, metric in constituent_metrics.items():
+        for metric in constituent_metrics:
+            constituent = metric["hit"]
             field = metric["field"]
             scores = mask_metric_score(
                 data[f"{pred}_{constituent}_{field}"].float(),
@@ -179,7 +180,6 @@ def calculate_selections(data: dict[str, Tensor], object_name: str, selection_de
     """
 
     # Calculate selections which are just an and of other boolean masks
-    selections = {}
     for selection_name, selection_requirements in selection_definitions.items():
         selection_mask = torch.full_like(data[f"{object_name}_valid"], True)
         
@@ -190,6 +190,7 @@ def calculate_selections(data: dict[str, Tensor], object_name: str, selection_de
             else:
                 selection_mask &= data[f"{object_name}_{selection_requirement}"].bool()
         
-        selections[f"{object_name}_{selection_name}"] = selection_mask
+
+        data[f"{object_name}_{selection_name}"] = selection_mask
     
-    return selections
+    return data

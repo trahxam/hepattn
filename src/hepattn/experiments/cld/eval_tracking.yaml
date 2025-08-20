@@ -21,11 +21,11 @@ eval:
         metric: pur
         field: valid
 
-    # charged_reconstructed_loose:
-    #   - hit: sihit
-    #     thresh: 0.75
-    #     metric: pur
-    #     field: valid
+    charged_reconstructed_loose:
+      - hit: sihit
+        thresh: 0.75
+        metric: pur
+        field: valid
 
   selections:
     charged_reconstructable_tight:
@@ -169,21 +169,21 @@ eval:
       denominator: charged_reconstructable_tight
       numerator: pandora_charged_reconstructed_tight
 
-    # flow_charged_pt_loose:
-    #   object_name: particle
-    #   field: mom.r
-    #   bins: pt_100mev
-    #   selection: charged_reconstructable_tight
-    #   denominator: charged_reconstructable_tight
-    #   numerator: flow_charged_reconstructed_loose
+    flow_charged_pt_loose:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: flow_charged_reconstructed_loose
 
-    # sitrack_charged_pt_loose:
-    #   object_name: particle
-    #   field: mom.r
-    #   bins: pt_100mev
-    #   selection: charged_reconstructable_tight
-    #   denominator: charged_reconstructable_tight
-    #   numerator: sitrack_charged_reconstructed_loose
+    sitrack_charged_pt_loose:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: sitrack_charged_reconstructed_loose
 
     flow_loose_charged_pt:
       object_name: particle
