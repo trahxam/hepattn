@@ -27,10 +27,14 @@ class ModelWrapper(LightningModule):
         self.optimizer = optimizer
         self.lrs_config = lrs_config
         self.mtl = mtl
-
-        # If we are doing multi-task-learning, optimisation step must be done manually
+        
         if mtl:
+            # Donated buffers can cause issues with graph retention needed for MTL
+            torch._functorch.config.donated_buffer = False
+            # If we are doing multi-task-learning, optimisation step must be done manually
             self.automatic_optimization = False
+            # MTL does not currently support intermediate losses
+            assert all([task.has_intermediate_loss is False for task in self.model.tasks])
 
     def forward(self, inputs: dict[str, Tensor]) -> dict[str, Tensor]:
         return self.model(inputs)
@@ -41,7 +45,6 @@ class ModelWrapper(LightningModule):
     def aggregate_losses(self, losses: dict[str, Tensor], stage: str | None = None) -> Tensor:
         total_loss = 0
 
-        # TODO: Add MTL strategy here
         for layer_name, layer_losses in losses.items():
             layer_loss = 0
             for task_name, task_losses in layer_losses.items():
@@ -74,7 +77,7 @@ class ModelWrapper(LightningModule):
         if hasattr(self, "log_custom_metrics"):
             self.log_custom_metrics(preds, targets, stage)
 
-    def training_step(self, batch: tuple[dict[str, Tensor], dict[str, Tensor]], batch_idx: int) -> Tensor:
+    def training_step(self, batch: tuple[dict[str, Tensor], dict[str, Tensor]], batch_idx: int) -> Tensor | None:
         inputs, targets = batch
 
         # Get the model outputs
@@ -82,14 +85,16 @@ class ModelWrapper(LightningModule):
 
         # Compute losses then aggregate and log them
         losses = self.model.loss(outputs, targets)
-        total_loss = self.aggregate_losses(losses, stage="train")
 
         # Get the predictions from the model, avoid calling predict if possible
         if batch_idx % self.trainer.log_every_n_steps == 0:
             preds = self.predict(outputs)
             self.log_metrics(preds, targets, "train")
-
-        return total_loss
+        
+        if self.mtl:
+            self.mlt_opt(losses, outputs)
+        else:
+            return self.aggregate_losses(losses, stage="train")
 
     def validation_step(self, batch: tuple[dict[str, Tensor], dict[str, Tensor]]) -> Tensor:
         inputs, targets = batch
@@ -107,7 +112,7 @@ class ModelWrapper(LightningModule):
 
         return total_loss
 
-    def test_step(self, batch: tuple[dict[str, Tensor], dict[str, Tensor]]) -> Tensor:
+    def test_step(self, batch: tuple[dict[str, Tensor], dict[str, Tensor]]) -> tuple[dict[str, Tensor]]:
         inputs, targets = batch
         outputs = self.model(inputs)
 
@@ -153,23 +158,21 @@ class ModelWrapper(LightningModule):
         print("Skipping learning rate scheduler.")
         return opt
 
-    def mlt_opt(self, losses, outputs):
+    def mlt_opt(self, losses: dict[str, Tensor], outputs: dict[str, Tensor]) -> None:
         opt = self.optimizers()
         opt.zero_grad()
 
-        for layer_name, layer_losses in losses.items():
-            # Get a list of the features that are used by all of the tasks
-            layer_feature_names = set()
-            for task in self.model.tasks:
-                layer_feature_names.update(task.inputs)
+        # TODO: Make this not hard coded?
+        feature_names = ["query_embed", "key_embed"]
 
-            # Remove any duplicate features that are used by multiple tasks
-            layer_features = [outputs[layer_name][feature_name] for feature_name in layer_feature_names]
+        # Remove any duplicate features that are used by multiple tasks
+        features = [outputs["final"][feature_name] for feature_name in feature_names]
 
-            # Perform the backward pass for this layer
-            # For each layer we sum the losses from each task, so we get one loss per task
-            layer_losses = [sum(losses[layer_name][task.name].values()) for task in self.model.tasks]
+        # Sum the losses from each task, so we get one loss per task
+        losses = [sum(losses["final"][task.name].values()) for task in self.model.tasks]
 
-            mtl_backward(losses=layer_losses, features=layer_features, aggregator=UPGrad())
+        # TODO: Figure out if we can set retain_graph to false somehow, since it uses a lot of memory
+        mtl_backward(losses=losses, features=features, aggregator=UPGrad(), retain_graph=True)
 
+        # Manually perform the optimizer step
         opt.step()

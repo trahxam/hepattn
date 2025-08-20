@@ -134,7 +134,11 @@ class MaskFormer(nn.Module):
             x[f"{self.pooling.output_name}_embed"] = x_pooled
 
         # Get the final outputs - we don't need to compute attention masks or update things here
-        outputs["final"] = {}
+        outputs["final"] = {
+            "query_embed": x["query_embed"],
+            "key_embed": x["key_embed"],
+        }
+
         for task in self.tasks:
             outputs["final"][task.name] = task(x)
 
