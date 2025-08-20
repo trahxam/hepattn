@@ -371,11 +371,10 @@ trainer:
   accumulate_grad_batches: 1
   enable_progress_bar: True
 
-  # Specify loggers here
   logger:
-    class_path: lightning.pytorch.loggers.CometLogger
+    class_path: hepattn.utils.loggers.MyCometLogger
     init_args:
-      project_name: cld
+      project: cld
 
   callbacks:
     - class_path: hepattn.callbacks.Compile
@@ -623,7 +622,7 @@ model:
             - class_path: hepattn.models.task.ObjectHitMaskTask
               init_args:
                 name: flow_vtxd_assignment
-                input_hit: vtxd
+                input_constituent: vtxd
                 input_object: query
                 output_object: flow
                 target_object: particle
@@ -642,7 +641,7 @@ model:
             - class_path: hepattn.models.task.ObjectHitMaskTask
               init_args:
                 name: flow_trkr_assignment
-                input_hit: trkr
+                input_constituent: trkr
                 input_object: query
                 output_object: flow
                 target_object: particle
@@ -661,7 +660,7 @@ model:
             - class_path: hepattn.models.task.ObjectHitMaskTask
               init_args:
                 name: flow_ecal_assignment
-                input_hit: ecal
+                input_constituent: ecal
                 input_object: query
                 output_object: flow
                 target_object: particle
@@ -681,7 +680,7 @@ model:
             - class_path: hepattn.models.task.ObjectHitMaskTask
               init_args:
                 name: flow_hcal_assignment
-                input_hit: hcal
+                input_constituent: hcal
                 input_object: query
                 output_object: flow
                 target_object: particle

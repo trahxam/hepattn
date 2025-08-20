@@ -57,12 +57,12 @@ class Residual(nn.Module):
         """Neatly wrap x = x + drop(scale * fn(norm(x))).
 
         Args:
-            dim (int): The dimension of the input and output.
-            fn (nn.Module): The module to wrap. Must be non-resizing.
-            norm (str, optional): The normalization layer.
-            post_norm (bool, optional): Instead of standard pre-norm, apply norm before the residual (post-norm for the previous op).
-            layer_scale (float | None, optional): The initial value for the layer_scale. If None, then no layer_scale is applied.
-            drop_path (float, optional): The drop path rate.
+            dim: Dimension of the input and output.
+            fn: The module to wrap. Must be non-resizing.
+            norm: The normalization layer.
+            post_norm: If True, apply norm before the residual (post-norm for the previous op).
+            layer_scale: Initial value for the layer_scale. If None, no layer_scale is applied.
+            drop_path: Drop path rate.
 
         Raises:
             ValueError: If the input arguments are invalid.
@@ -103,28 +103,18 @@ class EncoderLayer(nn.Module):
         dense_kwargs: dict | None = None,
         attn_kwargs: dict | None = None,
     ) -> None:
-        """Encoder layer: self-attention -> feed-forward.
+        """Encoder layer: self-attention followed by feed-forward.
 
-        Parameters
-        ----------
-        dim : int
-            Dimension of the embeddings.
-        depth : int
-            The depth of the layer.
-        norm : str, optional
-            The normalization layer.
-        drop_path : float, optional
-            Drop path rate.
-        layer_scale : float | None, optional
-            Initial layer_scale value.
-        value_residual : bool, optional
-            Whether to apply a residual connection from initial values.
-        hybrid_norm : bool, optional
-            Whether to use HybridNorm from 2503.04598.
-        dense_kwargs : dict | None, optional
-            Keyword arguments for dense layer.
-        attn_kwargs : dict | None, optional
-            Keyword arguments for self-attention layer.
+        Args:
+            dim: Dimension of the embeddings.
+            depth: The depth of the layer.
+            norm: The normalization layer.
+            drop_path: Drop path rate.
+            layer_scale: Initial layer_scale value.
+            value_residual: Whether to apply a residual connection from initial values.
+            hybrid_norm: Whether to use HybridNorm from 2503.04598.
+            dense_kwargs: Keyword arguments for dense layer.
+            attn_kwargs: Keyword arguments for self-attention layer.
         """
         super().__init__()
 
@@ -166,22 +156,17 @@ class Encoder(nn.Module):
     ) -> None:
         """Transformer encoder.
 
-        Parameters
-        ----------
-        num_layers : int
-            Number of layers.
-        dim : int
-            Dimension of the embeddings at each layer.
-        window_size : int | None, optional
-            The window size for the sliding window.
-        value_residual : bool, optional
-            Add a residual connection from the initial layer values.
-        num_register_tokens : int | None, optional
-            Number of register tokens to add at the beginning of the sequence.
-            If None, no register tokens are added. Register tokens are removed
-            from the output by default.
-        kwargs : dict
-            Keyword arguments for EncoderLayer.
+        Args:
+            num_layers: Number of layers.
+            dim: Dimension of the embeddings at each layer.
+            attn_type: Type of attention to use.
+            window_size: Window size for the sliding window.
+            window_wrap: Whether to wrap the window.
+            score_mod: Score modification function.
+            value_residual: Add a residual connection from the initial layer values.
+            num_register_tokens: Number of register tokens to add at the beginning of the sequence. If None, no register tokens are added.
+                Register tokens are removed from the output by default.
+            **layer_kwargs: Keyword arguments for EncoderLayer.
         """
         super().__init__()
 
@@ -223,7 +208,7 @@ class Encoder(nn.Module):
         for layer in self.layers:
             self.attn_type = layer.attn.fn.set_backend(self.attn_type)
 
-    def forward(self, x: Tensor, x_sort_value: Tensor | None = None, **kwargs) -> Tensor:
+    def forward(self, x: Tensor, x_sort_value: Tensor | None = None, kv_mask: Tensor | None = None, **kwargs) -> Tensor:
         batch_size = x.shape[0]
         seq_len = x.shape[-2]
 
@@ -244,14 +229,13 @@ class Encoder(nn.Module):
             x = torch.cat([register_tokens, x], dim=1)
 
             # Allow registers to participate in attention if a mask is provided
-            if (kv_mask := kwargs.get("kv_mask")) is not None:
+            if kv_mask is not None:
                 register_mask = torch.full((1, self.num_register_tokens), True, device=kv_mask.device, dtype=kv_mask.dtype).expand(batch_size, -1)
-                kwargs["kv_mask"] = torch.cat([register_mask, kv_mask], dim=1)
+                kv_mask = torch.cat([register_mask, kv_mask], dim=1)
 
         # Handle flash-varlen attention unpadding at encoder level
         varlen_kwargs = None
-        if self.attn_type == "flash-varlen" and kwargs.get("kv_mask") is not None:
-            kv_mask = kwargs["kv_mask"]
+        if self.attn_type == "flash-varlen" and kv_mask is not None:
             x, indices, varlen_kwargs = unpad_for_flash_varlen(x, kv_mask)
             kwargs["varlen_kwargs"] = varlen_kwargs
         elif self.attn_type == "flash-varlen":
@@ -279,7 +263,7 @@ class Encoder(nn.Module):
         # Apply layers
         initial_values = {} if self.value_residual else None
         for layer in self.layers:
-            x = layer(x, attn_mask=attn_mask, score_mod=self.score_mod, initial_values=initial_values, **kwargs)
+            x = layer(x, attn_mask=attn_mask, score_mod=self.score_mod, initial_values=initial_values, kv_mask=kv_mask, **kwargs)
 
         # Remove wrapping for flash attention with sliding window
         if self.attn_type == "flash" and self.window_wrap:
@@ -293,8 +277,8 @@ class Encoder(nn.Module):
         # Remove register tokens
         if self.register_tokens is not None:
             x = x[:, self.num_register_tokens :]
-            if (kv_mask := kwargs.get("kv_mask")) is not None:
-                kwargs["kv_mask"] = kv_mask[:, self.num_register_tokens :]
+            if kv_mask is not None:
+                kv_mask = kv_mask[:, self.num_register_tokens :]
 
         # If we sorted the tokens, undo the sorting
         if x_sort_value is not None and x_sort_idx is not None:
@@ -305,7 +289,12 @@ class Encoder(nn.Module):
 
 
 def change_attn_backends(module: nn.Module, backend: str) -> None:
-    """Recursively change the attention backend of a module and all its children."""
+    """Recursively change the attention backend of a module and all its children.
+
+    Args:
+        module: The module to update.
+        backend: The attention backend to set.
+    """
     if isinstance(module, Encoder):
         module.set_backend(backend)
         return

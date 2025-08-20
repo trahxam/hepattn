@@ -50,8 +50,11 @@ class ModelWrapper(LightningModule):
             for task_name, task_losses in layer_losses.items():
                 for loss_name, loss_value in task_losses.items():
                     total_loss += loss_value
+
+            # Log the total loss from the layer
             self.log(f"{stage}/{layer_name}_loss", layer_loss, sync_dist=True)
 
+        # Log the total loss
         self.log(f"{stage}/loss", total_loss, sync_dist=True)
         return total_loss
 
@@ -83,9 +86,9 @@ class ModelWrapper(LightningModule):
         # Get the model outputs
         outputs = self.model(inputs)
 
-        # Compute losses then aggregate and log them
-        losses = self.model.loss(outputs, targets)
-
+        # Compute and log losses
+        losses, targets = self.model.loss(outputs, targets)
+        
         # Get the predictions from the model, avoid calling predict if possible
         if batch_idx % self.trainer.log_every_n_steps == 0:
             preds = self.predict(outputs)
@@ -94,7 +97,9 @@ class ModelWrapper(LightningModule):
         if self.mtl:
             self.mlt_opt(losses, outputs)
         else:
-            return self.aggregate_losses(losses, stage="train")
+            total_loss = self.aggregate_losses(losses, stage="train")
+
+        return {"loss": total_loss, **outputs}
 
     def validation_step(self, batch: tuple[dict[str, Tensor], dict[str, Tensor]]) -> Tensor:
         inputs, targets = batch
@@ -105,19 +110,22 @@ class ModelWrapper(LightningModule):
         # Compute losses then aggregate and log them
         losses = self.model.loss(outputs, targets)
         total_loss = self.aggregate_losses(losses, stage="val")
+        # Compute and log losses
+        losses, targets = self.model.loss(outputs, targets)
+        total_loss = self.log_losses(losses, "val")
 
         # Get the predictions from the model
         preds = self.model.predict(outputs)
         self.log_metrics(preds, targets, "val")
 
-        return total_loss
+        return {"loss": total_loss, **outputs}
 
     def test_step(self, batch: tuple[dict[str, Tensor], dict[str, Tensor]]) -> tuple[dict[str, Tensor]]:
         inputs, targets = batch
         outputs = self.model(inputs)
 
         # Calculate loss to also run matching
-        losses = self.model.loss(outputs, targets)
+        losses, targets = self.model.loss(outputs, targets)
 
         # Get the predictions from the model
         preds = self.model.predict(outputs)

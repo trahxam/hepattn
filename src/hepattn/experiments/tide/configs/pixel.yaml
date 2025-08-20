@@ -240,11 +240,10 @@ trainer:
   enable_progress_bar: True
   val_check_interval: 1000
 
-  # Specify loggers here
   logger:
-    class_path: lightning.pytorch.loggers.CometLogger
+    class_path: hepattn.utils.loggers.MyCometLogger
     init_args:
-      project_name: tide
+      project: tide
 
   # Specify any callback here
   callbacks:
@@ -442,7 +441,7 @@ model:
             - class_path: hepattn.models.task.ObjectHitMaskTask
               init_args:
                 name: pred_pix_assignment
-                input_hit: pix
+                input_constituent: pix
                 input_object: query
                 output_object: pred
                 target_object: sudo
