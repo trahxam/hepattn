@@ -88,7 +88,7 @@ class ModelWrapper(LightningModule):
 
         # Compute and log losses
         losses, targets = self.model.loss(outputs, targets)
-        
+
         # Get the predictions from the model, avoid calling predict if possible
         if batch_idx % self.trainer.log_every_n_steps == 0:
             preds = self.predict(outputs)
@@ -108,11 +108,8 @@ class ModelWrapper(LightningModule):
         outputs = self.model(inputs)
 
         # Compute losses then aggregate and log them
-        losses = self.model.loss(outputs, targets)
-        total_loss = self.aggregate_losses(losses, stage="val")
-        # Compute and log losses
         losses, targets = self.model.loss(outputs, targets)
-        total_loss = self.log_losses(losses, "val")
+        total_loss = self.aggregate_losses(losses, stage="val")
 
         # Get the predictions from the model
         preds = self.model.predict(outputs)

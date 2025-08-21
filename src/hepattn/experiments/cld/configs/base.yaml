@@ -367,7 +367,7 @@ trainer:
   precision: bf16-mixed
   log_every_n_steps: 10
   default_root_dir: logs
-  # gradient_clip_val: 0.1
+  gradient_clip_val: 0.1
   accumulate_grad_batches: 1
   enable_progress_bar: True
 
@@ -700,7 +700,7 @@ model:
             - class_path: hepattn.models.task.ObjectHitMaskTask
               init_args:
                 name: flow_muon_assignment
-                input_hit: muon
+                input_constituent: muon
                 input_object: query
                 output_object: flow
                 target_object: particle
