@@ -7,53 +7,11 @@ from tqdm import tqdm
 
 from hepattn.experiments.cld.data import CLDDataModule
 from hepattn.utils.plot import plot_hist_to_ax
-from hepattn.utils.stats import bayesian_binomial_error, combine_mean_std
+from hepattn.utils.histograms import CountingHistogram
 
 
 plt.rcParams["figure.dpi"] = 300
 
-
-class CountingHistogram:
-    def __init__(self, bins: np.ndarray):
-        self.bins = bins
-        self.counts = np.zeros(len(bins) - 1, dtype=np.float32)
-
-    def fill(self, values):
-        counts, _, _ = binned_statistic(values, values, statistic="count", bins=self.bins)
-        self.counts += counts
-
-
-class PoissonHistogram:
-    def __init__(self, bins: np.ndarray):
-        self.bins = bins
-        self.n = np.zeros(len(bins) - 1, dtype=np.float32)
-        self.k = np.zeros(len(bins) - 1, dtype=np.float32)
-    
-    def fill(self, x, n, k):
-        n_binned, _, _ = binned_statistic(x, n, statistic="sum", bins=self.bins)
-        k_binned, _, _ = binned_statistic(x, k, statistic="sum", bins=self.bins)
-
-        self.n += n_binned
-        self.k += k_binned
-
-
-class GaussianHistogram:
-    def __init__(self, bins: np.ndarray):
-        self.bins = bins
-        self.n = np.zeros(len(bins) - 1, dtype=np.float32)
-        self.mu = np.zeros(len(bins) - 1, dtype=np.float32)
-        self.sigma = np.zeros(len(bins) - 1, dtype=np.float32)
-    
-    def fill(self, x, values):
-        n, _, _ = binned_statistic(x, values, statistic="count", bins=self.bins)
-        mu, _, _ = binned_statistic(x, values, statistic="mean", bins=self.bins)
-        sig, _, _ = binned_statistic(x, values, statistic="std", bins=self.bins)
-
-        mu, sig, n = combine_mean_std(self.mu, self.sig, self.n, mu, sig, n)
-
-        self.n = n
-        self.mu = mu
-        self.sig = sig
 
 aliases = {
     "calib_energy_ecal": "Total Calibrated ECAL Energy [GeV]",
