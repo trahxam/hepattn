@@ -159,7 +159,10 @@ class CLDDataset(LRSMDataset):
             event[f"{i}.{p}.r"] = np.sqrt(event[f"{i}.{p}.x"] ** 2 + event[f"{i}.{p}.y"] ** 2)
             event[f"{i}.{p}.s"] = np.sqrt(event[f"{i}.{p}.x"] ** 2 + event[f"{i}.{p}.y"] ** 2 + event[f"{i}.{p}.z"] ** 2)
             event[f"{i}.{p}.theta"] = np.arccos(event[f"{i}.{p}.z"] / event[f"{i}.{p}.s"])
-            event[f"{i}.{p}.eta"] = -np.log(np.tan(event[f"{i}.{p}.theta"] / 2))
+
+            with np.errstate(invalid="ignore"):
+                event[f"{i}.{p}.eta"] = -np.log(np.tan(event[f"{i}.{p}.theta"] / 2))
+                
             event[f"{i}.{p}.abs_eta"] = np.abs(event[f"{i}.{p}.eta"])
             event[f"{i}.{p}.phi"] = np.arctan2(event[f"{i}.{p}.y"], event[f"{i}.{p}.x"])
             event[f"{i}.{p}.rinv"] = 1.0 / event[f"{i}.{p}.r"]
@@ -228,6 +231,8 @@ class CLDDataset(LRSMDataset):
 
         event["particle.mom.qopt"] = event["particle.charge"] / event["particle.mom.r"]
         event["pandora.mom.qopt"] = event["pandora.charge"] / event["pandora.mom.r"]
+
+        event["particle.energy"] = np.sqrt(event["particle.mass"]**2 + (np.cosh(event["particle.mom.eta"]) * event["particle.mom.r"])**2)
 
         # Merge inputs, first check all requested merged inputs have the same
         # fields and that the fields are given in the same order

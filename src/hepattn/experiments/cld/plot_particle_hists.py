@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 from hepattn.experiments.cld.data import CLDDataModule
 from hepattn.utils.plot import plot_hist_to_ax
-from hepattn.utils.histograms import CountingHistogram
+from hepattn.utils.histogram import CountingHistogram
 
 
 plt.rcParams["figure.dpi"] = 300
@@ -27,6 +27,8 @@ aliases = {
     "num_ecal": "Num. ECAL Hits",
     "num_hcal": "Num. HCAL Hits",
     "num_muon": "Num. Muon Hits",
+    "mass": "Mass [GeV]",
+    "energy": "Energy [GeV]",
 }
 
 scales = {
@@ -43,6 +45,8 @@ scales = {
     "num_ecal": "log",
     "num_hcal": "log",
     "num_muon": "linear",
+    "mass": "log",
+    "energy": "log",
 }
 
 bins = {
@@ -59,6 +63,8 @@ bins = {
     "num_ecal": np.geomspace(1, 1000, 32),
     "num_hcal": np.geomspace(1, 500, 32),
     "num_muon": np.arange(-1, 14) + 0.5,
+    "mass": np.logspace(-4, 3, 32),
+    "energy": np.logspace(-3, 3, 32),
 }
 
 object_name = "particle"
@@ -99,7 +105,7 @@ dataloader = datamodule.test_dataloader()
 data_iterator = iter(dataloader)
 
 # Iterate through the dataset
-for i in tqdm(range(1000)):
+for i in tqdm(range(100)):
     inputs, targets = next(data_iterator)
 
     for field, selections in hists.items():
@@ -112,6 +118,10 @@ plots = {
         "mom.r",
         "mom.eta",
         "mom.phi"
+    ],
+    "particle_mass_energy": [
+        "mass",
+        "energy",
     ],
     "particle_calo_energy": [
         "calib_energy_ecal",

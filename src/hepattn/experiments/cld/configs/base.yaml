@@ -226,6 +226,7 @@ data:
       - charge
       - time
       - mass
+      - energy
       # Particle creation vertex coordinates
       - vtx.x
       - vtx.y
@@ -278,6 +279,7 @@ data:
       - is_other
       - is_primary
       - is_secondary
+
 
     particle_vtxd:
       - pos.x
@@ -716,4 +718,3 @@ model:
                   #mask_focal: 1.0
                 dim: *dim
                 null_weight: 1.0
-
