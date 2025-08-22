@@ -224,7 +224,7 @@ class MaskFormerDecoderLayer(nn.Module):
         kv_mask: Tensor | None = None,
         query_posenc: Tensor | None = None,
         key_posenc: Tensor | None = None,
-    ) -> Tensor:
+    ) -> tuple[Tensor, Tensor]:
         """Forward pass for the decoder layer.
 
         Args:
