@@ -221,7 +221,7 @@ class Encoder(nn.Module):
 
             # Also permute the kv mask if we have one
             if kwargs.get("kv_mask") is not None:
-                kwargs["kv_mask"] = torch.gather(kwargs["kv_mask"], dim=1, index=x_sort_idx)
+                kwargs["kv_mask"] = torch.gather(kwargs["kv_mask"], dim=-1, index=x_sort_idx)
 
         # Add register tokens at the beginning of the sequence
         if self.register_tokens is not None:
