@@ -16,7 +16,7 @@ torch.manual_seed(42)
 def copy_attention_weights(src: Attention, dst: Attention):
     dst.in_proj_weight.data.copy_(src.in_proj_weight.data)
     if src.in_proj_bias is not None:
-        dst.in_proj_bias.data.copy_(src.in_proj_bias.data)
+        dst.in_proj_bias.data.copy_(src.in_proj_bias.data)  # ty: ignore [possibly-unbound-attribute]
     dst.out_proj.weight.data.copy_(src.out_proj.weight.data)
     if src.out_proj.bias is not None:
         dst.out_proj.bias.data.copy_(src.out_proj.bias.data)
@@ -131,7 +131,7 @@ def test_local_attention():
     mask_mod = sliding_window_mask(window_size)
     q_len = q.shape[-2]
     # block_mask = create_block_mask(mask_mod, B=None, H=None, Q_LEN=q_len, KV_LEN=q_len, device=q.device)
-    mask = create_mask(mask_mod, 1, None, q_len, q_len, device=q.device)
+    mask = create_mask(mask_mod, 1, None, q_len, q_len, device=str(q.device))
     # out_flex = attn_flex(q, kv, attn_mask=block_mask)
     # Squeeze operation is required as for SPDA attention we assume mask is the same accross heads
     # TODO: Standardise this accross the different backends, both for whether it should brodcast the

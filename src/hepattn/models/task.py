@@ -743,7 +743,7 @@ class ClassificationTask(Task):
         self.class_net = Dense(dim, len(classes))
 
         if self.class_weights is not None:
-            self.class_weights_values = torch.tensor([class_weights[class_name] for class_name in self.classes])
+            self.class_weights_values = torch.tensor([self.class_weights[class_name] for class_name in self.classes])
 
         self.inputs = [input_object + "_embed"]
         self.outputs = [output_object + "_logits"]
@@ -1119,7 +1119,7 @@ class IncidenceBasedRegressionTask(RegressionTask):
         else:
             pt_cost = 0
         # Compute the cost as the sum of the squared differences
-        cost = self.cost_weight * torch.sqrt(pt_cost + dphi**2 + deta**2)
+        cost = self.cost_weight * torch.sqrt(pt_cost + torch.pow(dphi, 2) + torch.pow(deta, 2))
         return {"regression": cost}
 
     def new_cost(self, outputs: dict[str, Tensor], targets: dict[str, Tensor]) -> dict[str, Tensor]:
@@ -1160,7 +1160,7 @@ class IncidenceBasedRegressionTask(RegressionTask):
     ) -> tuple[Tensor, Tensor]:
         proxy_feats = torch.cat(
             [inputs[self.input_constituent + "_" + field].unsqueeze(-1) for field in self.fields],
-            axis=-1,
+            dim=-1,
         )
 
         charged_inc = incidence * inputs[self.input_constituent + "_is_track"].unsqueeze(1)
