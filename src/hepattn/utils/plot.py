@@ -1,5 +1,5 @@
+
 import numpy as np
-from contextlib import contextmanager
 
 
 def plot_hist_to_ax(ax, values, bins, value_errors=None, color="cornflowerblue", vertical_lines=False, label=None, linestyle="-"):

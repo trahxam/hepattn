@@ -1,5 +1,5 @@
 import torch
-from torch import Tensor, BoolTensor
+from torch import BoolTensor, Tensor
 
 
 def mask_metric_cost(
@@ -12,7 +12,7 @@ def mask_metric_cost(
     # Pred and target masks have shape (batch, num_objects, num_constituents)
     num_objects = preds.shape[1]
     targets = targets.type_as(preds)
-    
+
     # Used to mask out invalid constituents during the score calculation
     mask = input_pad_mask.unsqueeze(1).float()
 
@@ -55,7 +55,7 @@ def mask_metric_score(
     # Pred and target masks have shape (batch, num_objects, num_constituents)
     num_objects = preds.shape[1]
     targets = targets.type_as(preds)
-    
+
     # Used to mask out invalid constituents during the score calculation
     mask = input_pad_mask.unsqueeze(1).float()
     preds = preds * mask

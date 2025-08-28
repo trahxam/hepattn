@@ -2,12 +2,12 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-import yaml
 import torch
+import yaml
+from hepattn.experiments.cld.data_new import CLDDataModule
 
-from hepattn.experiments.cld.data_new import CLDDataset, CLDDataModule
-from hepattn.models.loss import cost_fns
 from hepattn.experiments.cld.plot_event import plot_cld_event_reconstruction
+from hepattn.models.loss import cost_fns
 
 plt.rcParams["figure.dpi"] = 300
 
@@ -45,28 +45,27 @@ for k, v in targets.items():
     print(k, v.shape, v.dtype)
 
 
-
 targets["particle_invalid"] = ~targets["particle_valid"]
 
 hit_cost_weights = {
     "trkr": {
-        #"mask_bce": 10.0,
-        #"mask_coefficient": 1.0,
+        # "mask_bce": 10.0,
+        # "mask_coefficient": 1.0,
         "mask_dice": 1.0,
     },
     "vtxd": {
-        #"mask_bce": 10.0,
-        #"mask_coefficient": 1.0,
+        # "mask_bce": 10.0,
+        # "mask_coefficient": 1.0,
         "mask_dice": 1.0,
     },
     "ecal": {
-        #"mask_bce": 0.1,
-        #"mask_coefficient": 0.1,
+        # "mask_bce": 0.1,
+        # "mask_coefficient": 0.1,
         "mask_dice": 1.0,
     },
     "hcal": {
-        #"mask_bce": 0.5,
-        #"mask_coefficient": 0.5,
+        # "mask_bce": 0.5,
+        # "mask_coefficient": 0.5,
         "mask_dice": 1.0,
     },
 }
@@ -109,9 +108,9 @@ fig.savefig("/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/reco.pn
 batch_size = targets["particle_valid"].shape[0]
 num_objects = targets["particle_valid"].shape[1]
 
-target = targets[f"particle_valid"].float()
+target = targets["particle_valid"].float()
 
-flow = targets[f"pandora_valid"].float()
+flow = targets["pandora_valid"].float()
 costs = 1.0 * cost_fns["object_bce"](target, flow)
 
 for hit_name, cost_weights in hit_cost_weights.items():
@@ -148,7 +147,7 @@ for same_mask_name, same_mask in same_masks.items():
         axes[0].hist(costs[mask], bins=bins, histtype="step", label=f"{same_mask_name}, {valid_mask_name}")
 
         if valid_mask_name == "Both Valid":
-            valid_costs = costs[valid_masks[valid_mask_name]]
+            valid_costs = costs[valid_mask]
             bins = np.linspace(torch.min(valid_costs), torch.max(valid_costs), 100)
             axes[1].hist(costs[mask], bins=bins, histtype="step", label=f"{same_mask_name}, {valid_mask_name}")
 
@@ -164,7 +163,3 @@ for ax in axes:
 
 fig.tight_layout()
 fig.savefig(Path("src/hepattn/experiments/cld/plots/data/cld_particle_costs.png"))
-
-
-
-

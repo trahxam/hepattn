@@ -1,14 +1,13 @@
 from pathlib import Path
-from scipy.stats import binned_statistic
+
 import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 from tqdm import tqdm
 
 from hepattn.experiments.cld.data import CLDDataModule
-from hepattn.utils.plot import plot_hist_to_ax
 from hepattn.utils.histogram import CountingHistogram
-
+from hepattn.utils.plot import plot_hist_to_ax
 
 plt.rcParams["figure.dpi"] = 300
 
@@ -69,7 +68,7 @@ for i in tqdm(range(10)):
     for field, hits in hists.items():
         for hit, hist in hits.items():
             values = inputs[f"{hit}_{field}"][inputs[f"{hit}_valid"].bool()]
-            hists[field][hit].fill(values)
+            hist.fill(values)
 
 plots = {
     "hit_xyz": [
@@ -80,7 +79,7 @@ plots = {
 }
 
 for plot_name, fields in plots.items():
-    
+
     fig, ax = plt.subplots(1, len(fields))
     fig.set_size_inches(12, 3)
 

@@ -2,16 +2,12 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from lightning import LightningDataModule, seed_everything
+from lightning import LightningDataModule
 from scipy.sparse import csr_array, csr_matrix
-from torch import Tensor
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 
 from hepattn.utils.array_utils import masked_angle_diff_last_axis, masked_diff_last_axis
-from hepattn.utils.tensor_utils import pad_to_size
-from hepattn.utils.data import LRSMDataset, LRSMDataModule
-
-from typing import Dict, List, Any
+from hepattn.utils.data import LRSMDataset
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 
@@ -21,31 +17,31 @@ class CLDDataset(LRSMDataset):
         self,
         dirpath: str,
         num_samples: int,
-        inputs: Dict[str, List[str]],
-        targets: Dict[str, List[str]],
+        inputs: dict[str, list[str]],
+        targets: dict[str, list[str]],
         input_dtype: str = "float32",
         target_dtype: str = "float32",
         input_pad_value: float = 0.0,
         target_pad_value: float = 0.0,
-        force_pad_sizes: Dict[str, int] | None = None,
-        skip_pad_items: List[str] | None = None,
+        force_pad_sizes: dict[str, int] | None = None,
+        skip_pad_items: list[str] | None = None,
         sampling_seed: int = 42,
         sample_reject_warn_limit: int = 10,
-        merge_inputs: Dict[str, List[str]] | None = None,
+        merge_inputs: dict[str, list[str]] | None = None,
         particle_min_pt: float = 0.01,
         particle_max_abs_eta: float = 4.0,
         include_neutral: bool = True,
         include_charged: bool = True,
-        charged_particle_min_num_hits: Dict[str, int] | None = None,
-        charged_particle_max_num_hits: Dict[str, int] | None = None,
-        neutral_particle_min_num_hits: Dict[str, int] | None = None,
-        neutral_particle_max_num_hits: Dict[str, int] | None = None,
-        particle_cut_veto_min_num_hits: Dict[str, int] | None = None,
-        particle_hit_min_p_ratio: Dict[str, float] | None = None,
-        particle_hit_deflection_cuts: Dict[str, Dict[str, float | int]] | None = None,
-        particle_hit_separation_cuts: Dict[str, Dict[str, float | int]] | None = None,
-        particle_min_calib_calo_energy: Dict[str, float] | None = None,
-        truth_filter_hits: List[str] | None = None,
+        charged_particle_min_num_hits: dict[str, int] | None = None,
+        charged_particle_max_num_hits: dict[str, int] | None = None,
+        neutral_particle_min_num_hits: dict[str, int] | None = None,
+        neutral_particle_max_num_hits: dict[str, int] | None = None,
+        particle_cut_veto_min_num_hits: dict[str, int] | None = None,
+        particle_hit_min_p_ratio: dict[str, float] | None = None,
+        particle_hit_deflection_cuts: dict[str, dict[str, float | int]] | None = None,
+        particle_hit_separation_cuts: dict[str, dict[str, float | int]] | None = None,
+        particle_min_calib_calo_energy: dict[str, float] | None = None,
+        truth_filter_hits: list[str] | None = None,
         calo_energy_thresh: float = 1e-6,
     ):
         if truth_filter_hits is None:
@@ -125,7 +121,7 @@ class CLDDataset(LRSMDataset):
         self.sample_ids = [event_filenames_to_sample_id(f) for f in self.event_filenames]
         self.sample_ids_to_event_filenames = {self.sample_ids[i]: str(self.event_filenames[i]) for i in range(len(self.sample_ids))}
 
-    def load_sample(self, sample_id: int) -> Dict[str, np.ndarray] | None:
+    def load_sample(self, sample_id: int) -> dict[str, np.ndarray] | None:
         """Loads a single CLD event from a preprocessed npz file."""
         event_filename = self.sample_ids_to_event_filenames[sample_id]
 
@@ -147,7 +143,7 @@ class CLDDataset(LRSMDataset):
             for name, alias in aliases.items():
                 if k.startswith(name):
                     event[k.replace(name, alias)] = event[k]
-            
+
         def convert_mm_to_m(i, p):
             # Convert a spatial coordinate from mm to m inplace
             for coord in ["x", "y", "z"]:
@@ -162,7 +158,7 @@ class CLDDataset(LRSMDataset):
 
             with np.errstate(invalid="ignore"):
                 event[f"{i}.{p}.eta"] = -np.log(np.tan(event[f"{i}.{p}.theta"] / 2))
-                
+
             event[f"{i}.{p}.abs_eta"] = np.abs(event[f"{i}.{p}.eta"])
             event[f"{i}.{p}.phi"] = np.arctan2(event[f"{i}.{p}.y"], event[f"{i}.{p}.x"])
             event[f"{i}.{p}.rinv"] = 1.0 / event[f"{i}.{p}.r"]
@@ -255,7 +251,6 @@ class CLDDataset(LRSMDataset):
         particle_hit_masks = [("particle", hit) for hit in hits]
         pandora_hit_masks = [("pandora", hit) for hit in hits]
         sitrack_hit_masks = [("sitrack", hit) for hit in trkr_hits]
-
 
         masks = particle_hit_masks + pandora_hit_masks + sitrack_hit_masks
 

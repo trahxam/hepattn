@@ -1,9 +1,10 @@
 
+import random
+from abc import abstractmethod
+from pathlib import Path
+
 import numpy as np
 import torch
-import random
-from pathlib import Path
-from abc import ABC, abstractmethod
 from lightning import LightningDataModule, seed_everything
 from numpy import ndarray
 from torch import Tensor
@@ -11,28 +12,25 @@ from torch.utils.data import DataLoader, IterableDataset, get_worker_info
 
 from hepattn.utils.tensor_utils import pad_to_size
 
-from typing import Dict, List, Any
-
 
 class LRSMDataset(IterableDataset):
     def __init__(
         self,
         dirpath: str,
         num_samples: int,
-        inputs: Dict[str, Dict[str, List[str]]],
-        targets: Dict[str, Dict[str, List[str]]],
+        inputs: dict[str, dict[str, list[str]]],
+        targets: dict[str, dict[str, list[str]]],
         input_dtype: str = "float32",
         target_dtype: str = "float32",
         input_pad_value: float = 0.0,
         target_pad_value: float = 0.0,
-        force_pad_sizes: Dict[str, int] | None = None,
-        skip_pad_items: List[str] | None = None,
+        force_pad_sizes: dict[str, int] | None = None,
+        skip_pad_items: list[str] | None = None,
         sampling_seed: int = 42,
         sample_reject_warn_limit: int = 10,
         verbose: bool = False,
     ):
-        """
-        A PyTorch Dataset that does lazy rejection sampling with memoisation.
+        """A PyTorch Dataset that does lazy rejection sampling with memoisation.
         Samples are read lazily, and evaluated on a selection criteria. The result of the
         selection criteria is memoised for speedup after the first epoch.
 
@@ -113,36 +111,31 @@ class LRSMDataset(IterableDataset):
 
     @abstractmethod
     def load_sample(self, sample_id: int) -> dict[str: ndarray] | None:
-        """
-        Attempts to load a single sample from disk and validate it against selection criteria.
+        """Attempts to load a single sample from disk and validate it against selection criteria.
 
         Parameters
         ----------
         sample_id : int
             Unique identifier of the sample to load.
 
-        Returns
+        Returns:
         -------
         dict[str, np.ndarray] or None
             Dictionary of input and target arrays if sample is
             valid and passes the selection, otherwise None.
         """
-        pass
 
     def register_new_samples(self) -> None:
-        """
-        Loads additional samples into the evaluation pool.
+        """Loads additional samples into the evaluation pool.
 
         This method should be overrided so that it populates `self.unevaluated_sample_ids` by
         scanning for new samples not yet marked as accepted or rejected.
         """
-        pass
 
     def __len__(self) -> int:
-        """
-        Returns the number of samples the dataset should contain.
+        """Returns the number of samples the dataset should contain.
 
-        Returns
+        Returns:
         -------
         int
             Total number of samples.
@@ -156,7 +149,7 @@ class LRSMDataset(IterableDataset):
 
             for field in fields:
                 k = f"{item_name}_{field}"
-                sample[k] = torch.from_numpy(sample[k])   
+                sample[k] = torch.from_numpy(sample[k])
 
         # Apply any manual padding now, need to do it before collate stage incase no batching / collation is used
         for item_name, fields in (self.inputs | self.targets).items():
@@ -180,7 +173,7 @@ class LRSMDataset(IterableDataset):
                 # Check whether this is an input or target so we know the pad value
                 pad_value = self.input_pad_value if item_name in self.inputs else self.target_pad_value
 
-                # Now apply the padding                
+                # Now apply the padding
                 sample[k] = pad_to_size(sample[k], target_size, pad_value)
 
         # Convert to a torch tensor of the correct dtype and add the batch dimension
@@ -231,14 +224,13 @@ class LRSMDataset(IterableDataset):
                 targets["sample_id"] = torch.tensor(sample_id, dtype=torch.int64)
 
                 yield inputs, targets
-            
+
             # If this sample was rejected, keep a log of it so we don't have to evaluate it again
             else:
                 self.rejected_sample_ids.add(sample_id)
 
     def collate_fn(self, batch: list[tuple[dict[str, Tensor], dict[str, Tensor]]]) -> tuple[dict[str, Tensor], dict[str, Tensor]]:
-        """
-        Collates a list of samples into a single batched sample.
+        """Collates a list of samples into a single batched sample.
 
         Handles variable-length inputs by dynamically padding each input and target field
         to the maximum size found in the batch.
@@ -248,7 +240,7 @@ class LRSMDataset(IterableDataset):
         batch : list of tuples
             List where each element is a tuple (inputs, targets), as returned by `__getitem__`.
 
-        Returns
+        Returns:
         -------
         batched_inputs : dict[str, torch.Tensor]
             Batched and padded input tensors.
@@ -268,7 +260,7 @@ class LRSMDataset(IterableDataset):
             # Skip features marked as ignored for padding
             if item_name in self.skip_pad_items:
                 continue
-            
+
             # Skip features that were manually padded
             if item_name in self.force_pad_sizes:
                 continue

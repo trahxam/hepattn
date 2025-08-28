@@ -1,6 +1,6 @@
 import warnings
-from pathlib import Path
 from collections import defaultdict
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -27,7 +27,7 @@ class InferenceTimer(Callback):
         def new_forward(*args, **kwargs):
             # Only record valid field sizes, args[0] gets the model inputs
             self._tmp_dims = {k: v.shape for k, v in args[0].items() if "valid" in k}
-            
+
             with cuda_timer(self.times):
                 return self.old_forward(*args, **kwargs)
 
@@ -66,7 +66,7 @@ class InferenceTimer(Callback):
     def teardown(self, trainer, pl_module, stage):
         if len(self.times):
             times = torch.tensor(self.times)
-            warm_times =  torch.tensor(self.times[self.n_warm_start :])
+            warm_times = torch.tensor(self.times[self.n_warm_start :])
             print("-" * 80)
             print(f"Mean inference time: {times.mean():.2f} ± {times.std():.2f} ms")
             print(f"Mean inference time (warm start): {warm_times.mean():.2f} ± {warm_times.std():.2f} ms")

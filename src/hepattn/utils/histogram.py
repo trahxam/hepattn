@@ -1,8 +1,8 @@
 import numpy as np
+from scipy.stats import binned_statistic
 from torch import Tensor
 
-from scipy.stats import binned_statistic
-from hepattn.utils.stats import bayesian_binomial_error, combine_mean_std
+from hepattn.utils.stats import combine_mean_std
 
 
 class CountingHistogram:
@@ -16,7 +16,7 @@ class CountingHistogram:
 
 
 class PoissonHistogram:
-    def __init__(self, field: str, bins: np.ndarray, selection: str, numerator: str, denominator: str,):
+    def __init__(self, field: str, bins: np.ndarray, selection: str, numerator: str, denominator: str):
         self.field = field
         self.bins = bins
         self.selection = selection
@@ -25,7 +25,7 @@ class PoissonHistogram:
 
         self.n = np.zeros(len(bins) - 1, dtype=np.float32)
         self.k = np.zeros(len(bins) - 1, dtype=np.float32)
-    
+
     def fill(self, data: dict[str: Tensor]) -> None:
         selection = data[self.selection].bool()
         k = data[self.numerator][selection].float()
@@ -35,7 +35,7 @@ class PoissonHistogram:
         # If the selection is empty then can just return
         if len(x) == 0:
             return
-        
+
         n_binned, _, _ = binned_statistic(x, n, statistic="sum", bins=self.bins)
         k_binned, _, _ = binned_statistic(x, k, statistic="sum", bins=self.bins)
 
@@ -44,7 +44,7 @@ class PoissonHistogram:
 
 
 class GaussianHistogram:
-    def __init__(self, field: str, bins: np.ndarray, selection: str, values: str,):
+    def __init__(self, field: str, bins: np.ndarray, selection: str, values: str):
         self.field = field
         self.bins = bins
         self.selection = selection
@@ -53,7 +53,7 @@ class GaussianHistogram:
         self.n = np.zeros(len(bins) - 1, dtype=np.float32)
         self.mu = np.zeros(len(bins) - 1, dtype=np.float32)
         self.sigma = np.zeros(len(bins) - 1, dtype=np.float32)
-    
+
     def fill(self, data: dict[str: Tensor]) -> None:
         selection = data[self.selection].bool()
         x = data[self.field][selection].float()

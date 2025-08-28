@@ -2,24 +2,20 @@
 
 from pathlib import Path
 
+import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import yaml
-import time
-import h5py
 from scipy.stats import binned_statistic
 from tqdm import tqdm
-from torch import Tensor
 
-from hepattn.experiments.cld.data import CLDDataset, CLDDataModule
+from hepattn.experiments.cld.data import CLDDataModule
 from hepattn.experiments.cld.plot_event import plot_cld_event
-
+from hepattn.models.matcher import Matcher
+from hepattn.utils.eval import apply_matching, calc_binary_reco_metrics, calc_cost, calculate_selections
 from hepattn.utils.plot import plot_hist_to_ax
 from hepattn.utils.stats import bayesian_binomial_error, combine_mean_std
-from hepattn.utils.eval import apply_matching, calc_cost, calc_binary_reco_metrics, calculate_selections
-from hepattn.models.matcher import Matcher
-
 
 plt.rcParams["text.usetex"] = False
 plt.rcParams["figure.dpi"] = 300
@@ -36,7 +32,6 @@ config["batch_size"] = 1
 
 # Load the entire test set, so that we can access any sample id
 config["num_test"] = -1
-
 
 
 # Get the dataset object
@@ -65,7 +60,7 @@ eval_config = yaml.safe_load(eval_config_path.read_text())["eval"]
 
 # Which hits sets will be considered in the eval
 hits = ["vtxd", "trkr", "ecal", "hcal", "muon"]
-#hits = ["vtxd", "trkr"]
+# hits = ["vtxd", "trkr"]
 
 pred_objects = ["particle", "pandora", "flow", "sitrack"]
 pred_objects = ["particle", "pandora", "flow"]
@@ -83,7 +78,7 @@ calo_hit_calibrations = {
 }
 
 # Setup the matcher - use the same machinery as the model as a consistency check
-matcher = Matcher(default_solver="scipy", adaptive_solver=False, parallel_solver=False,)
+matcher = Matcher(default_solver="scipy", adaptive_solver=False, parallel_solver=False)
 
 bin_types = {
     "linear": np.linspace,
@@ -92,7 +87,7 @@ bin_types = {
 
 bins = {name: bin_types[cfg["scale"]](cfg["min"], cfg["max"], cfg["num"]) for name, cfg in eval_config["bins"].items()}
 histograms = {name: {i: np.zeros(len(bins[cfg["bins"]]) - 1) for i in ["n", "k"]} for name, cfg in eval_config["histograms"].items()}
-bulk_metrics = {name: {i: 0 for i in ["n", "k"]} for name in eval_config["bulk_metrics"]}
+bulk_metrics = {name: dict.fromkeys(["n", "k"], 0) for name in eval_config["bulk_metrics"]}
 
 residual_metrics = {name: [] for name in eval_config["residual_metrics"]}
 
@@ -109,10 +104,10 @@ with h5py.File(eval_file_path, "r") as eval_file:
         final_outputs = eval_file[f"{sample_id}/outputs/final/"]
 
         # Load whether each slot was predicted as valid or not
-        data[f"flow_valid"] = torch.from_numpy(final_preds["flow_valid/flow_valid"][:])
-        data[f"flow_logit"] = torch.from_numpy(final_outputs["flow_valid/flow_logit"][:])
+        data["flow_valid"] = torch.from_numpy(final_preds["flow_valid/flow_valid"][:])
+        data["flow_logit"] = torch.from_numpy(final_outputs["flow_valid/flow_logit"][:])
 
-        data[f"flow_valid"] = data[f"flow_logit"].sigmoid() >= 0.5
+        data["flow_valid"] = data["flow_logit"].sigmoid() >= 0.5
 
         for hit in hits:
             # Make sure to drop any invalid hit slots from the mask
@@ -134,13 +129,12 @@ with h5py.File(eval_file_path, "r") as eval_file:
                 if f"{pred_object}_{hit}_valid" in data:
                     data[f"{pred_object}_{hit}_valid"] = data[f"{pred_object}_{hit}_valid"] & data[f"{pred_object}_valid"].unsqueeze(-1)
 
-
         for pred_object in pred_objects:
             for hit in ["ecal", "hcal"]:
                 if f"{pred_object}_{hit}_valid" in data:
                     data[f"{pred_object}_{hit}_energy"] = data[f"{pred_object}_{hit}_valid"].float() * data[f"{hit}_energy"].unsqueeze(-2)
                     data[f"{pred_object}_energy_{hit}"] = data[f"{pred_object}_{hit}_energy"].sum(-1)
-        
+
         for pred_object in pred_objects:
             data[f"{pred_object}_sihit_valid"] = torch.cat((data[f"{pred_object}_vtxd_valid"], data[f"{pred_object}_trkr_valid"]), dim=-1)
 
@@ -158,7 +152,7 @@ with h5py.File(eval_file_path, "r") as eval_file:
             for hit in hits:
                 if f"{pred_object}_{hit}_valid" in data:
                     data[f"{pred_object}_num_{hit}"] = data[f"{pred_object}_{hit}_valid"].sum(-1)
-            
+
             data[f"{pred_object}_num_sihit"] = data[f"{pred_object}_num_vtxd"] + data[f"{pred_object}_num_trkr"]
 
         for pred_object in pred_objects:
@@ -174,7 +168,6 @@ with h5py.File(eval_file_path, "r") as eval_file:
                 data[f"{pred_object}_is_photon"] = data[f"{pred_object}_is_neutral"] & (data[f"{pred_object}_num_hcal"] == 0) & (data[f"{pred_object}_energy_ecal"] >= 10)
                 data[f"{pred_object}_is_muon"] = (data[f"{pred_object}_num_sihit"] >= 4) & (data[f"{pred_object}_num_ecal"] >= 10) & (data[f"{pred_object}_num_hcal"] >= 10) & (data[f"{pred_object}_num_muon"] >= 4)
 
-
         for object_name in ["particle"]:
             selections = calculate_selections(data, object_name, eval_config["selections"])
             data |= selections
@@ -188,16 +181,16 @@ with h5py.File(eval_file_path, "r") as eval_file:
             bulk_metrics[name]["k"] += k.float().sum()
 
         for name, cfg in eval_config["residual_metrics"].items():
-            selection = data[cfg['selection']]
-            true = data[cfg['true_object']][selection]
-            pred = data[cfg['pred_object']][selection]
+            selection = data[cfg["selection"]]
+            true = data[cfg["true_object"]][selection]
+            pred = data[cfg["pred_object"]][selection]
 
             residual_metrics[name].append(pred - true)
 
         for name, cfg in eval_config["residual_histograms"].items():
-            selection = data[cfg['selection']]
-            true = data[cfg['true_field']][selection]
-            pred = data[cfg['pred_field']][selection]
+            selection = data[cfg["selection"]]
+            true = data[cfg["true_field"]][selection]
+            pred = data[cfg["pred_field"]][selection]
 
             field = data[f"{cfg['field']}"][selection].float()
 
@@ -216,12 +209,11 @@ with h5py.File(eval_file_path, "r") as eval_file:
                 mu_binned,
                 sig_binned,
                 n_binned,
-            ) 
+            )
 
             residual_histograms[name]["mu"] = mu_combined
             residual_histograms[name]["sig"] = sig_combined
             residual_histograms[name]["n"] = n_combined
-    
 
         for name, cfg in eval_config["histograms"].items():
             selection = data[f"{cfg['object_name']}_{cfg['selection']}"]
@@ -232,7 +224,7 @@ with h5py.File(eval_file_path, "r") as eval_file:
 
             if n.sum() == 0:
                 continue
-            
+
             if k.sum() == 0:
                 continue
 
@@ -246,22 +238,20 @@ with h5py.File(eval_file_path, "r") as eval_file:
             largest_num_particles = data["event_num_particle"]
             print(i, sample_id, largest_num_particles)
 
-        if False: #int(sample_id) == 1226276301090181:
+        if False:  # int(sample_id) == 1226276301090181:
             for object_name, criteria in [
                 ("particle", "pandora_charged_reconstructed"),
                 ("particle", "flow_charged_reconstructed"),
-                #("particle", "sitrack_charged_reconstructed_tight"),
+                # ("particle", "sitrack_charged_reconstructed_tight"),
                 ("pandora", "particle_charged_reconstructed"),
                 ("flow", "particle_charged_reconstructed"),
-                #("sitrack", "particle_charged_reconstructed_tight"),
+                # ("sitrack", "particle_charged_reconstructed_tight"),
                 ]:
                 fig = plot_cld_event(data, event_display_cfg, object_name)
                 fig.savefig(event_display_save_dir / Path(f"{object_name}.png"))
-    
+
         if i == 2500:
             break
-
-
 
 
 for name, cfg in eval_config["bulk_metrics"].items():
@@ -280,8 +270,6 @@ for name, cfg in eval_config["histogram_plots"].items():
         k_binned = histograms[item_cfg["histogram"]]["k"]
         p_binned = k_binned / n_binned
         p_binned_err = bayesian_binomial_error(k_binned, n_binned)
-        
-
 
         plot_hist_to_ax(
             ax,
@@ -326,7 +314,7 @@ for name, cfg in eval_config["residual_histogram_plots"].items():
             color=item_cfg["color"],
             linestyle=item_cfg.get("linestyle"),
             )
-        
+
         plot_hist_to_ax(
             ax[1],
             sig,
@@ -340,8 +328,8 @@ for name, cfg in eval_config["residual_histogram_plots"].items():
     ax[0].set_ylabel("Mean " + cfg["ylabel"])
     ax[1].set_ylabel("S.D. " + cfg["ylabel"])
 
-    #ax[0].set_ylim(-1.0, 1.0)
-    #ax[1].set_ylim(-0.5, 0.5)
+    # ax[0].set_ylim(-1.0, 1.0)
+    # ax[1].set_ylim(-0.5, 0.5)
 
     ax[0].set_xscale(cfg["scale"])
     ax[1].set_xscale(cfg["scale"])
@@ -350,9 +338,6 @@ for name, cfg in eval_config["residual_histogram_plots"].items():
     ax[0].legend(fontsize=8)
     ax[0].grid(zorder=0, alpha=0.25, linestyle="--")
     ax[1].grid(zorder=0, alpha=0.25, linestyle="--")
-    
+
     fig.tight_layout()
     fig.savefig(histograms_save_dir / Path(f"{name}.png"))
-
-
-

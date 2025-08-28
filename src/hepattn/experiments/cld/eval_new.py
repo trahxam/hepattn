@@ -1,16 +1,15 @@
-import numpy as np
+import math
+from pathlib import Path
+
 import h5py
+import numpy as np
 import torch
 import yaml
 
-from pathlib import Path
-
-from hepattn.utils.eval import apply_matching, calc_cost, calc_binary_reco_metrics, calculate_selections
-from hepattn.utils.histogram import PoissonHistogram
+from hepattn.experiments.cld.data import CLDDataModule
 from hepattn.models.matcher import Matcher
-from hepattn.experiments.cld.data import CLDDataset, CLDDataModule
-
-
+from hepattn.utils.eval import apply_matching, calc_binary_reco_metrics, calc_cost, calculate_selections
+from hepattn.utils.histogram import PoissonHistogram
 
 object_names = ["particle", "pandora", "flow"]
 truth_object_name = "particle"
@@ -72,7 +71,7 @@ selections = {
     ],
 }
 
-# If the particle left a signature in all the subdetetcors it should interact with, 
+# If the particle left a signature in all the subdetetcors it should interact with,
 # we can mark it as likely being that particle type
 for particle_type, hits in particle_type_hits.items():
     selections[f"sig_{particle_type}"] = [f"has_{hit}" for hit in hits]
@@ -133,7 +132,7 @@ field_bins = {
     "mom.eta": np.linspace(-3, 3, 32),
     "mom.phi": np.linspace(-np.pi, np.pi, 32),
     "vtx.r": np.linspace(0, 500, 32),
-    "isolation": np.geomspace(1e-4, 3.14, 32),
+    "isolation": np.geomspace(1e-4, math.pi, 32),
     "num_vtxd": np.arange(-1, 12) + 0.5,
     "num_trkr": np.arange(-1, 12) + 0.5,
     "num_sihit": np.arange(-1, 24) + 0.5,
@@ -194,7 +193,7 @@ config = yaml.safe_load(config_path.read_text())["data"]
 # Need to overwrite whatever is in the config
 config["num_workers"] = 0
 config["batch_size"] = 1
-config["num_test"] = -1 # Load the entire test set, so that we can access any sample id
+config["num_test"] = -1  # Load the entire test set, so that we can access any sample id
 
 # Get the dataset object
 datamodule = CLDDataModule(**config)
@@ -205,7 +204,7 @@ dataset = datamodule.test_dataloader().dataset
 eval_file_path = Path("/share/rcifdata/maxhart/hepattn/logs/CLD_8_320_10MeV_neutrals_muon_20250809-T183715/ckpts/epoch=007-train_loss=2.60941_test_eval_old.h5")
 
 
-matcher = Matcher(default_solver="scipy", adaptive_solver=False, parallel_solver=False,)
+matcher = Matcher(default_solver="scipy", adaptive_solver=False, parallel_solver=False)
 
 
 with h5py.File(eval_file_path, "r") as eval_file:
@@ -215,16 +214,16 @@ with h5py.File(eval_file_path, "r") as eval_file:
 with h5py.File(eval_file_path, "r") as eval_file:
     for i, sample_id in enumerate(sample_ids):
         data = {}
-        
+
         # Get the predictions just from the final layer
         final_preds = eval_file[f"{sample_id}/preds/final/"]
         final_outputs = eval_file[f"{sample_id}/outputs/final/"]
 
         # Load whether each slot was predicted as valid or not
-        data[f"flow_valid"] = torch.from_numpy(final_preds["flow_valid/flow_valid"][:])
-        data[f"flow_logit"] = torch.from_numpy(final_outputs["flow_valid/flow_logit"][:])
+        data["flow_valid"] = torch.from_numpy(final_preds["flow_valid/flow_valid"][:])
+        data["flow_logit"] = torch.from_numpy(final_outputs["flow_valid/flow_logit"][:])
 
-        data[f"flow_valid"] = data[f"flow_logit"].sigmoid() >= 0.5
+        data["flow_valid"] = data["flow_logit"].sigmoid() >= 0.5
 
         for hit in ["vtxd", "trkr", "ecal", "hcal", "muon"]:
             # Make sure to drop any invalid hit slots from the mask
@@ -249,13 +248,13 @@ with h5py.File(eval_file_path, "r") as eval_file:
             for hit_name in hit_names:
                 if f"{object_name}_{hit_name}_valid" in data:
                     data[f"{object_name}_num_{hit_name}"] = data[f"{object_name}_{hit_name}_valid"].sum(-1)
-            
+
             # Calculate the total calo hit energy assigned to the object
             for hit_name in calo_hit_names:
                 if f"{object_name}_{hit_name}_valid" in data:
                     data[f"{object_name}_{hit_name}_energy"] = data[f"{object_name}_{hit_name}_valid"].float() * data[f"{hit_name}_energy"].unsqueeze(-2)
                     data[f"{object_name}_energy_{hit_name}"] = data[f"{object_name}_{hit_name}_energy"].sum(-1)
-        
+
         for object_name in object_names:
             # Calculate the costs for the matching
             costs = calc_cost(data, truth_object_name, object_name, {k: v for k, v in matching_metric.items() if f"{object_name}_{k}_valid" in data})
@@ -271,8 +270,7 @@ with h5py.File(eval_file_path, "r") as eval_file:
 
             # Calculate selections that can be done on all objects
             data = calculate_selections(data, object_name, selections)
-            
-        
+
         # Calculate selections that can be done on particles only
         data = calculate_selections(data, truth_object_name, particle_selections)
 

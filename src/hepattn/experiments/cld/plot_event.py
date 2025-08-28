@@ -14,10 +14,10 @@ def plot_cld_event(data, axes_spec, object_name, batch_idx=0, valid=True, mark_t
 
     ax = [ax] if num_axes == 1 else ax.flatten()
 
-    # Setup the color cycler that will be used 
+    # Setup the color cycler that will be used
     colormap = plt.cm.tab20
     cycler = [colormap(i) for i in range(colormap.N)]
-    
+
     # Used to define the different plotting styles for the differnt hits
     sihit_names = ["vtb", "vte", "itb", "ite", "otb", "ote", "sihit", "vtxd", "trkr"]
     ecal_names = ["ecb", "ece", "ecal"]
@@ -74,7 +74,6 @@ def plot_cld_event(data, axes_spec, object_name, batch_idx=0, valid=True, mark_t
                             end_x = x[mask][idx][-1].item()
                             end_y = y[mask][idx][-1].item()
 
-                            
                             ax[ax_idx].text(
                                 end_x,
                                 end_y,
@@ -94,7 +93,7 @@ def plot_cld_event(data, axes_spec, object_name, batch_idx=0, valid=True, mark_t
 
             ax[ax_idx].set_xlabel(ax_spec.get("xlabel", ax_spec["x"]))
             ax[ax_idx].set_ylabel(ax_spec.get("ylabel", ax_spec["y"]))
-            #ax[ax_idx].set_aspect("equal", "box")
+            # ax[ax_idx].set_aspect("equal", "box")
 
     return fig
 

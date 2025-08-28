@@ -10,12 +10,11 @@ def bayesian_binomial_error(k, n):
 
 
 def combine_mean_std(mu1, sigma1, n1, mu2, sigma2, n2):
-    """
-    Combine mean, standard deviation, and sample size from two independent samples.
+    """Combine mean, standard deviation, and sample size from two independent samples.
     Works with scalars or NumPy arrays.
     Handles cases where n1 or n2 can be zero.
 
-    Returns
+    Returns:
     -------
     mu_combined : np.ndarray
         Combined mean.

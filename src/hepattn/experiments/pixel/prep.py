@@ -54,7 +54,7 @@ def preprocess_file(
 
         # Remove clusters that have this multiplicity but fail the subsample mask
         cluster_mask &= ~(multiplicity_mask & subsample_mask)
-        
+
     cluster_fields = config["cluster_fields"]
     particle_fields = config["particle_fields"]
     pixel_fields = config["pixel_fields"]

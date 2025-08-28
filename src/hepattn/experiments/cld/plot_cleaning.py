@@ -1,11 +1,10 @@
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import numpy as np
 import yaml
 
-from hepattn.experiments.cld.plot_event import plot_cld_event
 from hepattn.experiments.cld.data import CLDDataModule
+from hepattn.experiments.cld.plot_event import plot_cld_event
 
 plt.rcParams["figure.dpi"] = 300
 
@@ -48,7 +47,7 @@ event_display_cfg = [
 
 fig = plot_cld_event(data, event_display_cfg, "particle", gridspec_kw=gridspec_kw)
 fig.tight_layout()
-fig.savefig(plot_save_dir / Path(f"event_displays/cleaning_pre.png"))
+fig.savefig(plot_save_dir / Path("event_displays/cleaning_pre.png"))
 
 config_path = Path("src/hepattn/experiments/cld/configs/base.yaml")
 config = yaml.safe_load(config_path.read_text())["data"]
@@ -65,7 +64,4 @@ data = inputs | targets
 
 fig = plot_cld_event(data, event_display_cfg, "particle", gridspec_kw=gridspec_kw)
 fig.tight_layout()
-fig.savefig(plot_save_dir / Path(f"event_displays/cleaning_post.png"))
-
-
-
+fig.savefig(plot_save_dir / Path("event_displays/cleaning_post.png"))

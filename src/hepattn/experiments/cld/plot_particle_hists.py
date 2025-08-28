@@ -1,14 +1,14 @@
+import math
 from pathlib import Path
-from scipy.stats import binned_statistic
+
 import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 from tqdm import tqdm
 
 from hepattn.experiments.cld.data import CLDDataModule
-from hepattn.utils.plot import plot_hist_to_ax
 from hepattn.utils.histogram import CountingHistogram
-
+from hepattn.utils.plot import plot_hist_to_ax
 
 plt.rcParams["figure.dpi"] = 300
 
@@ -56,7 +56,7 @@ bins = {
     "mom.eta": np.linspace(-3, 3, 32),
     "mom.phi": np.linspace(-np.pi, np.pi, 32),
     "vtx.r": np.linspace(0, 500, 32),
-    "isolation": np.geomspace(1e-4, 3.14, 32),
+    "isolation": np.geomspace(1e-4, math.pi, 32),
     "num_vtxd": np.arange(-1, 12) + 0.5,
     "num_trkr": np.arange(-1, 12) + 0.5,
     "num_sihit": np.arange(-1, 24) + 0.5,
@@ -111,7 +111,7 @@ for i in tqdm(range(100)):
     for field, selections in hists.items():
         for selection, hist in selections.items():
             values = targets[f"particle_{field}"][targets[f"particle_{selection}"].bool()]
-            hists[field][selection].fill(values)
+            hist.fill(values)
 
 plots = {
     "particle_pt_eta_phi": [
@@ -144,7 +144,7 @@ plots = {
 }
 
 for plot_name, fields in plots.items():
-    
+
     fig, ax = plt.subplots(1, len(fields))
     fig.set_size_inches(12, 3)
 

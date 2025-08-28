@@ -27,7 +27,7 @@ class ModelWrapper(LightningModule):
         self.optimizer = optimizer
         self.lrs_config = lrs_config
         self.mtl = mtl
-        
+
         if mtl:
             # Donated buffers can cause issues with graph retention needed for MTL
             torch._functorch.config.donated_buffer = False
@@ -93,7 +93,7 @@ class ModelWrapper(LightningModule):
         if batch_idx % self.trainer.log_every_n_steps == 0:
             preds = self.predict(outputs)
             self.log_metrics(preds, targets, "train")
-        
+
         if self.mtl:
             self.mlt_opt(losses, outputs)
         else:
@@ -176,7 +176,7 @@ class ModelWrapper(LightningModule):
         # Sum the losses from each task, so we get one loss per task
         losses = [sum(losses["final"][task.name].values()) for task in self.model.tasks]
 
-        # TODO: Figure out if we can set retain_graph to false somehow, since it uses a lot of memory
+        # TODO: Figure out if we can set retain_graph to false somehow, since it uses a lot of memory
         mtl_backward(losses=losses, features=features, aggregator=UPGrad(), retain_graph=True)
 
         # Manually perform the optimizer step
