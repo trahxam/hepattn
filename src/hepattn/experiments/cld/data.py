@@ -187,7 +187,6 @@ class CLDDataset(LRSMDataset):
         cols = trkr_cols + calo_cols
 
         calo_cons = [f"{hit}_con" for hit in calo_hits]
-        cons = calo_cons
 
         # It is important to do the mm -> m conversion first, so that all other
         # distance fields are also in m, which is required to not to cause nans in the positional encoding
@@ -321,9 +320,11 @@ class CLDDataset(LRSMDataset):
             for object_name in object_names:
                 for merged_input_name, input_names in self.merge_inputs.items():
                     # TODO: Clean up this hack
-                    if object_name == "sitrack" and merged_input_name in {"ecal", "hcal", "muon"}: continue
+                    if object_name == "sitrack" and merged_input_name in {"ecal", "hcal", "muon"}:
+                        continue
 
-                    event[f"{object_name}_{merged_input_name}_valid"] = np.concatenate([event[f"{object_name}_{hit}_valid"] for hit in input_names], axis=-1)
+                    event[f"{object_name}_{merged_input_name}_valid"] = np.concatenate([
+                        event[f"{object_name}_{hit}_valid"] for hit in input_names], axis=-1)
 
                     if f"{object_name}_{merged_input_name}" in self.targets:
                         for field in self.targets[f"{object_name}_{merged_input_name}"]:

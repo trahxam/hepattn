@@ -55,7 +55,8 @@ class Fitter(nn.Module):
         # Merge the input objects and he padding mask into a single set
         x["key_embed"] = torch.concatenate([x[f"{input_name}_embed"] for input_name in input_names], dim=-2)
         x["key_valid"] = torch.concatenate([x[f"{input_name}_valid"] for input_name in input_names], dim=-1)
-        x[f"{self.target_object}_key_valid"] = torch.concatenate([x[f"{self.target_object}_{input_name}_valid"] for input_name in input_names], dim=-1)
+        x[f"{self.target_object}_key_valid"] = torch.concatenate(
+            [x[f"{self.target_object}_{input_name}_valid"] for input_name in input_names], dim=-1)
 
         # (B, N, M, 1), (B, M, 1, N) -> (B, M, N, N) -> (B, N, N)
         attn_mask = torch.any(x[f"{self.target_object}_key_valid"].unsqueeze(-1) & x[f"{self.target_object}_key_valid"].unsqueeze(-2), dim=-3)

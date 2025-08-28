@@ -333,7 +333,7 @@ class PixelClusterDataset(Dataset):
                 return None
 
             # Apply multiplicity subsampling
-            if x["cluster_multiplicity"] in self.cluster_multiplicity_subsample_frac:  # noqa: SIM102
+            if x["cluster_multiplicity"] in self.cluster_multiplicity_subsample_frac:
                 # Reject the cluster with probability 1 - subsample rate
                 if self.rng.random() > self.cluster_multiplicity_subsample_frac[x["cluster_multiplicity"]]:
                     return None
