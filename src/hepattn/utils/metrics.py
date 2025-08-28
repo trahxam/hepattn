@@ -7,8 +7,7 @@ def mask_metric_cost(
     targets: Tensor,
     input_pad_mask: BoolTensor | None = None,
     metric: str = "iou",
-    ):
-
+):
     # Pred and target masks have shape (batch, num_objects, num_constituents)
     preds.shape[1]
     targets = targets.type_as(preds)
@@ -48,8 +47,7 @@ def mask_metric_score(
     targets: Tensor,
     input_pad_mask: BoolTensor | None = None,
     metric: str = "iou",
-    ):
-
+):
     # Pred and target masks have shape (batch, num_objects, num_constituents)
     targets = targets.type_as(preds)
 

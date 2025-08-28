@@ -300,8 +300,8 @@ def preprocess_file(
                 roi_data[f"{track_alias}_{hit_alias}_valid_indices"] = mask_csr.indices
                 roi_data[f"{track_alias}_{hit_alias}_valid_indptr"] = mask_csr.indptr
                 roi_data[f"{track_alias}_{hit_alias}_valid_shape"] = np.array(mask_csr.shape)
-            
-            # We built the sudo pix fields using the valid mask, since if we just used the track-hit fields, 
+
+            # We built the sudo pix fields using the valid mask, since if we just used the track-hit fields,
             # track-hit fields that had a value exactly equal to zero would get marked as an invalid, and the resulting
             # sparse matrix of values would have a shape different shape to the sparse valid mask
             sudo_pix_valid = build_track_hit_mask_bcodes(data[f"pseudotracks_barcode"][roi_idx], data[f"pixel_sihit_barcodes"][roi_idx])

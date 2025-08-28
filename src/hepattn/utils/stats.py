@@ -47,10 +47,12 @@ def combine_mean_std(mu1, sigma1, n1, mu2, sigma2, n2):
     mask_both = (n1 > 0) & (n2 > 0)
     if np.any(mask_both):
         mu_c = (n1[mask_both] * mu1[mask_both] + n2[mask_both] * mu2[mask_both]) / total_n[mask_both]
-        numerator = ((n1[mask_both] - 1) * sigma1[mask_both]**2 +
-                     (n2[mask_both] - 1) * sigma2[mask_both]**2 +
-                     n1[mask_both] * (mu1[mask_both] - mu_c)**2 +
-                     n2[mask_both] * (mu2[mask_both] - mu_c)**2)
+        numerator = (
+            (n1[mask_both] - 1) * sigma1[mask_both] ** 2
+            + (n2[mask_both] - 1) * sigma2[mask_both] ** 2
+            + n1[mask_both] * (mu1[mask_both] - mu_c) ** 2
+            + n2[mask_both] * (mu2[mask_both] - mu_c) ** 2
+        )
         denominator = total_n[mask_both] - 1
         mu_combined[mask_both] = mu_c
         sigma_combined[mask_both] = np.sqrt(numerator / denominator)

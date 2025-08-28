@@ -87,7 +87,8 @@ def calc_cost(data: dict[str, Tensor], true: str, pred: str, metrics: dict) -> T
             data[f"{pred}_{constituent}_valid"].float(),
             data[f"{true}_{constituent}_valid"].float(),
             input_pad_mask=data[f"{constituent}_{metric['field']}"],
-            metric=metric["metric"])
+            metric=metric["metric"],
+        )
 
         # Add the cost on to the running total cost
         if total_cost is not None:
@@ -140,9 +141,10 @@ def calc_binary_reco_metrics(data: dict[str, Tensor], true: str, pred: str, metr
                 data[f"{pred}_{constituent}_{field}"].float(),
                 data[f"{true}_{constituent}_{field}"].float(),
                 input_pad_mask=data[f"{constituent}_valid"],
-                metric=metric["metric"])
+                metric=metric["metric"],
+            )
 
-            metric_satisfied &= (scores >= metric["thresh"])
+            metric_satisfied &= scores >= metric["thresh"]
 
         # The true object is reconstructed by the pred object under the metric definition
         metric_evals[f"{true}_{pred}_{metric_name}"] = metric_satisfied

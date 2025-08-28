@@ -53,11 +53,7 @@ def main():
 
     labels = np.arange(8) + 1
 
-    conf_mat = 100.0 * confusion_matrix(
-        data["true_multiplicity"],
-        data["pred_multiplicity"],
-        labels=labels,
-        normalize="true")
+    conf_mat = 100.0 * confusion_matrix(data["true_multiplicity"], data["pred_multiplicity"], labels=labels, normalize="true")
 
     conf_mat = np.flipud(conf_mat)
 

@@ -83,9 +83,7 @@ particle_selections = {
         "vtx.r <= 50",
         "isolation >= 0.02",
     ],
-    "loose": [
-        "mom.r >= 0.01"
-    ],
+    "loose": ["mom.r >= 0.01"],
 }
 
 # Define whether each particle type is reconstructable
@@ -154,18 +152,21 @@ for object_name in object_names:
                         "field": f"particle_{field}",
                         "bins": field,
                         "selection": selection_name,
-                        "numerator":  binary_metric_name,
+                        "numerator": binary_metric_name,
                         "denominator": selection_name,
                     }
 
 
-binary_histograms = {name: PoissonHistogram(
-    cfg["field"],
-    field_bins[cfg["bins"]],
-    cfg["selection"],
-    cfg["numerator"],
-    cfg["denominator"],
-    ) for name, cfg in binary_histogram_config.items()}
+binary_histograms = {
+    name: PoissonHistogram(
+        cfg["field"],
+        field_bins[cfg["bins"]],
+        cfg["selection"],
+        cfg["numerator"],
+        cfg["denominator"],
+    )
+    for name, cfg in binary_histogram_config.items()
+}
 
 print("\nBinary histogram spec:\n")
 for name, hist in binary_histograms.items():
@@ -200,7 +201,9 @@ datamodule.setup(stage="test")
 dataset = datamodule.test_dataloader().dataset
 
 
-eval_file_path = Path("/share/rcifdata/maxhart/hepattn/logs/CLD_8_320_10MeV_neutrals_muon_20250809-T183715/ckpts/epoch=007-train_loss=2.60941_test_eval_old.h5") # noqa E501
+eval_file_path = Path(
+    "/share/rcifdata/maxhart/hepattn/logs/CLD_8_320_10MeV_neutrals_muon_20250809-T183715/ckpts/epoch=007-train_loss=2.60941_test_eval_old.h5"
+)
 
 
 matcher = Matcher(default_solver="scipy", adaptive_solver=False, parallel_solver=False)

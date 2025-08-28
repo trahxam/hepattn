@@ -26,7 +26,7 @@ class PoissonHistogram:
         self.n = np.zeros(len(bins) - 1, dtype=np.float32)
         self.k = np.zeros(len(bins) - 1, dtype=np.float32)
 
-    def fill(self, data: dict[str: Tensor]) -> None:
+    def fill(self, data: dict[str:Tensor]) -> None:
         selection = data[self.selection].bool()
         k = data[self.numerator][selection].float()
         n = data[self.denominator][selection].float()
@@ -54,7 +54,7 @@ class GaussianHistogram:
         self.mu = np.zeros(len(bins) - 1, dtype=np.float32)
         self.sigma = np.zeros(len(bins) - 1, dtype=np.float32)
 
-    def fill(self, data: dict[str: Tensor]) -> None:
+    def fill(self, data: dict[str:Tensor]) -> None:
         selection = data[self.selection].bool()
         x = data[self.field][selection].float()
         values = data[self.values][selection].float()

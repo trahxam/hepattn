@@ -114,11 +114,7 @@ for _i in tqdm(range(100)):
             hist.fill(values)
 
 plots = {
-    "particle_pt_eta_phi": [
-        "mom.r",
-        "mom.eta",
-        "mom.phi"
-    ],
+    "particle_pt_eta_phi": ["mom.r", "mom.eta", "mom.phi"],
     "particle_mass_energy": [
         "mass",
         "energy",
@@ -144,7 +140,6 @@ plots = {
 }
 
 for plot_name, fields in plots.items():
-
     fig, ax = plt.subplots(1, len(fields))
     fig.set_size_inches(12, 3)
 
@@ -157,7 +152,7 @@ for plot_name, fields in plots.items():
                 label=selection_aliases[selection],
                 color=selection_colours[selection],
                 vertical_lines=True,
-                )
+            )
 
         ax[ax_idx].set_yscale("log")
         ax[ax_idx].set_xscale(scales[field])

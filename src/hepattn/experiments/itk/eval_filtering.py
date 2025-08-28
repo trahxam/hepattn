@@ -91,7 +91,7 @@ def main():
             "global_x": inputs["pixel_cluster_x"],
             "global_y": inputs["pixel_cluster_y"],
             "global_z": inputs["pixel_cluster_z"],
-            })
+        })
         dump_data_df.to_csv(dump_path / f"{event_name}.csv", index=False)
 
         # Particles which are deemed reconstructable pre-filter

@@ -71,33 +71,33 @@ hit_cost_weights = {
 }
 
 axes_spec = [
-            {
-                "x": "pos.x",
-                "y": "pos.y",
-                "px": "mom.x",
-                "py": "mom.y",
-                "input_names": [
-                    "vtxd",
-                    "trkr",
-                    "ecal",
-                    "hcal",
-                    "muon",
-                ],
-            },
-            {
-                "x": "pos.z",
-                "y": "pos.y",
-                "px": "mom.z",
-                "py": "mom.y",
-                "input_names": [
-                    "vtxd",
-                    "trkr",
-                    "ecal",
-                    "hcal",
-                    "muon",
-                ],
-            },
-        ]
+    {
+        "x": "pos.x",
+        "y": "pos.y",
+        "px": "mom.x",
+        "py": "mom.y",
+        "input_names": [
+            "vtxd",
+            "trkr",
+            "ecal",
+            "hcal",
+            "muon",
+        ],
+    },
+    {
+        "x": "pos.z",
+        "y": "pos.y",
+        "px": "mom.z",
+        "py": "mom.y",
+        "input_names": [
+            "vtxd",
+            "trkr",
+            "ecal",
+            "hcal",
+            "muon",
+        ],
+    },
+]
 
 fig = plot_cld_event_reconstruction(inputs, targets, axes_spec, "particle")
 fig.savefig("/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/true.png")

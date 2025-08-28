@@ -1,4 +1,3 @@
-
 import random
 from abc import abstractmethod
 from pathlib import Path
@@ -110,7 +109,7 @@ class LRSMDataset(IterableDataset):
         # We will load more samples on demand as needed
 
     @abstractmethod
-    def load_sample(self, sample_id: int) -> dict[str: ndarray] | None:
+    def load_sample(self, sample_id: int) -> dict[str:ndarray] | None:
         """Attempts to load a single sample from disk and validate it against selection criteria.
 
         Parameters

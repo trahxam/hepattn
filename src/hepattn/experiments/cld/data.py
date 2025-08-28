@@ -225,7 +225,7 @@ class CLDDataset(LRSMDataset):
         event["particle.mom.qopt"] = event["particle.charge"] / event["particle.mom.r"]
         event["pandora.mom.qopt"] = event["pandora.charge"] / event["pandora.mom.r"]
 
-        event["particle.energy"] = np.sqrt(event["particle.mass"]**2 + (np.cosh(event["particle.mom.eta"]) * event["particle.mom.r"])**2)
+        event["particle.energy"] = np.sqrt(event["particle.mass"] ** 2 + (np.cosh(event["particle.mom.eta"]) * event["particle.mom.r"]) ** 2)
 
         # Merge inputs, first check all requested merged inputs have the same
         # fields and that the fields are given in the same order
@@ -323,8 +323,9 @@ class CLDDataset(LRSMDataset):
                     if object_name == "sitrack" and merged_input_name in {"ecal", "hcal", "muon"}:
                         continue
 
-                    event[f"{object_name}_{merged_input_name}_valid"] = np.concatenate([
-                        event[f"{object_name}_{hit}_valid"] for hit in input_names], axis=-1)
+                    event[f"{object_name}_{merged_input_name}_valid"] = np.concatenate(
+                        [event[f"{object_name}_{hit}_valid"] for hit in input_names], axis=-1
+                    )
 
                     if f"{object_name}_{merged_input_name}" in self.targets:
                         for field in self.targets[f"{object_name}_{merged_input_name}"]:

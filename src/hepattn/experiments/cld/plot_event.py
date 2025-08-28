@@ -26,7 +26,6 @@ def plot_cld_event(data, axes_spec, object_name, batch_idx=0, valid=True, mark_t
     for ax_idx, ax_spec in enumerate(axes_spec):
         # Plot only the hits / subsystems specified for these axes
         for input_name in ax_spec["input_names"]:
-
             x = data[f"{input_name}_{ax_spec['x']}"][batch_idx]
             y = data[f"{input_name}_{ax_spec['y']}"][batch_idx]
 

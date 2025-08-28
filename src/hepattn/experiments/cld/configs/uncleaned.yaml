@@ -16,7 +16,7 @@ data:
 
   # Minibatch size / number of events used per training step
   batch_size: 8
-  
+
   # Precision of any float values returned by the dataloader
   input_dtype: float32
   target_dtype: float32
@@ -328,7 +328,7 @@ data:
       - mom.abs_eta
       - is_charged
       - is_neutral
-    
+
     pandora_vtxd: []
 
     pandora_trkr: []
@@ -691,4 +691,3 @@ model:
                   #mask_focal: 1.0
                 dim: *dim
                 null_weight: 1.0
-
