@@ -62,7 +62,7 @@ dataloader = datamodule.test_dataloader()
 data_iterator = iter(dataloader)
 
 # Iterate through the dataset
-for i in tqdm(range(10)):
+for _i in tqdm(range(10)):
     inputs, targets = next(data_iterator)
 
     for field, hits in hists.items():

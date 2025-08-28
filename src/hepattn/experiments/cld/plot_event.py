@@ -68,28 +68,27 @@ def plot_cld_event(data, axes_spec, object_name, batch_idx=0, valid=True, mark_t
                         ax[ax_idx].scatter(x[mask], y[mask], color=color, marker="x", alpha=alpha, s=4.0)
 
                     # Uncomment to leave a box denoting particle index for trkr hit
-                    if label_objects:
-                        if input_name in ["trkr", "hcal"] and mask.any():
-                            idx = torch.argsort(data[f"{input_name}_time"][batch_idx][mask], dim=-1)
-                            end_x = x[mask][idx][-1].item()
-                            end_y = y[mask][idx][-1].item()
+                    if label_objects and input_name in {"trkr", "hcal"} and mask.any():
+                        idx = torch.argsort(data[f"{input_name}_time"][batch_idx][mask], dim=-1)
+                        end_x = x[mask][idx][-1].item()
+                        end_y = y[mask][idx][-1].item()
 
-                            ax[ax_idx].text(
-                                end_x,
-                                end_y,
-                                str(object_idx),
-                                fontsize=5,
-                                color="black",
-                                ha="center",
-                                va="center",
-                                bbox={
-                                    "boxstyle": "round,pad=0.2",
-                                    "facecolor": "white",
-                                    "edgecolor": "black",
-                                    "linewidth": 0.5,
-                                    "alpha": 0.5,
-                                },
-                            )
+                        ax[ax_idx].text(
+                            end_x,
+                            end_y,
+                            str(object_idx),
+                            fontsize=5,
+                            color="black",
+                            ha="center",
+                            va="center",
+                            bbox={
+                                "boxstyle": "round,pad=0.2",
+                                "facecolor": "white",
+                                "edgecolor": "black",
+                                "linewidth": 0.5,
+                                "alpha": 0.5,
+                            },
+                        )
 
             ax[ax_idx].set_xlabel(ax_spec.get("xlabel", ax_spec["x"]))
             ax[ax_idx].set_ylabel(ax_spec.get("ylabel", ax_spec["y"]))

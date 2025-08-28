@@ -34,7 +34,7 @@ class ModelWrapper(LightningModule):
             # If we are doing multi-task-learning, optimisation step must be done manually
             self.automatic_optimization = False
             # MTL does not currently support intermediate losses
-            assert all([task.has_intermediate_loss is False for task in self.model.tasks])
+            assert all(task.has_intermediate_loss is False for task in self.model.tasks)
 
     def forward(self, inputs: dict[str, Tensor]) -> dict[str, Tensor]:
         return self.model(inputs)
@@ -47,8 +47,8 @@ class ModelWrapper(LightningModule):
 
         for layer_name, layer_losses in losses.items():
             layer_loss = 0
-            for task_name, task_losses in layer_losses.items():
-                for loss_name, loss_value in task_losses.items():
+            for task_losses in layer_losses.values():
+                for loss_value in task_losses.values():
                     total_loss += loss_value
 
             # Log the total loss from the layer

@@ -59,7 +59,7 @@ class LRSMDataset(IterableDataset):
             Specifies a size to which objects / hits will be padded to.
             If not specified, an object is padded to ist largest size in the batch.
         skip_pad_items : list[str]
-            Specifies a list of objects which should not be padded, 
+            Specifies a list of objects which should not be padded,
             e.g. per-sample / event quantites.
         sampling_seed : int, optional
             Random seed used for sampling and reproducibility (default is 42).
@@ -157,7 +157,7 @@ class LRSMDataset(IterableDataset):
             if not any(k in self.force_pad_sizes for k in item_name.split("_")):
                 continue
 
-            target_size = tuple(self.force_pad_sizes[k] if k in self.force_pad_sizes else -1 for k in item_name.split("_"))
+            target_size = tuple(self.force_pad_sizes.get(k, -1) for k in item_name.split("_"))
 
             # Pad the valid mask, remember that we have a leading singleton batch dim
             k = f"{item_name}_valid"
@@ -278,7 +278,7 @@ class LRSMDataset(IterableDataset):
                     continue
 
                 # The target padding size, ignoring the batch dimension and any field dims
-                target_size = tuple(pad_sizes[k] if k in pad_sizes else -1 for k in item_name.split("_"))
+                target_size = tuple(pad_sizes.get(k, -1) for k in item_name.split("_"))
 
                 # Pad the valid mask, remember that we have a leading singleton batch dim
                 k = f"{item_name}_valid"
@@ -306,13 +306,11 @@ class LRSMDataset(IterableDataset):
                 k = f"{item_name}_{field}"
                 padded = torch.cat([sample[k] for sample in samples], dim=0)
 
-                if item_name in self.inputs:
-                    if field in self.inputs[item_name]:
-                        batched_inputs[k] = padded
+                if item_name in self.inputs and field in self.inputs[item_name]:
+                    batched_inputs[k] = padded
 
-                if item_name in self.targets:
-                    if field in self.targets[item_name]:
-                        batched_targets[k] = padded
+                if item_name in self.targets and field in self.targets[item_name]:
+                    batched_targets[k] = padded
 
         # Now batch the sample IDs
         batched_targets["sample_id"] = torch.stack([sample["sample_id"] for sample in samples], dim=0)
@@ -339,7 +337,7 @@ class LRSMDataModule(LightningDataModule):
         Parameters
         ----------
         dataset_class : LRSMDataset
-            
+
         batch_size : int
             Number of samples to read in a minibatch.
         train_dir : str

@@ -239,7 +239,7 @@ with h5py.File(eval_file_path, "r") as eval_file:
             print(i, sample_id, largest_num_particles)
 
         if False:  # int(sample_id) == 1226276301090181:
-            for object_name, criteria in [
+            for object_name, _criteria in [
                 ("particle", "pandora_charged_reconstructed"),
                 ("particle", "flow_charged_reconstructed"),
                 # ("particle", "sitrack_charged_reconstructed_tight"),
@@ -263,7 +263,7 @@ for name, cfg in eval_config["histogram_plots"].items():
     fig, ax = plt.subplots()
     fig.set_size_inches(6, 4)
 
-    for item_name, item_cfg in cfg["items"].items():
+    for item_cfg in cfg["items"].values():
         hist_cfg = eval_config["histograms"][item_cfg["histogram"]]
 
         n_binned = histograms[item_cfg["histogram"]]["n"]
@@ -300,7 +300,7 @@ for name, cfg in eval_config["residual_histogram_plots"].items():
     fig, ax = plt.subplots(2, 1)
     fig.set_size_inches(6, 4)
 
-    for item_name, item_cfg in cfg["items"].items():
+    for item_cfg in cfg["items"].values():
         hist_cfg = eval_config["residual_histograms"][item_cfg["histogram"]]
 
         mu = residual_histograms[item_cfg["histogram"]]["mu"]

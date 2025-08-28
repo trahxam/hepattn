@@ -49,8 +49,7 @@ for particle_type, hits in particle_type_hits.items():
     for wp_name, wp_thresh in working_points.items():
         binary_metric = []
         for hit in hits:
-            for metric in ["eff", "pur"]:
-                binary_metric.append({"hit": hit, "thresh": wp_thresh, "metric": metric, "field": "valid"})
+            binary_metric.extend({"hit": hit, "thresh": wp_thresh, "metric": metric, "field": "valid"} for metric in ["eff", "pur"])
         binary_metrics_config[f"{particle_type}_{wp_name}"] = binary_metric
 
 # Define some flags which tell us whether the object left a signature in each sub detetector
@@ -212,7 +211,7 @@ with h5py.File(eval_file_path, "r") as eval_file:
 
 
 with h5py.File(eval_file_path, "r") as eval_file:
-    for i, sample_id in enumerate(sample_ids):
+    for sample_id in sample_ids:
         data = {}
 
         # Get the predictions just from the final layer

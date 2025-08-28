@@ -19,7 +19,7 @@ ops = {
 
 def apply_matching(data: dict[str, Tensor], true: str, pred: str, costs: Tensor, matcher: Matcher) -> dict[str, Tensor]:
     """Applies bipartite matching between predicted and true objects using the provided cost tensor.
-    
+
     The function uses a Hungarian matcher to compute the optimal matching between predictions and ground truths,
     then permutes the prediction-aligned fields in `data` according to the matching indices.
 

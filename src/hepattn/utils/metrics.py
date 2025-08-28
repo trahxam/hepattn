@@ -10,7 +10,7 @@ def mask_metric_cost(
     ):
 
     # Pred and target masks have shape (batch, num_objects, num_constituents)
-    num_objects = preds.shape[1]
+    preds.shape[1]
     targets = targets.type_as(preds)
 
     # Used to mask out invalid constituents during the score calculation
@@ -33,16 +33,14 @@ def mask_metric_cost(
         score = (tp + tn) / (tp + tn + fp + fn)
     elif metric == "dice":
         score = 2 * tp / (2 * tp + fp + fn + eps)
-    elif metric == "iou" or metric == "jac":
+    elif metric in {"iou", "jac"}:
         score = tp / (tp + fp + fn + eps)
     elif metric == "eff":
         score = tp / (num_true + eps)
     elif metric == "pur":
         score = tp / (num_pred + eps)
 
-    cost = 1 - score
-
-    return cost
+    return 1 - score
 
 
 def mask_metric_score(
@@ -53,7 +51,6 @@ def mask_metric_score(
     ):
 
     # Pred and target masks have shape (batch, num_objects, num_constituents)
-    num_objects = preds.shape[1]
     targets = targets.type_as(preds)
 
     # Used to mask out invalid constituents during the score calculation
@@ -75,7 +72,7 @@ def mask_metric_score(
         score = (tp + tn) / (tp + tn + fp + fn)
     elif metric == "dice":
         score = 2 * tp / (2 * tp + fp + fn + eps)
-    elif metric == "iou" or metric == "jac":
+    elif metric in {"iou", "jac"}:
         score = tp / (tp + fp + fn + eps)
     elif metric == "eff":
         score = tp / (n_true)
