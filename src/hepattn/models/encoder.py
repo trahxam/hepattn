@@ -220,8 +220,8 @@ class Encoder(nn.Module):
             x = torch.gather(x, dim=-2, index=x_sort_idx.unsqueeze(-1).expand_as(x))
 
             # Also permute the kv mask if we have one
-            if kwargs.get("kv_mask") is not None:
-                kwargs["kv_mask"] = torch.gather(kwargs["kv_mask"], dim=-1, index=x_sort_idx)
+            if kv_mask is not None:
+                kv_mask = torch.gather(kv_mask, dim=-1, index=x_sort_idx)
 
         # Add register tokens at the beginning of the sequence
         if self.register_tokens is not None:

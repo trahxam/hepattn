@@ -3,7 +3,7 @@
 #SBATCH --job-name=cld-training
 #SBATCH -p GPU
 #SBATCH --export=ALL
-#SBATCH --gres=gpu:l40s:1
+#SBATCH --gres=gpu:a100:1
 #SBATCH --cpus-per-task=12
 #SBATCH --mem=32
 #SBATCH --output=/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/slurm_logs/slurm-%j.%x.out
