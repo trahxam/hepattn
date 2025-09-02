@@ -2,9 +2,9 @@ name: TIDE_32trk_F32
 
 data:
   batch_size: 100
-  train_dir: data/tide/prepped/
-  val_dir: data/tide/prepped/
-  test_dir: data/tide/prepped/
+  train_dir: /share/rcifdata/maxhart/data/ambi/train/
+  val_dir: /share/rcifdata/maxhart/data/ambi/val/
+  test_dir: /share/rcifdata/maxhart/data/ambi/test/
   num_workers: 10
   num_train: 1000000
   num_test: 10000
@@ -400,12 +400,12 @@ model:
       encoder:
         class_path: hepattn.models.Encoder
         init_args:
-          num_layers: 4
+          num_layers: 8
           dim: *dim
           attn_type: torch
 
       decoder:
-        num_decoder_layers: 4
+        num_decoder_layers: 8
         num_queries: *num_tracks
         mask_attention: true
         use_query_masks: false
@@ -430,7 +430,7 @@ model:
                 output_object: pred
                 target_object: sudo
                 losses:
-                  object_bce: 1.0
+                  object_bce: 0.01
                 costs:
                   object_bce: 10.0
                 dim: *dim
