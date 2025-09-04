@@ -227,6 +227,16 @@ data:
 
     sudo_sct: []
 
+    reco_pix: []
+
+    reco_sct: []
+
+    sisp_pix: []
+
+    sisp_sct: []
+
+
+
 # Training stuff here
 trainer:
   max_epochs: 10
@@ -255,9 +265,9 @@ trainer:
     - class_path: hepattn.callbacks.PredictionWriter
       init_args:
         write_inputs: false
-        write_outputs: false
+        write_outputs: true
         write_preds: true
-        write_targets: false
+        write_targets: true
         write_losses: false
     - class_path: lightning.pytorch.callbacks.ModelSummary
     - class_path: lightning.pytorch.callbacks.LearningRateMonitor
