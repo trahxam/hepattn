@@ -25,4 +25,3 @@ git clone https://github.com/Dao-AILab/flash-attention.git
 cd flash-attention/hopper/
 
 MAX_JOBS=16 python setup.py install
-

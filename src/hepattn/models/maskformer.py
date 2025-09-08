@@ -76,7 +76,9 @@ class MaskFormer(nn.Module):
             # objects after we have merged them all together
             # TODO: Clean this up
             device = inputs[input_name + "_valid"].device
-            key_is_input = torch.cat([torch.full((inputs[i + "_valid"].shape[-1],), i == input_name, device=device) for i in self.input_names], dim=-1)
+            key_is_input = torch.cat(
+                [torch.full((inputs[i + "_valid"].shape[-1],), i == input_name, device=device) for i in self.input_names], dim=-1
+            )
             x[f"key_is_{input_name}"] = key_is_input.unsqueeze(0).expand(batch_size, -1)
 
         # Merge the input constituents and the padding mask into a single set
