@@ -28,7 +28,7 @@ data:
 
   # The maximum number of tracks that can be dropped from track
   # cuts before we drop the entire ROI
-  roi_max_num_dropped_tracks: 0
+  roi_max_num_dropped_tracks: 100
 
   inputs:
     pix:
