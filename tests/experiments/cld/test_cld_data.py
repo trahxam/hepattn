@@ -6,7 +6,6 @@ import torch
 import yaml
 
 from hepattn.experiments.cld.data import CLDDataModule
-from hepattn.experiments.cld.plot_event import plot_cld_event
 
 plt.rcParams["figure.dpi"] = 300
 
