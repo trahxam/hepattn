@@ -82,6 +82,11 @@ data:
     pixel:
       - on_valid_particle
 
+    particle:
+      - pt
+      - eta
+      - phi
+
 trainer:
   # Training stuff here
   max_epochs: 30
