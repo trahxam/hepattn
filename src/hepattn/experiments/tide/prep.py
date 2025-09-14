@@ -253,8 +253,8 @@ def preprocess_file(
 
     print(f"Done reading fields from {in_file_path}")
 
-    # user.srettie.42156221.EXT1._000193.tree.tmp -> 000193
-    file_id = str(file_name.replace("user.srettie.42156221.EXT1._", "").replace(".tree", "").replace("hadronic_rois", ""))
+    # user.srettie.46349723.EXT1._000324.tree.root -> 000324.tree.root -> 000324
+    file_id = file_name.split("EXT1._")[-1].split(".")[0]
 
     # Maps the ROI id to the ROI index in the input file
     roi_ids_idxs = {int(file_id + str(roi_idx).zfill(6)): roi_idx for roi_idx in range(len(data["roi_e"]))}
