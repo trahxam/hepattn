@@ -11,7 +11,7 @@
 # Used for preprocessing raw ITk samples into binary parquet files used for training
 
 # Move to workdir
-cd /share/rcifdata/maxhart/hepattn-test/hepattn/
+cd /share/rcifdata/maxhart/hepattn/
 echo "Moved dir, now in: ${PWD}"
 
 # Set tmpdir
@@ -21,8 +21,10 @@ export TMPDIR=/var/tmp/
 echo "Running preprocessing script..."
 
 # Change these to wherever your data is, or get access to them
-IN_DIR="/share/rcifdata/maxhart/data/itk/ATLAS-P2-RUN4-03-00-00_Rel.24_ttbar_uncorr_pu200_v9_acorn_data_reading_output_testset/"
-OUT_DIR="/share/rcifdata/maxhart/data/itk/test/"
+#IN_DIR="/share/rcifdata/maxhart/data/itk/ATLAS-P2-RUN4-03-00-00_Rel.24_ttbar_uncorr_pu200_v9_acorn_data_reading_output_testset/"
+#OUT_DIR="/share/rcifdata/maxhart/data/itk/test/"
+IN_DIR="/share/lustre/maxhart/data/itk/csv/"
+OUT_DIR="/share/lustre/maxhart/data/itk/prepped/"
 
 # Python command that will be run
 PYTORCH_CMD="python src/hepattn/experiments/itk/prep.py --in_dir $IN_DIR --out_dir $OUT_DIR"
@@ -31,7 +33,7 @@ PYTORCH_CMD="python src/hepattn/experiments/itk/prep.py --in_dir $IN_DIR --out_d
 PIXI_CMD="pixi run $PYTORCH_CMD"
 
 # Apptainer command that runs the pixi command inside the pixi apptainer image
-APPTAINER_CMD="apptainer run --bind /share/rcifdata/maxhart /share/rcifdata/maxhart/hepattn-test/hepattn/pixi.sif $PIXI_CMD"
+APPTAINER_CMD="apptainer run --bind /share/rcifdata/maxhart,/share/lustre/maxhart /share/rcifdata/maxhart/hepattn/pixi.sif $PIXI_CMD"
 
 # Run the final command
 echo "Running command: $APPTAINER_CMD"

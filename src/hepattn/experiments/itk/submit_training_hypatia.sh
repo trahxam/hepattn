@@ -49,7 +49,7 @@ PYTORCH_CMD="python src/hepattn/experiments/itk/run_filtering.py fit --config sr
 PIXI_CMD="pixi run $PYTORCH_CMD"
 
 # Apptainer command that runs the pixi command inside the pixi apptainer image
-APPTAINER_CMD="apptainer run --nv --bind /share/rcifdata/maxhart /share/rcifdata/maxhart/hepattn/pixi.sif $PIXI_CMD"
+APPTAINER_CMD="apptainer run --nv --bind /share/rcifdata/maxhart,/share/lustre/maxhart /share/rcifdata/maxhart/hepattn/pixi.sif $PIXI_CMD"
 
 # Run the final command
 echo "Running command: $APPTAINER_CMD"
