@@ -54,14 +54,6 @@ class InferenceTimer(Callback):
         if not len(self.times):
             raise ValueError("No times recorded.")
 
-        # ensure warm start
-        self.times = self.times[self.n_warm_start :]
-        self.dims = self.dims[self.n_warm_start :]
-
-        if not len(self.times):
-            print("Not enough steps to obtain timing information")
-            return
-
         self.times = torch.tensor(self.times)
         self.dims = {k: torch.tensor(v) for k, v in self.dims.items()}
 
