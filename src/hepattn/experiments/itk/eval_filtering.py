@@ -7,7 +7,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import yaml
-from hepattn.utils.eval_plots import bayesian_binomial_error, plot_hist_to_ax
+from hepattn.utils.plot import plot_hist_to_ax
+from hepattn.utils.stats import bayesian_binomial_error
 from scipy.stats import binned_statistic
 from tqdm import tqdm
 
@@ -40,7 +41,7 @@ def main():
     targets["particle_pixel"] = []
 
     dataset = ITkDataset(
-        dirpath=config["test_dir"],
+        dirpath="/share/lustre/maxhart/data/itk/prepped/",
         inputs=inputs,
         targets=targets,
         num_events=-1,
@@ -51,8 +52,10 @@ def main():
         event_max_num_particles=10000,
     )
 
+    
+
     # Give the test eval file we are evaluating and setup the file
-    hit_eval_path = "/share/rcifdata/maxhart/hepattn/logs/ITk_filtering_pixel_region135_3pix_eta4_900mev_PE_20250629-T133325/ckpts/epoch=099-val_loss=0.43550_test_eval.h5"
+    hit_eval_path = "/share/rcifdata/maxhart/hepattn/logs/ITk_filtering_pixel_region135_3pix_eta4_900mev_PE_20250629-T133325/ckpts/epoch=099-val_loss=0.43550_prepped_eval.h5"
 
     dump_path = Path("/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/itk/eval_dump")
 
