@@ -1,12 +1,12 @@
-name: TIDE_32trk_F32
+name: TIDE_64trk_F32_PE_anydrop
 
 data:
   batch_size: 100
-  train_dir: /share/lustre/maxhart/data/tide/prepped/
-  val_dir: /share/lustre/maxhart/data/tide/prepped/
-  test_dir: /share/lustre/maxhart/data/tide/prepped/
+  train_dir: /share/rcif2/maxhart/data/tide/prepped/
+  val_dir: /share/rcif2/maxhart/data/tide/prepped/
+  test_dir: /share/rcif2/maxhart/data/tide/prepped/
   num_workers: 10
-  num_train: 1000000
+  num_train: 10000000
   num_test: 10000
   num_val: 10000
   precision: single
@@ -24,11 +24,11 @@ data:
     sct: 4
 
   # Maximum number of tracks allowed in an ROI before we drop the ROI
-  roi_max_num_tracks: &num_tracks 32
+  roi_max_num_tracks: &num_tracks 64
 
   # The maximum number of tracks that can be dropped from track
   # cuts before we drop the entire ROI
-  roi_max_num_dropped_tracks: 100
+  roi_max_num_dropped_tracks: 64
 
   inputs:
     pix:
@@ -342,7 +342,7 @@ model:
                     input_size: 81
                     output_size: *dim
                 posenc:
-                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  class_path: hepattn.models.posenc.PositionEncoder
                   init_args:
                     input_name: pix
                     dim: *dim
@@ -395,7 +395,7 @@ model:
                     input_size: 25
                     output_size: *dim
                 posenc:
-                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  class_path: hepattn.models.posenc.PositionEncoder
                   init_args:
                     input_name: sct
                     dim: *dim

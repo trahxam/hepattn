@@ -3,9 +3,9 @@
 #SBATCH --job-name=tide-training
 #SBATCH -p GPU
 #SBATCH --export=ALL
-#SBATCH --gres=gpu:l40s:1
+#SBATCH --gres=gpu:a100:1
 #SBATCH --cpus-per-task=12
-#SBATCH --mem=32
+#SBATCH --mem=24
 #SBATCH --output=/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/tide/slurm_logs/slurm-%j.%x.out
 
 # Comet variables
@@ -34,14 +34,13 @@ export TMPDIR=/share/rcifdata/maxhart/tmp/
 echo "Running training script..."
 
 # Python command that will be run
-PYTORCH_CMD="python src/hepattn/experiments/tide/main.py fit -c src/hepattn/experiments/tide/configs/base.yaml"
-# PYTORCH_CMD="python src/hepattn/experiments/tide/main.py fit --config /share/rcifdata/maxhart/hepattn/logs/TIDE_1M_100_32trk_F32_20250517-T092110/config.yaml --ckpt_path /share/rcifdata/maxhart/hepattn/logs/TIDE_1M_100_32trk_F32_20250517-T092110/ckpts/epoch=001-train_loss=73.99285.ckpt"
-
+# PYTORCH_CMD="python src/hepattn/experiments/tide/main.py fit -c src/hepattn/experiments/tide/configs/base.yaml"
+PYTORCH_CMD="python src/hepattn/experiments/tide/main.py fit --config /share/rcifdata/maxhart/hepattn/logs/TIDE_64trk_F32_fixed_nodrop_PE_maxdrop0_20251005-T170847/config.yaml --ckpt_path /share/rcifdata/maxhart/hepattn/logs/TIDE_64trk_F32_fixed_nodrop_PE_maxdrop0_20251005-T170847/ckpts/epoch=000-train_loss=3.96316.ckpt"
 # Pixi commnand that runs the python command inside the pixi env
 PIXI_CMD="pixi run $PYTORCH_CMD"
 
 # Apptainer command that runs the pixi command inside the pixi apptainer image
-APPTAINER_CMD="apptainer run --nv --bind /share/rcifdata/maxhart,/share/lustre/maxhart /share/rcifdata/maxhart/hepattn/pixi.sif $PIXI_CMD"
+APPTAINER_CMD="apptainer run --nv --bind /share/rcifdata/maxhart,/share/lustre/maxhart,/share/rcif2/maxhart /share/rcifdata/maxhart/hepattn/pixi.sif $PIXI_CMD"
 
 # Run the final command
 echo "Running command: $APPTAINER_CMD"

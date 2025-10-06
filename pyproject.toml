@@ -37,7 +37,7 @@ dependencies = [
     "onnxruntime>=1.22.0",
     "einops>=0.8.1,<0.9",
     "atlas-ftag-tools",
-    "ty>=0.0.1a19,<0.0.1a20",
+    "ty>=0.0.1a19,<0.0.1a20", "atlasify",
 ]
 
 [dependency-groups]
