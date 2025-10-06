@@ -249,8 +249,6 @@ data:
       - spin.x
       - spin.y
       - spin.z
-      - colorFlow.a
-      - colorFlow.b
       # Constituent count info
       - num_vtxd
       - num_trkr

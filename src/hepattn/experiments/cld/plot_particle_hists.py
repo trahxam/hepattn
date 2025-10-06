@@ -98,6 +98,7 @@ config = yaml.safe_load(config_path.read_text())["data"]
 config["num_workers"] = 10
 config["batch_size"] = 10
 config["num_test"] = 10000
+config["test_dir"] = "/share/rcif2/maxhart/data/cld/test/prepped/"
 
 datamodule = CLDDataModule(**config)
 datamodule.setup(stage="test")
@@ -105,7 +106,7 @@ dataloader = datamodule.test_dataloader()
 data_iterator = iter(dataloader)
 
 # Iterate through the dataset
-for _i in tqdm(range(100)):
+for _i in tqdm(range(25)):
     inputs, targets = next(data_iterator)
 
     for field, selections in hists.items():

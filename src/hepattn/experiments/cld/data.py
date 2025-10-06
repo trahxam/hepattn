@@ -110,7 +110,7 @@ class CLDDataset(LRSMDataset):
         self.event_filenames = event_filenames[: self.num_samples]
 
         def event_filenames_to_sample_id(event_filename):
-            id_parts = str(event_filename.stem).split("_")
+            id_parts = str(event_filename.stem.replace("_condor", "")).split("_")
             job_id = id_parts[-3]
             proc_id = id_parts[-2]
             event_id = id_parts[-1]

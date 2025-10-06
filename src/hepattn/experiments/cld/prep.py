@@ -624,7 +624,8 @@ def preprocess_event(events, event_idx, namecodes, min_pt, verbose):
         cut_mask = particle_cuts[cut_name]
         cut_size = np.sum(cut_mask)
         pre_cut_size = np.sum(particle_cut_final)
-        particle_cut_final &= cut_mask
+        # If the linter complains and wants this to be &=, ignore it!
+        particle_cut_final = particle_cut_final & cut_mask
         post_cut_size = np.sum(particle_cut_final)
 
         if verbose:
@@ -754,7 +755,11 @@ def preprocess_file(
 
     codenames = {}
     namecodes = {}
-    for code, name in zip(metadata["events___idTable/m_collectionIDs"].array()[0], metadata["events___idTable/m_names"].array()[0], strict=False):
+
+    collection_codes = metadata["events___CollectionTypeInfo/events___CollectionTypeInfo.collectionID"].array()[0]
+    collection_names = metadata["events___CollectionTypeInfo/events___CollectionTypeInfo.name"].array()[0]
+
+    for code, name in zip(collection_codes, collection_names, strict=False):
         codenames[code] = name
         namecodes[name] = code
 
