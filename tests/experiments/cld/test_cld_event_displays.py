@@ -19,6 +19,8 @@ def cld_datamodule():
     config = yaml.safe_load(config_path.read_text())["data"]
     config["num_workers"] = 0
 
+    config["test_dir"] = "/share/rcif2/maxhart/data/cld/test/prepped/"
+
     datamodule = CLDDataModule(**config)
     datamodule.setup(stage="test")
 
@@ -60,7 +62,7 @@ def test_cld_event_display(cld_datamodule):
         },
     ]
 
-    fig = plot_cld_event(data, "particle", axes_spec)
+    fig = plot_cld_event(data, axes_spec, "particle")
     fig.savefig(Path("tests/outputs/cld/cld_event.png"))
 
     # Plot just the inner and outter tracker
@@ -85,7 +87,7 @@ def test_cld_event_display(cld_datamodule):
         },
     ]
 
-    fig = plot_cld_event(data, "particle", axes_spec)
+    fig = plot_cld_event(data, axes_spec, "particle")
     fig.savefig(Path("tests/outputs/cld/cld_event_trkr.png"))
 
     # Plot just the vertex detector
@@ -110,5 +112,5 @@ def test_cld_event_display(cld_datamodule):
         },
     ]
 
-    fig = plot_cld_event(data, "particle", axes_spec)
+    fig = plot_cld_event(data, axes_spec, "particle")
     fig.savefig(Path("tests/outputs/cld/cld_event_vtxd.png"))

@@ -13,9 +13,7 @@ def mask_metric_cost(
     targets = targets.type_as(preds)
 
     # Used to mask out invalid constituents during the score calculation
-    mask = input_pad_mask.unsqueeze(1).float()
-
-    preds = preds * mask
+    preds = preds * input_pad_mask.unsqueeze(-2).float()
 
     # Calculate binary metrics, (batch, objects, hits) -> (batch, objects, objects)
     tp = torch.einsum("bnc,bmc->bnm", preds, targets)
@@ -52,7 +50,8 @@ def mask_metric_score(
     targets = targets.type_as(preds)
 
     # Used to mask out invalid constituents during the score calculation
-    mask = input_pad_mask.unsqueeze(1).float()
+    mask = input_pad_mask.unsqueeze(-2).float()
+    
     preds = preds * mask
 
     # Calculate binary metrics, (batch, object, hits) -> (batch, object)

@@ -57,7 +57,7 @@ def main():
     # Give the test eval file we are evaluating and setup the file
     hit_eval_path = "/share/rcifdata/maxhart/hepattn/logs/ITk_filtering_pixel_region135_3pix_eta4_900mev_PE_20250629-T133325/ckpts/epoch=099-val_loss=0.43550_prepped_eval.h5"
 
-    dump_path = Path("/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/itk/eval_dump")
+    dump_path = Path("/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/itk/eval_dump_pf")
 
     # Define bins for particle retention rate under the nominal working point
     particle_bins = {"pt": np.linspace(0.5, 10.0, 32), "eta": np.linspace(-4, 4, 32), "phi": np.linspace(-np.pi, np.pi, 32)}
