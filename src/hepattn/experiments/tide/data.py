@@ -138,6 +138,8 @@ class ROIDataset(Dataset):
             for field in ["id", "energy", "eta", "phi", "mass"]:
                 roi[f"roi_{field}"] = file[f"{roi_id}/roi_{field}"][:]
 
+            
+
             # Apply any ROI-based cuts
             roi["roi_valid"] &= roi["roi_energy"] <= self.roi_max_energy
             roi["roi_valid"] &= np.abs(roi["roi_eta"]) <= self.roi_max_abs_eta
@@ -262,6 +264,8 @@ class ROIDataset(Dataset):
             # If the ROI has failed the selection, return nothing
             if not roi["roi_valid"][0]:
                 return None
+
+            
 
             # Load the track-hit regression targets
             for field in ["loc_x", "loc_y", "phi", "theta", "energy", "mod_x0", "mod_x1"]:
@@ -442,6 +446,8 @@ class ROIDataset(Dataset):
 
         # Convert the metedata
         targets["sample_id"] = torch.tensor(roi["roi_id"], dtype=torch.int64)
+
+        
 
         return inputs, targets
 

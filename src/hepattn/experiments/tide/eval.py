@@ -25,6 +25,7 @@ def sigmoid(x):
 
 def main():
     eval_path = Path("/share/rcifdata/maxhart/hepattn/logs/TIDE_32trk_F32_fixed_nodrop_20250926-T150450/ckpts/epoch=003-train_loss=0.54949_prepped_eval.h5")
+    # eval_path = Path("/share/rcifdata/maxhart/hepattn/logs/TIDE_64trk_F32_fixed_nodrop_PE_20251007-T144735/ckpts/epoch=001-train_loss=0.62776_prepped_eval.h5")
 
     pred_names = ["sudo", "sisp", "reco", "pred"]
     colors = {
@@ -34,7 +35,7 @@ def main():
         "pred": "purple",
     }
     name_aliases = {
-        "sudo": "Pseudo Tracks",
+        "sudo": "Particles",
         "sisp": "SiSp Tracks",
         "reco": "Reco Tracks",
         "pred": "Model Tracks",
@@ -42,14 +43,17 @@ def main():
     
     true_qtys = [
         ("pt", r"Particle $p_\mathrm{T}$", "log", np.geomspace(1, 3.5e3, 32)),
+        ("bhad_pt", r"Particle b-hadron $p_\mathrm{T}$", "log", np.geomspace(1, 3.5e3, 32)),
         ("eta", r"Particle $\eta$", "linear", np.linspace(-2.5, 2.5, 32)),
         ("phi", r"Particle $\phi$", "linear", np.linspace(-np.pi, np.pi, 32)),
         ("deta", r"Particle - ROI Axis $\Delta \eta$", "linear", np.linspace(-0.05, 0.05, 32)),
+        ("dtheta", r"Particle - ROI Axis $\Delta \theta$", "linear", np.linspace(-0.05, 0.05, 32)),
         ("dphi", r"Particle - ROI Axis $\Delta \phi$", "linear", np.linspace(-0.05, 0.05, 32)),
     ]
 
     pred_qtys = [
         ("phi", r"ROI $\phi$", "linear", np.linspace(-np.pi, np.pi, 32)),
+        ("energy", r"ROI Energy [GeV]", "log", np.geomspace(1, 3.5e3, 64)),
     ]
 
     true_all_bins = {pred_name: {qty: np.zeros(len(bins) - 1) for qty, _, _, bins in true_qtys} for pred_name in pred_names}
@@ -64,7 +68,7 @@ def main():
 
     with h5py.File(eval_path) as file:
         for i, sample_id in tqdm(enumerate(file.keys())):
-            if i == 1000:
+            if i == 10000:
                 break
 
             targets = file[sample_id]["targets"]
@@ -137,18 +141,27 @@ def main():
 
                 # A true particle is efficient its assigned/paired pred is a match
                 true_is_eff = paired_matches[true_valid]
+                #true_is_eff = matches.any(-1)[true_valid]
 
                 # A pred object is pure its paired particle is a match
                 pred_is_pur = paired_matches[pred_valid]
 
+                # Pure if it has a match and if its score is the largest
+                # pred_is_pur = matches.any(-2) & (scores)
+
+
                 # A pred object is a duplicate if it matches some particle, but not with its paired particle
                 pred_is_dup = (~paired_matches & matches.any(-2))[pred_valid]
+                # pred_is_dup = matches.any(-2) & 
 
                 # Pred object is fake if it no particles match with it
                 pred_is_fak = (~matches.any(-2))[pred_valid]
+                #pred_is_fak = ~matches.any(-2)[true_valid]
 
                 for qty_name, _, _, bins in true_qtys:
                     qty = targets[f"sudo_{qty_name}"][0][true_valid]
+
+                    
 
                     num_all, _, _ = binned_statistic(qty, true_is_eff, statistic="count", bins=bins)
                     num_eff, _, _ = binned_statistic(qty, true_is_eff, statistic="sum", bins=bins)
@@ -158,6 +171,9 @@ def main():
 
                 for qty_name, _, _, bins in pred_qtys:
                     qty = np.full_like(pred_is_pur.astype(np.float32), targets[f"roi_{qty_name}"][0])
+
+                    if qty_name == "energy":
+                        qty = qty / 1000
 
                     if len(qty) == 0:
                         continue
@@ -196,7 +212,7 @@ def main():
         ax.set_xlabel(qty_label)
         ax.set_ylabel("Particle Efficiency")
         ax.legend(fontsize=10)
-        atlasify("Simulation Internal", r"$\sqrt{s} = 13\,\mathrm{TeV}$, Z'")
+        atlasify("Simulation Internal", r"$\sqrt{s} = 13\,\mathrm{TeV}$, $Z' \rightarrow q\bar{q}$")
 
         fig.tight_layout()
         fig.savefig(f"/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/tide/plots/{qty_name}_eff.png")
@@ -216,7 +232,7 @@ def main():
         ax.set_xlabel(qty_label)
         ax.set_ylabel("Track Purity")
         ax.legend(fontsize=10)
-        atlasify("Simulation Internal", r"$\sqrt{s} = 13\,\mathrm{TeV}$, Z'")
+        atlasify("Simulation Internal", r"$\sqrt{s} = 13\,\mathrm{TeV}$, $Z' \rightarrow q\bar{q}$")
 
         fig.tight_layout()
         fig.savefig(f"/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/tide/plots/{qty_name}_pur.png")
@@ -236,7 +252,7 @@ def main():
         ax.set_xlabel(qty_label)
         ax.set_ylabel("Track Fake Rate")
         ax.legend(fontsize=10)
-        atlasify("Simulation Internal", r"$\sqrt{s} = 13\,\mathrm{TeV}$, Z'")
+        atlasify("Simulation Internal", r"$\sqrt{s} = 13\,\mathrm{TeV}$, $Z' \rightarrow q\bar{q}$")
 
         fig.tight_layout()
         fig.savefig(f"/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/tide/plots/{qty_name}_fak.png")
@@ -256,13 +272,13 @@ def main():
         ax.set_xlabel(qty_label)
         ax.set_ylabel("Track Duplicate Rate")
         ax.legend(fontsize=10)
-        atlasify("Simulation Internal", r"$\sqrt{s} = 13\,\mathrm{TeV}$, Z'")
+        atlasify("Simulation Internal", r"$\sqrt{s} = 13\,\mathrm{TeV}$, $Z' \rightarrow q\bar{q}$")
 
         fig.tight_layout()
         fig.savefig(f"/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/tide/plots/{qty_name}_dup.png")
 
     fig, ax = plt.subplots(nrows=1, ncols=3)
-    fig.set_size_inches(8, 6)
+    fig.set_size_inches(8, 3)
     
 
     for i, pred_name in enumerate(["sisp", "reco", "pred"]):
@@ -270,17 +286,40 @@ def main():
         pred_n = num_pix[pred_name]
 
         hist_count = num_pix[pred_name]
-        hist_frac = hist_count / num_pix[pred_name].sum(-2)[None, :]
+        hist_frac = hist_count / num_pix[pred_name].sum(-1, keepdims=True)
+        hist_frac = np.nan_to_num(hist_frac, nan=0)
 
-        ax[i].imshow(hist_frac)
+        # Trim to 15x15 region
+        hist_frac = hist_frac[:16, :16].T
+        print(hist_frac.shape)
+
+        im = ax[i].imshow(hist_frac, vmin=0, vmax=1)
+
+        # Add numbers in cells above threshold
+        for y in range(hist_frac.shape[0]):
+            for x in range(hist_frac.shape[1]):
+                val = hist_frac[y, x]
+                if val > 0.1:
+                    ax[i].text(
+                        x, y, f"{val:.2f}",
+                        ha="center", va="center", color="black", fontsize=4
+                    )
 
         ax[i].set_xlabel("Number of Particles on Pixel Hit")
         ax[i].set_ylabel("Number of Tracks on Pixel Hit")
         ax[i].set_title(name_aliases[pred_name])
-        ax[i].set_xticks(np.arange(17))
-        ax[i].set_yticks(np.arange(17))
-        ax[i].set_xticklabels([i for i in range(0, 17)], rotation=45, ha="right", rotation_mode="anchor", fontsize=8)
-        ax[i].set_yticklabels([i for i in range(0, 17)], rotation=45, ha="right", rotation_mode="anchor", fontsize=8)
+
+        # Set ticks and labels only up to 15
+        ax[i].set_xticks(np.arange(16))
+        ax[i].set_yticks(np.arange(16))
+        ax[i].set_xticklabels(np.arange(16), rotation=90, ha="right", fontsize=8)
+        ax[i].set_yticklabels(np.arange(16), rotation=0, ha="right", fontsize=8)
+
+        # Draw a border box around the 15x15 region
+        ax[i].set_xlim(-0.5, 15.5)
+        ax[i].set_ylim(15.5, -0.5)  # reverse y-axis for image orientation
+        ax[i].grid(False)
+
 
     #atlasify("Simulation Internal", r"$\sqrt{s} = 13\,\mathrm{TeV}$, Z"", axes=ax[1],
     #label_font_size=10, font_size=10)
