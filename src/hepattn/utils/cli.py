@@ -80,9 +80,12 @@ class CLI(LightningCLI):
             # Set the timestampped dir
             dirname = f"{name}_{timestamp}"
             log_dir_timestamp = str(Path(log_dir / dirname).resolve())
+            # inside CLI.before_instantiate_classes (fit branch), after computing log_dir_timestamp
             sc["trainer.default_root_dir"] = log_dir_timestamp
-            if sc[log]:
-                sc[f"{log}.init_args.offline_directory"] = log_dir_timestamp
+            if sc["trainer.logger"]:
+                sc["trainer.logger.init_args.offline_directory"] = log_dir_timestamp
+                sc["trainer.logger.init_args.save_dir"] = log_dir_timestamp
+                sc["trainer.logger.init_args.name"] = name
 
         if self.subcommand == "test":
             # Modify callbacks when testing
