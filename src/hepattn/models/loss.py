@@ -129,12 +129,12 @@ def mask_iou_cost(pred_logits, targets, input_pad_mask=None, eps=1e-6):
 
 
 def mask_focal_loss(
-    pred_logits: torch.Tensor,                      # [batch_size, num_objects, num_constituents]
-    targets: torch.Tensor,                          # [batch_size, num_objects, num_constituents], {0,1}
+    pred_logits: torch.Tensor,  # [batch_size, num_objects, num_constituents]
+    targets: torch.Tensor,  # [batch_size, num_objects, num_constituents], {0,1}
     gamma: float = 2.0,
     object_valid_mask: torch.Tensor | None = None,  # [batch_size, num_objects], bool
-    input_pad_mask: torch.Tensor | None = None,     # [batch_size, num_constituents], 1 for valid
-    sample_weight: torch.Tensor | None = None,      # broadcastable to [batch_size, num_objects, num_constituents]
+    input_pad_mask: torch.Tensor | None = None,  # [batch_size, num_constituents], 1 for valid
+    sample_weight: torch.Tensor | None = None,  # broadcastable to [batch_size, num_objects, num_constituents]
 ) -> torch.Tensor:
     """Compute masked focal loss over a `[batch_size, num_objects, num_constituents]` grid.
 
@@ -218,9 +218,9 @@ def mask_focal_cost(pred_logits, targets, gamma=2.0, input_pad_mask=None, sample
 def mask_bce_loss(
     pred_logits: torch.Tensor,
     targets: torch.Tensor,
-    object_valid_mask: torch.Tensor | None = None,   # [batch_size, num_objects]
-    input_pad_mask: torch.Tensor | None = None,      # [batch_size, num_constituents]
-    sample_weight: torch.Tensor | None = None,       # broadcastable to [batch_size, num_objects, num_constituents]
+    object_valid_mask: torch.Tensor | None = None,  # [batch_size, num_objects]
+    input_pad_mask: torch.Tensor | None = None,  # [batch_size, num_constituents]
+    sample_weight: torch.Tensor | None = None,  # broadcastable to [batch_size, num_objects, num_constituents]
 ):
     """Compute masked binary cross-entropy (BCE) loss over a `[batch_size, num_objects, num_constituents]` grid.
 
