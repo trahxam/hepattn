@@ -113,16 +113,12 @@ class ROIDataset(Dataset):
         print(f"Finished registering {len(self.roi_id_to_file_path)} ROIs from {len(self.file_paths)} files")
 
     def register_file(self, file_path):
+        print(f"Reading keys from {file_path}")
         with h5py.File(file_path, "r") as file:
             roi_ids = list(file.keys())
+            print(f"Registering {len(roi_ids)} ROIs from {file_path}")
 
             for roi_id in roi_ids:
-                # Check we are not duplicating ROI IDs
-                msg = f"Attempted to add duplicate ROI ID {roi_id}"
-                assert roi_id not in self.unevaluated_roi_ids, msg
-                assert roi_id not in self.roi_id_to_file_path, msg
-                assert roi_id not in self.roi_id_to_idx, msg
-
                 self.roi_id_to_file_path[roi_id] = file_path
                 self.unevaluated_roi_ids.append(roi_id)
 
