@@ -212,7 +212,7 @@ class LRSMDataset(IterableDataset):
             end = min(start + per_worker, len(sample_ids))
             sample_ids = sample_ids[start:end]
 
-        for idx, sample_id in enumerate(sample_ids):
+        for sample_id in sample_ids:
             # Check if we have already rejected this sample_id
             if sample_id in self.rejected_sample_ids:
                 continue
