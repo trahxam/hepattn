@@ -128,42 +128,66 @@ def mask_iou_cost(pred_logits, targets, input_pad_mask=None, eps=1e-6):
         return 1 - (intersection + eps) / (eps + num_pred + num_targets - intersection)
 
 
-def mask_focal_loss(pred_logits, targets, gamma=2.0, object_valid_mask=None, input_pad_mask=None, sample_weight=None):
-    """Compute the focal loss for binary classification.
+def mask_focal_loss(
+    pred_logits: torch.Tensor,                 # [B,O,N]
+    targets: torch.Tensor,                     # [B,O,N], {0,1}
+    gamma: float = 2.0,
+    object_valid_mask: torch.Tensor | None = None,  # [B,O], bool
+    input_pad_mask: torch.Tensor | None = None,     # [B,N], 1 for valid
+    sample_weight: torch.Tensor | None = None,      # broadcastable to [B,O,N]
+) -> torch.Tensor:
+    """Binary cross-entropy over masked object-input grids.
+
+    Computes BCE-with-logits per element on a `[B, O, N]` grid, applies object and
+    input masks multiplicatively, normalizes each object by its count of valid inputs,
+    then averages over valid objects and batches.
 
     Args:
-        pred_logits: [batch_size, num_objects] - predicted logits for binary classification
-        targets: [batch_size, num_objects] - ground truth class labels
-        gamma: Focusing parameter for the focal loss
-        object_valid_mask: [batch_size, num_objects] - mask indicating valid target objects
-        input_pad_mask: [batch_size, num_inputs] - mask indicating valid inputs
-        sample_weight: Optional sample weights for each element
+        pred_logits: Float logits of shape `[B, O, N]`.
+        targets: Binary targets in `{0,1}` or floats in `[0,1]` of shape `[B, O, N]`.
+        object_valid_mask: Optional boolean mask of shape `[B, O]`. `True` marks valid
+        objects that should contribute to the loss. If `None`, all objects are valid.
+        input_pad_mask: Optional mask of shape `[B, N]` with `1` for valid inputs and
+        `0` for padding. If `None`, all inputs are valid.
+        sample_weight: Optional weights broadcastable to `[B, O, N]`. Applied per element
+        after BCE.
 
     Returns:
-        loss: Scalar tensor representing the focal loss
+        torch.Tensor: Scalar loss tensor.
     """
-    if object_valid_mask is not None:
-        pred_logits = pred_logits[object_valid_mask]
-        targets = targets[object_valid_mask]
-        sample_weight = sample_weight[object_valid_mask] if sample_weight is not None else None
+    batch_size, num_objects, num_constituents = targets.shape
 
-    pred = pred_logits.sigmoid()
-    ce_loss = F.binary_cross_entropy_with_logits(pred_logits, targets.type_as(pred_logits), weight=sample_weight, reduction="none")
+    # Default masks
+    if object_valid_mask is None:
+        object_valid_mask = torch.ones(batch_size, num_objects, dtype=torch.bool, device=targets.device)
+    if input_pad_mask is None:
+        input_pad_mask = torch.ones(batch_size, num_constituents, dtype=targets.dtype, device=targets.device)
 
-    # Apply input padding mask
-    if input_pad_mask is not None:
-        ce_loss = ce_loss * input_pad_mask.unsqueeze(1)
-        pred = pred * input_pad_mask.unsqueeze(1)
+    # BCE with logits per element
+    ce = F.binary_cross_entropy_with_logits(pred_logits, targets, reduction="none")
 
-    p_t = pred * targets + (1 - pred) * (1 - targets)
-    loss = ce_loss * ((1 - p_t) ** gamma)
+    # Focal modulation
+    p = pred_logits.sigmoid()
+    p_t = p * targets + (1 - p) * (1 - targets)
+    loss = ce * (1 - p_t).pow(gamma)
 
-    # normalise by valid elements such that each mask contributes equally
-    if input_pad_mask is not None:
-        valid_counts = input_pad_mask.sum(-1, keepdim=True)
-        loss = loss.sum(-1) / (valid_counts + 1)
-        return loss.mean()
-    return loss.mean(-1).mean()
+    # Optional per-element weighting
+    if sample_weight is not None:
+        loss = loss * sample_weight
+
+    # Apply masks with correct broadcasting
+    obj_mask = object_valid_mask.unsqueeze(-1).to(loss.dtype)  # [B,O,1]
+    inp_mask = input_pad_mask.unsqueeze(1).to(loss.dtype)      # [B,1,N]
+    loss = loss * obj_mask * inp_mask
+
+    # Normalize per object by count of valid inputs
+    valid_inputs = inp_mask.sum(-1).clamp_min(1.0)             # [B,O]
+    per_obj = loss.sum(-1) / valid_inputs                      # [B,O]
+
+    # Average over valid objects, then over batch
+    valid_objs = object_valid_mask.sum(-1).clamp_min(1)        # [B]
+    per_batch = (per_obj * object_valid_mask.to(per_obj.dtype)).sum(-1) / valid_objs
+    return per_batch.mean()
 
 
 def mask_focal_cost(pred_logits, targets, gamma=2.0, input_pad_mask=None, sample_weight=None):
@@ -194,36 +218,56 @@ def mask_focal_cost(pred_logits, targets, gamma=2.0, input_pad_mask=None, sample
         return torch.einsum("bnc,bmc->bnm", focal_pos, targets) + torch.einsum("bnc,bmc->bnm", focal_neg, (1 - targets))
 
 
-def mask_bce_loss(pred_logits, targets, object_valid_mask=None, input_pad_mask=None, sample_weight=None):
-    """Compute the binary cross-entropy loss for binary masks.
+def mask_bce_loss(
+    pred_logits: torch.Tensor,
+    targets: torch.Tensor,
+    object_valid_mask: torch.Tensor | None = None,   # [B,O]
+    input_pad_mask: torch.Tensor | None = None,      # [B,N]
+    sample_weight: torch.Tensor | None = None,       # broadcastable to [B,O,N]
+):
+    """Binary cross-entropy over object-input grids without masks.
+
+    Computes BCE-with-logits per element on a `[B, O, N]` grid, applies optional
+    per-element weights, averages first over inputs `N`, then over objects `O`,
+    then over the batch `B`. This matches the normalization used by `mask_bce_loss`
+    when all masks are ones.
 
     Args:
-        pred_logits: [batch_size, num_objects, num_inputs] - predicted logits for binary
-        targets: [batch_size, num_objects, num_inputs] - ground truth binary masks
-        object_valid_mask: [batch_size, num_objects] - mask indicating valid target objects
-        input_pad_mask: [batch_size, num_inputs] - mask indicating valid inputs
-        sample_weight: Optional sample weights for each element.  Recommended to use focal instead.
+        pred_logits: Float logits of shape `[B, O, N]`.
+        targets: Binary targets in `{0,1}` or floats in `[0,1]` of shape `[B, O, N]`.
+        sample_weight: Optional weights broadcastable to `[B, O, N]`. Applied per
+        element after BCE.
 
     Returns:
-        loss: Scalar tensor representing the binary cross-entropy loss
+        torch.Tensor: Scalar loss tensor.
     """
-    if object_valid_mask is not None:
-        pred_logits = pred_logits[object_valid_mask]
-        targets = targets[object_valid_mask]
-        sample_weight = sample_weight[object_valid_mask] if sample_weight is not None else None
+    # Shapes
+    batch_size, num_objects, num_constituents = targets.shape
 
-    loss = F.binary_cross_entropy_with_logits(pred_logits, targets, weight=sample_weight, reduction="none")
+    # Default masks
+    if object_valid_mask is None:
+        object_valid_mask = torch.ones(batch_size, num_objects, dtype=torch.bool, device=targets.device)
+    if input_pad_mask is None:
+        input_pad_mask = torch.ones(batch_size, num_constituents, dtype=targets.dtype, device=targets.device)
 
-    # Apply input padding mask
-    if input_pad_mask is not None:
-        loss = loss * input_pad_mask.unsqueeze(1)
+    # Elementwise BCE [B,O,N]
+    loss = F.binary_cross_entropy_with_logits(pred_logits, targets, reduction="none")
+    if sample_weight is not None:
+        loss = loss * sample_weight
 
-    # normalise by valid elements such that each mask contributes equally
-    if input_pad_mask is not None:
-        valid_counts = input_pad_mask.sum(-1, keepdim=True)
-        loss = loss.sum(-1) / (valid_counts + 1)
-        return loss.mean()
-    return loss.mean(-1).mean()
+    # Apply masks with correct broadcasting
+    obj_mask = object_valid_mask.unsqueeze(-1).to(loss.dtype)   # [B,O,1]
+    inp_mask = input_pad_mask.unsqueeze(1).to(loss.dtype)       # [B,1,N]
+    loss = loss * obj_mask * inp_mask                           # [B,O,N]
+
+    # Normalize per object by number of valid inputs
+    valid_inputs = inp_mask.sum(-1).clamp_min(1.0)              # [B,O]
+    per_obj = loss.sum(-1) / valid_inputs                       # [B,O]
+
+    # Average over valid objects per batch, then over batch
+    valid_objs = object_valid_mask.sum(-1).clamp_min(1)         # [B]
+    per_batch = (per_obj * object_valid_mask).sum(-1) / valid_objs
+    return per_batch.mean()
 
 
 def mask_bce_cost(pred_logits, targets, input_pad_mask=None, sample_weight=None):
