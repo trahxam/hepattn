@@ -38,6 +38,7 @@ dependencies = [
     "einops>=0.8.1,<0.9",
     "atlas-ftag-tools>=0.2.9,<0.3",
     "ty>=0.0.1a20,<0.0.1a21",
+    "atlasify>=0.8.0,<0.9",
 ]
 
 [dependency-groups]
