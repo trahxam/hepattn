@@ -52,6 +52,7 @@ class ModelWrapper(LightningModule):
             for task_losses in layer_losses.values():
                 for loss_value in task_losses.values():
                     total_loss += loss_value
+                    layer_loss += loss_value
 
             # Log the total loss from the layer
             self.log(f"{stage}/{layer_name}_loss", layer_loss, sync_dist=True)
@@ -98,9 +99,8 @@ class ModelWrapper(LightningModule):
 
         if self.mtl:
             self.mlt_opt(losses, outputs)
-        else:
-            total_loss = self.aggregate_losses(losses, stage="train")
-
+            return None
+        total_loss = self.aggregate_losses(losses, stage="train")
         return {"loss": total_loss, **outputs}
 
     def validation_step(self, batch: tuple[dict[str, Tensor], dict[str, Tensor]]) -> dict[str, Tensor]:
