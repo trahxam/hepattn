@@ -44,14 +44,14 @@ def main():
     name_aliases = {
         "sudo": "Pseudo Tracks",
         "sisp": "SiSp Tracks",
-        "reco": "Reco Tracks",
-        "pred": "Model Tracks",
+        "reco": "Baseline Tracks",
+        "pred": "MaskFormer Tracks",
     }
     
     true_qtys = [
-        ("pt", r"Particle $p_\mathrm{T}$", "log", np.geomspace(1, 3.5e3, 32)),
-        ("bhad_pt", r"Particle b-hadron $p_\mathrm{T}$", "log", np.geomspace(1, 10e3, 32)),
-        ("eta", r"Particle $\eta$", "linear", np.linspace(-2.5, 2.5, 32)),
+        ("pt", r"Particle $p_\mathrm{T}$", "log", np.geomspace(2, 3.5e3, 32)),
+        ("bhad_pt", r"Particle b-hadron $p_\mathrm{T}$", "log", np.geomspace(150, 5e3, 32)),
+        ("eta", r"Particle $\eta$", "linear", np.linspace(-2.25, 2.25, 32)),
         ("phi", r"Particle $\phi$", "linear", np.linspace(-np.pi, np.pi, 32)),
         ("deta", r"Particle - ROI Axis $\Delta \eta$", "linear", np.linspace(-0.05, 0.05, 32)),
         ("dphi", r"Particle - ROI Axis $\Delta \phi$", "linear", np.linspace(-0.05, 0.05, 32)),
@@ -59,7 +59,7 @@ def main():
 
     pred_qtys = [
         ("phi", r"ROI $\phi$", "linear", np.linspace(-np.pi, np.pi, 32)),
-        ("energy", r"ROI Energy [GeV]", "log", np.geomspace(10, 10e3, 64)),
+        ("energy", r"ROI Energy [GeV]", "log", np.geomspace(150, 5e3, 32)),
     ]
 
     true_all_bins = {pred_name: {qty: np.zeros(len(bins) - 1) for qty, _, _, bins in true_qtys} for pred_name in pred_names}
@@ -115,9 +115,17 @@ def main():
                 sct_fp = np.einsum("nc,mc->nm", true_sct_valid, (~pred_sct_valid))
                 sct_fn = np.einsum("nc,mc->nm", (~true_sct_valid), pred_sct_valid)
 
+                pix_true_num = true_pix_valid.sum(-1)
+                pix_pred_num = pred_pix_valid.sum(-1)
+
+                sct_true_num = true_sct_valid.sum(-1)
+                sct_pred_num = pred_sct_valid.sum(-1)
+
                 eps = 1e-6
                 metric = "tmp"
-                score_threshold = 0.75
+                score_threshold = 0.5
+
+                matching_score = (2 * pix_tp + sct_tp) / (2 * (pix_tp + pix_fp + pix_fn) + sct_tp + sct_fp + sct_fn + eps)
 
                 # Using the masks we calculate the desired score - the eps term prevents any division by zero
                 if metric == "tmp":
@@ -130,7 +138,7 @@ def main():
                 scores[~true_valid,:] = 0.0
                 scores[:,~pred_valid] = 0.0
 
-                true_idx, pred_idx = linear_sum_assignment(scores, maximize=True)
+                true_idx, pred_idx = linear_sum_assignment(matching_score, maximize=True)
 
                 pred_valid = pred_valid[pred_idx]
                 pred_pix_valid = pred_pix_valid[pred_idx]
@@ -144,6 +152,7 @@ def main():
 
                 paired_matches = paired_scores >= score_threshold
                 matches = scores >= score_threshold
+                
 
                 # A true particle is efficient its assigned/paired pred is a match
                 true_is_eff = paired_matches[true_valid]
@@ -197,6 +206,8 @@ def main():
 
     legend_font_size = 14
     sub_font_size = 16
+    metric_aliases = {"tmp": "TMP", "iou": "IoU"}
+    sub_label = r"$\sqrt{s} = 13\,\mathrm{TeV},\; Z'\!\rightarrow q\bar{q}$" + "\n" + rf"$\mathrm{{{metric_aliases[metric]}}} \geq {score_threshold:.2f}$"
 
     for qty_name, qty_label, scale, bins in true_qtys:
         fig, ax = plt.subplots()
@@ -206,14 +217,14 @@ def main():
             k =  true_eff_bins[pred_name][qty_name]
             n = true_all_bins[pred_name][qty_name]
 
-            plot_hist_to_ax(ax, k / n, bins, value_errors=bayesian_binomial_error(k, n), label=name_aliases[pred_name], color=colors[pred_name])
+            plot_hist_to_ax(ax, k / n, bins, value_errors=bayesian_binomial_error(k, n), label=name_aliases[pred_name] if pred_name != "sudo" else None, color=colors[pred_name])
 
         ax.set_xscale(scale)
         ax.grid(zorder=0, alpha=0.25, linestyle="--")
         ax.set_xlabel(qty_label)
         ax.set_ylabel("Particle Efficiency")
         ax.legend(fontsize=legend_font_size)
-        atlasify("Simulation Internal", r"$\sqrt{s} = 13\,\mathrm{TeV}$, Z'")
+        atlasify("Simulation Internal", sub_label, sub_font_size=sub_font_size)
 
         fig.tight_layout()
         fig.savefig(f"/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/tide/plots/{qty_name}_eff.png")
@@ -226,14 +237,14 @@ def main():
             n = pred_all_bins[pred_name][qty_name]
             k = pred_pur_bins[pred_name][qty_name]
 
-            plot_hist_to_ax(ax, k / n, bins, value_errors=bayesian_binomial_error(k, n), label=name_aliases[pred_name], color=colors[pred_name])
+            plot_hist_to_ax(ax, k / n, bins, value_errors=bayesian_binomial_error(k, n), label=name_aliases[pred_name] if pred_name != "sudo" else None, color=colors[pred_name])
 
         ax.set_xscale(scale)
         ax.grid(zorder=0, alpha=0.25, linestyle="--")
         ax.set_xlabel(qty_label)
         ax.set_ylabel("Track Purity")
         ax.legend(fontsize=legend_font_size)
-        atlasify("Simulation Internal", r"$\sqrt{s} = 13\,\mathrm{TeV}$, Z'", sub_font_size=sub_font_size)
+        atlasify("Simulation Internal", sub_label, sub_font_size=sub_font_size)
 
         fig.tight_layout()
         fig.savefig(f"/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/tide/plots/{qty_name}_pur.png")
@@ -246,14 +257,14 @@ def main():
             n = pred_all_bins[pred_name][qty_name]
             k = pred_fak_bins[pred_name][qty_name]
 
-            plot_hist_to_ax(ax, k / n, bins, value_errors=bayesian_binomial_error(k, n), label=name_aliases[pred_name], color=colors[pred_name])
+            plot_hist_to_ax(ax, k / n, bins, value_errors=bayesian_binomial_error(k, n), label=name_aliases[pred_name] if pred_name != "sudo" else None, color=colors[pred_name])
 
         ax.set_xscale(scale)
         ax.grid(zorder=0, alpha=0.25, linestyle="--")
         ax.set_xlabel(qty_label)
         ax.set_ylabel("Track Fake Rate")
         ax.legend(fontsize=legend_font_size)
-        atlasify("Simulation Internal", r"$\sqrt{s} = 13\,\mathrm{TeV}$, Z'", sub_font_size=sub_font_size)
+        atlasify("Simulation Internal", sub_label, sub_font_size=sub_font_size)
 
         fig.tight_layout()
         fig.savefig(f"/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/tide/plots/{qty_name}_fak.png")
@@ -266,14 +277,14 @@ def main():
             n = pred_all_bins[pred_name][qty_name]
             k = pred_dup_bins[pred_name][qty_name]
 
-            plot_hist_to_ax(ax, k / n, bins, value_errors=bayesian_binomial_error(k, n), label=name_aliases[pred_name], color=colors[pred_name])
+            plot_hist_to_ax(ax, k / n, bins, value_errors=bayesian_binomial_error(k, n), label=name_aliases[pred_name] if pred_name != "sudo" else None, color=colors[pred_name])
 
         ax.set_xscale(scale)
         ax.grid(zorder=0, alpha=0.25, linestyle="--")
         ax.set_xlabel(qty_label)
         ax.set_ylabel("Track Duplicate Rate")
         ax.legend(fontsize=legend_font_size)
-        atlasify("Simulation Internal", r"$\sqrt{s} = 13\,\mathrm{TeV}$, Z'", sub_font_size=sub_font_size)
+        atlasify("Simulation Internal", sub_label, sub_font_size=sub_font_size)
 
         fig.tight_layout()
         fig.savefig(f"/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/tide/plots/{qty_name}_dup.png")
