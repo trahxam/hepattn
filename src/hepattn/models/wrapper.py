@@ -102,7 +102,7 @@ class ModelWrapper(LightningModule):
         if self.mtl:
             self.mlt_opt(losses, outputs)
             return None
-            
+
         total_loss = self.aggregate_losses(losses, stage="train")
 
         return {"loss": total_loss} | outputs
