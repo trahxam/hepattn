@@ -9,6 +9,8 @@ from torch.optim import AdamW
 from torchjd import mtl_backward
 from torchjd.aggregation import UPGrad
 
+from hepattn.utils.types import DictTensor, DoubleNestedDictTensor
+
 
 class ModelWrapper(LightningModule):
     def __init__(
@@ -37,13 +39,13 @@ class ModelWrapper(LightningModule):
             # MTL does not currently support intermediate losses
             assert all(task.has_intermediate_loss is False for task in self.model.tasks)
 
-    def forward(self, inputs: dict[str, Tensor]) -> dict[str, Tensor]:
+    def forward(self, inputs: DictTensor) -> DoubleNestedDictTensor:
         return self.model(inputs)
 
-    def predict(self, outputs: dict[str, Tensor]) -> dict[str, Tensor]:
+    def predict(self, outputs: DoubleNestedDictTensor) -> DoubleNestedDictTensor:
         return self.model.predict(outputs)
 
-    def aggregate_losses(self, losses: dict[str, Tensor], stage: str | None = None) -> Tensor:
+    def aggregate_losses(self, losses: DoubleNestedDictTensor, stage: str | None = None) -> Tensor:
         device = next(self.model.parameters()).device
         total_loss = torch.tensor(0.0, device=device)
 
@@ -61,7 +63,7 @@ class ModelWrapper(LightningModule):
         self.log(f"{stage}/loss", total_loss, sync_dist=True)
         return total_loss
 
-    def log_task_metrics(self, preds: dict[str, Tensor], targets: dict[str, Tensor], stage: str) -> None:
+    def log_task_metrics(self, preds: DoubleNestedDictTensor, targets: DictTensor, stage: str) -> None:
         # Log any task specific metrics
         for task in self.model.tasks:
             # Check that the task actually has some metrics to log
@@ -75,7 +77,7 @@ class ModelWrapper(LightningModule):
             if task_metrics:
                 self.log_dict({f"{stage}/final_{task.name}_{k}": v for k, v in task_metrics.items()}, sync_dist=True)
 
-    def log_metrics(self, preds: dict[str, Tensor], targets: dict[str, Tensor], stage: str) -> None:
+    def log_metrics(self, preds: DoubleNestedDictTensor, targets: DictTensor, stage: str) -> None:
         # First log any task metrics
         self.log_task_metrics(preds, targets, stage)
 
@@ -83,7 +85,7 @@ class ModelWrapper(LightningModule):
         if hasattr(self, "log_custom_metrics"):
             self.log_custom_metrics(preds, targets, stage)
 
-    def training_step(self, batch: tuple[dict[str, Tensor], dict[str, Tensor]], batch_idx: int) -> dict[str, Tensor] | None:
+    def training_step(self, batch: tuple[DictTensor, DictTensor], batch_idx: int) -> DoubleNestedDictTensor | None:
         inputs, targets = batch
 
         # Get the model outputs
@@ -100,10 +102,12 @@ class ModelWrapper(LightningModule):
         if self.mtl:
             self.mlt_opt(losses, outputs)
             return None
+            
         total_loss = self.aggregate_losses(losses, stage="train")
-        return {"loss": total_loss, **outputs}
 
-    def validation_step(self, batch: tuple[dict[str, Tensor], dict[str, Tensor]]) -> dict[str, Tensor]:
+        return {"loss": total_loss} | outputs
+
+    def validation_step(self, batch: tuple[DictTensor, DictTensor]) -> DoubleNestedDictTensor:
         inputs, targets = batch
 
         # Get the raw model outputs
@@ -117,9 +121,9 @@ class ModelWrapper(LightningModule):
         preds = self.model.predict(outputs)
         self.log_metrics(preds, targets, "val")
 
-        return {"loss": total_loss, **outputs}
+        return {"loss": total_loss} | outputs
 
-    def test_step(self, batch: tuple[dict[str, Tensor], dict[str, Tensor]]) -> tuple[dict[str, Tensor], dict[str, Tensor], dict[str, Tensor]]:
+    def test_step(self, batch: tuple[DictTensor, DictTensor]) -> tuple[DoubleNestedDictTensor, ...]:
         inputs, targets = batch
         outputs = self.model(inputs)
 
@@ -165,7 +169,7 @@ class ModelWrapper(LightningModule):
         print("Skipping learning rate scheduler.")
         return opt
 
-    def mlt_opt(self, losses: dict[str, Tensor], outputs: dict[str, Tensor]) -> None:
+    def mlt_opt(self, losses: DictTensor, outputs: DictTensor) -> None:
         opt = self.optimizers()
         opt.zero_grad()
 
