@@ -121,7 +121,7 @@ class CLDDataset(LRSMDataset):
         self.sample_ids = [event_filenames_to_sample_id(f) for f in self.event_filenames]
         self.sample_ids_to_event_filenames = {self.sample_ids[i]: str(self.event_filenames[i]) for i in range(len(self.sample_ids))}
 
-    def load_sample(self, sample_id: int) -> dict[str, np.ndarray] | None:
+    def load_event(self, sample_id: int) -> dict[str, np.ndarray] | None:
         """Loads a single CLD event from a preprocessed npz file."""
         event_filename = self.sample_ids_to_event_filenames[sample_id]
 
@@ -570,6 +570,9 @@ class CLDDataset(LRSMDataset):
         event["sample_id"] = sample_id
 
         return event
+    
+    def load_sample(self, sample_id: int) -> dict[str, np.ndarray] | None:
+        return self.load_event(sample_id)
 
 
 class CLDDataModule(LightningDataModule):

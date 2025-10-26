@@ -243,6 +243,8 @@ data:
       - mom.theta
       - mom.eta_drad
       - mom.phi_drad
+      - mom.sinphi
+      - mom.cosphi
       - mom.rinv
       - mom.qopt
       # Spin coordinates
@@ -361,7 +363,7 @@ data:
 
 # Training stuff here
 trainer:
-  max_epochs: 10
+  max_epochs: 25
   accelerator: gpu
   devices: 1
   precision: bf16-mixed
