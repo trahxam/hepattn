@@ -28,8 +28,7 @@ class Field:
 # ----------------------------
 # Field definitions
 # ----------------------------
-# Keys are "field ids" (what you refer to in PLOT_GROUPS).
-# Multiple ids may point to the SAME underlying tensor by sharing Field.name.
+
 FIELDS: dict[str, Field] = {
     "calib_energy_ecal": Field(
         name="calib_energy_ecal",
