@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import h5py
 import matplotlib.pyplot as plt
@@ -18,7 +18,7 @@ from hepattn.utils.eval_utils import (
     calc_cost,
     calculate_selections,
 )
-from hepattn.utils.histogram import PoissonHistogram, GaussianHistogram
+from hepattn.utils.histogram import GaussianHistogram, PoissonHistogram
 from hepattn.utils.plotting import plot_hist_to_ax
 from hepattn.utils.stats import bayesian_binomial_error
 
@@ -108,7 +108,7 @@ def main() -> None:
     matcher = Matcher(default_solver="scipy", adaptive_solver=False, parallel_solver=False)
 
     bin_types = {"linear": np.linspace, "log": np.geomspace}
-    bins: Dict[str, np.ndarray] = {
+    bins: dict[str, np.ndarray] = {
         name: bin_types[cfg["scale"]](cfg["min"], cfg["max"], cfg["num"])
         for name, cfg in eval_cfg["bins"].items()
     }
@@ -117,7 +117,7 @@ def main() -> None:
     # Histogram objects
     # -----------------------------------------------------------------
     # Efficiency/purity histograms
-    poisson_hists: Dict[str, PoissonHistogram] = {}
+    poisson_hists: dict[str, PoissonHistogram] = {}
     for name, cfg in eval_cfg["histograms"].items():
         field_key = f"{cfg['object_name']}_{cfg['field']}"
         sel_key = f"{cfg['object_name']}_{cfg['selection']}"
@@ -132,7 +132,7 @@ def main() -> None:
         )
 
     # Residual histograms (Gaussian summary of residuals)
-    gauss_hists: Dict[str, GaussianHistogram] = {}
+    gauss_hists: dict[str, GaussianHistogram] = {}
     for name, cfg in eval_cfg["residual_histograms"].items():
         # We'll provide a temporary "residual" values array at fill-time
         gauss_hists[name] = GaussianHistogram(
@@ -143,7 +143,7 @@ def main() -> None:
         )
 
     # Bulk metrics accumulators
-    bulk_metrics: Dict[str, Dict[str, float]] = {
+    bulk_metrics: dict[str, dict[str, float]] = {
         name: {"n": 0.0, "k": 0.0} for name in eval_cfg["bulk_metrics"]
     }
 
@@ -161,7 +161,7 @@ def main() -> None:
             preds = f[f"{sample_id}/preds/final/"]
             outs = f[f"{sample_id}/outputs/final/"]
 
-            data: Dict[str, Any] = {}
+            data: dict[str, Any] = {}
             data["flow_logit"] = torch.from_numpy(outs["flow_valid/flow_logit"][:])
             data["flow_valid"] = data["flow_logit"].sigmoid() >= 0.5
 
