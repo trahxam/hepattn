@@ -570,7 +570,7 @@ class CLDDataset(LRSMDataset):
         event["sample_id"] = sample_id
 
         return event
-    
+
     def load_sample(self, sample_id: int) -> dict[str, np.ndarray] | None:
         return self.load_event(sample_id)
 
