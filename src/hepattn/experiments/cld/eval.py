@@ -1,21 +1,18 @@
 import math
 from pathlib import Path
-from tqdm import tqdm
-
 
 import h5py
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import yaml
-import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 from hepattn.experiments.cld.data import CLDDataModule
 from hepattn.models.matcher import Matcher
 from hepattn.utils.eval_utils import apply_matching, calc_binary_reco_metrics, calc_cost, calculate_selections
 from hepattn.utils.histogram import PoissonHistogram
 from hepattn.utils.plotting import plot_hist_to_ax
-from hepattn.utils.tensor_utils import mask_last_dim
-
 
 plt.rcParams["text.usetex"] = False
 plt.rcParams["figure.dpi"] = 300
@@ -110,12 +107,12 @@ field_aliases = {
     "mom.phi": r"$\phi$",
     "vtx.r": r"Vertex $r$",
     "isolation": r"Angular Isolation",
-    #"num_vtxd": "Num. VTXD Hits",
-    #"num_trkr": "Num. Tracker Hits",
+    # "num_vtxd": "Num. VTXD Hits",
+    # "num_trkr": "Num. Tracker Hits",
     "num_sihit": "Num. Si Hits",
-    #"num_ecal": "Num. ECAL Hits",
-    #"num_hcal": "Num. HCAL Hits",
-    #"num_muon": "Num. Muon Hits",
+    # "num_ecal": "Num. ECAL Hits",
+    # "num_hcal": "Num. HCAL Hits",
+    # "num_muon": "Num. Muon Hits",
 }
 
 field_scales = {
@@ -258,10 +255,8 @@ with h5py.File(eval_file_path, "r") as eval_file:
         data |= targets
         data |= inputs
 
-
         for hit in ["vtxd", "trkr", "ecal", "hcal", "muon"]:
-            data[f"flow_{hit}_valid"] = data[f"flow_{hit}_valid"][:,:,:data[f"{hit}_valid"].shape[-1]]
-
+            data[f"flow_{hit}_valid"] = data[f"flow_{hit}_valid"][:, :, :data[f"{hit}_valid"].shape[-1]]
 
         # Add extra information to the objects
         for object_name in object_names:
@@ -323,7 +318,7 @@ for name, hist in binary_histograms.items():
     ax.set_xlabel(field_aliases[field])
     ax.set_ylabel("Particle Efficiency")
     ax.set_xscale(field_scales[field])
-    
+
     ymin, ymax = ax.get_ylim()
     ymin = max(ymin, 0.05)
     ymax = min(ymax, 1.01)
