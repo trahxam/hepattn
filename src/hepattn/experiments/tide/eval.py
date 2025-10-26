@@ -3,28 +3,20 @@ from pathlib import Path
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
-
+from atlasify import atlasify
 from scipy.optimize import linear_sum_assignment
 from scipy.stats import binned_statistic
 from tqdm import tqdm
-from atlasify import atlasify
 
-from hepattn.utils.stats import bayesian_binomial_error
 from hepattn.utils.plotting import plot_hist_to_ax
-
+from hepattn.utils.stats import bayesian_binomial_error
 
 plt.rcParams["text.usetex"] = False
 plt.rcParams["figure.dpi"] = 300
 plt.rcParams["font.size"] = 16
 plt.rcParams["figure.constrained_layout.use"] = True
 
-plt.rcParams.update({
-    "axes.titlesize": 18,
-    "axes.labelsize": 18,
-    "xtick.labelsize": 12,
-    "ytick.labelsize": 12,
-    "legend.fontsize": 18
-})
+plt.rcParams.update({"axes.titlesize": 18, "axes.labelsize": 18, "xtick.labelsize": 12, "ytick.labelsize": 12, "legend.fontsize": 18})
 
 
 def sigmoid(x):
@@ -32,7 +24,9 @@ def sigmoid(x):
 
 
 def main():
-    eval_path = Path("/share/rcifdata/maxhart/hepattn/logs/TIDE_32trk_F32_fixed_nodrop_20250926-T150450/ckpts/epoch=003-train_loss=0.54949_prepped_eval.h5")
+    eval_path = Path(
+        "/share/rcifdata/maxhart/hepattn/logs/TIDE_32trk_F32_fixed_nodrop_20250926-T150450/ckpts/epoch=003-train_loss=0.54949_prepped_eval.h5"
+    )
 
     pred_names = ["sudo", "sisp", "reco", "pred"]
     colors = {
@@ -47,19 +41,19 @@ def main():
         "reco": "Baseline Tracks",
         "pred": "MaskFormer Tracks",
     }
-    
+
     true_qtys = [
-        ("pt", r"Particle $p_\mathrm{T}$", "log", np.geomspace(2, 3.5e3, 32)),
-        ("bhad_pt", r"Particle b-hadron $p_\mathrm{T}$", "log", np.geomspace(150, 5e3, 32)),
+        ("pt", r"Particle $p_\mathrm{T}$ [GeV]", "log", np.geomspace(2, 3.5e3, 32)),
+        ("bhad_pt", r"Particle b-hadron $p_\mathrm{T}$ [GeV]", "log", np.geomspace(150, 5e3, 32)),
         ("eta", r"Particle $\eta$", "linear", np.linspace(-2.25, 2.25, 32)),
         ("phi", r"Particle $\phi$", "linear", np.linspace(-np.pi, np.pi, 32)),
-        ("deta", r"Particle - ROI Axis $\Delta \eta$", "linear", np.linspace(-0.05, 0.05, 32)),
-        ("dphi", r"Particle - ROI Axis $\Delta \phi$", "linear", np.linspace(-0.05, 0.05, 32)),
+        ("deta", r"Particle - RoI Axis $\Delta \eta$", "linear", np.linspace(-0.05, 0.05, 32)),
+        ("dphi", r"Particle - RoI Axis $\Delta \phi$", "linear", np.linspace(-0.05, 0.05, 32)),
     ]
 
     pred_qtys = [
-        ("phi", r"ROI $\phi$", "linear", np.linspace(-np.pi, np.pi, 32)),
-        ("energy", r"ROI Energy [GeV]", "log", np.geomspace(150, 5e3, 32)),
+        ("phi", r"RoI $\phi$", "linear", np.linspace(-np.pi, np.pi, 32)),
+        ("energy", r"RoI Energy [GeV]", "log", np.geomspace(150, 5e3, 32)),
     ]
 
     true_all_bins = {pred_name: {qty: np.zeros(len(bins) - 1) for qty, _, _, bins in true_qtys} for pred_name in pred_names}
@@ -119,11 +113,11 @@ def main():
                 pix_pred_num = pred_pix_valid.sum(-1)
 
                 sct_true_num = true_sct_valid.sum(-1)
-                sct_pred_num = pred_sct_valid.sum(-1)
+                sct_pred_num = pred_sct_valid.sum(-1)  # noqa:
 
                 eps = 1e-6
                 metric = "tmp"
-                score_threshold = 0.5
+                score_threshold = 0.75
 
                 matching_score = (2 * pix_tp + sct_tp) / (2 * (pix_tp + pix_fp + pix_fn) + sct_tp + sct_fp + sct_fn + eps)
 
@@ -135,8 +129,8 @@ def main():
                 elif metric == "dice":
                     scores = 2 * (pix_tp + sct_tp) / (2 * pix_tp + pix_fp + pix_fn + 2 * sct_tp + sct_fp + sct_fn + eps)
 
-                scores[~true_valid,:] = 0.0
-                scores[:,~pred_valid] = 0.0
+                scores[~true_valid, :] = 0.0
+                scores[:, ~pred_valid] = 0.0
 
                 true_idx, pred_idx = linear_sum_assignment(matching_score, maximize=True)
 
@@ -146,13 +140,12 @@ def main():
 
                 # The scores under the optimal true-pred pair assignment
                 paired_scores = scores[true_idx, pred_idx]
-                
+
                 # Also keep the scores between every true-pred pair
                 scores = scores[:, pred_idx]
 
                 paired_matches = paired_scores >= score_threshold
                 matches = scores >= score_threshold
-                
 
                 # A true particle is efficient its assigned/paired pred is a match
                 true_is_eff = paired_matches[true_valid]
@@ -177,7 +170,7 @@ def main():
 
                 for qty_name, _, _, bins in pred_qtys:
                     qty = np.full_like(pred_is_pur.astype(np.float32), targets[f"roi_{qty_name}"][0])
-                    
+
                     # Hack to convert to GeV
                     if qty_name == "energy":
                         qty = qty / 1000.0
@@ -207,17 +200,19 @@ def main():
     legend_font_size = 14
     sub_font_size = 16
     metric_aliases = {"tmp": "TMP", "iou": "IoU"}
-    sub_label = r"$\sqrt{s} = 13\,\mathrm{TeV},\; Z'\!\rightarrow q\bar{q}$" + "\n" + rf"$\mathrm{{{metric_aliases[metric]}}} \geq {score_threshold:.2f}$"
+    sub_label = (
+        r"$\sqrt{s} = 13\,\mathrm{TeV},\; Z'\!\rightarrow q\bar{q}$" + "\n" + rf"$\mathrm{{{metric_aliases[metric]}}} \geq {score_threshold:.2f}$"
+    )
 
     for qty_name, qty_label, scale, bins in true_qtys:
         fig, ax = plt.subplots()
         fig.set_size_inches(8, 6)
 
-        for pred_name in pred_names: 
-            k =  true_eff_bins[pred_name][qty_name]
+        for pred_name in pred_names:
+            k = true_eff_bins[pred_name][qty_name]
             n = true_all_bins[pred_name][qty_name]
-
-            plot_hist_to_ax(ax, k / n, bins, value_errors=bayesian_binomial_error(k, n), label=name_aliases[pred_name] if pred_name != "sudo" else None, color=colors[pred_name])
+            label = name_aliases[pred_name] if pred_name != "sudo" else None
+            plot_hist_to_ax(ax, k / n, bins, value_errors=bayesian_binomial_error(k, n), label=label, color=colors[pred_name])
 
         ax.set_xscale(scale)
         ax.grid(zorder=0, alpha=0.25, linestyle="--")
@@ -236,8 +231,8 @@ def main():
         for pred_name in pred_names:
             n = pred_all_bins[pred_name][qty_name]
             k = pred_pur_bins[pred_name][qty_name]
-
-            plot_hist_to_ax(ax, k / n, bins, value_errors=bayesian_binomial_error(k, n), label=name_aliases[pred_name] if pred_name != "sudo" else None, color=colors[pred_name])
+            label = name_aliases[pred_name] if pred_name != "sudo" else None
+            plot_hist_to_ax(ax, k / n, bins, value_errors=bayesian_binomial_error(k, n), label=label, color=colors[pred_name])
 
         ax.set_xscale(scale)
         ax.grid(zorder=0, alpha=0.25, linestyle="--")
@@ -248,7 +243,7 @@ def main():
 
         fig.tight_layout()
         fig.savefig(f"/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/tide/plots/{qty_name}_pur.png")
-    
+
     for qty_name, qty_label, scale, bins in pred_qtys:
         fig, ax = plt.subplots()
         fig.set_size_inches(8, 6)
@@ -256,8 +251,8 @@ def main():
         for pred_name in pred_names:
             n = pred_all_bins[pred_name][qty_name]
             k = pred_fak_bins[pred_name][qty_name]
-
-            plot_hist_to_ax(ax, k / n, bins, value_errors=bayesian_binomial_error(k, n), label=name_aliases[pred_name] if pred_name != "sudo" else None, color=colors[pred_name])
+            label = name_aliases[pred_name] if pred_name != "sudo" else None
+            plot_hist_to_ax(ax, k / n, bins, value_errors=bayesian_binomial_error(k, n), label=label, color=colors[pred_name])
 
         ax.set_xscale(scale)
         ax.grid(zorder=0, alpha=0.25, linestyle="--")
@@ -276,8 +271,8 @@ def main():
         for pred_name in pred_names:
             n = pred_all_bins[pred_name][qty_name]
             k = pred_dup_bins[pred_name][qty_name]
-
-            plot_hist_to_ax(ax, k / n, bins, value_errors=bayesian_binomial_error(k, n), label=name_aliases[pred_name] if pred_name != "sudo" else None, color=colors[pred_name])
+            label = name_aliases[pred_name] if pred_name != "sudo" else None
+            plot_hist_to_ax(ax, k / n, bins, value_errors=bayesian_binomial_error(k, n), label=label, color=colors[pred_name])
 
         ax.set_xscale(scale)
         ax.grid(zorder=0, alpha=0.25, linestyle="--")
@@ -289,7 +284,7 @@ def main():
         fig.tight_layout()
         fig.savefig(f"/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/tide/plots/{qty_name}_dup.png")
 
-        fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(8, 4), layout='constrained')
+        fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(8, 3.2), layout="constrained")
 
         vmin, vmax = 0.0, 1.0
         im = None
@@ -307,32 +302,32 @@ def main():
             for r in range(nrows):
                 for c in range(ncols):
                     val = float(hist_frac[r, c])
-                    if val > 0.1:
-                        ax[i].text(
-                            c, r, f"{val:.2f}",
-                            ha="center", va="center", fontsize=4,
-                            color="black"
-                        )
+                    if val > 0.01:
+                        ax[i].text(c, r, f"{val:.2f}", ha="center", va="center", fontsize=4, color="black")
 
-            ax[i].set_xlabel("Number of Particles\non Pixel Hit", fontsize=12)
-            
-            ax[i].set_title(name_aliases[pred_name], fontsize=12)
+            ax[i].set_xlabel("Number of Particles\non Pixel Hit", fontsize=10)
+
+            # ax[i].set_title(name_aliases[pred_name], fontsize=12)
             ax[i].set_xticks(np.arange(ncols))
             ax[i].set_yticks(np.arange(nrows))
-            ax[i].set_xticklabels(list(range(ncols)), rotation=45, ha="right",
-                                rotation_mode="anchor", fontsize=8)
-            ax[i].set_yticklabels(list(range(nrows)), rotation=45, ha="right",
-                                rotation_mode="anchor", fontsize=8)
+            ax[i].set_xticklabels(list(range(ncols)), rotation=45, ha="right", rotation_mode="anchor", fontsize=8)
+            ax[i].set_yticklabels(list(range(nrows)), rotation=45, ha="right", rotation_mode="anchor", fontsize=8)
+            ax[i].text(0.01, 0.01, name_aliases[pred_name], transform=ax[i].transAxes, color="white", ha="left", va="bottom", fontsize=10)
 
-        ax[0].set_ylabel("Number of Tracks\non Pixel Hit", fontsize=12)
+        ax[0].set_ylabel("Number of Tracks\non Pixel Hit", fontsize=10)
+
+        plt.rcParams["font.family"] = "Nimbus Sans"
+
+        fig.text(0.05, 0.95, "ATLAS", fontweight="bold", style="italic", ha="left", va="top", fontsize=12)
+        fig.text(0.135, 0.95, "Simulation Internal", ha="left", va="top", fontsize=12)
+        fig.text(0.92, 0.95, r"$\sqrt{s} = 13\,\mathrm{TeV},\; Z'\!\rightarrow q\bar{q}$", ha="right", va="top", fontsize=10)
 
         # one shared colorbar on the rightmost axes
         cbar = fig.colorbar(im, ax=ax[-1], fraction=0.046, pad=0.04)
-        cbar.ax.tick_params(labelsize=8) 
+        cbar.ax.tick_params(labelsize=8)
         cbar.set_label("Fraction Correct", fontsize=12)
 
         fig.savefig("/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/tide/plots/pixel_sharing.png")
-
 
 
 if __name__ == "__main__":
