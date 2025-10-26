@@ -4,10 +4,10 @@
 #SBATCH -p GPU
 #SBATCH --nodes=1
 #SBATCH --export=ALL
-#SBATCH --gres=gpu:l40s:1
+#SBATCH --gres=gpu:a100:1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=24
-#SBATCH --mem=48G
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=32G
 #SBATCH --output=/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/tide/slurm_logs/slurm-%j.%x.out
 #SBATCH --error=/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/tide/slurm_logs/slurm-%j.%x.out
 
@@ -38,13 +38,13 @@ export TMPDIR=/share/rcifdata/maxhart/tmp/
 echo "Running training script..."
 
 # Python command that will be run
-PYTORCH_CMD="python src/hepattn/experiments/tide/main.py fit -c src/hepattn/experiments/tide/configs/tagging/base.yaml"
+PYTORCH_CMD="python src/hepattn/experiments/tide/main.py fit -c src/hepattn/experiments/tide/configs/base.yaml"
 
 # Pixi commnand that runs the python command inside the pixi env
 PIXI_CMD="pixi run $PYTORCH_CMD"
 
 # Apptainer command that runs the pixi command inside the pixi apptainer image
-APPTAINER_CMD="apptainer run --nv --bind /share/rcifdata/maxhart /share/rcifdata/maxhart/hepattn/pixi.sif $PIXI_CMD"
+APPTAINER_CMD="apptainer run --nv --bind /share/rcifdata/maxhart,/share/rcif2/maxhart/ /share/rcifdata/maxhart/hepattn/pixi.sif $PIXI_CMD"
 
 # Run the final command
 echo "Running command: $APPTAINER_CMD"
