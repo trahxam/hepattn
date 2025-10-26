@@ -1,0 +1,456 @@
+eval:
+  # Define metrics which give a score between pairs of objects which can
+  # be used to match the objects to eachother
+  match_metrics:
+    default:
+      sihit:
+        weight: 1.0
+        metric: iou
+        field: valid
+
+      ecal:
+        weight: 1.0
+        metric: iou
+        field: valid
+
+      hcal:
+        weight: 1.0
+        metric: iou
+        field: valid
+
+  # Define binary metrics which evaluate to true if all of its conditions are met
+  binary_metrics:
+    charged_reconstructed:
+      - hit: sihit
+        thresh: 0.5
+        metric: eff
+        field: valid
+
+      - hit: sihit
+        thresh: 0.5
+        metric: pur
+        field: valid
+
+      - hit: ecal
+        thresh: 0.5
+        metric: eff
+        field: valid
+
+      - hit: ecal
+        thresh: 0.5
+        metric: pur
+        field: valid
+
+      - hit: hcal
+        thresh: 0.5
+        metric: eff
+        field: valid
+
+      - hit: hcal
+        thresh: 0.5
+        metric: pur
+        field: valid
+
+    neutral_reconstructed:
+      - hit: ecal
+        thresh: 0.5
+        metric: eff
+        field: valid
+
+      - hit: ecal
+        thresh: 0.5
+        metric: pur
+        field: valid
+
+      - hit: hcal
+        thresh: 0.5
+        metric: eff
+        field: valid
+
+      - hit: hcal
+        thresh: 0.5
+        metric: pur
+        field: valid
+
+
+  selections:
+    charged_reconstructable:
+      - "is_charged_hadron"
+      - "is_primary"
+      - "mom.r >= 0.1"
+      - "mom.abs_eta <= 2.44"
+      - "vtx.r <= 50"
+      - "num_sihit >= 4"
+      - "isolation >= 0.02"
+      - "calib_energy_ecal >= 0.1"
+      - "calib_energy_hcal >= 0.1"
+
+    neutral_reconstructable:
+      - "is_neutral_hadron"
+      - "is_primary"
+      - "mom.r >= 0.1"
+      - "mom.abs_eta <= 2.44"
+      - "vtx.r <= 50"
+      - "isolation >= 0.02"
+      - "calib_energy_ecal >= 0.1"
+      - "calib_energy_hcal >= 0.1"
+
+    charged_reconstructable_loose:
+      - "is_charged_hadron"
+      - "mom.r >= 0.01"
+      - "mom.abs_eta <= 4"
+      - "num_sihit >= 3"
+      - "calib_energy_ecal >= 0.01"
+      - "calib_energy_hcal >= 0.01"
+
+    neutral_reconstructable_loose:
+      - "is_neutral_hadron"
+      - "mom.r >= 0.01"
+      - "mom.abs_eta <= 4"
+      - "calib_energy_ecal >= 0.1"
+      - "calib_energy_hcal >= 0.1"
+
+  residual_metrics: {}
+
+  residual_histograms: {}
+
+  residual_histogram_plots: {}
+
+  bins:
+    pt_100mev:
+      min: 0.1
+      max: 100.0
+      num: 24
+      scale: log
+
+    pt_full:
+      min: 0.01
+      max: 100.0
+      num: 32
+      scale: log
+
+    energy:
+      min: 0.1
+      max: 100.0
+      num: 32
+      scale: log
+
+
+    vtx_r_50mm:
+      min: 0
+      max: 50
+      num: 32
+      scale: linear
+    
+    num_sihit:
+      min: 0.5
+      max: 24.5
+      num: 25
+      scale: linear
+
+    isolation_full:
+      min: 0.0001
+      max: 3.14
+      num: 32
+      scale: log
+
+  bulk_metrics:
+        # Bulk eff metrics
+    pandora_charged_eff:
+      object_name: particle
+      selection: charged_reconstructable
+      denominator: charged_reconstructable
+      numerator: pandora_charged_reconstructed
+
+    flow_charged_eff:
+      object_name: particle
+      selection: charged_reconstructable
+      denominator: charged_reconstructable
+      numerator: flow_charged_reconstructed
+
+    pandora_neutral_eff:
+      object_name: particle
+      selection: neutral_reconstructable
+      denominator: neutral_reconstructable
+      numerator: pandora_neutral_reconstructed
+
+    flow_neutral_eff:
+      object_name: particle
+      selection: neutral_reconstructable
+      denominator: neutral_reconstructable
+      numerator: flow_neutral_reconstructed
+
+
+
+
+
+    # Bulk purity metrics
+    pandora_charged_pur:
+      object_name: pandora
+      selection: is_charged_hadron
+      denominator: is_charged_hadron
+      numerator: particle_charged_reconstructed
+
+    flow_charged_pur:
+      object_name: flow
+      selection: is_charged_hadron
+      denominator: is_charged_hadron
+      numerator: particle_charged_reconstructed
+
+    pandora_neutral_pur:
+      object_name: pandora
+      selection: is_neutral_hadron
+      denominator: is_neutral_hadron
+      numerator: particle_neutral_reconstructed
+
+    flow_neutral_pur:
+      object_name: flow
+      selection: is_neutral_hadron
+      denominator: is_neutral_hadron
+      numerator: particle_neutral_reconstructed
+
+  residual_histograms:
+    pandora_charged_ecal:
+      field: particle_energy_ecal
+      bins: energy
+      selection: particle_charged_reconstructable
+      true_field: particle_energy_ecal
+      pred_field: pandora_energy_ecal
+    
+    flow_charged_ecal:
+      field: particle_energy_ecal
+      bins: energy
+      selection: particle_charged_reconstructable
+      true_field: particle_energy_ecal
+      pred_field: flow_energy_ecal
+    
+    pandora_neutral_ecal:
+      field: particle_energy_ecal
+      bins: energy
+      selection: particle_neutral_reconstructable
+      true_field: particle_energy_ecal
+      pred_field: pandora_energy_ecal
+    
+    flow_neutral_ecal:
+      field: particle_energy_ecal
+      bins: energy
+      selection: particle_neutral_reconstructable
+      true_field: particle_energy_ecal
+      pred_field: flow_energy_ecal
+
+    pandora_charged_hcal:
+      field: particle_energy_hcal
+      bins: energy
+      selection: particle_charged_reconstructable
+      true_field: particle_energy_hcal
+      pred_field: pandora_energy_hcal
+    
+    flow_charged_hcal:
+      field: particle_energy_hcal
+      bins: energy
+      selection: particle_charged_reconstructable
+      true_field: particle_energy_hcal
+      pred_field: flow_energy_hcal
+    
+    pandora_neutral_hcal:
+      field: particle_energy_hcal
+      bins: energy
+      selection: particle_neutral_reconstructable
+      true_field: particle_energy_hcal
+      pred_field: pandora_energy_hcal
+    
+    flow_neutral_hcal:
+      field: particle_energy_hcal
+      bins: energy
+      selection: particle_neutral_reconstructable
+      true_field: particle_energy_hcal
+      pred_field: flow_energy_hcal
+
+  histograms:
+    # Charged pt hists
+    pandora_charged_pt:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: charged_reconstructable
+      denominator: charged_reconstructable
+      numerator: pandora_charged_reconstructed
+
+    flow_charged_pt:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: charged_reconstructable
+      denominator: charged_reconstructable
+      numerator: flow_charged_reconstructed
+
+    pandora_loose_charged_pt:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: charged_reconstructable_loose
+      denominator: charged_reconstructable_loose
+      numerator: pandora_charged_reconstructed
+
+    flow_loose_charged_pt:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: charged_reconstructable_loose
+      denominator: charged_reconstructable_loose
+      numerator: flow_charged_reconstructed
+
+    pandora_neutral_pt:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: neutral_reconstructable
+      denominator: neutral_reconstructable
+      numerator: pandora_neutral_reconstructed
+
+    flow_neutral_pt:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: neutral_reconstructable
+      denominator: neutral_reconstructable
+      numerator: flow_neutral_reconstructed
+
+    pandora_loose_neutral_pt:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: neutral_reconstructable_loose
+      denominator: neutral_reconstructable_loose
+      numerator: pandora_neutral_reconstructed
+
+    flow_loose_neutral_pt:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: neutral_reconstructable_loose
+      denominator: neutral_reconstructable_loose
+      numerator: flow_neutral_reconstructed
+
+  residual_histogram_plots:
+    ecal:
+      xlabel: "Particle ECAL Energy [GeV]"
+      ylabel: "Error [GeV]"
+      scale: log
+
+      items:
+        pandora_charged:
+          histogram: flow_charged_ecal
+          label: "MaskFormer charged hadron"
+          color: mediumvioletred
+          linestyle: "-"
+
+        flow_charged:
+          histogram: pandora_charged_ecal
+          label: "Pandora charged hadron"
+          color: cornflowerblue
+          linestyle: "-"
+
+        pandora_neutral:
+          histogram: flow_neutral_ecal
+          label: "MaskFormer neutral hadron"
+          color: mediumvioletred
+          linestyle: "--"
+
+        flow_neutral:
+          histogram: pandora_neutral_ecal
+          label: "Pandora neutral hadron"
+          color: cornflowerblue
+          linestyle: "--"
+
+    hcal:
+      xlabel: "Particle HCAL Energy [GeV]"
+      ylabel: "Error"
+      scale: log
+
+      items:
+        pandora_charged:
+          histogram: flow_charged_hcal
+          label: "MaskFormer charged hadron"
+          color: mediumvioletred
+          linestyle: "-"
+
+        flow_charged:
+          histogram: pandora_charged_hcal
+          label: "Pandora charged hadron"
+          color: cornflowerblue
+          linestyle: "-"
+
+        pandora_neutral:
+          histogram: flow_neutral_hcal
+          label: "MaskFormer neutral hadron"
+          color: mediumvioletred
+          linestyle: "--"
+
+        flow_neutral:
+          histogram: pandora_neutral_hcal
+          label: "Pandora neutral hadron"
+          color: cornflowerblue
+          linestyle: "--"
+
+  histogram_plots:
+    pt_charged:
+      xlabel: "Truth Particle $p_T$ [GeV]"
+      ylabel: "Charged Hadron Efficiency"
+      scale: log
+      
+      items:        
+        flow:
+          histogram: flow_charged_pt
+          label: "MaskFormer, tight"
+          color: mediumvioletred
+          linestyle: "-"
+        
+        pandora:
+          histogram: pandora_charged_pt
+          label: "Pandora, tight"
+          color: cornflowerblue
+          linestyle: "-"
+     
+        flow_loose:
+          histogram: flow_loose_charged_pt
+          label: "MaskFormer, loose"
+          color: mediumvioletred
+          linestyle: "--"
+        
+        pandora_loose:
+          histogram: pandora_loose_charged_pt
+          label: "Pandora, loose"
+          color: cornflowerblue
+          linestyle: "--"
+
+    pt_neutral:
+      xlabel: "Truth Particle $p_T$ [GeV]"
+      ylabel: "Neutral Hadron Efficiency"
+      scale: log
+      
+      items:        
+        flow:
+          histogram: flow_neutral_pt
+          label: "MaskFormer, tight"
+          color: mediumvioletred
+          linestyle: "-"
+        
+        pandora:
+          histogram: pandora_neutral_pt
+          label: "Pandora, tight"
+          color: cornflowerblue
+          linestyle: "-"
+    
+        flow_loose:
+          histogram: flow_loose_neutral_pt
+          label: "MaskFormer, loose"
+          color: mediumvioletred
+          linestyle: "--"
+        
+        pandora_loose:
+          histogram: pandora_loose_neutral_pt
+          label: "Pandora, loose"
+          color: cornflowerblue
+          linestyle: "--"
+
