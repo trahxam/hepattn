@@ -224,7 +224,7 @@ def mask_bce_loss(pred_logits, targets, object_valid_mask=None, input_pad_mask=N
         valid_counts = input_pad_mask.sum(-1, keepdim=True)
         loss = loss.sum(-1) / valid_counts.clamp_min(1.0)
         return loss.mean()
-        
+
     return loss.mean(-1).mean()
 
 
