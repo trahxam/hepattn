@@ -3,6 +3,9 @@ import math
 import torch
 from torch import Tensor, nn
 
+from hepattn.utils.spherical_harmonics_basis import SH as SH_analytic
+from hepattn.utils.spherical_harmonics_closed_form import SH as SH_closed_form
+
 
 def get_omegas(alpha, dim, base, **kwargs):
     omega_1 = alpha * torch.logspace(0, 2 / (dim) - 1, (dim // 2), base, **kwargs)
@@ -136,3 +139,59 @@ class FourierPositionEncoder(nn.Module):
         xs = 2 * self.pi * xs
         xs @= self.B
         return torch.cat([torch.sin(xs), torch.cos(xs)], dim=-1)
+
+
+class SphericalHarmonicEncoder(nn.Module):
+    def __init__(
+        self,
+        input_name: str,
+        dim: int,
+        legendre_polys: int = 12,
+        harmonics_calculation="closed-form",
+        phi_field="phi",
+        theta_field="theta",
+        radius_field="r",
+        ):
+        """legendre_polys: determines the number of legendre polynomials.
+                        more polynomials lead more fine-grained resolutions
+        calculation of spherical harmonics:
+            analytic uses pre-computed equations. This is exact, but works only up to degree 50,
+            closed-form uses one equation but is computationally slower (especially for high degrees)
+        """
+        super().__init__()
+        self.input_name = input_name
+        self.L = int(legendre_polys)
+        self.M = int(legendre_polys)
+        self.dim = dim
+
+        self.phi_field = phi_field
+        self.theta_field = theta_field
+        self.radius_field = radius_field
+
+        if harmonics_calculation == "closed-form":
+            self.SH = SH_closed_form
+        elif harmonics_calculation == "analytic":
+            self.SH = SH_analytic
+
+    def forward(self, inputs: dict[str, Tensor]) -> Tensor:
+        phi = inputs[f"{self.input_name}_{self.phi_field}"]
+        theta = inputs[f"{self.input_name}_{self.theta_field}"]
+        radius = inputs[f"{self.input_name}_{self.radius_field}"]
+
+        # Calculate the angular embedding
+        Y = []
+        for l in range(self.L):
+            for m in range(-l, l + 1):
+                y = self.SH(m, l, phi, theta)
+                if isinstance(y, float):
+                    y = y * torch.ones_like(phi)
+                Y.append(y)
+
+        # Create the angular embedding
+        angular = torch.stack(Y, dim=-1)
+
+        # Use the remainder of the dimension for the radial embedding
+        radial = pos_enc(radius, dim=self.dim - angular.shape[-1])
+
+        # Combine the angular and radial embeddings
+        return torch.cat([angular, radial], dim=-1)
