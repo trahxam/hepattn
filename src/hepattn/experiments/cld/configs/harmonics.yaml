@@ -1,0 +1,153 @@
+name: CLD_2_320_10MeV_neutrals_harmonic
+
+model:
+  model:
+    class_path: hepattn.models.MaskFormer
+    init_args:
+      input_nets:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: hepattn.models.InputNet
+              init_args:
+                input_name: vtxd
+                input_dtype: float32
+                fields:
+                  - pos.x
+                  - pos.y
+                  - pos.z
+                  - pos.s
+                  - pos.r
+                  - pos.theta
+                  - pos.phi
+                  - u.a
+                  - u.b
+                  - v.a
+                  - v.b
+                  - du
+                  - dv
+                net:
+                  class_path: hepattn.models.Dense
+                  init_args:
+                    input_size: 13
+                    output_size: &dim 256
+                posenc:
+                  class_path: hepattn.models.posenc.SphericalHarmonicEncoder
+                  init_args:
+                    input_name: vtxd
+                    dim: *dim
+                    phi_field: pos.phi
+                    theta_field: pos.theta
+                    radius_field: pos.r
+
+            - class_path: hepattn.models.InputNet
+              init_args:
+                input_name: trkr
+                input_dtype: float32
+                fields:
+                  - pos.x
+                  - pos.y
+                  - pos.z
+                  - pos.s
+                  - pos.r
+                  - pos.theta
+                  - pos.phi
+                  - u.a
+                  - u.b
+                  - v.a
+                  - v.b
+                  - du
+                  - dv
+                net:
+                  class_path: hepattn.models.Dense
+                  init_args:
+                    input_size: 13
+                    output_size: *dim
+                posenc:
+                  class_path: hepattn.models.posenc.SphericalHarmonicEncoder
+                  init_args:
+                    input_name: trkr
+                    dim: *dim
+                    phi_field: pos.phi
+                    theta_field: pos.theta
+                    radius_field: pos.r
+
+            - class_path: hepattn.models.InputNet
+              init_args:
+                input_name: ecal
+                input_dtype: float32
+                fields:
+                  - pos.x
+                  - pos.y
+                  - pos.z
+                  - pos.s
+                  - pos.r
+                  - pos.theta
+                  - pos.phi
+                  - log_energy
+                net:
+                  class_path: hepattn.models.Dense
+                  init_args:
+                    input_size: 8
+                    output_size: *dim
+                posenc:
+                  class_path: hepattn.models.posenc.SphericalHarmonicEncoder
+                  init_args:
+                    input_name: ecal
+                    dim: *dim
+                    phi_field: pos.phi
+                    theta_field: pos.theta
+                    radius_field: pos.r
+
+            - class_path: hepattn.models.InputNet
+              init_args:
+                input_name: hcal
+                input_dtype: float32
+                fields:
+                  - pos.x
+                  - pos.y
+                  - pos.z
+                  - pos.s
+                  - pos.r
+                  - pos.theta
+                  - pos.phi
+                  - log_energy
+                net:
+                  class_path: hepattn.models.Dense
+                  init_args:
+                    input_size: 8
+                    output_size: *dim
+                posenc:
+                  class_path: hepattn.models.posenc.SphericalHarmonicEncoder
+                  init_args:
+                    input_name: hcal
+                    dim: *dim
+                    phi_field: pos.phi
+                    theta_field: pos.theta
+                    radius_field: pos.r
+
+            - class_path: hepattn.models.InputNet
+              init_args:
+                input_name: muon
+                input_dtype: float32
+                fields:
+                  - pos.x
+                  - pos.y
+                  - pos.z
+                  - pos.s
+                  - pos.r
+                  - pos.theta
+                  - pos.phi
+                net:
+                  class_path: hepattn.models.Dense
+                  init_args:
+                    input_size: 7
+                    output_size: *dim
+                posenc:
+                  class_path: hepattn.models.posenc.SphericalHarmonicEncoder
+                  init_args:
+                    input_name: muon
+                    dim: *dim
+                    phi_field: pos.phi
+                    theta_field: pos.theta
+                    radius_field: pos.r
