@@ -61,14 +61,14 @@ def scalar_sum(x: Any) -> float:
 CONFIG_PATH = Path("src/hepattn/experiments/cld/configs/base.yaml")
 EVAL_CONFIG_NAME = "eval_hadrons"
 EVAL_FILE_PATH = Path(
-    "/share/rcifdata/maxhart/hepattn/logs/CLD_8_320_10MeV_neutrals_20251025-T213514/ckpts/epoch=002-train_loss=4.08055_test_eval.h5"
+    "/share/rcifdata/maxhart/hepattn/logs/CLD_2_320_10MeV_neutrals_20251026-T230553/ckpts/epoch=000-train_loss=3.05229_test_eval.h5"
 )
 
 HITS = ["vtxd", "trkr", "ecal", "hcal", "muon"]
 PRED_OBJECTS = ["particle", "pandora", "flow"]
 
 # Optional early-stop; set None for full run
-MAX_EVENTS: int | None = 1000
+MAX_EVENTS: int | None = 100
 
 
 def main() -> None:
@@ -300,7 +300,6 @@ def main() -> None:
             num_particles = float(data["event_num_particle"].detach().cpu().item())
             if num_particles > largest_num_particles:
                 largest_num_particles = num_particles
-                print(i, sample_id, largest_num_particles)
 
             if MAX_EVENTS is not None and i + 1 >= MAX_EVENTS:
                 break
@@ -308,9 +307,9 @@ def main() -> None:
     # -----------------------------------------------------------------
     # Print bulk metrics
     # -----------------------------------------------------------------
-    for name, cfg in eval_cfg["bulk_metrics"].items():
-        n = cfg["n"]
-        k = cfg["k"]
+    for name in eval_cfg["bulk_metrics"]:
+        n = bulk_metrics[name]["n"]
+        k = bulk_metrics[name]["k"]
         pct = 100.0 * (k / n) if n > 0 else 0.0
         print(f"{name}: {k:.0f}/{n:.0f} ({pct:.3f}%)")
 
