@@ -1,20 +1,22 @@
+from typing import Literal
+
 import torch
-from torch import BoolTensor, Tensor
+from torch import Tensor
 
 
 def mask_metric_cost(
     preds: Tensor,
     targets: Tensor,
-    input_pad_mask: BoolTensor | None = None,
-    metric: str = "iou",
-):
+    input_pad_mask: Tensor | None = None,
+    metric: Literal["iou", "jac", "dice", "smc", "eff", "pur"] = "iou",
+    ) -> Tensor:
     # Pred and target masks have shape (batch, num_objects, num_constituents)
     targets = targets.type_as(preds)
 
     # Used to mask out invalid constituents during the score calculation
-    mask = input_pad_mask.unsqueeze(1).float()
-
-    preds = preds * mask
+    if input_pad_mask is not None:
+        mask = input_pad_mask.unsqueeze(1).float()
+        preds = preds * mask
 
     # Calculate binary metrics, (batch, objects, hits) -> (batch, objects, objects)
     tp = torch.einsum("bnc,bmc->bnm", preds, targets)
@@ -44,17 +46,16 @@ def mask_metric_cost(
 def mask_metric_score(
     preds: Tensor,
     targets: Tensor,
-    input_pad_mask: BoolTensor | None = None,
-    metric: str = "iou",
-):
-    # Pred and target masks have shape (batch, num_objects, num_constituents)
+    input_pad_mask: Tensor | None = None,
+    metric: Literal["iou", "jac", "dice", "smc", "eff", "pur"] = "iou",
+    ) -> Tensor:
+
     targets = targets.type_as(preds)
 
-    # Used to mask out invalid constituents during the score calculation
-    mask = input_pad_mask.unsqueeze(1).float()
-    preds = preds * mask
+    if input_pad_mask is not None:
+        mask = input_pad_mask.unsqueeze(1).float()
+        preds = preds * mask
 
-    # Calculate binary metrics, (batch, object, hits) -> (batch, object)
     tp = torch.sum(preds * targets, dim=-1)
     tn = torch.sum((1 - preds) * (1 - targets), dim=-1)
     fp = torch.sum(preds * (1 - targets), dim=-1)
@@ -66,14 +67,16 @@ def mask_metric_score(
     eps = 1e-6
 
     if metric == "smc":
-        score = (tp + tn) / (tp + tn + fp + fn)
+        score = (tp + tn) / (tp + tn + fp + fn + eps)
     elif metric == "dice":
         score = 2 * tp / (2 * tp + fp + fn + eps)
     elif metric in {"iou", "jac"}:
         score = tp / (tp + fp + fn + eps)
     elif metric == "eff":
-        score = tp / (n_true)
+        score = tp / (n_true + eps)
     elif metric == "pur":
-        score = tp / (n_pred)
+        score = tp / (n_pred + eps)
+    else:
+        raise ValueError(f"Unknown metric '{metric}'")
 
     return score

@@ -54,7 +54,7 @@ def apply_matching(data: dict[str, Tensor], true: str, pred: str, costs: Tensor,
     return data
 
 
-def calc_cost(data: dict[str, Tensor], true: str, pred: str, metrics: dict) -> Tensor:
+def calc_cost(data: dict[str, Tensor], true: str, pred: str, metrics: dict) -> Tensor | None:
     """Computes the total matching cost between predicted and true objects using a dictionary of metric definitions.
 
     Each metric defines a constituent, a field, a function, and a weight. The final cost is a weighted sum
@@ -79,22 +79,20 @@ def calc_cost(data: dict[str, Tensor], true: str, pred: str, metrics: dict) -> T
     Tensor
         Total cost tensor of shape (batch_size, num_objects, num_objects).
     """
-    total_cost = None
+
+    total_cost: Tensor | None = None
 
     for constituent, metric in metrics.items():
         # Calculate the weighted cost contributed by this constituent and this metric
         cost = metric["weight"] * mask_metric_cost(
             data[f"{pred}_{constituent}_valid"].float(),
             data[f"{true}_{constituent}_valid"].float(),
-            input_pad_mask=data[f"{constituent}_{metric['field']}"],
+            input_pad_mask=data[f"{constituent}_{metric['field']}"].bool(),
             metric=metric["metric"],
         )
 
         # Add the cost on to the running total cost
-        if total_cost is not None:
-            total_cost += cost
-        else:
-            total_cost = cost
+        total_cost = cost if total_cost is None else total_cost + cost
 
     return total_cost
 
