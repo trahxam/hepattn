@@ -1,4 +1,4 @@
-name: CLD_8_320_10MeV_neutrals
+name: CLD_2_320_10MeV_neutrals
 
 matmul_precision: high
 
@@ -15,7 +15,7 @@ data:
   num_val: 100
 
   # Minibatch size / number of events used per training step
-  batch_size: 8
+  batch_size: 2
 
   # Precision of any float values returned by the dataloader
   input_dtype: float32
@@ -454,6 +454,9 @@ model:
                       - pos.x
                       - pos.y
                       - pos.z
+                      - pos.r
+                      - pos.theta
+                      - pos.phi
 
             - class_path: hepattn.models.InputNet
               init_args:
@@ -487,6 +490,9 @@ model:
                       - pos.x
                       - pos.y
                       - pos.z
+                      - pos.r
+                      - pos.theta
+                      - pos.phi
 
             - class_path: hepattn.models.InputNet
               init_args:
@@ -515,6 +521,9 @@ model:
                       - pos.x
                       - pos.y
                       - pos.z
+                      - pos.r
+                      - pos.theta
+                      - pos.phi
 
             - class_path: hepattn.models.InputNet
               init_args:
@@ -543,6 +552,9 @@ model:
                       - pos.x
                       - pos.y
                       - pos.z
+                      - pos.r
+                      - pos.theta
+                      - pos.phi
 
             - class_path: hepattn.models.InputNet
               init_args:
@@ -570,6 +582,9 @@ model:
                       - pos.x
                       - pos.y
                       - pos.z
+                      - pos.r
+                      - pos.theta
+                      - pos.phi
 
       encoder:
         class_path: hepattn.models.Encoder
