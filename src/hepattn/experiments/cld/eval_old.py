@@ -61,9 +61,7 @@ def scalar_sum(x: Any) -> float:
 CONFIG_PATH = Path("src/hepattn/experiments/cld/configs/base.yaml")
 EVAL_CONFIG_NAME = "eval_hadrons"
 EVAL_FILE_PATH = Path(
-    "/share/rcifdata/maxhart/hepattn/logs/"
-    "CLD_8_320_10MeV_neutrals_20251025-T213514/ckpts/"
-    "epoch=002-train_loss=4.08055_test_eval.h5"
+    "/share/rcifdata/maxhart/hepattn/logs/CLD_8_320_10MeV_neutrals_20251025-T213514/ckpts/epoch=002-train_loss=4.08055_test_eval.h5"
 )
 
 HITS = ["vtxd", "trkr", "ecal", "hcal", "muon"]
@@ -82,9 +80,7 @@ def main() -> None:
     data_cfg["batch_size"] = 1
     data_cfg["num_test"] = -1
 
-    eval_cfg_path = Path(
-        f"src/hepattn/experiments/cld/eval_configs/{EVAL_CONFIG_NAME}.yaml"
-    )
+    eval_cfg_path = Path(f"src/hepattn/experiments/cld/eval_configs/{EVAL_CONFIG_NAME}.yaml")
     eval_cfg = yaml.safe_load(eval_cfg_path.read_text())["eval"]
 
     # -----------------------------------------------------------------
@@ -108,10 +104,7 @@ def main() -> None:
     matcher = Matcher(default_solver="scipy", adaptive_solver=False, parallel_solver=False)
 
     bin_types = {"linear": np.linspace, "log": np.geomspace}
-    bins: dict[str, np.ndarray] = {
-        name: bin_types[cfg["scale"]](cfg["min"], cfg["max"], cfg["num"])
-        for name, cfg in eval_cfg["bins"].items()
-    }
+    bins: dict[str, np.ndarray] = {name: bin_types[cfg["scale"]](cfg["min"], cfg["max"], cfg["num"]) for name, cfg in eval_cfg["bins"].items()}
 
     # -----------------------------------------------------------------
     # Histogram objects
@@ -143,9 +136,7 @@ def main() -> None:
         )
 
     # Bulk metrics accumulators
-    bulk_metrics: dict[str, dict[str, float]] = {
-        name: {"n": 0.0, "k": 0.0} for name in eval_cfg["bulk_metrics"]
-    }
+    bulk_metrics: dict[str, dict[str, float]] = {name: {"n": 0.0, "k": 0.0} for name in eval_cfg["bulk_metrics"]}
 
     # -----------------------------------------------------------------
     # Event loop
@@ -200,15 +191,11 @@ def main() -> None:
                 for hit in ("ecal", "hcal"):
                     key = f"{obj}_{hit}_valid"
                     if key in data:
-                        data[f"{obj}_{hit}_energy"] = (
-                            data[key].float() * data[f"{hit}_energy"].unsqueeze(-2)
-                        )
+                        data[f"{obj}_{hit}_energy"] = data[key].float() * data[f"{hit}_energy"].unsqueeze(-2)
                         data[f"{obj}_energy_{hit}"] = data[f"{obj}_{hit}_energy"].sum(-1)
 
             for obj in PRED_OBJECTS:
-                data[f"{obj}_sihit_valid"] = torch.cat(
-                    (data[f"{obj}_vtxd_valid"], data[f"{obj}_trkr_valid"]), dim=-1
-                )
+                data[f"{obj}_sihit_valid"] = torch.cat((data[f"{obj}_vtxd_valid"], data[f"{obj}_trkr_valid"]), dim=-1)
 
             # ---------------------------------------------
             # Matching and binary metrics
@@ -217,12 +204,8 @@ def main() -> None:
                 costs = calc_cost(data, "particle", obj, eval_cfg["match_metrics"]["default"])
                 data = apply_matching(data, "particle", obj, costs, matcher)
 
-                eff_metrics = calc_binary_reco_metrics(
-                    data, "particle", obj, eval_cfg["binary_metrics"]
-                )
-                pur_metrics = calc_binary_reco_metrics(
-                    data, obj, "particle", eval_cfg["binary_metrics"]
-                )
+                eff_metrics = calc_binary_reco_metrics(data, "particle", obj, eval_cfg["binary_metrics"])
+                pur_metrics = calc_binary_reco_metrics(data, obj, "particle", eval_cfg["binary_metrics"])
                 data |= eff_metrics
                 data |= pur_metrics
 
@@ -245,25 +228,13 @@ def main() -> None:
 
                 if f"{obj}_energy_ecal" in data and f"{obj}_energy_hcal" in data:
                     data[f"{obj}_is_charged_hadron"] = (
-                        data[f"{obj}_is_charged"]
-                        & (data[f"{obj}_energy_hcal"] >= 0.1)
-                        & (data[f"{obj}_energy_ecal"] >= 0.1)
+                        data[f"{obj}_is_charged"] & (data[f"{obj}_energy_hcal"] >= 0.1) & (data[f"{obj}_energy_ecal"] >= 0.1)
                     )
                     data[f"{obj}_is_neutral_hadron"] = (
-                        data[f"{obj}_is_neutral"]
-                        & (data[f"{obj}_energy_hcal"] >= 0.1)
-                        & (data[f"{obj}_energy_ecal"] >= 0.1)
+                        data[f"{obj}_is_neutral"] & (data[f"{obj}_energy_hcal"] >= 0.1) & (data[f"{obj}_energy_ecal"] >= 0.1)
                     )
-                    data[f"{obj}_is_electron"] = (
-                        data[f"{obj}_is_charged"]
-                        & (data[f"{obj}_num_hcal"] == 0)
-                        & (data[f"{obj}_energy_ecal"] >= 10)
-                    )
-                    data[f"{obj}_is_photon"] = (
-                        data[f"{obj}_is_neutral"]
-                        & (data[f"{obj}_num_hcal"] == 0)
-                        & (data[f"{obj}_energy_ecal"] >= 10)
-                    )
+                    data[f"{obj}_is_electron"] = data[f"{obj}_is_charged"] & (data[f"{obj}_num_hcal"] == 0) & (data[f"{obj}_energy_ecal"] >= 10)
+                    data[f"{obj}_is_photon"] = data[f"{obj}_is_neutral"] & (data[f"{obj}_num_hcal"] == 0) & (data[f"{obj}_energy_ecal"] >= 10)
                     data[f"{obj}_is_muon"] = (
                         (data[f"{obj}_num_sihit"] >= 4)
                         & (data[f"{obj}_num_ecal"] >= 10)
@@ -337,9 +308,9 @@ def main() -> None:
     # -----------------------------------------------------------------
     # Print bulk metrics
     # -----------------------------------------------------------------
-    for name, _cfg in eval_cfg["bulk_metrics"].items():
-        n = bulk_metrics[name]["n"]
-        k = bulk_metrics[name]["k"]
+    for name, cfg in eval_cfg["bulk_metrics"].items():
+        n = cfg["n"]
+        k = cfg["k"]
         pct = 100.0 * (k / n) if n > 0 else 0.0
         print(f"{name}: {k:.0f}/{n:.0f} ({pct:.3f}%)")
 
@@ -350,7 +321,7 @@ def main() -> None:
         fig, ax = plt.subplots()
         fig.set_size_inches(6, 4)
 
-        for _item_name, item_cfg in cfg["items"].items():
+        for item_cfg in cfg["items"].values():
             ph = poisson_hists[item_cfg["histogram"]]
             n_binned = ph.n
             k_binned = ph.k
@@ -387,7 +358,7 @@ def main() -> None:
         fig, axs = plt.subplots(2, 1)
         fig.set_size_inches(6, 4)
 
-        for _item_name, item_cfg in cfg["items"].items():
+        for item_cfg in cfg["items"].values():
             gh = gauss_hists[item_cfg["histogram"]]
             hcfg = eval_cfg["residual_histograms"][item_cfg["histogram"]]
 
