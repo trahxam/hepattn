@@ -9,7 +9,7 @@ def mask_metric_cost(
     targets: Tensor,
     input_pad_mask: Tensor | None = None,
     metric: Literal["iou", "jac", "dice", "smc", "eff", "pur"] = "iou",
-    ) -> Tensor:
+) -> Tensor:
     # Pred and target masks have shape (batch, num_objects, num_constituents)
     targets = targets.type_as(preds)
 
@@ -48,8 +48,7 @@ def mask_metric_score(
     targets: Tensor,
     input_pad_mask: Tensor | None = None,
     metric: Literal["iou", "jac", "dice", "smc", "eff", "pur"] = "iou",
-    ) -> Tensor:
-
+) -> Tensor:
     targets = targets.type_as(preds)
 
     if input_pad_mask is not None:
