@@ -1,11 +1,11 @@
-# ruff: noqa: N802, E741
+# ruff: noqa: E741, B007
 
 import math
 
 import torch
 
-
 # Taken from https://github.com/MarcCoru/locationencoder/
+
 
 # Spherical Harmonics utilities ########################
 # Code copied from https://github.com/BachiLi/redner/blob/master/pyredner/utils.py
@@ -32,16 +32,13 @@ def associated_legendre_polynomial(l, m, x):
     return pll
 
 
-def SH_renormalization(l, m):
-    return math.sqrt((2.0 * l + 1.0) * math.factorial(l - m) /
-        (4 * math.pi * math.factorial(l + m)))
+def spherical_harmonic_renormalization(l, m):
+    return math.sqrt((2.0 * l + 1.0) * math.factorial(l - m) / (4 * math.pi * math.factorial(l + m)))
 
 
-def SH(m, l, phi, theta):
+def spherical_harmonic(m, l, phi, theta):
     if m == 0:
-        return SH_renormalization(l, m) * associated_legendre_polynomial(l, m, torch.cos(theta))
+        return spherical_harmonic_renormalization(l, m) * associated_legendre_polynomial(l, m, torch.cos(theta))
     if m > 0:
-        return math.sqrt(2.0) * SH_renormalization(l, m) * \
-            torch.cos(m * phi) * associated_legendre_polynomial(l, m, torch.cos(theta))
-    return math.sqrt(2.0) * SH_renormalization(l, -m) * \
-        torch.sin(-m * phi) * associated_legendre_polynomial(l, -m, torch.cos(theta))
+        return math.sqrt(2.0) * spherical_harmonic_renormalization(l, m) * torch.cos(m * phi) * associated_legendre_polynomial(l, m, torch.cos(theta))
+    return math.sqrt(2.0) * spherical_harmonic_renormalization(l, -m) * torch.sin(-m * phi) * associated_legendre_polynomial(l, -m, torch.cos(theta))
