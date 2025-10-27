@@ -1,4 +1,5 @@
 # ruff: noqa
+# type: ignore
 
 """
 analytic expressions of spherical harmonics generated with sympy file 
@@ -13,12 +14,12 @@ to generate the source code
 import torch
 from torch import cos, sin
 
-def get_SH(m,l):
+def get_spherical_harmonic(m,l):
   fname = f"Yl{l}_m{m}".replace("-","_minus_")
   return globals()[fname]
 
-def SH(m, l, phi, theta):
-  Ylm = get_SH(m,l)
+def spherical_harmonic(m, l, phi, theta):
+  Ylm = get_spherical_harmonic(m,l)
   return Ylm(theta, phi)
 
 
