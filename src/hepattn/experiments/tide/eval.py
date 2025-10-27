@@ -112,8 +112,8 @@ def main():
                 pix_true_num = true_pix_valid.sum(-1)
                 pix_pred_num = pred_pix_valid.sum(-1)
 
-                sct_true_num = true_sct_valid.sum(-1)
-                sct_pred_num = pred_sct_valid.sum(-1)  # noqa:
+                sct_true_num = true_sct_valid.sum(-1)  # noqa: F841
+                sct_pred_num = pred_sct_valid.sum(-1)  # noqa: F841
 
                 eps = 1e-6
                 metric = "tmp"
@@ -171,7 +171,7 @@ def main():
                 for qty_name, _, _, bins in pred_qtys:
                     qty = np.full_like(pred_is_pur.astype(np.float32), targets[f"roi_{qty_name}"][0])
 
-                    # Hack to convert to GeV
+                    # Convert to GeV, for now assumes that result was written out in MeV
                     if qty_name == "energy":
                         qty = qty / 1000.0
 

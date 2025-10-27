@@ -177,6 +177,8 @@ binary_histograms = {
     for name, cfg in binary_histogram_config.items()
 }
 
+max_events = 1000
+
 print("\nBinary histogram spec:\n")
 for name, hist in binary_histograms.items():
     print(name.ljust(48), hist.field.ljust(32), hist.selection.ljust(32), hist.numerator.ljust(48), hist.denominator.ljust(48))
@@ -214,9 +216,7 @@ eval_file_path = Path(
     "/share/rcifdata/maxhart/hepattn/logs/CLD_8_320_10MeV_neutrals_20251025-T213514/ckpts/epoch=002-train_loss=4.08055_test_eval.h5"
 )
 
-output_path = Path(
-    "/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/plots/eval"
-)
+output_path = Path("/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/plots/eval")
 
 num_events = 10
 
@@ -256,7 +256,7 @@ with h5py.File(eval_file_path, "r") as eval_file:
         data |= inputs
 
         for hit in ["vtxd", "trkr", "ecal", "hcal", "muon"]:
-            data[f"flow_{hit}_valid"] = data[f"flow_{hit}_valid"][:, :, :data[f"{hit}_valid"].shape[-1]]
+            data[f"flow_{hit}_valid"] = data[f"flow_{hit}_valid"][:, :, : data[f"{hit}_valid"].shape[-1]]
 
         # Add extra information to the objects
         for object_name in object_names:
@@ -296,6 +296,9 @@ with h5py.File(eval_file_path, "r") as eval_file:
 
         for histogram in binary_histograms.values():
             histogram.fill(data)
+
+        if max_events is not None and i + 1 >= max_events:
+            break
 
 
 for name, hist in binary_histograms.items():
