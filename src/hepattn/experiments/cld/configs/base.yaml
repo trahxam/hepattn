@@ -1,4 +1,4 @@
-name: CLD_2_320_10MeV_neutrals
+name: CLD_5_320_10MeV_neutrals
 
 matmul_precision: high
 
@@ -15,7 +15,7 @@ data:
   num_val: 100
 
   # Minibatch size / number of events used per training step
-  batch_size: 2
+  batch_size: 5
 
   # Precision of any float values returned by the dataloader
   input_dtype: float32
@@ -379,7 +379,7 @@ trainer:
       project: cld
 
   callbacks:
-    - class_path: hepattn.callbacks.Compile
+    # - class_path: hepattn.callbacks.Compile
     - class_path: hepattn.callbacks.InferenceTimer
     - class_path: hepattn.callbacks.SaveConfig
     - class_path: hepattn.callbacks.Checkpoint
