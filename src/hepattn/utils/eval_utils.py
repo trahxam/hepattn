@@ -79,7 +79,6 @@ def calc_cost(data: dict[str, Tensor], true: str, pred: str, metrics: dict) -> T
     Tensor
         Total cost tensor of shape (batch_size, num_objects, num_objects).
     """
-
     total_cost: Tensor | None = None
 
     for constituent, metric in metrics.items():
