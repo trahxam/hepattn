@@ -90,7 +90,7 @@ class MaskFormer(nn.Module):
 
         # If all key_valid are true, then we can just set it to None, however,
         # if we are using flash-varlen, we have to always provide a kv_mask argument
-        if batch_size == 1 and x["key_valid"].all() and self.encoder.attn_type != "flash_varlen":
+        if batch_size == 1 and x["key_valid"].all() and self.encoder.attn_type != "flash-varlen":
             x["key_valid"] = None
 
         # LEGACY. TODO: remove
