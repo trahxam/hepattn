@@ -298,8 +298,7 @@ def main() -> None:
 
             # Track largest event occupancy
             num_particles = float(data["event_num_particle"].detach().cpu().item())
-            if num_particles > largest_num_particles:
-                largest_num_particles = num_particles
+            largest_num_particles = max(largest_num_particles, num_particles)
 
             if MAX_EVENTS is not None and i + 1 >= MAX_EVENTS:
                 break

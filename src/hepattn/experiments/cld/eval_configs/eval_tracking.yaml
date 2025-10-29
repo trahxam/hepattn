@@ -15,7 +15,7 @@ eval:
         thresh: 0.5
         metric: eff
         field: valid
-      
+
       - hit: sihit
         thresh: 0.5
         metric: pur
@@ -64,7 +64,7 @@ eval:
       max: 50
       num: 32
       scale: linear
-    
+
     num_sihit:
       min: 0.5
       max: 24.5
@@ -76,7 +76,7 @@ eval:
       max: 3.14
       num: 32
       scale: log
-    
+
     eta:
       min: -3
       max: 3
@@ -91,14 +91,14 @@ eval:
       selection: charged_reconstructable_tight
       denominator: charged_reconstructable_tight
       numerator: sitrack_charged_reconstructed_tight
-    
+
     flow_charged_eff_tight:
       object_name: particle
       selection: charged_reconstructable_tight
       denominator: charged_reconstructable_tight
       numerator: flow_charged_reconstructed_tight
 
-      
+
     pandora_charged_eff_tight:
       object_name: particle
       selection: charged_reconstructable_tight
@@ -110,14 +110,14 @@ eval:
       selection: charged_reconstructable_loose
       denominator: charged_reconstructable_loose
       numerator: sitrack_charged_reconstructed_tight
-    
+
     flow_charged_eff_loose:
       object_name: particle
       selection: charged_reconstructable_loose
       denominator: charged_reconstructable_loose
       numerator: flow_charged_reconstructed_tight
 
-      
+
     pandora_charged_eff_loose:
       object_name: particle
       selection: charged_reconstructable_loose
@@ -244,7 +244,7 @@ eval:
       selection: charged_reconstructable_tight
       denominator: charged_reconstructable_tight
       numerator: flow_charged_reconstructed_tight
-    
+
     sitrack_charged_vtx_r:
       object_name: particle
       field: vtx.r
@@ -283,14 +283,14 @@ eval:
       xlabel: "Truth Particle $p_T$ [GeV]"
       ylabel: "Tracking Efficiency"
       scale: log
-      
-      items:        
+
+      items:
         flow:
           histogram: flow_charged_pt
           label: "MaskFormer, tight"
           color: mediumvioletred
           linestyle: "-"
-        
+
         sitrack:
           histogram: sitrack_charged_pt
           label: "Conformal, tight"
@@ -301,14 +301,14 @@ eval:
       xlabel: "Truth Particle $p_T$ [GeV]"
       ylabel: "Tracking Efficiency"
       scale: log
-      
-      items:        
+
+      items:
         flow:
           histogram: flow_charged_pt_loose
           label: "MaskFormer, loose"
           color: mediumvioletred
           linestyle: "-"
-        
+
         sitrack:
           histogram: sitrack_charged_pt_loose
           label: "Conformal, loose"
@@ -319,14 +319,14 @@ eval:
       xlabel: "Truth Particle $p_T$ [GeV]"
       ylabel: "Tracking Efficiency"
       scale: log
-      
-      items:        
+
+      items:
         flow:
           histogram: flow_charged_pt
           label: "MaskFormer, tight"
           color: mediumvioletred
           linestyle: "-"
-        
+
         sitrack:
           histogram: sitrack_charged_pt
           label: "Conformal, tight"
@@ -338,19 +338,19 @@ eval:
           label: "Pandora, tight"
           color: cornflowerblue
           linestyle: "-"
-        
+
     pt_loose_charged:
       xlabel: "Particle $p_T$ [GeV]"
       ylabel: "Tracking Efficiency"
       scale: log
-      
-      items:        
+
+      items:
         flow:
           histogram: flow_loose_charged_pt
           label: "MaskFormer, loose"
           color: mediumvioletred
           linestyle: "-"
-        
+
         sitrack:
           histogram: sitrack_loose_charged_pt
           label: "Conformal, loose"
@@ -361,14 +361,14 @@ eval:
       xlabel: "Particle Number of Silicon Tracker Hits"
       ylabel: "Tracking Efficiency"
       scale: linear
-      
+
       items:
         sitrack_loose:
           histogram: sitrack_charged_num_sihit
           label: "Conformal, loose"
           color: mediumseagreen
           linestyle: "-"
-        
+
         flow_loose:
           histogram: flow_charged_num_sihit
           label: "MaskFormer, loose"
@@ -379,14 +379,14 @@ eval:
       xlabel: "Angular Isolation"
       ylabel: "Tracking Efficiency"
       scale: log
-      
+
       items:
         sitrack_loose:
           histogram: sitrack_charged_isolation
           label: "Conformal, loose"
           color: mediumseagreen
           linestyle: "-"
-        
+
         flow_loose:
           histogram: flow_charged_isolation
           label: "MaskFormer loose"
@@ -398,14 +398,14 @@ eval:
       xlabel: "Particle Vertex $r$ [mm]"
       ylabel: "Tracking Efficiency"
       scale: linear
-      
+
       items:
         sitrack_loose:
           histogram: sitrack_charged_vtx_r
           label: "Conformal loose"
           color: mediumseagreen
           linestyle: "-"
-        
+
         flow_loose:
           histogram: flow_charged_vtx_r
           label: "MaskFormer loose"
@@ -416,14 +416,14 @@ eval:
       xlabel: "Particle Pseudorapidity"
       ylabel: "Tracking Efficiency"
       scale: linear
-      
+
       items:
         sitrack_loose:
           histogram: sitrack_charged_eta
           label: "Conformal loose"
           color: mediumseagreen
           linestyle: "-"
-        
+
         flow_loose:
           histogram: flow_charged_eta
           label: "MaskFormer loose"
