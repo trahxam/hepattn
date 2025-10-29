@@ -141,7 +141,7 @@ eval:
       max: 50
       num: 32
       scale: linear
-    
+
     num_sihit:
       min: 0.5
       max: 24.5
@@ -216,21 +216,21 @@ eval:
       selection: particle_charged_reconstructable
       true_field: particle_energy_ecal
       pred_field: pandora_energy_ecal
-    
+
     flow_charged_ecal:
       field: particle_energy_ecal
       bins: energy
       selection: particle_charged_reconstructable
       true_field: particle_energy_ecal
       pred_field: flow_energy_ecal
-    
+
     pandora_neutral_ecal:
       field: particle_energy_ecal
       bins: energy
       selection: particle_neutral_reconstructable
       true_field: particle_energy_ecal
       pred_field: pandora_energy_ecal
-    
+
     flow_neutral_ecal:
       field: particle_energy_ecal
       bins: energy
@@ -244,21 +244,21 @@ eval:
       selection: particle_charged_reconstructable
       true_field: particle_energy_hcal
       pred_field: pandora_energy_hcal
-    
+
     flow_charged_hcal:
       field: particle_energy_hcal
       bins: energy
       selection: particle_charged_reconstructable
       true_field: particle_energy_hcal
       pred_field: flow_energy_hcal
-    
+
     pandora_neutral_hcal:
       field: particle_energy_hcal
       bins: energy
       selection: particle_neutral_reconstructable
       true_field: particle_energy_hcal
       pred_field: pandora_energy_hcal
-    
+
     flow_neutral_hcal:
       field: particle_energy_hcal
       bins: energy
@@ -398,26 +398,26 @@ eval:
       xlabel: "Truth Particle $p_T$ [GeV]"
       ylabel: "Charged Hadron Efficiency"
       scale: log
-      
-      items:        
+
+      items:
         flow:
           histogram: flow_charged_pt
           label: "MaskFormer, tight"
           color: mediumvioletred
           linestyle: "-"
-        
+
         pandora:
           histogram: pandora_charged_pt
           label: "Pandora, tight"
           color: cornflowerblue
           linestyle: "-"
-     
+
         flow_loose:
           histogram: flow_loose_charged_pt
           label: "MaskFormer, loose"
           color: mediumvioletred
           linestyle: "--"
-        
+
         pandora_loose:
           histogram: pandora_loose_charged_pt
           label: "Pandora, loose"
@@ -428,29 +428,28 @@ eval:
       xlabel: "Truth Particle $p_T$ [GeV]"
       ylabel: "Neutral Hadron Efficiency"
       scale: log
-      
-      items:        
+
+      items:
         flow:
           histogram: flow_neutral_pt
           label: "MaskFormer, tight"
           color: mediumvioletred
           linestyle: "-"
-        
+
         pandora:
           histogram: pandora_neutral_pt
           label: "Pandora, tight"
           color: cornflowerblue
           linestyle: "-"
-    
+
         flow_loose:
           histogram: flow_loose_neutral_pt
           label: "MaskFormer, loose"
           color: mediumvioletred
           linestyle: "--"
-        
+
         pandora_loose:
           histogram: pandora_loose_neutral_pt
           label: "Pandora, loose"
           color: cornflowerblue
           linestyle: "--"
-

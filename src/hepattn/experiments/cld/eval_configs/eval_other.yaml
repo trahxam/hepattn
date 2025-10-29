@@ -30,7 +30,7 @@ eval:
         thresh: 0.75
         metric: eff
         field: valid
-      
+
       - hit: sihit
         thresh: 0.75
         metric: pur
@@ -40,7 +40,7 @@ eval:
         thresh: 0.75
         metric: eff
         field: valid
-      
+
       - hit: ecal
         thresh: 0.75
         metric: pur
@@ -51,7 +51,7 @@ eval:
         thresh: 0.75
         metric: eff
         field: valid
-      
+
       - hit: ecal
         thresh: 0.75
         metric: pur
@@ -62,7 +62,7 @@ eval:
         thresh: 0.75
         metric: eff
         field: valid
-      
+
       - hit: sihit
         thresh: 0.75
         metric: pur
@@ -72,7 +72,7 @@ eval:
         thresh: 0.75
         metric: eff
         field: valid
-      
+
       - hit: ecal
         thresh: 0.75
         metric: pur
@@ -82,7 +82,7 @@ eval:
         thresh: 0.75
         metric: eff
         field: valid
-      
+
       - hit: hcal
         thresh: 0.75
         metric: pur
@@ -92,7 +92,7 @@ eval:
         thresh: 0.75
         metric: eff
         field: valid
-      
+
       - hit: muon
         thresh: 0.75
         metric: pur
@@ -172,7 +172,7 @@ eval:
       max: 50
       num: 32
       scale: linear
-    
+
     num_sihit:
       min: 0.5
       max: 24.5
@@ -191,19 +191,19 @@ eval:
       selection: electron_reconstructable
       denominator: electron_reconstructable
       numerator: pandora_electron_reconstructed
-    
+
     electron_flow_eff:
       object_name: particle
       selection: electron_reconstructable
       denominator: electron_reconstructable
       numerator: flow_electron_reconstructed
-    
+
     photon_pandora_eff:
       object_name: particle
       selection: photon_reconstructable
       denominator: photon_reconstructable
       numerator: pandora_photon_reconstructed
-    
+
     photon_flow_eff:
       object_name: particle
       selection: photon_reconstructable
@@ -266,7 +266,7 @@ eval:
       selection: particle_electron_reconstructable_loose
       true_field: particle_energy_ecal
       pred_field: pandora_energy_ecal
-    
+
     flow_electron_ecal:
       field: particle_energy_ecal
       bins: energy
@@ -280,14 +280,14 @@ eval:
       selection: particle_photon_reconstructable_loose
       true_field: particle_energy_ecal
       pred_field: pandora_energy_ecal
-    
+
     flow_photon_ecal:
       field: particle_energy_ecal
       bins: energy
       selection: particle_photon_reconstructable_loose
       true_field: particle_energy_ecal
       pred_field: flow_energy_ecal
-    
+
 
   histograms:
     # Charged pt hists
@@ -338,7 +338,7 @@ eval:
       selection: photon_reconstructable
       denominator: photon_reconstructable
       numerator: flow_photon_reconstructed
-    
+
     pandora_photon_loose:
       object_name: particle
       field: mom.r
@@ -407,14 +407,14 @@ eval:
       xlabel: "Truth Particle $p_T$ [GeV]"
       ylabel: "Electron Efficiency"
       scale: log
-      
-      items:        
+
+      items:
         flow:
           histogram: flow_electron
           label: "MaskFormer tight"
           color: mediumvioletred
           linestyle: "-"
-        
+
         pandora:
           histogram: pandora_electron
           label: "Pandora tight"
@@ -426,7 +426,7 @@ eval:
           label: "MaskFormer loose"
           color: mediumvioletred
           linestyle: "--"
-        
+
         pandora_loose:
           histogram: pandora_electron_loose
           label: "Pandora loose"
@@ -437,14 +437,14 @@ eval:
       xlabel: "Truth Particle $p_T$ [GeV]"
       ylabel: "Photon Efficiency"
       scale: log
-      
-      items:        
+
+      items:
         flow:
           histogram: flow_photon
           label: "MaskFormer tight"
           color: mediumvioletred
           linestyle: "-"
-        
+
         pandora:
           histogram: pandora_photon
           label: "Pandora tight"
@@ -456,7 +456,7 @@ eval:
           label: "MaskFormer loose"
           color: mediumvioletred
           linestyle: "--"
-        
+
         pandora_loose:
           histogram: pandora_photon_loose
           label: "Pandora loose"
@@ -467,14 +467,14 @@ eval:
       xlabel: "Truth Particle $p_T$ [GeV]"
       ylabel: "Muon Efficiency"
       scale: log
-      
-      items:        
+
+      items:
         flow:
           histogram: flow_muon
           label: "MaskFormer"
           color: mediumvioletred
           linestyle: "-"
-        
+
         pandora:
           histogram: pandora_muon
           label: "Pandora"
