@@ -109,7 +109,7 @@ class CLDDataset(LRSMDataset):
         # Allow us to select events by index
         self.event_filenames = event_filenames[: self.num_samples]
 
-        def event_filenames_to_sample_id(event_filename):
+        def event_filenames_to_event_id(event_filename):
             id_parts = str(event_filename.stem.replace("_condor", "")).split("_")
             job_id = id_parts[-3]
             proc_id = id_parts[-2]
@@ -118,19 +118,22 @@ class CLDDataset(LRSMDataset):
 
         # Define the sample identifiers unique to each sample, uses the file name
         # Example: reco_p8_ee_tt_ecm365_12012864_7_329 -> 1201286470329
-        self.sample_ids = [event_filenames_to_sample_id(f) for f in self.event_filenames]
-        self.sample_ids_to_event_filenames = {self.sample_ids[i]: str(self.event_filenames[i]) for i in range(len(self.sample_ids))}
+        self.event_ids = [event_filenames_to_event_id(f) for f in self.event_filenames]
+        self.event_ids_to_event_filenames = {self.event_ids[i]: str(self.event_filenames[i]) for i in range(len(self.event_ids))}
 
-    def load_event(self, sample_id: int) -> dict[str, np.ndarray] | None:
+        # Initialise sample IDs for the parent class
+        self.sample_ids = self.event_ids
+
+    def load_event(self, event_id: int) -> dict[str, np.ndarray] | None:
         """Loads a single CLD event from a preprocessed npz file."""
-        event_filename = self.sample_ids_to_event_filenames[sample_id]
+        event_filename = self.event_ids_to_event_filenames[event_id]
 
         # Load the event, taking care to deal with partially preprocessed / malformed events
         try:
             with np.load(event_filename, allow_pickle=True) as archive:
                 event = {key: archive[key] for key in archive.files}
         except EOFError as exception:
-            print(f"Encountered exception {exception} while loading sample {sample_id} so skipping it")
+            print(f"Encountered exception {exception} while loading sample {event_id} so skipping it")
             return None
 
         # Rename from legacy
@@ -567,12 +570,14 @@ class CLDDataset(LRSMDataset):
                 event[f"{target_name}_{field}"] = event[f"{target_name}.{field}"]
 
         # Add any metadata
-        event["sample_id"] = sample_id
+        event["event_id"] = event_id
 
         return event
 
-    def load_sample(self, sample_id: int) -> dict[str, np.ndarray] | None:
-        return self.load_event(sample_id)
+    def load_sample(self, event_id: int) -> dict[str, np.ndarray] | None:
+        return self.load_event(event_id)
+
+
 
 
 class CLDDataModule(LightningDataModule):
