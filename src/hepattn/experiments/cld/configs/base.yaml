@@ -4,9 +4,9 @@ matmul_precision: high
 
 data:
   # Paths to preprocessed data directories
-  train_dir: /share/rcifdata/maxhart/data/cld/prepped/train/
-  val_dir: /share/rcifdata/maxhart/data/cld/prepped/val/
-  test_dir: /share/rcifdata/maxhart/data/cld/prepped/test/
+  train_dir: /share/rcifdata/maxhart/data/cld/prepped/train_new/
+  val_dir: /share/rcifdata/maxhart/data/cld/prepped/val_new/
+  test_dir: /share/rcifdata/maxhart/data/cld/prepped/test_new/
 
   # Number of events to include in each set
   num_workers: 8
