@@ -2,9 +2,9 @@ name: TIDE_100batch_64trk
 
 data:
   batch_size: 100
-  train_dir: /share/rcif2/maxhart/data/tide/prepped/
-  val_dir: /share/rcif2/maxhart/data/tide/prepped/
-  test_dir: /share/rcif2/maxhart/data/tide/prepped/
+  train_dir: data/tide/prepped/
+  val_dir: data/tide/prepped/
+  test_dir: data/tide/prepped/
   num_workers: 10
   num_train: 10000000
   num_test: 10000
