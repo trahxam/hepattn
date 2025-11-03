@@ -1,7 +1,12 @@
+# ruff: noqa: E741
+
 import math
 
 import torch
 from torch import Tensor, nn
+
+from hepattn.utils.spherical_harmonics_basis import spherical_harmonic as spherical_harmonic_analytic
+from hepattn.utils.spherical_harmonics_closed_form import spherical_harmonic as spherical_harmonic_closed_form
 
 
 def get_omegas(alpha, dim, base, **kwargs):
@@ -136,3 +141,70 @@ class FourierPositionEncoder(nn.Module):
         xs = 2 * self.pi * xs
         xs @= self.B
         return torch.cat([torch.sin(xs), torch.cos(xs)], dim=-1)
+
+
+class SphericalHarmonicEncoder(nn.Module):
+    def __init__(
+        self,
+        input_name: str,
+        dim: int,
+        legendre_polys: int = 12,
+        harmonics_calculation="closed-form",
+        phi_field="phi",
+        theta_field="theta",
+        radius_field="r",
+    ):
+        """Encodes spherical coordinates by combining spherical harmonics (angular) and sinusoidal (radial) encodings.
+
+        Args:
+            input_name (str): Prefix for input dict keys (e.g. "hit" -> "hit_phi").
+            dim (int): Total embedding dimension.
+            legendre_polys (int): Number of Legendre polynomials (angular resolution).
+            harmonics_calculation (str): "analytic" (fast, up to l≈50) or "closed-form" (slower, general).
+            phi_field (str): Field name suffix for azimuthal angle. Default: "phi".
+            theta_field (str): Field name suffix for polar angle. Default: "theta".
+            radius_field (str): Field name suffix for radius. Default: "r".
+
+        Inputs:
+            inputs (dict[str, Tensor]): Must contain
+                f"{input_name}_{phi_field}",
+                f"{input_name}_{theta_field}",
+                f"{input_name}_{radius_field}".
+        """
+        super().__init__()
+        self.input_name = input_name
+        self.L = int(legendre_polys)
+        self.M = int(legendre_polys)
+        self.dim = dim
+
+        self.phi_field = phi_field
+        self.theta_field = theta_field
+        self.radius_field = radius_field
+
+        if harmonics_calculation == "closed-form":
+            self.spherical_harmonic = spherical_harmonic_closed_form
+        elif harmonics_calculation == "analytic":
+            self.spherical_harmonic = spherical_harmonic_analytic
+
+    def forward(self, inputs: dict[str, Tensor]) -> Tensor:
+        phi = inputs[f"{self.input_name}_{self.phi_field}"]
+        theta = inputs[f"{self.input_name}_{self.theta_field}"]
+        radius = inputs[f"{self.input_name}_{self.radius_field}"]
+
+        # Calculate the angular embedding
+        harmonics = []
+        for l in range(self.L):
+            for m in range(-l, l + 1):
+                y = self.spherical_harmonic(m, l, phi, theta)
+                if isinstance(y, float):
+                    y = y * torch.ones_like(phi)
+                harmonics.append(y)
+
+        # Create the angular embedding
+        angular = torch.stack(harmonics, dim=-1)
+
+        # Use the remainder of the dimension for the radial embedding
+        radial = pos_enc(radius, dim=self.dim - angular.shape[-1])
+
+        # Combine the angular and radial embeddings
+        return torch.cat([angular, radial], dim=-1)
