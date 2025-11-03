@@ -511,7 +511,7 @@ model:
         class_path: torch.nn.ModuleList
         init_args:
           modules:
-            - class_path: hepattn.models.task.ObjectGaussianRegressionTask
+            - class_path: hepattn.models.task.ObjectRegressionTask
               init_args:
                 name: flow_regression
                 input_object: query
