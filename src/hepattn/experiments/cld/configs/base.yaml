@@ -1,21 +1,21 @@
-name: CLD_8_320_10MeV_neutrals
+name: CLD_4_320_10MeV_neutrals
 
 matmul_precision: high
 
 data:
   # Paths to preprocessed data directories
-  train_dir: /share/rcifdata/maxhart/data/cld/prepped/train_new/
-  val_dir: /share/rcifdata/maxhart/data/cld/prepped/val_new/
-  test_dir: /share/rcifdata/maxhart/data/cld/prepped/test_new/
+  train_dir: /share/lustre/maxhart/data/prepped_new/
+  val_dir: /share/lustre/maxhart/data/prepped_new/
+  test_dir: /share/lustre/maxhart/data/prepped_new/
 
   # Number of events to include in each set
-  num_workers: 8
+  num_workers: 10
   num_train: -1
   num_test: 1000
   num_val: 100
 
   # Minibatch size / number of events used per training step
-  batch_size: 8
+  batch_size: 4
 
   # Precision of any float values returned by the dataloader
   input_dtype: float32
