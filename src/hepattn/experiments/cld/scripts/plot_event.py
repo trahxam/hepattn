@@ -28,6 +28,8 @@ sample_ids = [
     1226276301410779,
 ]
 
+sample_ids = test_dataloader.dataset.sample_ids[:10]
+
 axes_spec = [
     {
         "x": "pos.x",
@@ -49,6 +51,7 @@ pdf_path = out_dir / "cld_events.pdf"
 with PdfPages(pdf_path) as pdf:
     for sample_id in sample_ids:
         sample = test_dataloader.dataset.load_sample(sample_id)
+        filename = Path(test_dataloader.dataset.event_ids_to_event_filenames[sample_id]).stem
         inputs, targets = test_dataloader.dataset.prep_sample(sample)
         data = inputs | targets
 
@@ -57,7 +60,7 @@ with PdfPages(pdf_path) as pdf:
         fig.axes[0].set_ylim(-3.5, 3.5)
         fig.axes[1].set_xlim(-5.0, 5.0)
         fig.axes[1].set_ylim(-3.5, 3.5)
-        fig.suptitle(f"CLD Event {sample_id}")
+        fig.suptitle(f"CLD Event {sample_id} ({filename})")
 
         pdf.savefig(fig)
         plt.close(fig)

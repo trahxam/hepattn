@@ -1,4 +1,4 @@
-name: CLD_4_320_10MeV_neutrals
+name: CLD_5_320_10MeV_neutrals_shuffled
 
 matmul_precision: high
 
@@ -15,7 +15,7 @@ data:
   num_val: 100
 
   # Minibatch size / number of events used per training step
-  batch_size: 4
+  batch_size: 5
 
   # Precision of any float values returned by the dataloader
   input_dtype: float32
