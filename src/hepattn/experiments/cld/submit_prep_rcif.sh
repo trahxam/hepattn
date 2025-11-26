@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=4G
 #SBATCH --output=/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/slurm_logs/slurm-%j.%x.out
-#SBATCH --array 0-4
+#SBATCH --array 0-24
 
 # Used for preprocessing raw CLD samples into binary parquet files used for training
 
@@ -23,8 +23,8 @@ echo "Running preprocessing script..."
 
 # Change these to wherever your data is, or get access to them
 #IN_DIR="/share/rcifdata/maxhart/data/cld/raw/val/"
-IN_DIR="/share/rcif2/maxhart/data/cld/test/raw/"
-OUT_DIR="/share/rcif2/maxhart/data/cld/test/prepped/"
+IN_DIR="/share/lustre/maxhart/data/cld/raw"
+OUT_DIR="/share/lustre/maxhart/data/prepped_new"
 
 # Python command that will be run
 # Note we specify a minimum pT cut, particles below this will be removed
