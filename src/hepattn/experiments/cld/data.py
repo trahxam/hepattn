@@ -2,6 +2,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+import random
 from lightning import LightningDataModule
 from scipy.sparse import csr_array, csr_matrix
 from torch.utils.data import DataLoader
@@ -105,6 +106,9 @@ class CLDDataset(LRSMDataset):
         self.num_samples = min(num_available_events, num_requested_events)
 
         print(f"Found {num_available_events} available events, {num_requested_events} requested, {self.num_samples} used")
+
+        # Shuffle events so we don't order by event class
+        random.shuffle(event_filenames)
 
         # Allow us to select events by index
         self.event_filenames = event_filenames[: self.num_samples]
