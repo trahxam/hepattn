@@ -42,6 +42,7 @@ class CLDDataset(LRSMDataset):
         particle_hit_deflection_cuts: dict[str, dict[str, float | int]] | None = None,
         particle_hit_separation_cuts: dict[str, dict[str, float | int]] | None = None,
         particle_min_calib_calo_energy: dict[str, float] | None = None,
+        event_max_num_particles: int = 320,
         truth_filter_hits: list[str] | None = None,
         calo_energy_thresh: float = 1e-6,
     ):
@@ -98,6 +99,7 @@ class CLDDataset(LRSMDataset):
         self.particle_hit_separation_cuts = particle_hit_separation_cuts
         self.truth_filter_hits = truth_filter_hits
         self.calo_energy_thresh = calo_energy_thresh
+        self.event_max_num_particles = event_max_num_particles
 
         # Setup the number of events that will be used
         event_filenames = list(Path(self.dirpath).rglob("*reco*.npz"))
@@ -504,6 +506,14 @@ class CLDDataset(LRSMDataset):
         for hit_name, min_num_hits in self.particle_cut_veto_min_num_hits.items():
             event["particle_valid"] = event["particle_valid"] | (event[f"particle_{hit_name}_valid"].sum(-1) > min_num_hits)
 
+        # Need to re-apply these in case the veto made them valid again
+        # TODO: Do this in a cleaner way
+        if not self.include_charged:
+            event["particle_valid"] = event["particle_valid"] & (~event["particle.is_charged"])
+
+        if not self.include_neutral:
+            event["particle_valid"] = event["particle_valid"] & (~event["particle.is_neutral"])
+
         # Remove any mask slots for invalid particles
         for input_name in self.inputs:
             event[f"particle_{input_name}_valid"] &= event["particle_valid"][:, np.newaxis]
@@ -540,6 +550,10 @@ class CLDDataset(LRSMDataset):
 
         # Event level info
         event["event_num_particles"] = event["particle_valid"].sum()
+
+        # Apply event level cuts
+        if event["event_num_particles"] > self.event_max_num_particles:
+            return None
 
         for input_name in self.inputs:
             event[f"event_num_{input_name}"] = ~np.isnan(event[f"{input_name}.type"]).sum()
