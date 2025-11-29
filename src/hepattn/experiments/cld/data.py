@@ -6,6 +6,7 @@ import random
 from lightning import LightningDataModule
 from scipy.sparse import csr_array, csr_matrix
 from torch.utils.data import DataLoader
+from zipfile import BadZipFile
 
 from hepattn.utils.array_utils import masked_angle_diff_last_axis, masked_diff_last_axis
 from hepattn.utils.lrsm_dataset import LRSMDataset
@@ -138,7 +139,7 @@ class CLDDataset(LRSMDataset):
         try:
             with np.load(event_filename, allow_pickle=True) as archive:
                 event = {key: archive[key] for key in archive.files}
-        except EOFError as exception:
+        except (EOFError, BadZipFile) as exception:
             print(f"Encountered exception {exception} while loading sample {event_id} so skipping it")
             return None
 

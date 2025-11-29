@@ -61,8 +61,8 @@ def scalar_sum(x: Any) -> float:
 
 EVAL_CONFIG_NAME = "eval_tracking"
 EVAL_FILE_PATH = Path(
-    # "/share/rcifdata/maxhart/hepattn/logs/CLD_5_320_10MeV_charged_tracking_20251127-T105254/ckpts/epoch=001-train_loss=1.04790_prepped_new_eval.h5"
-    "/share/rcifdata/maxhart/hepattn/logs/CLD_5_320_10MeV_all_20251127-T105154/ckpts/epoch=001-train_loss=2.32881_prepped_new_eval.h5"
+    "/share/rcifdata/maxhart/hepattn/logs/CLD_5_320_10MeV_charged_tracking_20251127-T105254/ckpts/epoch=001-train_loss=1.04790_prepped_new_eval.h5"
+    #"/share/rcifdata/maxhart/hepattn/logs/CLD_5_320_10MeV_all_20251127-T105154/ckpts/epoch=001-train_loss=2.32881_prepped_new_eval.h5"
 )
 
 CONFIG_PATH = EVAL_FILE_PATH.parent.parent / "config.yaml"
