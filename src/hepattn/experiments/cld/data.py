@@ -165,6 +165,8 @@ class CLDDataset(LRSMDataset):
             event[f"{i}.{p}.r"] = np.sqrt(event[f"{i}.{p}.x"] ** 2 + event[f"{i}.{p}.y"] ** 2)
             event[f"{i}.{p}.s"] = np.sqrt(event[f"{i}.{p}.x"] ** 2 + event[f"{i}.{p}.y"] ** 2 + event[f"{i}.{p}.z"] ** 2)
             event[f"{i}.{p}.theta"] = np.arccos(event[f"{i}.{p}.z"] / event[f"{i}.{p}.s"])
+            event[f"{i}.{p}.r_mm"] = event[f"{i}.{p}.r"] * 1000.0
+            event[f"{i}.{p}.s_mm"] = event[f"{i}.{p}.s"] * 1000.0
 
             with np.errstate(invalid="ignore"):
                 event[f"{i}.{p}.eta"] = -np.log(np.tan(event[f"{i}.{p}.theta"] / 2))
