@@ -1,4 +1,4 @@
-name: CLD_8_256_10MeV_all
+name: CLD_4_256_10MeV_all_PE
 
 matmul_precision: high
 
@@ -15,7 +15,7 @@ data:
   num_val: 100
 
   # Minibatch size / number of events used per training step
-  batch_size: 8
+  batch_size: 4
 
   # Precision of any float values returned by the dataloader
   input_dtype: float32
@@ -451,7 +451,7 @@ model:
                     output_size: *dim
                     activation: SwiGLU
                 posenc:
-                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  class_path: hepattn.models.posenc.PositionEncoder
                   init_args:
                     input_name: vtxd
                     dim: *dim
@@ -489,7 +489,7 @@ model:
                     output_size: *dim
                     activation: SwiGLU
                 posenc:
-                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  class_path: hepattn.models.posenc.PositionEncoder
                   init_args:
                     input_name: trkr
                     dim: *dim
@@ -522,7 +522,7 @@ model:
                     output_size: *dim
                     activation: SwiGLU
                 posenc:
-                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  class_path: hepattn.models.posenc.PositionEncoder
                   init_args:
                     input_name: ecal
                     dim: *dim
@@ -555,7 +555,7 @@ model:
                     output_size: *dim
                     activation: SwiGLU
                 posenc:
-                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  class_path: hepattn.models.posenc.PositionEncoder
                   init_args:
                     input_name: hcal
                     dim: *dim
@@ -587,7 +587,7 @@ model:
                     output_size: *dim
                     activation: SwiGLU
                 posenc:
-                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  class_path: hepattn.models.posenc.PositionEncoder
                   init_args:
                     input_name: muon
                     dim: *dim
