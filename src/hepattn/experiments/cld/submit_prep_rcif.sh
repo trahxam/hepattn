@@ -5,9 +5,9 @@
 #SBATCH --export=ALL
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=1
-#SBATCH --mem=4G
+#SBATCH --mem=2G
 #SBATCH --output=/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/slurm_logs/slurm-%j.%x.out
-#SBATCH --array 0-24
+#SBATCH --array 0-32
 
 # Used for preprocessing raw CLD samples into binary parquet files used for training
 

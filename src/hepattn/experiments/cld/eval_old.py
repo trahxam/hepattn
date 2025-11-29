@@ -58,14 +58,17 @@ def scalar_sum(x: Any) -> float:
 # ---------------------------------------------------------------------
 # Configurable constants
 # ---------------------------------------------------------------------
-CONFIG_PATH = Path("src/hepattn/experiments/cld/configs/base.yaml")
-EVAL_CONFIG_NAME = "eval_hadrons"
+
+EVAL_CONFIG_NAME = "eval_tracking"
 EVAL_FILE_PATH = Path(
-    "/share/rcifdata/maxhart/hepattn/logs/CLD_2_320_10MeV_neutrals_20251026-T230553/ckpts/epoch=000-train_loss=3.05229_test_eval.h5"
+    # "/share/rcifdata/maxhart/hepattn/logs/CLD_5_320_10MeV_charged_tracking_20251127-T105254/ckpts/epoch=001-train_loss=1.04790_prepped_new_eval.h5"
+    "/share/rcifdata/maxhart/hepattn/logs/CLD_5_320_10MeV_all_20251127-T105154/ckpts/epoch=001-train_loss=2.32881_prepped_new_eval.h5"
 )
 
+CONFIG_PATH = EVAL_FILE_PATH.parent.parent / "config.yaml"
+
 HITS = ["vtxd", "trkr", "ecal", "hcal", "muon"]
-PRED_OBJECTS = ["particle", "pandora", "flow"]
+PRED_OBJECTS = ["particle", "pandora", "sitrack", "flow"]
 
 # Optional early-stop; set None for full run
 MAX_EVENTS: int | None = 100
@@ -85,9 +88,10 @@ def main() -> None:
 
     # -----------------------------------------------------------------
     # Output dirs
-    # -----------------------------------------------------------------
-    plot_root = Path(f"src/hepattn/experiments/cld/eval_plots/{EVAL_CONFIG_NAME}/")
-    (plot_root / "event_displays").mkdir(parents=True, exist_ok=True)
+    # ----------------------------------------------------------------
+    plot_root = CONFIG_PATH.parent / EVAL_CONFIG_NAME
+    plot_root.mkdir(parents=True, exist_ok=True)
+
     hists_dir = plot_root / "histograms"
     hists_dir.mkdir(parents=True, exist_ok=True)
 
@@ -144,7 +148,7 @@ def main() -> None:
     largest_num_particles = 0.0
 
     with h5py.File(EVAL_FILE_PATH, "r") as f:
-        keys = list(f.keys())
+        keys = list(f.keys())[:MAX_EVENTS]
         for i, sample_id in tqdm(enumerate(keys), total=len(keys)):
             # ---------------------------------------------
             # Load preds/outputs (final layer only)
@@ -299,9 +303,6 @@ def main() -> None:
             # Track largest event occupancy
             num_particles = float(data["event_num_particle"].detach().cpu().item())
             largest_num_particles = max(largest_num_particles, num_particles)
-
-            if MAX_EVENTS is not None and i + 1 >= MAX_EVENTS:
-                break
 
     # -----------------------------------------------------------------
     # Print bulk metrics
