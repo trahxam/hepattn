@@ -1,8 +1,4 @@
-name: CLD_5_320_10MeV_charged_tracking
-
-data:
-  # We are doing just tracking, so only include charged targets
-  include_neutral: false
+name: CLD_5_320_10MeV_all_clustering
 
 model:
   model:
@@ -17,7 +13,7 @@ model:
           modules:
             - class_path: hepattn.models.InputNet
               init_args:
-                input_name: vtxd
+                input_name: ecal
                 input_dtype: float32
                 fields:
                   - pos.x
@@ -27,23 +23,18 @@ model:
                   - pos.r
                   - pos.theta
                   - pos.phi
-                  - u.a
-                  - u.b
-                  - v.a
-                  - v.b
-                  - du
-                  - dv
+                  - log_energy
                 net:
                   class_path: hepattn.models.Dense
                   init_args:
-                    input_size: 13
+                    input_size: 8
                     hidden_layers: [128]
                     output_size: *dim
                     activation: SwiGLU
                 posenc:
                   class_path: hepattn.models.posenc.FourierPositionEncoder
                   init_args:
-                    input_name: vtxd
+                    input_name: ecal
                     dim: *dim
                     fields:
                       - pos.x
@@ -55,7 +46,7 @@ model:
 
             - class_path: hepattn.models.InputNet
               init_args:
-                input_name: trkr
+                input_name: hcal
                 input_dtype: float32
                 fields:
                   - pos.x
@@ -65,23 +56,18 @@ model:
                   - pos.r
                   - pos.theta
                   - pos.phi
-                  - u.a
-                  - u.b
-                  - v.a
-                  - v.b
-                  - du
-                  - dv
+                  - log_energy
                 net:
                   class_path: hepattn.models.Dense
                   init_args:
-                    input_size: 13
+                    input_size: 8
                     hidden_layers: [128]
                     output_size: *dim
                     activation: SwiGLU
                 posenc:
                   class_path: hepattn.models.posenc.FourierPositionEncoder
                   init_args:
-                    input_name: trkr
+                    input_name: hcal
                     dim: *dim
                     fields:
                       - pos.x
@@ -112,11 +98,12 @@ model:
 
             - class_path: hepattn.models.task.ObjectHitMaskTask
               init_args:
-                name: flow_vtxd_assignment
-                input_constituent: vtxd
+                name: flow_ecal_assignment
+                input_constituent: ecal
                 input_object: query
                 output_object: flow
                 target_object: particle
+                target_field: valid
                 has_intermediate_loss: False
                 losses:
                   mask_bce: 0.25
@@ -131,11 +118,12 @@ model:
 
             - class_path: hepattn.models.task.ObjectHitMaskTask
               init_args:
-                name: flow_trkr_assignment
-                input_constituent: trkr
+                name: flow_hcal_assignment
+                input_constituent: hcal
                 input_object: query
                 output_object: flow
                 target_object: particle
+                target_field: valid
                 has_intermediate_loss: False
                 losses:
                   mask_bce: 0.25

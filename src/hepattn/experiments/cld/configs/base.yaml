@@ -1,4 +1,4 @@
-name: CLD_5_320_10MeV_neutrals_shuffled
+name: CLD_8_256_10MeV_all
 
 matmul_precision: high
 
@@ -15,7 +15,7 @@ data:
   num_val: 100
 
   # Minibatch size / number of events used per training step
-  batch_size: 5
+  batch_size: 8
 
   # Precision of any float values returned by the dataloader
   input_dtype: float32
@@ -32,9 +32,12 @@ data:
   include_charged: true
   include_neutral: true
 
+  # Events with more particles than this are skipped
+  event_max_num_particles: &num_particles 256
+
   # Number of query slots / particles to generate per event
   force_pad_sizes:
-    particle: &num_particles 320
+    particle: *num_particles
     pandora: *num_particles
     sitrack: *num_particles
 
@@ -444,7 +447,9 @@ model:
                   class_path: hepattn.models.Dense
                   init_args:
                     input_size: 13
+                    hidden_layers: [128]
                     output_size: *dim
+                    activation: SwiGLU
                 posenc:
                   class_path: hepattn.models.posenc.FourierPositionEncoder
                   init_args:
@@ -480,7 +485,9 @@ model:
                   class_path: hepattn.models.Dense
                   init_args:
                     input_size: 13
+                    hidden_layers: [128]
                     output_size: *dim
+                    activation: SwiGLU
                 posenc:
                   class_path: hepattn.models.posenc.FourierPositionEncoder
                   init_args:
@@ -511,7 +518,9 @@ model:
                   class_path: hepattn.models.Dense
                   init_args:
                     input_size: 8
+                    hidden_layers: [128]
                     output_size: *dim
+                    activation: SwiGLU
                 posenc:
                   class_path: hepattn.models.posenc.FourierPositionEncoder
                   init_args:
@@ -542,7 +551,9 @@ model:
                   class_path: hepattn.models.Dense
                   init_args:
                     input_size: 8
+                    hidden_layers: [128]
                     output_size: *dim
+                    activation: SwiGLU
                 posenc:
                   class_path: hepattn.models.posenc.FourierPositionEncoder
                   init_args:
@@ -572,7 +583,9 @@ model:
                   class_path: hepattn.models.Dense
                   init_args:
                     input_size: 7
+                    hidden_layers: [128]
                     output_size: *dim
+                    activation: SwiGLU
                 posenc:
                   class_path: hepattn.models.posenc.FourierPositionEncoder
                   init_args:
@@ -592,10 +605,12 @@ model:
           num_layers: 8
           dim: *dim
           attn_type: flash-varlen
-          window_size: 1024
+          window_size: 512
           window_wrap: true
           hybrid_norm: true
           value_residual: true
+          norm: RMSNorm
+          dense_kwargs: {activation: SwiGLU}
           attn_kwargs:
             num_heads: 8
 
@@ -604,11 +619,13 @@ model:
         num_queries: *num_particles
         mask_attention: true
         use_query_masks: false
+        mask_attention: true
+        use_query_masks: false
         decoder_layer_config:
           dim: *dim
+          norm: RMSNorm
           hybrid_norm: true
-          attn_kwargs:
-            num_heads: 8
+          dense_kwargs: {activation: SwiGLU}
 
       matcher:
         class_path: hepattn.models.matcher.Matcher
