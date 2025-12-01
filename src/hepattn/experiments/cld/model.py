@@ -15,9 +15,18 @@ class CLDReconstructor(ModelWrapper):
     ):
         super().__init__(name, model, lrs_config, optimizer, mtl)
 
-    def log_custom_metrics(self, preds, targets, stage):
+    def log_custom_metrics(self, inputs, preds, targets, stage):
         # Just log predictions from the final layer
         preds = preds["final"]
+
+        if self.model.unified_decoding:
+            for input_name in self.model.input_names:
+                device = inputs[input_name + "_valid"].device
+                mask = torch.cat([torch.full((inputs[i + "_valid"].shape[-1],), i == input_name, device=device) for i in self.model.input_names], dim=-1)
+
+                preds[f"flow_{input_name}_assignment"] = {
+                    f"flow_{input_name}_valid": preds["flow_key_assignment"]["flow_key_valid"][:,:,mask]
+                }                
 
         hits = [
             "vtxd",
@@ -33,10 +42,10 @@ class CLDReconstructor(ModelWrapper):
             if f"flow_{hit}_assignment" not in preds:
                 continue
 
-            # Set the masks of any flow slots that are not used as null
             pred_hit_masks = preds[f"flow_{hit}_assignment"][f"flow_{hit}_valid"]
             true_hit_masks = targets[f"particle_{hit}_valid"]
-
+            
+            # Only count it is as valid if it has hits
             pred_valid = preds["flow_valid"]["flow_valid"] & (pred_hit_masks.sum(-1) > 0)
             true_valid = targets["particle_valid"] & (true_hit_masks.sum(-1) > 0)
 

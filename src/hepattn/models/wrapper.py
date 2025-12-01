@@ -77,13 +77,13 @@ class ModelWrapper(LightningModule):
             if task_metrics:
                 self.log_dict({f"{stage}/final_{task.name}_{k}": v for k, v in task_metrics.items()}, sync_dist=True)
 
-    def log_metrics(self, preds: DoubleNestedDictTensor, targets: DictTensor, stage: str) -> None:
+    def log_metrics(self, inputs: DictTensor, preds: DoubleNestedDictTensor, targets: DictTensor, stage: str) -> None:
         # First log any task metrics
         self.log_task_metrics(preds, targets, stage)
 
         # Log any custom metrics implemented by subclass
         if hasattr(self, "log_custom_metrics"):
-            self.log_custom_metrics(preds, targets, stage)
+            self.log_custom_metrics(inputs, preds, targets, stage)
 
     def training_step(self, batch: tuple[DictTensor, DictTensor], batch_idx: int) -> DoubleNestedDictTensor | None:
         inputs, targets = batch
@@ -97,7 +97,7 @@ class ModelWrapper(LightningModule):
         # Get the predictions from the model, avoid calling predict if possible
         if batch_idx % self.trainer.log_every_n_steps == 0:
             preds = self.predict(outputs)
-            self.log_metrics(preds, targets, "train")
+            self.log_metrics(inputs, preds, targets, "train")
 
         if self.mtl:
             self.mlt_opt(losses, outputs)
@@ -119,7 +119,7 @@ class ModelWrapper(LightningModule):
 
         # Get the predictions from the model
         preds = self.model.predict(outputs)
-        self.log_metrics(preds, targets, "val")
+        self.log_metrics(inputs, preds, targets, "val")
 
         return {"loss": total_loss} | outputs
 
