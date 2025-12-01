@@ -1,4 +1,4 @@
-name: CLD_2_256eV_all_dm
+name: CLD_2_256_10MeV_FP32
 
 matmul_precision: high
 
@@ -179,11 +179,11 @@ data:
 
     ecal:
       - type
-      - pos.x
-      - pos.y
-      - pos.z
-      - pos.s
-      - pos.r
+      - pos.x_10m
+      - pos.y_10m
+      - pos.z_10m
+      - pos.s_10m
+      - pos.r_10m
       - pos.theta
       - pos.eta
       - pos.phi
@@ -196,11 +196,11 @@ data:
 
     hcal:
       - type
-      - pos.x
-      - pos.y
-      - pos.z
-      - pos.s
-      - pos.r
+      - pos.x_10m
+      - pos.y_10m
+      - pos.z_10m
+      - pos.s_10m
+      - pos.r_10m
       - pos.theta
       - pos.eta
       - pos.phi
@@ -213,11 +213,11 @@ data:
 
     muon:
       - type
-      - pos.x
-      - pos.y
-      - pos.z
-      - pos.s
-      - pos.r
+      - pos.x_10m
+      - pos.y_10m
+      - pos.z_10m
+      - pos.s_10m
+      - pos.r_10m
       - pos.theta
       - pos.eta
       - pos.phi
@@ -249,6 +249,8 @@ data:
       - mom.abs_eta
       - mom.phi
       - mom.theta
+      - mom.eta_drad
+      - mom.phi_drad
       - mom.sinphi
       - mom.cosphi
       - mom.rinv
@@ -372,7 +374,7 @@ trainer:
   max_epochs: 25
   accelerator: gpu
   devices: 1
-  precision: bf16-mixed
+  precision: 32
   log_every_n_steps: 10
   default_root_dir: logs
   gradient_clip_val: 0.1
@@ -509,11 +511,11 @@ model:
                 input_name: ecal
                 input_dtype: float32
                 fields:
-                  - pos.x
-                  - pos.y
-                  - pos.z
-                  - pos.s
-                  - pos.r
+                  - pos.x_10m
+                  - pos.y_10m
+                  - pos.z_10m
+                  - pos.s_10m
+                  - pos.r_10m
                   - pos.theta
                   - pos.phi
                   - log_energy
@@ -530,10 +532,10 @@ model:
                     input_name: ecal
                     dim: *dim
                     fields:
-                      - pos.x
-                      - pos.y
-                      - pos.z
-                      - pos.r
+                      - pos.x_10m
+                      - pos.y_10m
+                      - pos.z_10m
+                      - pos.r_10m
                       - pos.theta
                       - pos.phi
 
@@ -542,11 +544,11 @@ model:
                 input_name: hcal
                 input_dtype: float32
                 fields:
-                  - pos.x
-                  - pos.y
-                  - pos.z
-                  - pos.s
-                  - pos.r
+                  - pos.x_10m
+                  - pos.y_10m
+                  - pos.z_10m
+                  - pos.s_10m
+                  - pos.r_10m
                   - pos.theta
                   - pos.phi
                   - log_energy
@@ -563,10 +565,10 @@ model:
                     input_name: hcal
                     dim: *dim
                     fields:
-                      - pos.x
-                      - pos.y
-                      - pos.z
-                      - pos.r
+                      - pos.x_10m
+                      - pos.y_10m
+                      - pos.z_10m
+                      - pos.r_10m
                       - pos.theta
                       - pos.phi
 
@@ -575,11 +577,11 @@ model:
                 input_name: muon
                 input_dtype: float32
                 fields:
-                  - pos.x
-                  - pos.y
-                  - pos.z
-                  - pos.s
-                  - pos.r
+                  - pos.x_10m
+                  - pos.y_10m
+                  - pos.z_10m
+                  - pos.s_10m
+                  - pos.r_10m
                   - pos.theta
                   - pos.phi
                 net:
@@ -595,21 +597,21 @@ model:
                     input_name: muon
                     dim: *dim
                     fields:
-                      - pos.x
-                      - pos.y
-                      - pos.z
-                      - pos.r
+                      - pos.x_10m
+                      - pos.y_10m
+                      - pos.z_10m
+                      - pos.r_10m
                       - pos.theta
                       - pos.phi
 
       encoder:
         class_path: hepattn.models.Encoder
         init_args:
-          num_layers: 4
+          num_layers: 8
           dim: *dim
-          attn_type: flash-varlen
-          window_size: 512
-          window_wrap: true
+          attn_type: torch
+          #window_size: 512
+          #window_wrap: true
           hybrid_norm: true
           value_residual: true
           norm: RMSNorm
@@ -618,7 +620,7 @@ model:
             num_heads: 8
 
       decoder:
-        num_decoder_layers: 4
+        num_decoder_layers: 8
         num_queries: *num_particles
         mask_attention: true
         use_query_masks: false
