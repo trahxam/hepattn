@@ -183,6 +183,15 @@ class MaskFormer(nn.Module):
         Returns:
             losses: A dictionary containing the computed losses for each task.
         """
+        if self.unified_decoding:
+            targets["key_valid"] = torch.cat([
+                targets[f"{input_net.input_name}_valid"] for input_net in self.input_nets
+            ], dim=-1)
+
+            targets[f"{self.target_object}_key_valid"] = torch.cat([
+                targets[f"{self.target_object}_{input_net.input_name}_valid"] for input_net in self.input_nets
+            ], dim=-1)
+
         # Will hold the costs between all pairs of objects - cost axes are (batch, pred, true)
         costs = {}
         if self.sorter is not None:
