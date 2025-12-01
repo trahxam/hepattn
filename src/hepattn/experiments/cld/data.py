@@ -160,13 +160,15 @@ class CLDDataset(LRSMDataset):
                 event[f"{i}.{p}.{coord}_mm"] = event[f"{i}.{p}.{coord}"]
                 event[f"{i}.{p}.{coord}"] = 0.001 * event[f"{i}.{p}.{coord}"]
 
+        def add_decimeter_coords(i, p):
+            for coord in ["x", "y", "z", "r", "s"]:
+                event[f"{i}.{p}.{coord}_dm"] = 10.0 * event[f"{i}.{p}.{coord}"]
+
         def add_cylindrical_coords(i, p):
             # Add standard tracking cylindrical coordinates
             event[f"{i}.{p}.r"] = np.sqrt(event[f"{i}.{p}.x"] ** 2 + event[f"{i}.{p}.y"] ** 2)
             event[f"{i}.{p}.s"] = np.sqrt(event[f"{i}.{p}.x"] ** 2 + event[f"{i}.{p}.y"] ** 2 + event[f"{i}.{p}.z"] ** 2)
             event[f"{i}.{p}.theta"] = np.arccos(event[f"{i}.{p}.z"] / event[f"{i}.{p}.s"])
-            event[f"{i}.{p}.r_mm"] = event[f"{i}.{p}.r"] * 1000.0
-            event[f"{i}.{p}.s_mm"] = event[f"{i}.{p}.s"] * 1000.0
 
             with np.errstate(invalid="ignore"):
                 event[f"{i}.{p}.eta"] = -np.log(np.tan(event[f"{i}.{p}.theta"] / 2))
@@ -176,9 +178,6 @@ class CLDDataset(LRSMDataset):
             event[f"{i}.{p}.rinv"] = 1.0 / event[f"{i}.{p}.r"]
             event[f"{i}.{p}.sinphi"] = np.sin(event[f"{i}.{p}.phi"])
             event[f"{i}.{p}.cosphi"] = np.cos(event[f"{i}.{p}.phi"])
-            event[f"{i}.{p}.theta_drad"] = 100 * event[f"{i}.{p}.theta"]
-            event[f"{i}.{p}.eta_drad"] = 100 * event[f"{i}.{p}.eta"]
-            event[f"{i}.{p}.phi_drad"] = 100 * event[f"{i}.{p}.phi"]
 
         def add_conformal_coords(i, p):
             # Conformal tracking coordinates
@@ -207,6 +206,10 @@ class CLDDataset(LRSMDataset):
             convert_mm_to_m(item, "pos")
             add_cylindrical_coords(item, "pos")
             add_conformal_coords(item, "pos")
+
+        # Add in scaled up coords for the vertex detector
+        for item in ["vtb", "vte"]:
+            add_decimeter_coords(item, "pos")
 
         # Add extra coords for calo contribution step positions
         for item in calo_cons:
