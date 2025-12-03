@@ -4,7 +4,7 @@
 #SBATCH -p GPU
 #SBATCH --nodes=1
 #SBATCH --export=ALL
-#SBATCH --gres=gpu:l40s:1
+#SBATCH --gres=gpu:a100:1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=12
 #SBATCH --mem=48G
@@ -72,15 +72,15 @@ export CUDA_VISIBLE_DEVICES=0
 #CONFIG_PATH="/share/rcifdata/maxhart/hepattn/logs/CLD_2_320_10MeV_neutrals_20251026-T230553/config.yaml"
 #CKPT_PATH="/share/rcifdata/maxhart/hepattn/logs/CLD_2_320_10MeV_neutrals_20251026-T230553/ckpts/epoch=000-train_loss=3.05229.ckpt"
 #PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config $CONFIG_PATH --ckpt_path $CKPT_PATH"
-PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config src/hepattn/experiments/cld/configs/fp32.yaml"
+PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config src/hepattn/experiments/cld/configs/base.yaml"
 
-#PYTORCH_CMD="python /share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/fitting/main.py fit -c /share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/fitting/fp32.yaml"
+#PYTORCH_CMD="python /share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/fitting/main.py fit -c /share/rcifdata/maxhart/hepattn/logs/CLD_4_256_10MeV_all_PE_20251129-T144305/config.yaml --ckpt_path /share/rcifdata/maxhart/hepattn/logs/CLD_4_256_10MeV_all_PE_20251129-T144305/ckpts/epoch=000-train_loss=2.13315.ckpt"
 
 # Pixi commnand that runs the python command inside the pixi env
 PIXI_CMD="pixi run $PYTORCH_CMD"
 
 # Apptainer command that runs the pixi command inside the pixi apptainer image
-APPTAINER_CMD="apptainer run --nv --bind /share/rcifdata/maxhart,/share/lustre/maxhart /share/rcifdata/maxhart/hepattn/pixi.sif $PIXI_CMD"
+APPTAINER_CMD="apptainer run --nv --bind /share/rcifdata/maxhart,/share/lustre/maxhart,/share/rcif2/maxhart /share/rcifdata/maxhart/hepattn/pixi.sif $PIXI_CMD"
 
 # Run the final command
 echo "Running command: $APPTAINER_CMD"
