@@ -1,21 +1,21 @@
-name: CLD_5_256_10MeV_unified
+name: CLD_25_256eV_unified
 
 matmul_precision: high
 
 data:
   # Paths to preprocessed data directories
-  train_dir: /share/lustre/maxhart/data/prepped_new/
-  val_dir: /share/lustre/maxhart/data/prepped_new/
-  test_dir: /share/lustre/maxhart/data/prepped_new/
+  train_dir: /share/rcif2/maxhart/data/cld/prepped_new/
+  val_dir: /share/rcif2/maxhart/data/cld/prepped_new/
+  test_dir: /share/rcif2/maxhart/data/cld/prepped_new/
 
   # Number of events to include in each set
-  num_workers: 10
+  num_workers: 32
   num_train: -1
   num_test: 1000
   num_val: 100
 
   # Minibatch size / number of events used per training step
-  batch_size: 5
+  batch_size: 25
 
   # Precision of any float values returned by the dataloader
   input_dtype: float32
@@ -179,11 +179,11 @@ data:
 
     ecal:
       - type
-      - pos.x_10m
-      - pos.y_10m
-      - pos.z_10m
-      - pos.s_10m
-      - pos.r_10m
+      - pos.x
+      - pos.y
+      - pos.z
+      - pos.s
+      - pos.r
       - pos.theta
       - pos.eta
       - pos.phi
@@ -196,11 +196,11 @@ data:
 
     hcal:
       - type
-      - pos.x_10m
-      - pos.y_10m
-      - pos.z_10m
-      - pos.s_10m
-      - pos.r_10m
+      - pos.x
+      - pos.y
+      - pos.z
+      - pos.s
+      - pos.r
       - pos.theta
       - pos.eta
       - pos.phi
@@ -213,11 +213,11 @@ data:
 
     muon:
       - type
-      - pos.x_10m
-      - pos.y_10m
-      - pos.z_10m
-      - pos.s_10m
-      - pos.r_10m
+      - pos.x
+      - pos.y
+      - pos.z
+      - pos.s
+      - pos.r
       - pos.theta
       - pos.eta
       - pos.phi
@@ -249,8 +249,6 @@ data:
       - mom.abs_eta
       - mom.phi
       - mom.theta
-      - mom.eta_drad
-      - mom.phi_drad
       - mom.sinphi
       - mom.cosphi
       - mom.rinv
@@ -412,7 +410,7 @@ model:
 
   lrs_config:
     initial: 1e-5
-    max: 4e-5
+    max: 5e-5
     end: 1e-6
     pct_start: 0.001
     skip_scheduler: false
@@ -512,11 +510,11 @@ model:
                 input_name: ecal
                 input_dtype: float32
                 fields:
-                  - pos.x_10m
-                  - pos.y_10m
-                  - pos.z_10m
-                  - pos.s_10m
-                  - pos.r_10m
+                  - pos.x
+                  - pos.y
+                  - pos.z
+                  - pos.s
+                  - pos.r
                   - pos.theta
                   - pos.phi
                   - log_energy
@@ -533,10 +531,10 @@ model:
                     input_name: ecal
                     dim: *dim
                     fields:
-                      - pos.x_10m
-                      - pos.y_10m
-                      - pos.z_10m
-                      - pos.r_10m
+                      - pos.x
+                      - pos.y
+                      - pos.z
+                      - pos.r
                       - pos.theta
                       - pos.phi
 
@@ -545,11 +543,11 @@ model:
                 input_name: hcal
                 input_dtype: float32
                 fields:
-                  - pos.x_10m
-                  - pos.y_10m
-                  - pos.z_10m
-                  - pos.s_10m
-                  - pos.r_10m
+                  - pos.x
+                  - pos.y
+                  - pos.z
+                  - pos.s
+                  - pos.r
                   - pos.theta
                   - pos.phi
                   - log_energy
@@ -566,10 +564,10 @@ model:
                     input_name: hcal
                     dim: *dim
                     fields:
-                      - pos.x_10m
-                      - pos.y_10m
-                      - pos.z_10m
-                      - pos.r_10m
+                      - pos.x
+                      - pos.y
+                      - pos.z
+                      - pos.r
                       - pos.theta
                       - pos.phi
 
@@ -578,11 +576,11 @@ model:
                 input_name: muon
                 input_dtype: float32
                 fields:
-                  - pos.x_10m
-                  - pos.y_10m
-                  - pos.z_10m
-                  - pos.s_10m
-                  - pos.r_10m
+                  - pos.x
+                  - pos.y
+                  - pos.z
+                  - pos.s
+                  - pos.r
                   - pos.theta
                   - pos.phi
                 net:
@@ -598,10 +596,10 @@ model:
                     input_name: muon
                     dim: *dim
                     fields:
-                      - pos.x_10m
-                      - pos.y_10m
-                      - pos.z_10m
-                      - pos.r_10m
+                      - pos.x
+                      - pos.y
+                      - pos.z
+                      - pos.r
                       - pos.theta
                       - pos.phi
 
