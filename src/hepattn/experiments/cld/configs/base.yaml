@@ -1,12 +1,12 @@
-name: CLD_2_256eV_all_dm
+name: CLD_5_256_10MeV_focal
 
 matmul_precision: high
 
 data:
   # Paths to preprocessed data directories
-  train_dir: /share/lustre/maxhart/data/prepped_new/
-  val_dir: /share/lustre/maxhart/data/prepped_new/
-  test_dir: /share/lustre/maxhart/data/prepped_new/
+  train_dir: /share/rcif2/maxhart/data/cld/prepped_new/
+  val_dir: /share/rcif2/maxhart/data/cld/prepped_new/
+  test_dir: /share/rcif2/maxhart/data/cld/prepped_new/
 
   # Number of events to include in each set
   num_workers: 10
@@ -15,7 +15,7 @@ data:
   num_val: 100
 
   # Minibatch size / number of events used per training step
-  batch_size: 2
+  batch_size: 5
 
   # Precision of any float values returned by the dataloader
   input_dtype: float32
@@ -605,7 +605,7 @@ model:
       encoder:
         class_path: hepattn.models.Encoder
         init_args:
-          num_layers: 4
+          num_layers: 8
           dim: *dim
           attn_type: flash-varlen
           window_size: 512
@@ -618,7 +618,7 @@ model:
             num_heads: 8
 
       decoder:
-        num_decoder_layers: 4
+        num_decoder_layers: 8
         num_queries: *num_particles
         mask_attention: true
         use_query_masks: false
@@ -665,9 +665,9 @@ model:
                 target_object: particle
                 has_intermediate_loss: False
                 losses:
-                  mask_bce: 0.25
-                  mask_dice: 0.75
-                  #mask_focal: 1.0
+                  mask_bce: 1.0
+                  mask_dice: 1.0
+                  mask_focal: 1.0
                 costs:
                   #mask_bce: 1.0
                   mask_dice: 1.0
@@ -684,9 +684,9 @@ model:
                 target_object: particle
                 has_intermediate_loss: False
                 losses:
-                  mask_bce: 0.25
-                  mask_dice: 0.75
-                  #mask_focal: 1.0
+                  mask_bce: 1.0
+                  mask_dice: 1.0
+                  mask_focal: 1.0
                 costs:
                   #mask_bce: 1.0
                   mask_dice: 1.0
@@ -704,9 +704,9 @@ model:
                 target_field: valid
                 has_intermediate_loss: False
                 losses:
-                  mask_bce: 0.25
-                  mask_dice: 0.75
-                  #mask_focal: 1.0
+                  mask_bce: 1.0
+                  mask_dice: 1.0
+                  mask_focal: 1.0
                 costs:
                   #mask_bce: 1.0
                   mask_dice: 1.0
@@ -724,9 +724,9 @@ model:
                 target_field: valid
                 has_intermediate_loss: False
                 losses:
-                  mask_bce: 0.25
-                  mask_dice: 0.75
-                  #mask_focal: 1.0
+                  mask_bce: 1.0
+                  mask_dice: 1.0
+                  mask_focal: 1.0
                 costs:
                   #mask_bce: 1.0
                   mask_dice: 1.0
@@ -744,9 +744,9 @@ model:
                 target_field: valid
                 has_intermediate_loss: False
                 losses:
-                  mask_bce: 0.25
-                  mask_dice: 0.75
-                  #mask_focal: 1.0
+                  mask_bce: 1.0
+                  mask_dice: 1.0
+                  mask_focal: 1.0
                 costs:
                   #mask_bce: 1.0
                   mask_dice: 1.0
