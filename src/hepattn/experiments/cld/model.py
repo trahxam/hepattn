@@ -38,6 +38,15 @@ class CLDReconstructor(ModelWrapper):
             "muon",
         ]
 
+        pred_valid = preds["flow_valid"]["flow_valid"]
+        true_valid = targets["particle_valid"]
+
+        pred_num = pred_valid.sum(-1)
+        true_num = true_valid.sum(-1)
+
+        self.log(f"{stage}/num_flows", torch.mean(pred_num.float()))
+        self.log(f"{stage}/num_parts", torch.mean(true_num.float()))
+
         for hit in hits:
             if f"flow_{hit}_assignment" not in preds:
                 continue
@@ -89,6 +98,3 @@ class CLDReconstructor(ModelWrapper):
 
                 self.log(f"{stage}/num_{hit}_per_flow", torch.mean(num_hits_per_pred.float()))
                 self.log(f"{stage}/num_{hit}_per_part", torch.mean(num_hits_per_true.float()))
-
-                self.log(f"{stage}/num_flows", torch.mean(pred_num.float()))
-                self.log(f"{stage}/num_parts", torch.mean(true_num.float()))
