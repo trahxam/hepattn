@@ -4,8 +4,9 @@ import torch
 from torch import Tensor, nn
 
 from hepattn.models.decoder import MaskFormerDecoder
-from hepattn.models.task import IncidenceRegressionTask, ObjectClassificationTask
+from hepattn.models.task import IncidenceRegressionTask, ObjectClassificationTask, ObjectHitMaskTask
 from hepattn.utils.model_utils import unmerge_inputs
+from hepattn.models.dense import Dense
 
 
 class MaskFormer(nn.Module):
@@ -22,6 +23,7 @@ class MaskFormer(nn.Module):
         input_sort_field: str | None = None,
         sorter: nn.Module | None = None,
         unified_decoding: bool = False,
+        common_decoder_dense: bool = False,
     ):
         """Initializes the MaskFormer model, which is a modular transformer-style architecture designed
         for multi-task object reconstruction with attention-based decoding and optional encoder blocks.
@@ -51,12 +53,20 @@ class MaskFormer(nn.Module):
         self.matcher = matcher
         self.unified_decoding = unified_decoding
         self.decoder.unified_decoding = unified_decoding
+        self.common_decoder_dense = common_decoder_dense
 
         assert not (input_sort_field and sorter), "Cannot specify both input_sort_field and sorter."
         self.input_sort_field = input_sort_field
         self.sorter = sorter
         if self.sorter is not None:
             self.sorter.input_names = self.input_names
+
+        if self.common_decoder_dense:
+            self.object_net = Dense(dim, dim, [2*dim]*3)
+            
+            for task in self.tasks:
+                if isinstance(task, ObjectHitMaskTask):
+                    task.object_net = self.object_net
 
         assert "key" not in self.input_names, "'key' input name is reserved."
         assert "query" not in self.input_names, "'query' input name is reserved."
