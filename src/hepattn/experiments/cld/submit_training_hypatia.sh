@@ -6,8 +6,8 @@
 #SBATCH --export=ALL
 #SBATCH --gres=gpu:a100:1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=12
-#SBATCH --mem=48G
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=32G
 #SBATCH --output=/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/slurm_logs/slurm-%j.%x.out
 
 
@@ -33,48 +33,20 @@ echo "Moved dir, now in: ${PWD}"
 # Set tmpdir
 export TMPDIR=/share/rcifdata/maxhart/tmp/
 
-# get list of valid gpu indices from nvidia-smi, e.g. "0 1 2 3"
-VALID_GPU_IDS=($(nvidia-smi --query-gpu=index --format=csv,noheader))
-
-# current assignment from slurm
-REQ_GPU_ID="$CUDA_VISIBLE_DEVICES"
-
-is_valid=false
-for gid in "${VALID_GPU_IDS[@]}"; do
-    if [ "$gid" = "$REQ_GPU_ID" ]; then
-        is_valid=true
-        break
-    fi
-done
-
-if [ "$is_valid" = true ]; then
-    echo "CUDA_VISIBLE_DEVICES is valid: $CUDA_VISIBLE_DEVICES"
-else
-    echo "CUDA_VISIBLE_DEVICES ($CUDA_VISIBLE_DEVICES) is invalid. Reassigning."
-
-    # pick gpu with lowest memory.used
-    DEV=$(nvidia-smi --query-gpu=index,memory.used --format=csv,noheader \
-        | sort -t, -k2 -n \
-        | head -n1 \
-        | cut -d',' -f1 \
-        | xargs)
-
-    export CUDA_VISIBLE_DEVICES="$DEV"
-    echo "Using GPU: $DEV (CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES)"
-fi
-
 # Run the training
 echo "Running training script..."   
 
-export CUDA_VISIBLE_DEVICES=0
+echo "CUDA visible devices is ${CUDA_VISIBLE_DEVICES}"
 
 # Python command that will be run
 #CONFIG_PATH="/share/rcifdata/maxhart/hepattn/logs/CLD_2_320_10MeV_neutrals_20251026-T230553/config.yaml"
 #CKPT_PATH="/share/rcifdata/maxhart/hepattn/logs/CLD_2_320_10MeV_neutrals_20251026-T230553/ckpts/epoch=000-train_loss=3.05229.ckpt"
 #PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config $CONFIG_PATH --ckpt_path $CKPT_PATH"
-PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config src/hepattn/experiments/cld/configs/base.yaml"
+#PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config src/hepattn/experiments/cld/configs/base.yaml"
 
-#PYTORCH_CMD="python /share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/fitting/main.py fit -c /share/rcifdata/maxhart/hepattn/logs/CLD_4_256_10MeV_all_PE_20251129-T144305/config.yaml --ckpt_path /share/rcifdata/maxhart/hepattn/logs/CLD_4_256_10MeV_all_PE_20251129-T144305/ckpts/epoch=000-train_loss=2.13315.ckpt"
+PYTORCH_CMD="python /share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/main.py fit \
+-c /share/rcifdata/maxhart/hepattn/logs/CLD_5_256_10MeV_20251205-T083126/config.yaml \
+--ckpt_path /share/rcifdata/maxhart/hepattn/logs/CLD_5_256_10MeV_20251205-T083126/ckpts/epoch=015-val_loss=5.27151.ckpt"
 
 # Pixi commnand that runs the python command inside the pixi env
 PIXI_CMD="pixi run $PYTORCH_CMD"

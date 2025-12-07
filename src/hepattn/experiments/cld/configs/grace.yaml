@@ -1,4 +1,4 @@
-name: CLD_5_256_10MeV
+name: CLD_25_256_10MeV_CommonDense
 
 matmul_precision: high
 
@@ -9,13 +9,13 @@ data:
   test_dir: /share/rcif2/maxhart/data/cld/prepped_new/
 
   # Number of events to include in each set
-  num_workers: 10
+  num_workers: 48
   num_train: -1
   num_test: 1000
   num_val: 100
 
   # Minibatch size / number of events used per training step
-  batch_size: 5
+  batch_size: 25
 
   # Precision of any float values returned by the dataloader
   input_dtype: float32
@@ -369,7 +369,7 @@ data:
 
 # Training stuff here
 trainer:
-  max_epochs: 25
+  max_epochs: 10
   accelerator: gpu
   devices: 1
   precision: bf16-mixed
@@ -404,7 +404,7 @@ trainer:
     - class_path: lightning.pytorch.callbacks.LearningRateMonitor
     - class_path: lightning.pytorch.callbacks.TQDMProgressBar
       init_args:
-        refresh_rate: 50
+        refresh_rate: 10
 
 model:
   optimizer: lion
@@ -424,6 +424,7 @@ model:
     init_args:
       dim: &dim 256
       input_sort_field: pos.phi
+      common_decoder_dense: true
 
       input_nets:
         class_path: torch.nn.ModuleList
@@ -655,7 +656,7 @@ model:
                 dim: *dim
                 null_weight: 1.0
                 mask_queries: false
-                has_intermediate_loss: true
+                has_intermediate_loss: False
 
             - class_path: hepattn.models.task.ObjectHitMaskTask
               init_args:
@@ -664,9 +665,9 @@ model:
                 input_object: query
                 output_object: flow
                 target_object: particle
-                has_intermediate_loss: true
+                has_intermediate_loss: False
                 losses:
-                  mask_bce: 1.0
+                  mask_bce: 0.5
                   mask_dice: 1.0
                   #mask_focal: 1.0
                 costs:
@@ -683,9 +684,9 @@ model:
                 input_object: query
                 output_object: flow
                 target_object: particle
-                has_intermediate_loss: true
+                has_intermediate_loss: False
                 losses:
-                  mask_bce: 1.0
+                  mask_bce: 0.5
                   mask_dice: 1.0
                   #mask_focal: 1.0
                 costs:
@@ -703,9 +704,9 @@ model:
                 output_object: flow
                 target_object: particle
                 target_field: valid
-                has_intermediate_loss: true
+                has_intermediate_loss: False
                 losses:
-                  mask_bce: 1.0
+                  mask_bce: 0.5
                   mask_dice: 1.0
                   #mask_focal: 1.0
                 costs:
@@ -723,9 +724,9 @@ model:
                 output_object: flow
                 target_object: particle
                 target_field: valid
-                has_intermediate_loss: true
+                has_intermediate_loss: False
                 losses:
-                  mask_bce: 1.0
+                  mask_bce: 0.5
                   mask_dice: 1.0
                   #mask_focal: 1.0
                 costs:
@@ -743,9 +744,9 @@ model:
                 output_object: flow
                 target_object: particle
                 target_field: valid
-                has_intermediate_loss: true
+                has_intermediate_loss: False
                 losses:
-                  mask_bce: 1.0
+                  mask_bce: 0.5
                   mask_dice: 1.0
                   #mask_focal: 1.0
                 costs:
