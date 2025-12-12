@@ -175,12 +175,9 @@ class MaskFormerDecoder(nn.Module):
                     attn_mask = torch.full((batch_size, self.num_queries, num_constituents), False, device=x["key_embed"].device)
                     for input_name, task_attn_mask in attn_masks.items():
                         attn_mask[x[f"key_is_{input_name}"].unsqueeze(1).expand_as(attn_mask)] = task_attn_mask.flatten()
-
-                attn_mask = attn_mask.detach()
+                
                 # True values indicate a slot will be included in the attention computation, while False will be ignored.
-                # If the attn mask is completely invalid for a given query, allow it to attend everywhere
-                # TODO: check and see see if this is really necessary
-                attn_mask = torch.where(torch.all(~attn_mask, dim=-1, keepdim=True), True, attn_mask)
+                attn_mask = attn_mask.detach()
 
             if attn_mask is not None and self.attn_type != "flex":
                 outputs[f"layer_{layer_index}"]["attn_mask"] = attn_mask
