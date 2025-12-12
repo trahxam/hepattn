@@ -241,6 +241,7 @@ class ObjectHitMaskTask(Task):
         pred_threshold: float = 0.5,
         mask_attention_threshold: float | None = None,
         has_intermediate_loss: bool = True,
+        return_embeddings: bool = False,
     ):
         """Task for predicting associations between objects and hits.
 
@@ -285,6 +286,7 @@ class ObjectHitMaskTask(Task):
         self.pred_threshold = pred_threshold
         self.mask_attention_threshold = mask_attention_threshold if mask_attention_threshold is not None else pred_threshold
         self.has_intermediate_loss = mask_attn
+        self.return_embeddings = return_embeddings
 
         self.output_object_hit = output_object + "_" + input_constituent
         self.target_object_hit = target_object + "_" + input_constituent
@@ -292,10 +294,15 @@ class ObjectHitMaskTask(Task):
         self.inputs = [input_object + "_embed", input_constituent + "_embed"]
         self.outputs = [self.output_object_hit + "_logit"]
 
+        if return_embeddings:
+            self.outputs += ["query_embed", "mask_token_embed"]
+
     def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:
         # Produce mask tokens
-        mask_tokens = self.object_net(x[self.input_object + "_embed"])
+        query = x[self.input_object + "_embed"]
+        mask_token = self.object_net(query)
         xs = x[self.input_constituent + "_embed"]
+        
         if self.constituent_net:
             xs = self.constituent_net(xs)
 
@@ -307,7 +314,14 @@ class ObjectHitMaskTask(Task):
             valid_mask = valid_mask.unsqueeze(-2).expand_as(object_hit_logit)
             object_hit_logit[~valid_mask] = torch.finfo(object_hit_logit.dtype).min
 
-        return {self.output_object_hit + "_logit": object_hit_logit}
+        outputs = {self.output_object_hit + "_logit": object_hit_logit}
+
+        if self.return_embeddings:
+            outputs[self.input_constituent + "_embed"] = xs
+            outputs["query_embed"] = query
+            outputs["mask_token_embed"] = mask_token
+
+        return outputs
 
     def attn_mask(self, outputs: dict[str, Tensor], threshold: float | None = None) -> dict[str, Tensor]:
         if not self.mask_attn:
