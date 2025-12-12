@@ -142,11 +142,9 @@ class MaskFormer(nn.Module):
 
             # Need this for incidence-based regression task
             if isinstance(task, IncidenceRegressionTask):
-                # Assume that the incidence task has only one output
-                x["incidence"] = outputs["final"][task.name][task.outputs[0]].detach()
+                x["incidence"] = outputs["final"][task.name][task.incidence_key].detach()
             if isinstance(task, ObjectClassificationTask):
-                # Assume that the classification task has only one output
-                x["class_probs"] = outputs["final"][task.name][task.outputs[0]].detach()
+                x["class_probs"] = outputs["final"][task.name][task.probs_key].detach()
 
         # store info about the input sort field for each input type
         if self.sorter is not None:
@@ -258,10 +256,17 @@ class MaskFormer(nn.Module):
         losses: dict[str, dict[str, Tensor]] = {}
         for layer_name in outputs:
             losses[layer_name] = {}
+            is_final_layer = layer_name == "final"
             for task in self.tasks:
                 if task.name not in outputs[layer_name]:
                     continue
 
-                losses[layer_name][task.name] = task.loss(outputs[layer_name][task.name], targets)
+                task_losses = task.loss(outputs[layer_name][task.name], targets)
+
+                # Remove IoU loss from intermediate layers (only keep it for final layer)
+                if not is_final_layer:
+                    task_losses.pop("iou_mse", None)
+
+                losses[layer_name][task.name] = task_losses
 
         return losses, targets
