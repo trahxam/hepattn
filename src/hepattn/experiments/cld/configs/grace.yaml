@@ -1,4 +1,4 @@
-name: CLD_25_256_10MeV_CommonDense
+name: CLD_24_256_10MeV
 
 matmul_precision: high
 
@@ -15,7 +15,7 @@ data:
   num_val: 100
 
   # Minibatch size / number of events used per training step
-  batch_size: 25
+  batch_size: 24
 
   # Precision of any float values returned by the dataloader
   input_dtype: float32
@@ -411,8 +411,8 @@ model:
 
   lrs_config:
     initial: 1e-5
-    max: 4e-5
-    end: 1e-6
+    max: 5e-5
+    end: 1e-5
     pct_start: 0.01
     skip_scheduler: false
     weight_decay: 1e-5
@@ -440,7 +440,7 @@ model:
                   - pos.z_dm
                   - pos.s_dm
                   - pos.r_dm
-                  - pos.theta
+                  - pos.eta
                   - pos.phi
                   - u.a
                   - u.b
@@ -465,7 +465,7 @@ model:
                       - pos.y_dm
                       - pos.z_dm
                       - pos.r_dm
-                      - pos.theta
+                      - pos.eta
                       - pos.phi
 
             - class_path: hepattn.models.InputNet
@@ -478,7 +478,7 @@ model:
                   - pos.z
                   - pos.s
                   - pos.r
-                  - pos.theta
+                  - pos.eta
                   - pos.phi
                   - u.a
                   - u.b
@@ -503,7 +503,7 @@ model:
                       - pos.y
                       - pos.z
                       - pos.r
-                      - pos.theta
+                      - pos.eta
                       - pos.phi
 
             - class_path: hepattn.models.InputNet
@@ -516,7 +516,7 @@ model:
                   - pos.z
                   - pos.s
                   - pos.r
-                  - pos.theta
+                  - pos.eta
                   - pos.phi
                   - log_energy
                 net:
@@ -536,7 +536,7 @@ model:
                       - pos.y
                       - pos.z
                       - pos.r
-                      - pos.theta
+                      - pos.eta
                       - pos.phi
 
             - class_path: hepattn.models.InputNet
@@ -549,7 +549,7 @@ model:
                   - pos.z
                   - pos.s
                   - pos.r
-                  - pos.theta
+                  - pos.eta
                   - pos.phi
                   - log_energy
                 net:
@@ -569,7 +569,7 @@ model:
                       - pos.y
                       - pos.z
                       - pos.r
-                      - pos.theta
+                      - pos.eta
                       - pos.phi
 
             - class_path: hepattn.models.InputNet
@@ -582,7 +582,7 @@ model:
                   - pos.z
                   - pos.s
                   - pos.r
-                  - pos.theta
+                  - pos.eta
                   - pos.phi
                 net:
                   class_path: hepattn.models.Dense
@@ -601,7 +601,7 @@ model:
                       - pos.y
                       - pos.z
                       - pos.r
-                      - pos.theta
+                      - pos.eta
                       - pos.phi
 
       encoder:
@@ -614,10 +614,9 @@ model:
           window_wrap: true
           hybrid_norm: true
           value_residual: true
-          norm: RMSNorm
+          norm: LayerNorm
           dense_kwargs: {activation: SwiGLU}
-          attn_kwargs:
-            num_heads: 8
+          attn_kwargs: {bias: false}
 
       decoder:
         num_decoder_layers: 8
@@ -628,9 +627,11 @@ model:
         use_query_masks: false
         decoder_layer_config:
           dim: *dim
-          norm: RMSNorm
+          norm: LayerNorm
           hybrid_norm: true
           dense_kwargs: {activation: SwiGLU}
+          attn_kwargs: {bias: false}
+          
 
       matcher:
         class_path: hepattn.models.matcher.Matcher
@@ -652,11 +653,12 @@ model:
                 losses:
                   object_bce: 0.1
                 costs:
-                  object_bce: 1.0
+                  object_bce: 0.1
                 dim: *dim
                 null_weight: 1.0
                 mask_queries: false
-                has_intermediate_loss: False
+                has_intermediate_loss: true
+                has_first_layer_loss: false
 
             - class_path: hepattn.models.task.ObjectHitMaskTask
               init_args:
@@ -665,7 +667,7 @@ model:
                 input_object: query
                 output_object: flow
                 target_object: particle
-                has_intermediate_loss: False
+                has_intermediate_loss: true
                 losses:
                   mask_bce: 0.5
                   mask_dice: 1.0
@@ -684,7 +686,7 @@ model:
                 input_object: query
                 output_object: flow
                 target_object: particle
-                has_intermediate_loss: False
+                has_intermediate_loss: true
                 losses:
                   mask_bce: 0.5
                   mask_dice: 1.0
@@ -704,7 +706,7 @@ model:
                 output_object: flow
                 target_object: particle
                 target_field: valid
-                has_intermediate_loss: False
+                has_intermediate_loss: true
                 losses:
                   mask_bce: 0.5
                   mask_dice: 1.0
@@ -724,7 +726,7 @@ model:
                 output_object: flow
                 target_object: particle
                 target_field: valid
-                has_intermediate_loss: False
+                has_intermediate_loss: true
                 losses:
                   mask_bce: 0.5
                   mask_dice: 1.0
@@ -744,7 +746,7 @@ model:
                 output_object: flow
                 target_object: particle
                 target_field: valid
-                has_intermediate_loss: False
+                has_intermediate_loss: true
                 losses:
                   mask_bce: 0.5
                   mask_dice: 1.0
