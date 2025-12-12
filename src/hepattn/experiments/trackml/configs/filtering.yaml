@@ -1,5 +1,5 @@
 seed_everything: 42
-name: HF-v1
+name: HF-900MeV-eta4
 
 data:
   #train_dir: data/trackml/prepped/
@@ -9,7 +9,7 @@ data:
   val_dir: /projects/u5du/pduckett/data_new/val/
   test_dir: /projects/u5du/pduckett/data_new/test/
 
-  num_workers: 10
+  num_workers: 15
   num_train: -1
   num_test: -1
   num_val: -1
@@ -58,13 +58,15 @@ data:
   targets:
     hit:
       - on_valid_particle
+    particle:
+      - pt
 
 trainer:
-  max_epochs: 50
+  max_epochs: 80
   accelerator: gpu
   devices: 1
-  precision: bf16-mixed
-  log_every_n_steps: 50
+  precision: 16-mixed
+  log_every_n_steps: 100
   default_root_dir: logs
   gradient_clip_val: 0.1
   enable_progress_bar: True
@@ -83,15 +85,15 @@ trainer:
         monitor: val/loss
     - class_path: hepattn.callbacks.PredictionWriter
       init_args:
-        write_inputs: false
+        write_inputs: true
         write_outputs: false
         write_preds: true
-        write_targets: false
+        write_targets: true
         write_losses: false
     - class_path: lightning.pytorch.callbacks.LearningRateMonitor
     - class_path: lightning.pytorch.callbacks.TQDMProgressBar
       init_args:
-        refresh_rate: 50
+        refresh_rate: 100
 
 model:
   optimizer: Lion
@@ -137,20 +139,10 @@ model:
                     input_size: 16
                     hidden_layers: [128]
                     output_size: &dim 256
-                posenc:
-                  class_path: hepattn.models.FourierPositionEncoder
-                  init_args:
-                    input_name: hit
-                    fields:
-                      - r
-                      - eta
-                      - phi
-                    dim: *dim
-                    scale: 0.1
       encoder:
         class_path: hepattn.models.Encoder
         init_args:
-          num_layers: 10
+          num_layers: 8
           dim: *dim
           attn_type: flash
           window_size: 1024
