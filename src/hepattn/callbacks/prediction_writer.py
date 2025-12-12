@@ -107,8 +107,16 @@ class PredictionWriter(Callback):
             layer_group = items_group.create_group(layer_name)
             for task_name, task_items in layer_items.items():
                 task_group = layer_group.create_group(task_name)
-                for name, value in task_items.items():
-                    self.create_dataset(task_group, name, value[idx][None, ...])
+
+                if isinstance(task_items, dict):
+                    for name, value in task_items.items():
+                        print(task_name, name, value.shape)
+                        if value.dim() != 0:
+                            value = value[idx][None, ...]
+                        else:
+                            value = value.unsqueeze(0)
+
+                        self.create_dataset(task_group, name, value)
 
     def create_dataset(self, group, name, value):
         # Shouldn't need to detach as we are testing
