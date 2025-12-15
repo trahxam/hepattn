@@ -420,7 +420,7 @@ class ObjectHitMaskTask(Task):
             xs = self.constituent_net(xs)
 
         # Object-hit probability is the dot product between the hit and object embedding
-        object_hit_logit = self.logit_scale * torch.einsum("bnc,bmc->bnm", mask_tokens, xs)
+        object_hit_logit = self.logit_scale * torch.einsum("bnc,bmc->bnm", mask_token, xs)
 
         # Zero out entries for any padded input constituents
         if (valid_mask := x[f"{self.input_constituent}_valid"]) is not None:
@@ -433,7 +433,7 @@ class ObjectHitMaskTask(Task):
             outputs[self.input_constituent + "_embed"] = xs
             outputs["query_embed"] = query
             outputs["mask_token_embed"] = mask_token
-            
+
         if self.predict_iou:
             outputs[self.output_object + "_iou_logit"] = self.iou_net(x[self.input_object + "_embed"]).squeeze(-1)
 
