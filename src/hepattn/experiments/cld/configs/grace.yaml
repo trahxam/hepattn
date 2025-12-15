@@ -1,4 +1,4 @@
-name: CLD_24_256_10MeV
+name: CLD_5_256_10MeV
 
 matmul_precision: high
 
@@ -9,13 +9,13 @@ data:
   test_dir: /share/rcif2/maxhart/data/cld/prepped_new/
 
   # Number of events to include in each set
-  num_workers: 48
+  num_workers: 10
   num_train: -1
   num_test: 1000
   num_val: 100
 
   # Minibatch size / number of events used per training step
-  batch_size: 24
+  batch_size: 5
 
   # Precision of any float values returned by the dataloader
   input_dtype: float32
@@ -424,7 +424,7 @@ model:
     init_args:
       dim: &dim 256
       input_sort_field: pos.phi
-      common_decoder_dense: true
+      common_decoder_dense: false
 
       input_nets:
         class_path: torch.nn.ModuleList
@@ -440,7 +440,7 @@ model:
                   - pos.z_dm
                   - pos.s_dm
                   - pos.r_dm
-                  - pos.eta
+                  - pos.theta
                   - pos.phi
                   - u.a
                   - u.b
@@ -465,7 +465,7 @@ model:
                       - pos.y_dm
                       - pos.z_dm
                       - pos.r_dm
-                      - pos.eta
+                      - pos.theta
                       - pos.phi
 
             - class_path: hepattn.models.InputNet
@@ -478,7 +478,7 @@ model:
                   - pos.z
                   - pos.s
                   - pos.r
-                  - pos.eta
+                  - pos.theta
                   - pos.phi
                   - u.a
                   - u.b
@@ -503,7 +503,7 @@ model:
                       - pos.y
                       - pos.z
                       - pos.r
-                      - pos.eta
+                      - pos.theta
                       - pos.phi
 
             - class_path: hepattn.models.InputNet
@@ -516,7 +516,7 @@ model:
                   - pos.z
                   - pos.s
                   - pos.r
-                  - pos.eta
+                  - pos.theta
                   - pos.phi
                   - log_energy
                 net:
@@ -536,7 +536,7 @@ model:
                       - pos.y
                       - pos.z
                       - pos.r
-                      - pos.eta
+                      - pos.theta
                       - pos.phi
 
             - class_path: hepattn.models.InputNet
@@ -549,7 +549,7 @@ model:
                   - pos.z
                   - pos.s
                   - pos.r
-                  - pos.eta
+                  - pos.theta
                   - pos.phi
                   - log_energy
                 net:
@@ -569,7 +569,7 @@ model:
                       - pos.y
                       - pos.z
                       - pos.r
-                      - pos.eta
+                      - pos.theta
                       - pos.phi
 
             - class_path: hepattn.models.InputNet
@@ -582,7 +582,7 @@ model:
                   - pos.z
                   - pos.s
                   - pos.r
-                  - pos.eta
+                  - pos.theta
                   - pos.phi
                 net:
                   class_path: hepattn.models.Dense
@@ -601,7 +601,7 @@ model:
                       - pos.y
                       - pos.z
                       - pos.r
-                      - pos.eta
+                      - pos.theta
                       - pos.phi
 
       encoder:
@@ -613,8 +613,7 @@ model:
           window_size: 512
           window_wrap: true
           hybrid_norm: true
-          value_residual: true
-          norm: LayerNorm
+          norm: CustomLayerNorm
           dense_kwargs: {activation: SwiGLU}
           attn_kwargs: {bias: false}
 
@@ -625,13 +624,13 @@ model:
         use_query_masks: false
         mask_attention: true
         use_query_masks: false
+        unmask_all_false: false
         decoder_layer_config:
           dim: *dim
-          norm: LayerNorm
+          norm: CustomLayerNorm
           hybrid_norm: true
           dense_kwargs: {activation: SwiGLU}
           attn_kwargs: {bias: false}
-          
 
       matcher:
         class_path: hepattn.models.matcher.Matcher
@@ -644,7 +643,7 @@ model:
         class_path: torch.nn.ModuleList
         init_args:
           modules:
-            - class_path: hepattn.models.task.ObjectValidTask
+            - class_path: hepattn.models.task.ObjectClassificationTask
               init_args:
                 name: flow_valid
                 input_object: query
@@ -653,7 +652,7 @@ model:
                 losses:
                   object_bce: 0.1
                 costs:
-                  object_bce: 0.1
+                  object_bce: 1.0
                 dim: *dim
                 null_weight: 1.0
                 mask_queries: false
@@ -667,7 +666,6 @@ model:
                 input_object: query
                 output_object: flow
                 target_object: particle
-                has_intermediate_loss: true
                 losses:
                   mask_bce: 0.5
                   mask_dice: 1.0
@@ -686,7 +684,6 @@ model:
                 input_object: query
                 output_object: flow
                 target_object: particle
-                has_intermediate_loss: true
                 losses:
                   mask_bce: 0.5
                   mask_dice: 1.0
@@ -706,7 +703,6 @@ model:
                 output_object: flow
                 target_object: particle
                 target_field: valid
-                has_intermediate_loss: true
                 losses:
                   mask_bce: 0.5
                   mask_dice: 1.0
@@ -726,7 +722,6 @@ model:
                 output_object: flow
                 target_object: particle
                 target_field: valid
-                has_intermediate_loss: true
                 losses:
                   mask_bce: 0.5
                   mask_dice: 1.0
@@ -746,7 +741,6 @@ model:
                 output_object: flow
                 target_object: particle
                 target_field: valid
-                has_intermediate_loss: true
                 losses:
                   mask_bce: 0.5
                   mask_dice: 1.0
