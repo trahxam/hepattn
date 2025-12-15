@@ -178,6 +178,7 @@ class MaskFormerDecoder(nn.Module):
                 
                 # True values indicate a slot will be included in the attention computation, while False will be ignored.
                 attn_mask = attn_mask.detach()
+                attn_mask = torch.where(torch.all(~attn_mask, dim=-1, keepdim=True), True, attn_mask)
 
             if attn_mask is not None and self.attn_type != "flex":
                 outputs[f"layer_{layer_index}"]["attn_mask"] = attn_mask
