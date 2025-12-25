@@ -86,6 +86,9 @@ class MaskFormer(nn.Module):
             x[input_name + "_embed"] = input_net(inputs)
             x[input_name + "_valid"] = inputs[input_name + "_valid"]
 
+            for i in {"pos.x", "pos.y", "pos.z", "pos.eta", "pos.phi"}:
+                x[f"{input_name}_{i}"] = inputs[f"{input_name}_{i}"]
+
             # These slices can be used to pick out specific
             # objects after we have merged them all together
             # Only needed when not doing unified decoding
