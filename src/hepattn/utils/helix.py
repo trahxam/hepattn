@@ -1,224 +1,193 @@
+import torch
 
-def unwrap_angle(phi: torch.Tensor) -> torch.Tensor:
-    """
-    Unwrap angles along the last dimension.
-
-    phi: (..., M) in (-π, π] typically
-    returns: (..., M) unwrapped
-    """
+def unwrap_angle_detached(phi: torch.Tensor) -> torch.Tensor:
     two_pi = 2.0 * torch.pi
     dphi = phi[..., 1:] - phi[..., :-1]
-
     step = torch.where(
         dphi > torch.pi, -two_pi,
         torch.where(dphi < -torch.pi, two_pi, torch.zeros_like(dphi))
-    )
-
+    ).detach()
     offset = torch.cumsum(step, dim=-1)
-    phi_unwrapped = phi.clone()
-    phi_unwrapped[..., 1:] = phi_unwrapped[..., 1:] + offset
-    return phi_unwrapped
+    offset = torch.cat([torch.zeros_like(phi[..., :1]), offset], dim=-1)
+    return phi + offset
+
+def wrap_to_pi(phi: torch.Tensor) -> torch.Tensor:
+    return torch.atan2(torch.sin(phi), torch.cos(phi))
 
 
-def fit_helix_padded_1d(
-    x: torch.Tensor,  # (B, M)
-    y: torch.Tensor,  # (B, M)
-    z: torch.Tensor,  # (B, M)
-    valid: torch.Tensor,  # (B, M) bool
+def _fit_helices_flat(
+    x: torch.Tensor,      # (B, K)
+    y: torch.Tensor,      # (B, K)
+    z: torch.Tensor,      # (B, K)
+    w: torch.Tensor,      # (B, K) weights in [0, 1]
+    eps: float = 1e-8,
+    default: float = 0.0,
 ):
-    """
-    Fit 3D helices with padding.
-
-    Args
-    ----
-    x, y, z: (B, M)
-        Hit coordinates, padded along the last dim.
-    valid: (B, M) bool
-        True where (x, y, z) is a real hit.
-
-    Returns
-    -------
-    dict of tensors, each of shape (B,):
-        "R", "d0", "z0", "phi0", "xc", "yc",
-        "tan_lambda", "alpha", "beta", "phi_dca"
-    """
-    if x.shape != y.shape or x.shape != z.shape or x.shape != valid.shape:
-        raise ValueError("x, y, z, valid must all have the same shape (B, M).")
-
-    B, M = x.shape
-    orig_dtype = x.dtype
+    B, K = x.shape
     device = x.device
+    out_dtype = x.dtype
+    compute_dtype = torch.float32 if out_dtype in (torch.float16, torch.bfloat16) else out_dtype
+    default_t = torch.as_tensor(default, device=device, dtype=compute_dtype)
 
-    w = valid.to(torch.float32)  # weights 0/1
+    with torch.autocast(device_type=device.type, enabled=False):
+        x = x.to(compute_dtype)
+        y = y.to(compute_dtype)
+        z = z.to(compute_dtype)
 
-    sum_w = w.sum(dim=-1)                    # (B,)
-    sum_w_safe = torch.where(sum_w > 0, sum_w,
-                             torch.ones_like(sum_w))
+        w = w.to(compute_dtype).clamp(0.0, 1.0)
+        sqrt_w = torch.sqrt(w)
+        sum_w = w.sum(dim=-1)
+        sum_w_safe = sum_w.clamp_min(eps)
 
-    # ---------- 1) Circle fit in (x, y) with weights ----------
-    ones = torch.ones_like(x)
-    A = torch.stack([x, y, ones], dim=-1)    # (B, M, 3)
-    b = -(x**2 + y**2)                       # (B, M)
+        # ---- 1) circle fit (x,y) via weighted least squares
+        A = torch.stack([x, y, torch.ones_like(x)], dim=-1)  # (B,K,3)
+        b = -(x * x + y * y)                                 # (B,K)
 
-    sqrt_w = torch.sqrt(w)                   # (B, M)
-    A_w = A * sqrt_w.unsqueeze(-1)           # (B, M, 3)
-    b_w = b * sqrt_w                         # (B, M)
+        A_w = A * sqrt_w.unsqueeze(-1)
+        b_w = b * sqrt_w
 
-    sol = torch.linalg.lstsq(A_w, b_w.unsqueeze(-1)).solution  # (B, 3, 1)
-    D, E, F = sol.squeeze(-1).unbind(-1)                       # (B,)
+        AtA = A_w.transpose(-1, -2) @ A_w
+        Atb = A_w.transpose(-1, -2) @ b_w.unsqueeze(-1)
 
-    xc = -D / 2.0
-    yc = -E / 2.0
-    R_sq = (D**2 + E**2) / 4.0 - F
-    R = torch.sqrt(R_sq)                     # (B,)
+        ridge3 = eps * AtA.diagonal(dim1=-2, dim2=-1).mean(-1).clamp_min(1.0)
+        I3 = torch.eye(3, device=device, dtype=compute_dtype).expand(B, 3, 3)
 
-    # ---------- 2) Transverse parameters (d0, phi0) ----------
-    C = torch.stack([xc, yc], dim=-1)        # (B, 2)
-    c = torch.linalg.norm(C, dim=-1)         # (B,)
-    c_safe = torch.where(c > 0, c, torch.ones_like(c))
-    uC = C / c_safe.unsqueeze(-1)            # (B, 2)
+        theta, info3 = torch.linalg.solve_ex(AtA + ridge3[:, None, None] * I3, Atb, check_errors=False)
+        theta = theta.squeeze(-1)
+        fit3_ok = (info3 == 0)
 
-    x_dca = xc - R * uC[..., 0]
-    y_dca = yc - R * uC[..., 1]
+        D, E, F = theta.unbind(-1)
+        xc = -0.5 * D
+        yc = -0.5 * E
+        R_sq = 0.25 * (D * D + E * E) - F
+        R = torch.sqrt(torch.clamp(R_sq, min=0.0))
 
-    d0 = c - R                               # (B,)
+        # ---- 2) transverse params
+        C = torch.stack([xc, yc], dim=-1)
+        c = torch.linalg.norm(C, dim=-1)
+        c_safe = torch.where(c > 0, c, torch.ones_like(c))
+        uC = C / c_safe.unsqueeze(-1)
 
-    phi_dca_raw = torch.atan2(
-        y_dca - yc,
-        x_dca - xc,
-    )                                        # (B,)
+        x_dca = xc - R * uC[..., 0]
+        y_dca = yc - R * uC[..., 1]
+        d0 = c - R
 
-    phi0 = torch.remainder(
-        phi_dca_raw + 0.5 * torch.pi + torch.pi,
-        2.0 * torch.pi,
-    ) - torch.pi                             # (B,)
+        phi_dca_raw = torch.atan2(y_dca - yc, x_dca - xc)
+        phi0 = wrap_to_pi(phi_dca_raw + 0.5 * torch.pi)
 
-    # ---------- 3) z(φ) linear fit with UNWRAPPED φ ----------
-    phi_hits_raw = torch.atan2(
-        y - yc.unsqueeze(-1),
-        x - xc.unsqueeze(-1),
-    )                                        # (B, M)
+        # ---- 3) z(phi) weighted fit
+        phi_hits_raw = torch.atan2(y - yc.unsqueeze(-1), x - xc.unsqueeze(-1))
+        phi_hits = unwrap_angle_detached(phi_hits_raw)
 
-    phi_hits = unwrap_angle(phi_hits_raw)    # (B, M)
+        phi_mean = (w * phi_hits).sum(dim=-1) / sum_w_safe
+        dphi = phi_hits - phi_mean.unsqueeze(-1)
+        var_phi = (w * dphi * dphi).sum(dim=-1) / sum_w_safe
 
-    # weighted means
-    phi_mean = (w * phi_hits).sum(dim=-1) / sum_w_safe  # (B,)
-    z_mean = (w * z).sum(dim=-1) / sum_w_safe           # (B,)
+        X = torch.stack([phi_hits, torch.ones_like(phi_hits)], dim=-1)  # (B,K,2)
+        X_w = X * sqrt_w.unsqueeze(-1)
+        z_w = z * sqrt_w
 
-    dphi = phi_hits - phi_mean.unsqueeze(-1)
-    dz = z - z_mean.unsqueeze(-1)
+        XtX = X_w.transpose(-1, -2) @ X_w
+        Xtz = X_w.transpose(-1, -2) @ z_w.unsqueeze(-1)
 
-    cov = (w * dphi * dz).sum(dim=-1) / sum_w_safe      # (B,)
-    var_phi = (w * dphi**2).sum(dim=-1) / sum_w_safe    # (B,)
+        ridge2 = eps * XtX.diagonal(dim1=-2, dim2=-1).mean(-1).clamp_min(1.0)
+        I2 = torch.eye(2, device=device, dtype=compute_dtype).expand(B, 2, 2)
 
-    alpha = cov / var_phi                               # (B,)
-    tan_lambda = alpha / R                              # (B,)
+        ab, info2 = torch.linalg.solve_ex(XtX + ridge2[:, None, None] * I2, Xtz, check_errors=False)
+        ab = ab.squeeze(-1)
+        fit2_ok = (info2 == 0)
 
-    two_pi = 2.0 * torch.pi
-    k = torch.round((phi_mean - phi_dca_raw) / two_pi)  # (B,)
-    phi_dca_unwrapped = phi_dca_raw + two_pi * k        # (B,)
+        alpha, beta = ab.unbind(-1)
 
-    beta = z_mean - alpha * phi_mean                    # (B,)
-    z0 = alpha * phi_dca_unwrapped + beta               # (B,)
+        R_safe = torch.where(R > 0, R, torch.ones_like(R))
+        tan_lambda = alpha / R_safe
+        eta = torch.asinh(tan_lambda)
 
-    # ---------- 4) Validity mask for tracks ----------
-    n_valid = sum_w                                     # (B,)
-    enough_circle = n_valid >= 3
-    nondeg_var = var_phi > 0
-    good = enough_circle & nondeg_var
+        two_pi = 2.0 * torch.pi
+        k = torch.round((phi_mean - phi_dca_raw) / two_pi).detach()
+        phi_dca_unwrapped = phi_dca_raw + two_pi * k
+        z0 = alpha * phi_dca_unwrapped + beta
 
-    def masked(v):
-        nan = torch.full_like(v, float("nan"))
-        return torch.where(good, v, nan)
+        # "expected hit count" threshold via sum of weights
+        fit_successful = (sum_w >= 3.0) & (var_phi > 0) & (R_sq > 0) & fit3_ok & fit2_ok
 
-    R = masked(R)
-    d0 = masked(d0)
-    z0 = masked(z0)
-    phi0 = masked(phi0)
-    tan_lambda = masked(tan_lambda)
+        def fill(v):
+            return torch.where(fit_successful, v, default_t.expand_as(v))
 
-    return R, phi0, tan_lambda, d0, z0
+        R, phi0, eta, d0, z0 = map(fill, (R, phi0, eta, d0, z0))
+
+    R, phi0, eta, d0, z0 = (t.to(out_dtype) for t in (R, phi0, eta, d0, z0))
+    return R, phi0, eta, d0, z0, fit_successful
 
 
-def fit_helix_per_particle(
-    hit_x: torch.Tensor,           # (B, M)
-    hit_y: torch.Tensor,           # (B, M)
-    hit_z: torch.Tensor,           # (B, M)
-    particle_hit_valid: torch.Tensor,  # (B, N, M) bool
-    particle_valid: torch.Tensor = None,  # (B, N) bool, optional
+def fit_helices(
+    hit_x: torch.Tensor,                 # (B, M)
+    hit_y: torch.Tensor,                 # (B, M)
+    hit_z: torch.Tensor,                 # (B, M)
+    particle_hit_weight: torch.Tensor,   # (B, N, M) float in [0,1]  (or bool for old mode)
+    particle_fittable: torch.Tensor,     # (B, N) bool
+    default: float = 0.0,
+    eps: float = 1e-8,
 ):
-    """
-    Fit helices for each (event, particle) using your fit_helix_padded_1d.
-
-    Returns
-    -------
-    R, phi0, tan_lambda, d0, z0 : each (B, N)
-    """
-
     B, M = hit_x.shape
-    B2, N, M2 = particle_hit_valid.shape
-    assert B == B2 and M == M2, "Shape mismatch in hits vs particle_hit_valid"
-
+    _, N, _ = particle_hit_weight.shape
     device = hit_x.device
+    BN = B * N
 
-    # ---- 1) Broadcast hits to (B, N, M) ----
-    x_bnm = hit_x.unsqueeze(1).expand(B, N, M)
-    y_bnm = hit_y.unsqueeze(1).expand(B, N, M)
-    z_bnm = hit_z.unsqueeze(1).expand(B, N, M)
+    fit_mask = particle_fittable.to(torch.bool)
 
-    # ---- 2) For each (b, n) build a sorted list of hit indices ----
-    # indices 0..M-1 for each event
+    # Backward compatible: if caller passes bool mask, treat it as weights {0,1}
+    if particle_hit_weight.dtype == torch.bool:
+        particle_hit_weight = particle_hit_weight.to(hit_x.dtype)
+
+    # For packing/unwrap: treat strictly-zero weight as "absent"
+    pos = (particle_hit_weight > 0)  # bool (B,N,M)
+
+    n_pos = pos.sum(dim=-1)
+    K = int(n_pos.masked_fill(~fit_mask, 0).max().item())
+
+    R = hit_x.new_full((BN,), default)
+    P = hit_x.new_full((BN,), default)
+    E = hit_x.new_full((BN,), default)
+    D = hit_x.new_full((BN,), default)
+    Z = hit_x.new_full((BN,), default)
+    fit_successful = torch.zeros((BN,), device=device, dtype=torch.bool)
+
+    if K == 0 or not fit_mask.any():
+        return (
+            R.view(B, N), P.view(B, N), E.view(B, N),
+            D.view(B, N), Z.view(B, N), fit_successful.view(B, N)
+        )
+
+    # pack positive-weight hit indices to the front (avoids unwrap seeing gaps)
     idx = torch.arange(M, device=device).view(1, 1, M).expand(B, N, M)
+    sorted_idx = idx.masked_fill(~pos, M).sort(dim=-1).values[..., :K]  # <- FIX HERE
+    valid_bnk = sorted_idx < M
+    gather_idx = sorted_idx.clamp_max(M - 1)
 
-    # use M as a sentinel for "no hit"
-    sentinel = torch.full_like(idx, M)
-    masked_idx = torch.where(particle_hit_valid, idx, sentinel)   # (B, N, M)
+    x_bnk = hit_x[:, None, :].expand(B, N, M).gather(-1, gather_idx)
+    y_bnk = hit_y[:, None, :].expand(B, N, M).gather(-1, gather_idx)
+    z_bnk = hit_z[:, None, :].expand(B, N, M).gather(-1, gather_idx)
 
-    # sort so that real hits (0..M-1) come before sentinel (M)
-    sorted_idx, _ = torch.sort(masked_idx, dim=-1)                # (B, N, M)
+    w_bnk = particle_hit_weight.gather(-1, gather_idx)
+    w_bnk = torch.where(valid_bnk, w_bnk, torch.zeros_like(w_bnk))
 
-    # how many hits per (b, n)
-    n_hits = particle_hit_valid.sum(dim=-1)                       # (B, N)
-    K = int(n_hits.max().item())                                  # max hits in batch
+    x_flat = x_bnk.reshape(BN, K)
+    y_flat = y_bnk.reshape(BN, K)
+    z_flat = z_bnk.reshape(BN, K)
+    w_flat = w_bnk.reshape(BN, K)
+    m_flat = fit_mask.reshape(BN)
 
-    if K == 0:
-        # nothing to fit anywhere
-        out_shape = (B, N)
-        nan = hit_x.new_full(out_shape, float("nan"))
-        return nan, nan, nan, nan, nan
-
-    # keep only the first K positions
-    sorted_idx = sorted_idx[..., :K]                              # (B, N, K)
-    valid_bnk = sorted_idx < M                                    # (B, N, K)
-
-    # avoid out-of-bounds when gathering
-    gather_idx = sorted_idx.clamp(max=M - 1)
-
-    # ---- 3) Gather the squashed coordinates (B, N, K) ----
-    x_bnk = torch.gather(x_bnm, dim=-1, index=gather_idx)
-    y_bnk = torch.gather(y_bnm, dim=-1, index=gather_idx)
-    z_bnk = torch.gather(z_bnm, dim=-1, index=gather_idx)
-
-    # also mask out whole particles if you have particle_valid
-    if particle_valid is not None:
-        valid_bnk = valid_bnk & particle_valid.unsqueeze(-1)
-
-    # ---- 4) Flatten (B, N, K) -> (B*N, K) and fit ----
-    B_tracks = B * N
-    x_flat = x_bnk.reshape(B_tracks, K)
-    y_flat = y_bnk.reshape(B_tracks, K)
-    z_flat = z_bnk.reshape(B_tracks, K)
-    valid_flat = valid_bnk.reshape(B_tracks, K)
-
-    R, phi0, tan_lambda, d0, z0 = fit_helix_padded_1d(
-        x_flat, y_flat, z_flat, valid_flat
+    R_sel, P_sel, E_sel, D_sel, Z_sel, ok_sel = _fit_helices_flat(
+        x_flat[m_flat], y_flat[m_flat], z_flat[m_flat], w_flat[m_flat],
+        default=default, eps=eps,
     )
 
-    # ---- 5) Reshape back to (B, N) ----
-    R = R.view(B, N)
-    phi0 = phi0.view(B, N)
-    tan_lambda = tan_lambda.view(B, N)
-    d0 = d0.view(B, N)
-    z0 = z0.view(B, N)
+    R[m_flat] = R_sel
+    P[m_flat] = P_sel
+    E[m_flat] = E_sel
+    D[m_flat] = D_sel
+    Z[m_flat] = Z_sel
+    fit_successful[m_flat] = ok_sel
 
-    return R, phi0, tan_lambda, d0, z0
+    return R.view(B, N), P.view(B, N), E.view(B, N), D.view(B, N), Z.view(B, N), fit_successful.view(B, N)
