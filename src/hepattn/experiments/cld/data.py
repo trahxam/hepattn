@@ -43,6 +43,7 @@ class CLDDataset(LRSMDataset):
         particle_hit_deflection_cuts: dict[str, dict[str, float | int]] | None = None,
         particle_hit_separation_cuts: dict[str, dict[str, float | int]] | None = None,
         particle_min_calib_calo_energy: dict[str, float] | None = None,
+        event_min_num_particles: int = 2,
         event_max_num_particles: int = 320,
         truth_filter_hits: list[str] | None = None,
         calo_energy_thresh: float = 1e-6,
@@ -100,6 +101,7 @@ class CLDDataset(LRSMDataset):
         self.particle_hit_separation_cuts = particle_hit_separation_cuts
         self.truth_filter_hits = truth_filter_hits
         self.calo_energy_thresh = calo_energy_thresh
+        self.event_min_num_particles = event_min_num_particles
         self.event_max_num_particles = event_max_num_particles
 
         # Setup the number of events that will be used
@@ -261,6 +263,9 @@ class CLDDataset(LRSMDataset):
 
         num_particles = len(event["particle_valid"])
 
+        if num_particles < self.event_min_num_particles:
+            return None
+
         particle_hit_masks = [("particle", hit) for hit in hits]
         pandora_hit_masks = [("pandora", hit) for hit in hits]
         sitrack_hit_masks = [("sitrack", hit) for hit in trkr_hits]
@@ -386,6 +391,24 @@ class CLDDataset(LRSMDataset):
 
         for class_id, class_name in particle_class_id_to_name.items():
             event[f"particle.is_{class_name}"] = np.isclose(event["particle.class"], class_id)
+
+        # Add class ID - note this is different to the class id used before, sone so that the null class can be 0
+        # Also this can be used as an actual index
+        # TODO: Make them the same ?
+        particle_class_name_to_idx = {
+            "neutral_hadron": 1,
+            "charged_hadron": 2,
+            "photon": 3,
+            "electron": 4,
+            "muon": 5,
+        }
+
+        # Start with zeros
+        event["particle.class_idx"] = np.zeros_like(event["particle.class"], dtype=np.int64)
+
+        # Fill where class matches
+        for class_name, new_id in particle_class_name_to_idx.items():
+            event["particle.class_idx"][event[f"particle.is_{class_name}"]] = new_id
 
         # Compute angular isolation
         dphi = event["particle.mom.phi"][:, None] - event["particle.mom.phi"][None, :]
