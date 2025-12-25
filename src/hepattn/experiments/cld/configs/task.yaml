@@ -1,4 +1,4 @@
-name: CLD_5_256_10MeV
+name: CLD_16_384_10MeV
 
 matmul_precision: high
 
@@ -9,13 +9,13 @@ data:
   test_dir: /share/rcif2/maxhart/data/cld/prepped_new/
 
   # Number of events to include in each set
-  num_workers: 10
+  num_workers: 32
   num_train: -1
   num_test: 1000
   num_val: 100
 
   # Minibatch size / number of events used per training step
-  batch_size: 5
+  batch_size: 16
 
   # Precision of any float values returned by the dataloader
   input_dtype: float32
@@ -33,7 +33,7 @@ data:
   include_neutral: true
 
   # Events with more particles than this are skipped
-  event_max_num_particles: &num_particles 256
+  event_max_num_particles: &num_particles 384
 
   # Number of query slots / particles to generate per event
   force_pad_sizes:
@@ -285,6 +285,7 @@ data:
       - is_other
       - is_primary
       - is_secondary
+      - class_idx
 
 
     particle_vtxd:
@@ -374,7 +375,7 @@ trainer:
   devices: 1
   precision: bf16-mixed
   log_every_n_steps: 10
-  val_check_interval: 500
+  val_check_interval: 1000
   default_root_dir: logs
   gradient_clip_val: 0.1
   accumulate_grad_batches: 1
@@ -392,7 +393,7 @@ trainer:
     - class_path: hepattn.callbacks.Checkpoint
       init_args:
         monitor: val/loss
-        every_n_train_steps: 1000
+        every_n_train_steps: 5000
     - class_path: hepattn.callbacks.PredictionWriter
       init_args:
         write_inputs: false
@@ -413,7 +414,7 @@ model:
     initial: 1e-5
     max: 5e-5
     end: 1e-5
-    pct_start: 0.01
+    pct_start: 0.001
     skip_scheduler: false
     weight_decay: 1e-5
 
@@ -643,111 +644,8 @@ model:
         class_path: torch.nn.ModuleList
         init_args:
           modules:
-            - class_path: hepattn.models.task.ObjectClassificationTask
+            - class_path: hepattn.experiments.cld.task.CLDTask
               init_args:
-                name: flow_valid
-                input_object: query
-                output_object: flow
-                target_object: particle
-                losses:
-                  object_bce: 0.1
-                costs:
-                  object_bce: 1.0
+                name: reco
                 dim: *dim
-                null_weight: 1.0
-                mask_queries: false
-                has_intermediate_loss: true
-                has_first_layer_loss: false
-
-            - class_path: hepattn.models.task.ObjectHitMaskTask
-              init_args:
-                name: flow_vtxd_assignment
-                input_constituent: vtxd
-                input_object: query
-                output_object: flow
-                target_object: particle
-                losses:
-                  mask_bce: 0.5
-                  mask_dice: 1.0
-                  #mask_focal: 1.0
-                costs:
-                  #mask_bce: 1.0
-                  mask_dice: 1.0
-                  #mask_focal: 1.0
-                dim: *dim
-                null_weight: 1.0
-
-            - class_path: hepattn.models.task.ObjectHitMaskTask
-              init_args:
-                name: flow_trkr_assignment
-                input_constituent: trkr
-                input_object: query
-                output_object: flow
-                target_object: particle
-                losses:
-                  mask_bce: 0.5
-                  mask_dice: 1.0
-                  #mask_focal: 1.0
-                costs:
-                  #mask_bce: 1.0
-                  mask_dice: 1.0
-                  #mask_focal: 1.0
-                dim: *dim
-                null_weight: 1.0
-
-            - class_path: hepattn.models.task.ObjectHitMaskTask
-              init_args:
-                name: flow_ecal_assignment
-                input_constituent: ecal
-                input_object: query
-                output_object: flow
-                target_object: particle
-                target_field: valid
-                losses:
-                  mask_bce: 0.5
-                  mask_dice: 1.0
-                  #mask_focal: 1.0
-                costs:
-                  #mask_bce: 1.0
-                  mask_dice: 1.0
-                  #mask_focal: 1.0
-                dim: *dim
-                null_weight: 1.0
-
-            - class_path: hepattn.models.task.ObjectHitMaskTask
-              init_args:
-                name: flow_hcal_assignment
-                input_constituent: hcal
-                input_object: query
-                output_object: flow
-                target_object: particle
-                target_field: valid
-                losses:
-                  mask_bce: 0.5
-                  mask_dice: 1.0
-                  #mask_focal: 1.0
-                costs:
-                  #mask_bce: 1.0
-                  mask_dice: 1.0
-                  #mask_focal: 1.0
-                dim: *dim
-                null_weight: 1.0
-
-            - class_path: hepattn.models.task.ObjectHitMaskTask
-              init_args:
-                name: flow_muon_assignment
-                input_constituent: muon
-                input_object: query
-                output_object: flow
-                target_object: particle
-                target_field: valid
-                losses:
-                  mask_bce: 0.5
-                  mask_dice: 1.0
-                  #mask_focal: 1.0
-                costs:
-                  #mask_bce: 1.0
-                  mask_dice: 1.0
-                  #mask_focal: 1.0
-                dim: *dim
-                null_weight: 1.0
+    
