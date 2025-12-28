@@ -1,10 +1,11 @@
+import torch
 from torch import Tensor, nn
 
 from hepattn.utils.tensor_utils import concat_tensors, get_module_dtype, get_torch_dtype
 
 
 class InputNet(nn.Module):
-    def __init__(self, input_name: str, net: nn.Module, fields: list[str], posenc: nn.Module | None = None, input_dtype: str | None = None):
+    def __init__(self, input_name: str, net: nn.Module, fields: list[str], posenc: nn.Module | None = None, input_dtype: str | None = None, num_batch_dims: int = 2):
         super().__init__()
         """A wrapper that takes a list of input features, concatenates them, and passes them
         through a dense layer followed by an optional positional encoding module.
@@ -25,6 +26,7 @@ class InputNet(nn.Module):
         self.net = net
         self.fields = fields
         self.posenc = posenc
+        self.num_batch_dims = num_batch_dims
 
         # Record the global model dtype incase we want to have the input net at a different precision
         self.output_dtype = get_module_dtype(self)
@@ -33,7 +35,8 @@ class InputNet(nn.Module):
         if input_dtype is not None:
             self.input_dtype = get_torch_dtype(input_dtype)
             self.net.to(dtype=self.input_dtype)
-            self.posenc.to(dtype=self.input_dtype)
+            if self.posenc:
+                self.posenc.to(dtype=self.input_dtype)
         else:
             self.input_dtype = self.output_dtype
 
@@ -50,7 +53,18 @@ class InputNet(nn.Module):
         # But must will be scalars, i.e. (batch, keys), so for these we reshape them to (batch, keys, 1)
         # After this we can then concatenate everything together
 
-        x = self.net(concat_tensors([inputs[f"{self.input_name}_{field}"] for field in self.fields]))
+        x = []
+
+        for field in self.fields:
+            xf = inputs[f"{self.input_name}_{field}"]
+
+            # If this is true then the field is a scalar so add a dummy dim before concat
+            if xf.ndim == self.num_batch_dims:
+                xf = xf.unsqueeze(-1)
+
+            x.append(xf)
+
+        x = self.net(torch.concatenate(x, dim=-1))
 
         # Perform an optional positional encoding using the positonal encoding fields
         if self.posenc is not None:
