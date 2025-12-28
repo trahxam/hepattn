@@ -64,7 +64,7 @@ class MaskFormer(nn.Module):
 
     @property
     def input_names(self) -> list[str]:
-        return [input_net.input_name for input_net in self.input_nets]
+        return [input_net.input_name for input_net in self.input_nets if input_net.input_name != "jet_jet"]
 
     def forward(self, inputs: dict[str, Tensor]) -> tuple[dict[str, Tensor], dict[str, Tensor]]:
         batch_size = inputs[self.input_names[0] + "_valid"].shape[0]
@@ -109,9 +109,12 @@ class MaskFormer(nn.Module):
                 x[field] = inputs[field]
             x = self.sorter.sort_inputs(x)
 
+        if "jet_jet_embed" in x:
+            x["key_key_bias"] = x["jet_jet_embed"]
+
         # Pass merged input constituents through the encoder
         x_sort_value = x.get(f"key_{self.input_sort_field}") if self.sorter is None else None
-        x["key_embed"] = self.encoder(x["key_embed"], x_sort_value=x_sort_value, kv_mask=x.get("key_valid"))
+        x["key_embed"] = self.encoder(x["key_embed"], x_sort_value=x_sort_value, kv_mask=x.get("key_valid"), attn_bias=x.get("key_key_bias"))
 
         # Unmerge the updated features back into the separate input types only if not doing unified decoding
         if not self.unified_decoding:
