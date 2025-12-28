@@ -1,0 +1,144 @@
+name: ttbar_reco_log
+
+matmul_precision: high
+
+data:
+  train_path: /share/rcif2/maxhart/data/ttbar/ttbar_train.root
+  val_path: /share/rcif2/maxhart/data/ttbar/ttbar_val.root
+  test_path: /share/rcif2/maxhart/data/ttbar/ttbar_test.root
+
+  num_workers: 24
+
+  batch_size: 8192
+
+trainer:
+  # Training stuff here
+  max_epochs: 30
+  accelerator: gpu
+  devices: 1
+  precision: bf16-mixed
+  log_every_n_steps: 50
+  default_root_dir: logs
+  gradient_clip_val: 0.1
+  enable_progress_bar: true
+
+  logger:
+    class_path: hepattn.utils.loggers.MyCometLogger
+    init_args:
+      project: ttbar_reco
+
+  callbacks:
+    - class_path: hepattn.callbacks.Compile
+      init_args:
+        skip_dynamic_cudagraphs: true
+        #mode: max-autotune # use for fastest inference
+    - class_path: hepattn.callbacks.InferenceTimer
+    - class_path: hepattn.callbacks.SaveConfig
+    - class_path: hepattn.callbacks.Checkpoint
+      init_args:
+        monitor: val/loss
+    - class_path: hepattn.callbacks.PredictionWriter
+      init_args:
+        write_inputs: true
+        write_outputs: true
+        write_preds: true
+        write_targets: true
+        write_losses: true
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+    - class_path: lightning.pytorch.callbacks.TQDMProgressBar
+      init_args:
+        refresh_rate: 10
+
+model:
+  optimizer: Lion
+
+  # Learning rate scheduler config
+  lrs_config:
+    initial: 1e-5
+    max: 1e-4
+    end: 1e-5
+    pct_start: 0.05
+    skip_scheduler: false
+    weight_decay: 1e-5
+
+  # Whether to use multi task learning or not
+  mtl: false
+
+  model:
+    class_path: hepattn.models.MaskFormer
+    init_args:
+      dim: &dim 256
+      input_nets:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: hepattn.models.InputNet
+              init_args:
+                input_name: jet
+                input_dtype: float32
+                fields:
+                  - pt_tev
+                  - eta
+                  - phi
+                  - m_tev
+                  - e_tev
+                  - bTag
+                  - log_pt
+                  - log_m
+                  - log_e
+                net:
+                  class_path: hepattn.models.Dense
+                  init_args:
+                    input_size: 9
+                    hidden_layers: [128]
+                    output_size: *dim
+                    activation: SwiGLU
+                posenc:
+                  class_path: hepattn.models.FourierPositionEncoder
+                  init_args:
+                    input_name: jet
+                    scale: 1
+                    fields:
+                      - eta
+                      - phi
+                    dim: *dim
+
+      encoder:
+        class_path: hepattn.models.Encoder
+        init_args:
+          num_layers: 4
+          dim: *dim
+          attn_type: flash-varlen
+          hybrid_norm: true
+          norm: CustomLayerNorm
+          dense_kwargs: {activation: SwiGLU}
+          attn_kwargs: {bias: false}
+
+      decoder:
+        num_decoder_layers: 4
+        num_queries: 2
+        mask_attention: false
+        use_query_masks: false
+        unmask_all_false: false
+        decoder_layer_config:
+          dim: *dim
+          norm: CustomLayerNorm
+          hybrid_norm: true
+          dense_kwargs: {activation: SwiGLU}
+          attn_kwargs: {bias: false}
+
+      tasks:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: hepattn.experiments.top.task.TopEventTask
+              init_args:
+                name: reco
+                dim: *dim
+
+      matcher:
+        class_path: hepattn.models.matcher.Matcher
+        init_args:
+          default_solver: scipy
+          adaptive_solver: false
+          parallel_solver: true
