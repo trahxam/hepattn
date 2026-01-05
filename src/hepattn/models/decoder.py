@@ -4,6 +4,7 @@
 """
 
 from functools import partial
+from typing import Literal
 
 import torch
 from torch import Tensor, nn
@@ -15,7 +16,8 @@ from hepattn.models.dense import Dense
 from hepattn.models.encoder import Residual
 from hepattn.models.norm import get_hybrid_norm_config
 from hepattn.models.posenc import pos_enc_symmetric
-from hepattn.models.task import IncidenceRegressionTask, ObjectClassificationTask
+from hepattn.models.task import IncidenceRegressionTask, ObjectClassificationTask, ObjectHitMaskTask
+from hepattn.utils.kmeans_ca import KMeansCrossAttention
 from hepattn.utils.local_ca import auto_local_ca_mask
 from hepattn.utils.model_utils import unmerge_inputs
 
@@ -37,6 +39,7 @@ class MaskFormerDecoder(nn.Module):
         unified_decoding: bool = False,
         phi_shift: float = 0.0,
         unmask_all_false: bool = True,
+        kmeans_affinity_task: str | None = None,
     ):
         """MaskFormer decoder that handles multiple decoder layers and task integration.
 
@@ -50,12 +53,13 @@ class MaskFormerDecoder(nn.Module):
             local_strided_attn: If True, uses local strided window attention.
             window_size: The size of the window for local strided window attention.
             window_wrap: If True, wraps the window for local strided window attention.
-            attn_type: The attention type to use (e.g., 'torch', 'flex').
             fast_local_ca: If True, uses fast local CA.
             block_size: The size of the block for fast local CA.
             unified_decoding: If True, inputs remain merged for task processing instead of being unmerged after each layer.
             phi_shift: The shift in the phi angle for positional encoding.
             unmask_all_false: If True, queries with all-false attention masks will be unmasked to attend everywhere.
+            kmeans_affinity_task: If using cross_attn_mode="kmeans", optionally select which ObjectHitMaskTask.name
+                provides the affinity logits. If None, the first ObjectHitMaskTask with outputs in that layer is used.
         """
         super().__init__()
 
@@ -76,6 +80,7 @@ class MaskFormerDecoder(nn.Module):
         self.block_size = block_size
         self.phi_shift = phi_shift
         self.unmask_all_false = unmask_all_false
+        self.kmeans_affinity_task = kmeans_affinity_task
 
         if self.local_strided_attn:
             assert self.attn_type in {"torch", "flex"}, (
@@ -168,28 +173,59 @@ class MaskFormerDecoder(nn.Module):
             # Construct the full attention mask for MaskAttention decoder
             if attn_masks and self.mask_attention:
                 if self.unified_decoding:
-                    # In merged input mode, tasks should return masks directly for the full merged tensor
-                    # We expect only one mask key (likely "key" or similar) that covers all constituents
                     if len(attn_masks) > 1:
                         raise ValueError(f"In merged input mode, expected only one attention mask, got {len(attn_masks)}")
                     attn_mask = next(iter(attn_masks.values()))
-                    # Ensure proper shape: (batch, num_queries, num_constituents)
                     if attn_mask.dim() == 2:  # (batch, num_queries) -> (batch, num_queries, num_constituents)
                         attn_mask = attn_mask.unsqueeze(-1).expand(-1, -1, num_constituents)
                 else:
-                    # Original logic for separate input types
                     attn_mask = torch.full((batch_size, self.num_queries, num_constituents), False, device=x["key_embed"].device)
                     for input_name, task_attn_mask in attn_masks.items():
                         attn_mask[x[f"key_is_{input_name}"].unsqueeze(1).expand_as(attn_mask)] = task_attn_mask.flatten()
-                
-                # True values indicate a slot will be included in the attention computation, while False will be ignored.
+
+                attn_mask = attn_mask.detach()
                 # If the attn mask is completely invalid for a given query, allow it to attend everywhere
-                # TODO: check and see see if this is really necessary
                 if self.unmask_all_false:
                     attn_mask = torch.where(torch.all(~attn_mask, dim=-1, keepdim=True), True, attn_mask)
 
             if (attn_mask is not None) and self.attn_type != "flex":
                 outputs[f"layer_{layer_index}"]["attn_mask"] = attn_mask
+
+            # If this decoder layer uses kmeans cross-attn, provide affinity logits (B, N, M_total)
+            affinity_logits = None
+            if getattr(decoder_layer, "cross_attn_mode", "softmax") == "kmeans":
+                chosen: ObjectHitMaskTask | None = None
+                for task in self.tasks:
+                    if not isinstance(task, ObjectHitMaskTask):
+                        continue
+                    if (self.kmeans_affinity_task is not None) and (task.name != self.kmeans_affinity_task):
+                        continue
+                    if task.name in outputs[f"layer_{layer_index}"]:
+                        chosen = task
+                        break
+
+                if chosen is None:
+                    raise ValueError(
+                        "cross_attn_mode='kmeans' but no ObjectHitMaskTask outputs were found for this layer. "
+                        "Make sure your ObjectHitMaskTask has_intermediate_loss=True and runs at this layer, "
+                        "or set kmeans_affinity_task to the correct task name."
+                    )
+
+                raw = outputs[f"layer_{layer_index}"][chosen.name][chosen.output_object_hit + "_logit"]  # (B, N, M_sub)
+
+                # Not unified decoding: expand logits onto the merged key axis
+                if chosen.input_constituent == "key":
+                    affinity_logits = raw
+                else:
+                    affinity_logits = torch.full(
+                        (batch_size, self.num_queries, num_constituents),
+                        float("-inf"),
+                        device=raw.device,
+                        dtype=raw.dtype,
+                    )
+                    key_is = x[f"key_is_{chosen.input_constituent}"].unsqueeze(1).expand_as(affinity_logits)
+                    affinity_logits[key_is] = raw.flatten()
+
             # Update the keys and queries
             x["query_embed"], x["key_embed"] = decoder_layer(
                 x["query_embed"],
@@ -200,6 +236,7 @@ class MaskFormerDecoder(nn.Module):
                 query_posenc=x["query_posenc"] if self.posenc else None,
                 key_posenc=x["key_posenc"] if self.posenc else None,
                 attn_mask_transpose=attn_mask_transpose,
+                affinity_logits=affinity_logits,
             )
 
             # update the individual input constituent representations only if not in merged input mode
@@ -209,7 +246,6 @@ class MaskFormerDecoder(nn.Module):
         return x, outputs
 
     def flex_local_ca_mask(self, q_len: int, kv_len: int, device, dtype_float):
-        # Calculate stride based on the ratio of key length to query length
         stride = kv_len / q_len
         if self.fast_local_ca:
             return build_strided_sliding_window_blockmask(
@@ -244,6 +280,8 @@ class MaskFormerDecoderLayer(nn.Module):
         bidirectional_ca: bool = True,
         qkv_norm: bool = False,
         hybrid_norm: bool = False,
+        cross_attn_mode: Literal["softmax", "kmeans"] = "softmax",
+        kmeans_kwargs: dict | None = None,
     ) -> None:
         """Initialize a MaskFormer decoder layer.
 
@@ -256,10 +294,13 @@ class MaskFormerDecoderLayer(nn.Module):
             bidirectional_ca: Enable bidirectional cross-attention.
             qkv_norm: Apply normalization to QKV in attention.
             hybrid_norm: Enable hybrid normalization from 2503.04598.
+            cross_attn_mode: "softmax" (standard attention) or "kmeans" (kMaX-style hard assignment update).
+            kmeans_kwargs: Optional kwargs passed to KMeansCrossAttention when cross_attn_mode="kmeans".
         """
         super().__init__()
         self.dim = dim
         self.bidirectional_ca = bidirectional_ca
+        self.cross_attn_mode = cross_attn_mode
 
         attn_norm, dense_post_norm, qkv_norm = get_hybrid_norm_config(norm, depth, hybrid_norm, qkv_norm)
 
@@ -268,7 +309,13 @@ class MaskFormerDecoderLayer(nn.Module):
         dense_kwargs = dense_kwargs or {}
 
         residual = partial(Residual, dim=dim)
-        self.q_ca = residual(Attention(dim, qkv_norm=qkv_norm, norm=norm, **attn_kwargs), norm=attn_norm)
+
+        if self.cross_attn_mode == "kmeans":
+            kmeans_kwargs = kmeans_kwargs or {}
+            self.q_ca = residual(KMeansCrossAttention(dim, **kmeans_kwargs), norm=attn_norm)
+        else:
+            self.q_ca = residual(Attention(dim, qkv_norm=qkv_norm, norm=norm, **attn_kwargs), norm=attn_norm)
+
         self.q_sa = residual(Attention(dim, qkv_norm=qkv_norm, norm=norm, **attn_kwargs), norm=attn_norm)
         self.q_dense = residual(Dense(dim, **dense_kwargs), norm=norm, post_norm=dense_post_norm)
 
@@ -286,30 +333,41 @@ class MaskFormerDecoderLayer(nn.Module):
         query_posenc: Tensor | None = None,
         key_posenc: Tensor | None = None,
         attn_mask_transpose: Tensor | None = None,
+        affinity_logits: Tensor | None = None,
     ) -> tuple[Tensor, Tensor]:
         """Forward pass for the decoder layer.
 
         Args:
             q: Query embeddings.
             kv: Key/value embeddings.
-            attn_mask: Optional attention mask.
-            q_mask: Optional query mask.
-            kv_mask: Optional key/value mask.
+            attn_mask: Optional attention mask (B, N, M) for q<-kv, or blockmask for flex.
+            q_mask: Optional query mask (B, N).
+            kv_mask: Optional key/value mask (B, M).
             query_posenc: Optional query positional encoding.
             key_posenc: Optional key positional encoding.
-            attn_mask_transpose: Optional transposed attention mask.
+            attn_mask_transpose: Optional transposed attention mask for flex attention.
+            affinity_logits: If cross_attn_mode="kmeans", logits (B, N, M) used for hard assignment.
 
         Returns:
-            tuple[Tensor, Tensor]: A tuple containing:
-                - The updated query embeddings (Tensor).
-                - The updated key/value embeddings (Tensor).
+            tuple[Tensor, Tensor]: Updated (q, kv).
         """
         q_pe = q if query_posenc is None else q + query_posenc
         kv_pe = kv if key_posenc is None else kv + key_posenc
 
-        q = self.q_ca(q_pe, k=kv_pe, v=kv, attn_mask=attn_mask, q_mask=q_mask, kv_mask=kv_mask)
-        q = self.q_dense(q)
+        if self.cross_attn_mode == "kmeans":
+            q = self.q_ca(
+                q_pe,
+                k=kv_pe,
+                v=kv,
+                attn_mask=attn_mask,
+                q_mask=q_mask,
+                kv_mask=kv_mask,
+                affinity_logits=affinity_logits,
+            )
+        else:
+            q = self.q_ca(q_pe, k=kv_pe, v=kv, attn_mask=attn_mask, q_mask=q_mask, kv_mask=kv_mask)
 
+        q = self.q_dense(q)
         q = self.q_sa(q, k=q, v=q, q_mask=q_mask)
 
         # Update key/constituent embeddings with the query/object embeddings
@@ -317,7 +375,6 @@ class MaskFormerDecoderLayer(nn.Module):
             if attn_mask is not None:
                 if self.attn_type == "flex":
                     assert attn_mask_transpose is not None, "attn_mask_transpose must be provided for flex attention"
-                # Index from the back so we are batch shape agnostic
                 attn_mask = attn_mask_transpose if attn_mask_transpose is not None else attn_mask.transpose(-2, -1)
 
             q_pe = q if query_posenc is None else q + query_posenc
@@ -334,8 +391,10 @@ class MaskFormerDecoderLayer(nn.Module):
         Args:
             attn_type: Attention implementation type to use.
         """
-        self.q_ca.fn.set_backend(attn_type)
-        self.q_sa.fn.set_backend(attn_type)
+        if hasattr(self.q_ca.fn, "set_backend"):
+            self.q_ca.fn.set_backend(attn_type)
+        if hasattr(self.q_sa.fn, "set_backend"):
+            self.q_sa.fn.set_backend(attn_type)
 
-        if self.bidirectional_ca:
+        if self.bidirectional_ca and hasattr(self.kv_ca.fn, "set_backend"):
             self.kv_ca.fn.set_backend(attn_type)
