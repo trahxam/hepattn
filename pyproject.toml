@@ -38,7 +38,6 @@ dependencies = [
     "einops>=0.8.1,<0.9",
     "atlas-ftag-tools>=0.2.9,<0.3",
     "ty>=0.0.1a20,<0.0.1a21",
-    "atlasify>=0.8.0,<0.9",
     "lapx>=0.9.2,<0.10",
 ]
 
@@ -54,6 +53,7 @@ build-backend = "scikit_build_core.build"
 [tool.scikit-build]
 wheel.packages = ["src/hepattn", "src/lap1015/src/lap1015"]
 
+
 [tool.pixi.workspace]
 channels = ["conda-forge", "nvidia", "nodefaults"]
 platforms = ["linux-64", "linux-aarch64"]
@@ -63,14 +63,10 @@ hepattn = { path = ".", editable = true }
 
 [tool.pixi.pypi-options]
 no-build-isolation = ["flash-attn"]
-extra-index-urls = ["https://download.pytorch.org/whl/cu128", "https://download.pytorch.org/whl/cu130"]
-index-strategy = "unsafe-best-match"
+extra-index-urls = ["https://download.pytorch.org/whl/cu128"]
 
 [tool.pixi.feature.gpu.pypi-dependencies]
 torch = { version = "==2.9.1", index = "https://download.pytorch.org/whl/cu128"}
-
-[tool.pixi.feature.cu130.pypi-dependencies]
-torch = { version = "==2.9.1", index = "https://download.pytorch.org/whl/cu130"}
 
 [tool.pixi.feature.cpu.pypi-dependencies]
 torch = { version = "==2.9.1", index = "https://download.pytorch.org/whl/cpu" }
@@ -78,7 +74,6 @@ torch = { version = "==2.9.1", index = "https://download.pytorch.org/whl/cpu" }
 [tool.pixi.environments]
 default = { features = ["gpu", "fa2"] }
 isambard = { features = ["gpu"] }
-grace = { features = ["cu130"] }
 cpu = { features = ["cpu"] }
 clic = { features = ["clic"] }
 tide = { features = ["tide"] }
@@ -86,24 +81,14 @@ ci = { features = ["cpu", "clic", "tide"]}
 
 [tool.pixi.system-requirements]
 libc = "2.28"
-
-[tool.pixi.feature.gpu.system-requirements]
 cuda = "12.3"
-
-[tool.pixi.feature.cu130.system-requirements]
-cuda = "13.0"
 
 [tool.pixi.dependencies]
 gxx = ">=14.3.0,<14.4"
 git = ">=2.51.0,<3"
 git-lfs = ">=3.7.0,<4"
 ninja = ">=1.13.1,<2"
-
-[tool.pixi.feature.gpu.dependencies]
 cuda = "12.8.*"
-
-[tool.pixi.feature.cu130.dependencies]
-cuda = "13.0.*"
 
 [tool.pixi.tasks.test]
 cmd = "pytest"
@@ -116,6 +101,7 @@ cmd = "pytest --ignore=tests/experiments/ -m 'not gpu and not requiresdata' --co
 
 [tool.pixi.tasks.test-integration-ci]
 cmd = "pytest tests/experiments/ -m 'not gpu and not requiresdata' --cov=src --cov-report=xml --cov-report=term-missing"
+
 
 [tool.ruff]
 src = ["src"]
@@ -134,6 +120,7 @@ pydocstyle.convention = "google"
 
 [tool.ty.rules]
 missing-argument = "ignore" # for now as kwarg unpacking is not supported
+
 
 [tool.pytest.ini_options]
 filterwarnings = ["ignore:.*distutils Version classes are deprecated. Use packaging.version instead.*:DeprecationWarning"]

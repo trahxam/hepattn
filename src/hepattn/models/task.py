@@ -58,6 +58,9 @@ class Task(nn.Module, ABC):
     def query_mask(self, outputs: dict[str, Tensor], **kwargs) -> Tensor | None:
         return None
 
+    def affinity(self, outputs: dict[str, Tensor], x: dict[str, Tensor], num_constituents: int) -> Tensor | None:
+        return None
+
 
 class ObjectClassificationTask(Task):
     def __init__(
@@ -472,6 +475,22 @@ class ObjectHitMaskTask(Task):
         thresh = threshold if threshold is not None else self.mask_attention_threshold
         attn_mask = outputs[self.output_object_hit + "_logit"].detach().sigmoid() >= thresh
         return {self.input_constituent: attn_mask}
+
+    def affinity(self, outputs: dict[str, Tensor], x: dict[str, Tensor], num_constituents: int) -> Tensor | None:
+        if self.input_constituent == "key":
+            return outputs[self.output_object_hit + "_logit"]
+
+        raw = outputs[self.output_object_hit + "_logit"]
+        batch_size, num_queries, _ = raw.shape
+        affinity_logits = torch.full(
+            (batch_size, num_queries, num_constituents),
+            float("-inf"),
+            device=raw.device,
+            dtype=raw.dtype,
+        )
+        key_is = x[f"key_is_{self.input_constituent}"].unsqueeze(1).expand_as(affinity_logits)
+        affinity_logits[key_is] = raw.flatten()
+        return affinity_logits
 
     def predict(self, outputs: dict[str, Tensor]) -> dict[str, Tensor]:
         output = {}

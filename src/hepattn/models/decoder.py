@@ -16,7 +16,7 @@ from hepattn.models.dense import Dense
 from hepattn.models.encoder import Residual
 from hepattn.models.norm import get_hybrid_norm_config
 from hepattn.models.posenc import pos_enc_symmetric
-from hepattn.models.task import IncidenceRegressionTask, ObjectClassificationTask, ObjectHitMaskTask
+from hepattn.models.task import IncidenceRegressionTask, ObjectClassificationTask
 from hepattn.utils.kmeans_ca import KMeansCrossAttention
 from hepattn.utils.local_ca import auto_local_ca_mask
 from hepattn.utils.model_utils import unmerge_inputs
@@ -58,8 +58,8 @@ class MaskFormerDecoder(nn.Module):
             unified_decoding: If True, inputs remain merged for task processing instead of being unmerged after each layer.
             phi_shift: The shift in the phi angle for positional encoding.
             unmask_all_false: If True, queries with all-false attention masks will be unmasked to attend everywhere.
-            kmeans_affinity_task: If using cross_attn_mode="kmeans", optionally select which ObjectHitMaskTask.name(s)
-                provide affinity logits. If None, all ObjectHitMaskTask outputs in that layer are combined.
+            kmeans_affinity_task: If using cross_attn_mode="kmeans", optionally select which task name(s)
+                provide affinity logits via affinity(). If None, all task affinities in that layer are combined.
         """
         super().__init__()
 
@@ -201,59 +201,17 @@ class MaskFormerDecoder(nn.Module):
                     else:
                         requested_names = set(self.kmeans_affinity_task)
 
-                chosen_tasks: list[ObjectHitMaskTask] = []
                 for task in self.tasks:
-                    if not isinstance(task, ObjectHitMaskTask):
-                        continue
-                    if task.name not in outputs[f"layer_{layer_index}"]:
-                        continue
                     if requested_names is not None and task.name not in requested_names:
                         continue
-                    chosen_tasks.append(task)
+                        
+                    task_outputs = outputs[f"layer_{layer_index}"].get(task.name)
+                    task_affinity = task.affinity(task_outputs, x, num_constituents)
 
-                if requested_names is not None:
-                    present_names = {task.name for task in chosen_tasks}
-                    missing = requested_names - present_names
-                    if missing:
-                        missing_str = ", ".join(sorted(missing))
-                        raise ValueError(
-                            "cross_attn_mode='kmeans' requested ObjectHitMaskTask(s) missing in this layer: "
-                            f"{missing_str}. Ensure has_intermediate_loss=True and has_first_layer_loss=True for layer 0, "
-                            "or update kmeans_affinity_task."
-                        )
-
-                if not chosen_tasks:
-                    raise ValueError(
-                        "cross_attn_mode='kmeans' but no ObjectHitMaskTask outputs were found for this layer. "
-                        "Make sure your ObjectHitMaskTask has_intermediate_loss=True and runs at this layer, "
-                        "or set kmeans_affinity_task to the correct task name(s)."
-                    )
-
-                if any(task.input_constituent == "key" for task in chosen_tasks):
-                    if not all(task.input_constituent == "key" for task in chosen_tasks):
-                        raise ValueError(
-                            "cross_attn_mode='kmeans' received mixed ObjectHitMaskTask inputs. "
-                            "When using input_constituent='key', all selected tasks must use 'key'."
-                        )
-                    affinity_logits = outputs[f"layer_{layer_index}"][chosen_tasks[0].name][
-                        chosen_tasks[0].output_object_hit + "_logit"
-                    ]
-                    for task in chosen_tasks[1:]:
-                        raw = outputs[f"layer_{layer_index}"][task.name][task.output_object_hit + "_logit"]
-                        affinity_logits = torch.maximum(affinity_logits, raw)
-                else:
-                    affinity_logits = torch.full(
-                        (batch_size, self.num_queries, num_constituents),
-                        float("-inf"),
-                        device=x["key_embed"].device,
-                        dtype=outputs[f"layer_{layer_index}"][chosen_tasks[0].name][
-                            chosen_tasks[0].output_object_hit + "_logit"
-                        ].dtype,
-                    )
-                    for task in chosen_tasks:
-                        raw = outputs[f"layer_{layer_index}"][task.name][task.output_object_hit + "_logit"]
-                        key_is = x[f"key_is_{task.input_constituent}"].unsqueeze(1).expand_as(affinity_logits)
-                        affinity_logits[key_is] = torch.maximum(affinity_logits[key_is], raw.flatten())
+                    if affinity_logits is None:
+                        affinity_logits = task_affinity
+                    else:
+                        affinity_logits = torch.maximum(affinity_logits, task_affinity)
 
             # Update the keys and queries
             x["query_embed"], x["key_embed"] = decoder_layer(
