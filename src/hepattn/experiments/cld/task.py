@@ -14,14 +14,14 @@ class CLDTask(Task):
         self,
         name: str,
         dim: int,
-        mask_attn: bool = True,
+        mask_attn: bool = False,
         has_intermediate_loss: bool = True,
         hits_included: list[str] | str = "all",
         hit_mask_attn_thresholds: dict[str, float] | None = None,
         tracker_helix_fit: bool = False,
-        calo_line_fit: bool = True,
+        calo_line_fit: bool = False,
         calo_score_method: str = "sigmoid",
-        loss_object_mask: str = "selective",
+        loss_object_mask: str = "valid",
     ):
         super().__init__(has_intermediate_loss=has_intermediate_loss)
 
@@ -33,7 +33,7 @@ class CLDTask(Task):
 
         # Which detector subhits will be used
         if hits_included == "all":
-            self.hits_included = ["vtxd", "trkr"]
+            self.hits_included = ["vtxd", "trkr", "ecal", "hcal", "muon"]
         else:
             self.hits_included = hits_included
 
@@ -196,6 +196,22 @@ class CLDTask(Task):
 
         return attn_masks
 
+    def affinity(self, outputs: dict[str, Tensor], x: dict[str, Tensor], num_constituents: int) -> Tensor | None:
+        batch_size, num_queries = outputs["flow_logit"].shape[:2]
+        affinity_logits = torch.full(
+            (batch_size, num_queries, num_constituents),
+            float("-inf"),
+            device=outputs["flow_logit"].device,
+            dtype=outputs["flow_logit"].dtype,
+        )
+
+        for hit in self.hits_included:
+            raw = outputs[f"flow_{hit}_logit"]
+            key_is = x[f"key_is_{hit}"].unsqueeze(1).expand_as(affinity_logits)
+            affinity_logits[key_is] = torch.maximum(affinity_logits[key_is], raw.flatten())
+
+        return affinity_logits
+
     def predict(self, outputs: dict[str, Tensor]) -> dict[str, Tensor]:
         outputs["flow_class_idx"] = outputs["flow_logit"].argmax(dim=-1)
         outputs["flow_valid"] = outputs["flow_class_idx"] != 0
@@ -307,8 +323,12 @@ class CLDTask(Task):
 
             # We only want to log metrics for the hits that the particle type should be involved with
             for hit in self.class_active_hits[selection]:
+                flow_key = f"flow_{hit}_valid"
+                if flow_key not in preds:
+                    continue
+
                 part_hit_valid = targets[f"particle_{hit}_valid"].bool()
-                flow_hit_valid = preds[f"flow_{hit}_valid"].bool()
+                flow_hit_valid = preds[flow_key].bool()
 
                 part_hit_valid = part_hit_valid & part_selected.unsqueeze(-1)
                 flow_hit_valid = flow_hit_valid & flow_selected.unsqueeze(-1)

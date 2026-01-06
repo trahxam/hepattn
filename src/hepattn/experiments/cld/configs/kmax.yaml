@@ -1,15 +1,27 @@
-name: CLD-kMax
+name: CLD_10_384_10MeV_kMax
 
 model:
   model:
     init_args:
       decoder:
+        num_decoder_layers: 4
+        num_queries: 384
+
         # kMaX / k-means CA works best without Mask2Former-style boolean attention masking
         mask_attention: false
         use_query_masks: false
         unmask_all_false: false
 
+        # optional but recommended: explicitly select which ObjectHitMaskTask provides affinity logits
+        kmeans_affinity_task: reco
+
         decoder_layer_config:
+          dim: 256
+          norm: CustomLayerNorm
+          hybrid_norm: true
+          dense_kwargs: {activation: SwiGLU}
+          attn_kwargs: {bias: false}
+
           # --- enable k-means cross-attention update ---
           cross_attn_mode: kmeans
 
@@ -18,6 +30,6 @@ model:
 
           # k-means CA options
           kmeans_kwargs:
-            update: mean
-            value_proj: true
-            mask_attn: false
+            update: mean          # "mean" is usually more stable than "sum"
+            value_proj: true      # learnable V projection
+            mask_attn: false  # since mask_attention is off anyway

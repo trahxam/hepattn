@@ -1,4 +1,4 @@
-name: CLD_25_256eV_unified
+name: CLD_10_384_10MeV
 
 matmul_precision: high
 
@@ -15,7 +15,7 @@ data:
   num_val: 100
 
   # Minibatch size / number of events used per training step
-  batch_size: 25
+  batch_size: 10
 
   # Precision of any float values returned by the dataloader
   input_dtype: float32
@@ -33,7 +33,7 @@ data:
   include_neutral: true
 
   # Events with more particles than this are skipped
-  event_max_num_particles: &num_particles 256
+  event_max_num_particles: &num_particles 384
 
   # Number of query slots / particles to generate per event
   force_pad_sizes:
@@ -285,6 +285,7 @@ data:
       - is_other
       - is_primary
       - is_secondary
+      - class_idx
 
 
     particle_vtxd:
@@ -369,12 +370,13 @@ data:
 
 # Training stuff here
 trainer:
-  max_epochs: 25
+  max_epochs: 10
   accelerator: gpu
   devices: 1
   precision: bf16-mixed
   log_every_n_steps: 10
-  default_root_dir: logs
+  val_check_interval: 1000
+  default_root_dir: src/hepattn/experiments/cld/logs
   gradient_clip_val: 0.1
   accumulate_grad_batches: 1
   enable_progress_bar: True
@@ -385,13 +387,13 @@ trainer:
       project: cld
 
   callbacks:
-    - class_path: hepattn.callbacks.Compile
+    # - class_path: hepattn.callbacks.Compile
     - class_path: hepattn.callbacks.InferenceTimer
     - class_path: hepattn.callbacks.SaveConfig
     - class_path: hepattn.callbacks.Checkpoint
       init_args:
-        monitor: train/loss
-        every_n_train_steps: 1000
+        monitor: val/loss
+        every_n_train_steps: 5000
     - class_path: hepattn.callbacks.PredictionWriter
       init_args:
         write_inputs: false
@@ -403,7 +405,7 @@ trainer:
     - class_path: lightning.pytorch.callbacks.LearningRateMonitor
     - class_path: lightning.pytorch.callbacks.TQDMProgressBar
       init_args:
-        refresh_rate: 50
+        refresh_rate: 10
 
 model:
   optimizer: lion
@@ -411,7 +413,7 @@ model:
   lrs_config:
     initial: 1e-5
     max: 5e-5
-    end: 1e-6
+    end: 1e-5
     pct_start: 0.001
     skip_scheduler: false
     weight_decay: 1e-5
@@ -423,7 +425,7 @@ model:
     init_args:
       dim: &dim 256
       input_sort_field: pos.phi
-      unified_decoding: true
+      common_decoder_dense: false
 
       input_nets:
         class_path: torch.nn.ModuleList
@@ -612,24 +614,24 @@ model:
           window_size: 512
           window_wrap: true
           hybrid_norm: true
-          value_residual: true
-          norm: RMSNorm
+          norm: CustomLayerNorm
           dense_kwargs: {activation: SwiGLU}
-          attn_kwargs:
-            num_heads: 8
+          attn_kwargs: {bias: false}
 
       decoder:
-        num_decoder_layers: 8
+        num_decoder_layers: 4
         num_queries: *num_particles
         mask_attention: true
         use_query_masks: false
         mask_attention: true
         use_query_masks: false
+        unmask_all_false: true
         decoder_layer_config:
           dim: *dim
-          norm: RMSNorm
+          norm: CustomLayerNorm
           hybrid_norm: true
           dense_kwargs: {activation: SwiGLU}
+          attn_kwargs: {bias: false}
 
       matcher:
         class_path: hepattn.models.matcher.Matcher
@@ -642,36 +644,16 @@ model:
         class_path: torch.nn.ModuleList
         init_args:
           modules:
-            - class_path: hepattn.models.task.ObjectValidTask
+            - class_path: hepattn.experiments.cld.task.CLDTask
               init_args:
-                name: flow_valid
-                input_object: query
-                output_object: flow
-                target_object: particle
-                losses:
-                  object_bce: 0.1
-                costs:
-                  object_bce: 1.0
+                name: reco
                 dim: *dim
-                null_weight: 1.0
-                mask_queries: false
-                has_intermediate_loss: False
-
-            - class_path: hepattn.models.task.ObjectHitMaskTask
-              init_args:
-                name: flow_key_assignment
-                input_constituent: key
-                input_object: query
-                output_object: flow
-                target_object: particle
-                has_intermediate_loss: False
-                losses:
-                  mask_bce: 0.25
-                  mask_dice: 0.75
-                  #mask_focal: 1.0
-                costs:
-                  #mask_bce: 1.0
-                  mask_dice: 1.0
-                  #mask_focal: 1.0
-                dim: *dim
-                null_weight: 1.0
+                mask_attn: false
+                has_intermediate_loss: true
+                hits_included: all
+                hit_mask_attn_thresholds: null
+                tracker_helix_fit: false
+                calo_line_fit: false
+                calo_score_method: sigmoid
+                loss_object_mask: valid
+    
