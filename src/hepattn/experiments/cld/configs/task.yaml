@@ -1,4 +1,4 @@
-name: CLD_16_384_10MeV
+name: CLD_10_384_10MeV
 
 matmul_precision: high
 
@@ -15,7 +15,7 @@ data:
   num_val: 100
 
   # Minibatch size / number of events used per training step
-  batch_size: 16
+  batch_size: 10
 
   # Precision of any float values returned by the dataloader
   input_dtype: float32
@@ -619,7 +619,7 @@ model:
           attn_kwargs: {bias: false}
 
       decoder:
-        num_decoder_layers: 8
+        num_decoder_layers: 4
         num_queries: *num_particles
         mask_attention: true
         use_query_masks: false
