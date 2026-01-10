@@ -1,12 +1,12 @@
-name: CLD_10_384_10MeV
+name: CLD_5_384_10MeV
 
 matmul_precision: high
 
 data:
   # Paths to preprocessed data directories
-  train_dir: /share/rcif2/maxhart/data/cld/prepped_new/
-  val_dir: /share/rcif2/maxhart/data/cld/prepped_new/
-  test_dir: /share/rcif2/maxhart/data/cld/prepped_new/
+  train_dir: /share/rcif2/maxhart/data/cld/prepped/train/
+  val_dir: /share/rcif2/maxhart/data/cld/prepped/val/
+  test_dir: /share/rcif2/maxhart/data/cld/prepped/test/
 
   # Number of events to include in each set
   num_workers: 32
@@ -15,7 +15,7 @@ data:
   num_val: 100
 
   # Minibatch size / number of events used per training step
-  batch_size: 10
+  batch_size: 5
 
   # Precision of any float values returned by the dataloader
   input_dtype: float32
@@ -130,7 +130,7 @@ data:
       - pos.y
       - pos.z
       - pos.s
-      - pos.x
+      - pos.r
       - pos.x_dm
       - pos.y_dm
       - pos.z_dm
@@ -376,7 +376,7 @@ trainer:
   precision: bf16-mixed
   log_every_n_steps: 10
   val_check_interval: 1000
-  default_root_dir: src/hepattn/experiments/cld/logs
+  default_root_dir: logs
   gradient_clip_val: 0.1
   accumulate_grad_batches: 1
   enable_progress_bar: True
@@ -387,7 +387,7 @@ trainer:
       project: cld
 
   callbacks:
-    # - class_path: hepattn.callbacks.Compile
+    - class_path: hepattn.callbacks.Compile
     - class_path: hepattn.callbacks.InferenceTimer
     - class_path: hepattn.callbacks.SaveConfig
     - class_path: hepattn.callbacks.Checkpoint
@@ -462,10 +462,10 @@ model:
                     input_name: vtxd
                     dim: *dim
                     fields:
-                      - pos.x_dm
-                      - pos.y_dm
-                      - pos.z_dm
-                      - pos.r_dm
+                      - pos.x
+                      - pos.y
+                      - pos.z
+                      - pos.r
                       - pos.theta
                       - pos.phi
 
@@ -638,7 +638,7 @@ model:
         init_args:
           default_solver: scipy
           adaptive_solver: false
-          parallel_solver: true
+          parallel_solver: false
 
       tasks:
         class_path: torch.nn.ModuleList
@@ -650,7 +650,12 @@ model:
                 dim: *dim
                 mask_attn: false
                 has_intermediate_loss: true
-                hits_included: all
+                hits_included:
+                  #- trkr
+                  #- vtxd
+                  - ecal
+                  - hcal
+                  #- muon
                 hit_mask_attn_thresholds: null
                 tracker_helix_fit: false
                 calo_line_fit: false

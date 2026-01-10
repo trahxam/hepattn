@@ -22,6 +22,7 @@ class CLDTask(Task):
         calo_line_fit: bool = False,
         calo_score_method: str = "sigmoid",
         loss_object_mask: str = "valid",
+        return_embeddings: bool = False,
     ):
         super().__init__(has_intermediate_loss=has_intermediate_loss)
 
@@ -30,6 +31,7 @@ class CLDTask(Task):
         self.mask_attn = mask_attn
         self.loss_object_mask = loss_object_mask
         self.calo_score_method = calo_score_method
+        self.return_embeddings = return_embeddings
 
         # Which detector subhits will be used
         if hits_included == "all":
@@ -121,10 +123,17 @@ class CLDTask(Task):
 
         outputs["flow_logit"] = self.class_net(x["query_embed"])
 
+        if self.return_embeddings:
+            outputs["query_embed"] = x["query_embed"]
+
         for hit, mask_net in self.hit_mask_nets.items():
             # query-side mask embedding
             q = mask_net(x["query_embed"])      # [B, Nq, C]
             k = x[f"{hit}_embed"]               # [B, Nh, C]
+
+            if self.return_embeddings:
+                outputs[f"mask_token_{hit}"] = q
+                outputs[f"{hit}_embed"] = k
 
             # assignments logits: [B, Nq, Nh]
             flow_hit_logit = torch.einsum("bnc,bmc->bnm", q, k)
@@ -181,7 +190,7 @@ class CLDTask(Task):
 
             outputs["flow_regr_helix"] = flow_helix_params
             outputs["flow_helix_fittable"] = flow_fittable
-            outputs["flow_helix_fitted"] = flow_fitted
+            outputs["flow_helix_fitted"] = flow_fitted            
 
         return outputs
 
@@ -306,29 +315,33 @@ class CLDTask(Task):
 
     def metrics(self, preds: dict[str, Tensor], targets: dict[str, Tensor]) -> dict[str, Tensor]:
         metrics: dict[str, Tensor] = {}
-
         eps = 1e-8
+
+        has_sihits = {"vtxd", "trkr"}.issubset(set(self.hits_included))
+        if has_sihits:
+            preds["flow_sihits_valid"] = torch.cat([preds["flow_vtxd_valid"], preds["flow_trkr_valid"]], dim=-1)
+            targets["particle_sihits_valid"] = torch.cat(
+                [targets["particle_vtxd_valid"], targets["particle_trkr_valid"]], dim=-1
+            )
 
         for selection in ["charged", "neutral", "electron", "charged_hadron", "neutral_hadron", "photon", "muon"]:
             part_selected = targets[f"particle_is_{selection}"].bool()
             flow_selected = preds[f"flow_is_{selection}"].bool()
 
-            # Record the average number of true and reco objects of this type per event
             metrics[f"event_num_part_{selection}"] = part_selected.float().sum(-1).mean()
             metrics[f"event_num_flow_{selection}"] = flow_selected.float().sum(-1).mean()
 
             if self.tracker_helix_fit:
-                metrics[f"event_num_flow_helix_fittable"] = preds["flow_helix_fittable"].float().sum(-1).mean()
-                metrics[f"event_num_flow_helix_fitted"] = preds["flow_helix_fitted"].float().sum(-1).mean()
+                metrics["event_num_flow_helix_fittable"] = preds["flow_helix_fittable"].float().sum(-1).mean()
+                metrics["event_num_flow_helix_fitted"] = preds["flow_helix_fitted"].float().sum(-1).mean()
 
-            # We only want to log metrics for the hits that the particle type should be involved with
-            for hit in self.class_active_hits[selection]:
-                flow_key = f"flow_{hit}_valid"
-                if flow_key not in preds:
-                    continue
+            active_hits = list(self.class_active_hits[selection])
+            if has_sihits and ("vtxd" in active_hits) and ("trkr" in active_hits):
+                active_hits.append("sihits")
 
+            for hit in active_hits:
                 part_hit_valid = targets[f"particle_{hit}_valid"].bool()
-                flow_hit_valid = preds[flow_key].bool()
+                flow_hit_valid = preds[f"flow_{hit}_valid"].bool()
 
                 part_hit_valid = part_hit_valid & part_selected.unsqueeze(-1)
                 flow_hit_valid = flow_hit_valid & flow_selected.unsqueeze(-1)
@@ -337,11 +350,9 @@ class CLDTask(Task):
                 flow_num_hit = flow_hit_valid.float().sum(-1)
                 both_num_hit = (part_hit_valid & flow_hit_valid).float().sum(-1)
 
-                # Record the average number of hits on the objects
                 metrics[f"part_{selection}_num_{hit}"] = part_num_hit[part_selected].mean()
                 metrics[f"flow_{selection}_num_{hit}"] = flow_num_hit[flow_selected].mean()
 
-                # Calculate the efficiency and purity at different matching working points
                 for wp in [0.5, 0.75, 1.0]:
                     part_is_eff = (both_num_hit / (part_num_hit + eps)) >= wp
                     flow_is_pur = (both_num_hit / (flow_num_hit + eps)) >= wp

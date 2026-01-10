@@ -11,8 +11,7 @@ model:
         mask_attention: false
         use_query_masks: false
         unmask_all_false: false
-
-        # optional but recommended: explicitly select which ObjectHitMaskTask provides affinity logits
+        
         kmeans_affinity_task: reco
 
         decoder_layer_config:
@@ -21,15 +20,11 @@ model:
           hybrid_norm: true
           dense_kwargs: {activation: SwiGLU}
           attn_kwargs: {bias: false}
-
-          # --- enable k-means cross-attention update ---
           cross_attn_mode: kmeans
-
-          # recommended: don't update keys from queries for kMaX-like behavior
           bidirectional_ca: false
 
           # k-means CA options
           kmeans_kwargs:
             update: mean          # "mean" is usually more stable than "sum"
             value_proj: true      # learnable V projection
-            mask_attn: false  # since mask_attention is off anyway
+            mask_attn: false      # since mask_attention is off anyway
