@@ -42,7 +42,8 @@ echo "CUDA visible devices is ${CUDA_VISIBLE_DEVICES}"
 #CONFIG_PATH="/share/rcifdata/maxhart/hepattn/logs/CLD_2_320_10MeV_neutrals_20251026-T230553/config.yaml"
 #CKPT_PATH="/share/rcifdata/maxhart/hepattn/logs/CLD_2_320_10MeV_neutrals_20251026-T230553/ckpts/epoch=000-train_loss=3.05229.ckpt"
 #PYTORCH_CMD="python src/hepattn/experiments/cld/main.py fit --config $CONFIG_PATH --ckpt_path $CKPT_PATH"
-PYTORCH_CMD="python main.py fit --config configs/task.yaml --config configs/kmax.yaml "
+
+PYTORCH_CMD="python main.py fit --config configs/unified.yaml --config configs/kmax.yaml --name CLD_5_384_10MeV_kMax_Clus"
 
 #PYTORCH_CMD="python /share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/main.py fit \
 #-c /share/rcifdata/maxhart/hepattn/logs/CLD_5_256_10MeV_20251205-T083126/config.yaml \
