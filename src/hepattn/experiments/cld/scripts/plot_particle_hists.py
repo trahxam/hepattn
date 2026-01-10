@@ -66,6 +66,12 @@ FIELDS: dict[str, Field] = {
         scale="linear",
         bins=np.linspace(0, 500, 32),
     ),
+    "vtx.z": Field(
+        name="vtx.z",
+        label=r"Vertex $z$",
+        scale="linear",
+        bins=np.linspace(-1000, 1000, 32),
+    ),
     "isolation": Field(
         name="isolation",
         label=r"Particle Angular Isolation",
@@ -181,7 +187,7 @@ PLOT_GROUPS: dict[str, list[str]] = {
     "particle_pt_eta_phi": ["mom.r", "mom.eta", "mom.phi"],
     "particle_mass_energy": ["mass", "energy"],
     "particle_calo_energy": ["calib_energy_ecal", "calib_energy_hcal"],
-    "particle_iso_d0": ["vtx.r", "isolation"],
+    "particle_iso_d0_z0": ["vtx.r", "vtx.z", "isolation"],
     "particle_num_sihits": ["num_vtxd", "num_trkr", "num_sihit"],
     "particle_hits": ["num_ecal", "num_hcal", "num_muon"],
     "particle_qopt": ["mom.rinv", "mom.qopt", "mom.qopt_fine"],
@@ -273,7 +279,7 @@ def plot_groups(
 
 def main():
     hists = build_histograms()
-    dataloader = get_test_dataloader(Path("src/hepattn/experiments/cld/configs/base.yaml"))
+    dataloader = get_test_dataloader(Path("src/hepattn/experiments/cld/configs/unified.yaml"))
     fill_histograms(hists, dataloader, steps=5)
     plot_groups(hists, Path("src/hepattn/experiments/cld/plots/data"))
 

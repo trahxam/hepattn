@@ -16,18 +16,27 @@ aliases = {
     "pos.x": "Position $x$ [m]",
     "pos.y": "Position $y$ [m]",
     "pos.z": "Position $z$ [m]",
+    "pos.r": "Position $r$ [m]",
+    "pos.eta": "Position $\eta$ [m]",
+    "pos.phi": "Position $\phi$ [m]",
 }
 
 scales = {
     "pos.x": "linear",
     "pos.y": "linear",
     "pos.z": "linear",
+    "pos.r": "linear",
+    "pos.eta": "linear",
+    "pos.phi": "linear",
 }
 
 bins = {
     "pos.x": np.linspace(-5, 5, 32),
     "pos.y": np.linspace(-5, 5, 32),
     "pos.z": np.linspace(-5, 5, 32),
+    "pos.r": np.linspace(0, 5, 32),
+    "pos.eta": np.linspace(-4, 4, 32),
+    "pos.phi": np.linspace(-np.pi, np.pi, 32),
 }
 
 hit_aliases = {
@@ -54,7 +63,7 @@ config_path = Path("src/hepattn/experiments/cld/configs/unified.yaml")
 config = yaml.safe_load(config_path.read_text())["data"]
 config["num_workers"] = 10
 config["batch_size"] = 10
-config["num_test"] = 10000
+config["num_test"] = 100
 
 datamodule = CLDDataModule(**config)
 datamodule.setup(stage="test")
@@ -75,6 +84,11 @@ plots = {
         "pos.x",
         "pos.y",
         "pos.z",
+    ],
+    "hit_retaphi": [
+        "pos.r",
+        "pos.eta",
+        "pos.phi",
     ],
 }
 
