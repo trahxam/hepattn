@@ -103,6 +103,8 @@ class CLDTask(Task):
                 "vtx.r",
                 "vtx.z",
             ]
+            helix_refine_in_dim = dim + len(self.helix_fit_fields)
+            self.helix_refine_net = Dense(helix_refine_in_dim, len(self.helix_fit_fields))
 
         if hit_mask_attn_thresholds is None:
             self.hit_mask_attn_thresholds = {
@@ -185,10 +187,25 @@ class CLDTask(Task):
                 flow_fittable.detach(),
             )
 
-            ptinv = 1.0 / (0.3 * 2.0 * radius)
-            flow_helix_params = torch.stack((ptinv, phi0, eta, d0, z0), dim=-1) # (B, N, D)
+            # Record the raw helix fit for diagnostics
+            ptinv = 1.0 / (0.3 * 2.0 * radius) # Transform from radius to 1/pT
+            outputs["flow_helix_mom.phi"] = phi0
+            outputs["flow_helix_mom.eta"] = eta
+            outputs["flow_helix_vtx.r"] = d0 # In m as global coords in m
+            outputs["flow_helix_vtx.z"] = z0 # In m as global coords in m
+            outputs["flow_helix_fit"] = torch.stack([ptinv, phi0, eta, d0, z0])
 
-            outputs["flow_regr_helix"] = flow_helix_params
+            flow_helix_params = torch.stack(
+                [outputs[f"flow_helix_{f}"] for f in self.helix_fit_fields],
+                dim=-1,
+            )
+            helix_refine_in = torch.cat([x["query_embed"], flow_helix_params], dim=-1)
+            helix_refine_delta = self.helix_refine_net(helix_refine_in)
+            helix_refined = flow_helix_params + helix_refine_delta
+            helix_refined = torch.where(flow_fitted.unsqueeze(-1), helix_refined, flow_helix_params)
+
+            outputs["flow_regr"] = helix_refined
+
             outputs["flow_helix_fittable"] = flow_fittable
             outputs["flow_helix_fitted"] = flow_fitted            
 
@@ -305,10 +322,13 @@ class CLDTask(Task):
                 & targets["particle_is_primary"].bool()
             )
 
-            # losses[f"helix_regr"] = F.mse_loss(
-            #         flow_helix_params[helix_fit_mask],
-            #         part_helix_params[helix_fit_mask],
-            #     ).mean()
+            if helix_fit_mask.any():
+                losses["helix_regr"] = F.smooth_l1_loss(
+                    flow_helix_params[helix_fit_mask],
+                    part_helix_params[helix_fit_mask],
+                ).mean()
+            else:
+                losses["helix_regr"] = flow_helix_params.sum() * 0.0
 
 
         return losses
@@ -323,6 +343,33 @@ class CLDTask(Task):
             targets["particle_sihits_valid"] = torch.cat(
                 [targets["particle_vtxd_valid"], targets["particle_trkr_valid"]], dim=-1
             )
+
+        if self.tracker_helix_fit:
+            helix_fit_mask = (
+                preds["flow_helix_fitted"].bool()
+                & targets["particle_is_primary"].bool()
+            )
+            helix_pred = torch.stack(
+                [preds[f"flow_helix_{f}"] for f in self.helix_fit_fields],
+                dim=-1,
+            )
+            helix_true = torch.stack(
+                [targets[f"particle_{f}"] for f in self.helix_fit_fields],
+                dim=-1,
+            )
+
+            if helix_fit_mask.any():
+                diff = helix_pred[helix_fit_mask] - helix_true[helix_fit_mask]
+                rmse = torch.sqrt((diff ** 2).mean(dim=0))
+                relerr = (diff.abs() / helix_true[helix_fit_mask].abs().clamp_min(eps)).mean(dim=0)
+            else:
+                rmse = preds["flow_logit"].new_zeros(len(self.helix_fit_fields))
+                relerr = preds["flow_logit"].new_zeros(len(self.helix_fit_fields))
+
+            for idx, field in enumerate(self.helix_fit_fields):
+                field_key = field.replace(".", "_")
+                metrics[f"helix_fit_rmse_{field_key}"] = rmse[idx]
+                metrics[f"helix_fit_relerr_{field_key}"] = relerr[idx]
 
         for selection in ["charged", "neutral", "electron", "charged_hadron", "neutral_hadron", "photon", "muon"]:
             part_selected = targets[f"particle_is_{selection}"].bool()
