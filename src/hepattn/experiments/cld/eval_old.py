@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections import defaultdict
+import json
 from pathlib import Path
 from typing import Any
 
@@ -55,6 +57,97 @@ def scalar_sum(x: Any) -> float:
     return float(np.asarray(x).sum())
 
 
+def event_filename_to_event_id(event_filename: Path) -> int:
+    id_parts = str(event_filename.stem.replace("_condor", "")).split("_")
+    job_id = id_parts[-3]
+    proc_id = id_parts[-2]
+    event_id = id_parts[-1]
+    return int(job_id + proc_id.zfill(4) + event_id.zfill(4))
+
+
+def resolve_sample_id_to_file(test_dir: Path, sample_ids: list[int], cache_path: Path | None = None) -> dict[int, str]:
+    sample_id_to_file: dict[int, str] = {}
+
+    if cache_path is not None and cache_path.is_file():
+        try:
+            cached = json.loads(cache_path.read_text())
+            for sample_id in sample_ids:
+                filename = cached.get(str(sample_id))
+                if filename and Path(filename).is_file():
+                    sample_id_to_file[sample_id] = filename
+        except json.JSONDecodeError:
+            pass
+
+    unresolved_sample_ids = [sample_id for sample_id in sample_ids if sample_id not in sample_id_to_file]
+    if not unresolved_sample_ids:
+        return sample_id_to_file
+
+    # Build a one-time index of first-level test directories keyed by (job_id, proc_id).
+    dir_index: dict[tuple[str, str], list[Path]] = defaultdict(list)
+    for subdir in test_dir.iterdir():
+        if not subdir.is_dir():
+            continue
+        stem = subdir.name.replace("_condor", "")
+        parts = stem.split("_")
+        if len(parts) < 2:
+            continue
+
+        job_id = parts[-2]
+        proc_id = parts[-1]
+        dir_index[(job_id, proc_id)].append(subdir)
+
+        # Also index non-zero-padded proc IDs for robust lookup.
+        if proc_id.isdigit():
+            dir_index[(job_id, str(int(proc_id)))].append(subdir)
+
+    for sample_id in tqdm(unresolved_sample_ids, desc="Resolving sample files"):
+        sample_id_str = str(sample_id)
+        job_id = sample_id_str[:-8]
+        proc_id_4 = sample_id_str[-8:-4]
+        event_id_4 = sample_id_str[-4:]
+        event_id = str(int(event_id_4))
+
+        proc_candidates = [proc_id_4]
+        if proc_id_4.isdigit():
+            proc_candidates.append(str(int(proc_id_4)))
+
+        matched = False
+        for proc_id in proc_candidates:
+            for subdir in dir_index.get((job_id, proc_id), []):
+                candidate = subdir / f"{subdir.name}_{event_id}.npz"
+                if candidate.is_file():
+                    sample_id_to_file[sample_id] = str(candidate)
+                    matched = True
+                    break
+
+                candidate_padded = subdir / f"{subdir.name}_{event_id_4}.npz"
+                if candidate_padded.is_file():
+                    sample_id_to_file[sample_id] = str(candidate_padded)
+                    matched = True
+                    break
+
+                # Rare fallback for naming deviations.
+                for filename in subdir.glob(f"*_{event_id}.npz"):
+                    try:
+                        if event_filename_to_event_id(filename) == sample_id:
+                            sample_id_to_file[sample_id] = str(filename)
+                            matched = True
+                            break
+                    except (ValueError, IndexError):
+                        continue
+                if matched:
+                    break
+            if matched:
+                break
+
+    if cache_path is not None:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_data = {str(sample_id): filename for sample_id, filename in sample_id_to_file.items()}
+        cache_path.write_text(json.dumps(cache_data, sort_keys=True))
+
+    return sample_id_to_file
+
+
 # ---------------------------------------------------------------------
 # Configurable constants
 # ---------------------------------------------------------------------
@@ -62,7 +155,7 @@ def scalar_sum(x: Any) -> float:
 EVAL_CONFIG_NAME = "eval_tracking"
 EVAL_FILE_PATH = Path(
     #"/share/rcifdata/maxhart/hepattn/logs/CLD_5_320_10MeV_charged_tracking_20251127-T105254/ckpts/epoch=001-train_loss=1.04790_prepped_new_eval.h5"
-    "/share/rcifdata/maxhart/hepattn/logs/CLD_5_320_10MeV_all_20251127-T105154/ckpts/epoch=001-train_loss=2.32881_prepped_new_eval.h5"
+    "/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/logs/All_20260202-T181849/ckpts/epoch=000-val_loss=17.18311_test_eval.h5"
 )
 
 CONFIG_PATH = EVAL_FILE_PATH.parent.parent / "config.yaml"
@@ -71,7 +164,7 @@ HITS = ["vtxd", "trkr", "ecal", "hcal", "muon"]
 PRED_OBJECTS = ["particle", "pandora", "sitrack", "flow"]
 
 # Optional early-stop; set None for full run
-MAX_EVENTS: int | None = 100
+MAX_EVENTS: int | None = 1000
 
 
 def main() -> None:
@@ -81,7 +174,16 @@ def main() -> None:
     data_cfg = yaml.safe_load(CONFIG_PATH.read_text())["data"]
     data_cfg["num_workers"] = 0
     data_cfg["batch_size"] = 1
-    data_cfg["num_test"] = -1
+
+    with h5py.File(EVAL_FILE_PATH, "r") as f:
+        sample_ids = [int(sample_id) for sample_id in list(f.keys())[:MAX_EVENTS]]
+
+    if len(sample_ids) == 0:
+        raise ValueError(f"No sample IDs found in eval file: {EVAL_FILE_PATH}")
+
+    # Avoid recursively scanning the full test tree in setup(stage="test").
+    data_cfg["fast_file_discovery"] = True
+    data_cfg["num_test"] = 1
 
     eval_cfg_path = Path(f"src/hepattn/experiments/cld/eval_configs/{EVAL_CONFIG_NAME}.yaml")
     eval_cfg = yaml.safe_load(eval_cfg_path.read_text())["eval"]
@@ -98,9 +200,20 @@ def main() -> None:
     # -----------------------------------------------------------------
     # Data module / dataset
     # -----------------------------------------------------------------
+    print("Setting up data module...")
     datamodule = CLDDataModule(**data_cfg)
     datamodule.setup(stage="test")
     dataset = datamodule.test_dataloader().dataset  # type: ignore[assignment]
+    mapping_cache_path = plot_root / "sample_id_to_file.json"
+    sample_id_to_file = resolve_sample_id_to_file(Path(data_cfg["test_dir"]), sample_ids, mapping_cache_path)
+    if len(sample_id_to_file) != len(sample_ids):
+        missing = sorted(set(sample_ids) - set(sample_id_to_file))
+        raise FileNotFoundError(
+            f"Failed to resolve {len(missing)} sample IDs from {data_cfg['test_dir']}. "
+            f"First missing IDs: {missing[:5]}"
+        )
+    dataset.event_ids_to_event_filenames = sample_id_to_file
+    print(f"Resolved {len(sample_id_to_file):,} eval sample files")
 
     # -----------------------------------------------------------------
     # Matcher and binning
@@ -148,29 +261,33 @@ def main() -> None:
     largest_num_particles = 0.0
 
     with h5py.File(EVAL_FILE_PATH, "r") as f:
-        keys = list(f.keys())[:MAX_EVENTS]
-        for i, sample_id in tqdm(enumerate(keys), total=len(keys)):
+        for i, sample_id in tqdm(enumerate(sample_ids), total=len(sample_ids)):
             # ---------------------------------------------
             # Load preds/outputs (final layer only)
             # ---------------------------------------------
-            preds = f[f"{sample_id}/preds/final/"]
-            outs = f[f"{sample_id}/outputs/final/"]
+            preds = f[f"{sample_id}/preds/final/reco"]
+            outs = f[f"{sample_id}/outputs/final/reco"]
 
             data: dict[str, Any] = {}
-            data["flow_logit"] = torch.from_numpy(outs["flow_valid/flow_logit"][:])
-            data["flow_valid"] = data["flow_logit"].sigmoid() >= 0.5
-
-            print(data["flow_valid"].sum())
+            data["flow_logit"] = torch.from_numpy(outs["flow_logit"][:])
+            if "flow_valid" in preds:
+                data["flow_valid"] = torch.from_numpy(preds["flow_valid"][:]).bool()
+            else:
+                # Fallback for older files where only logits are available.
+                if data["flow_logit"].dim() == 3 and data["flow_logit"].shape[-1] > 1:
+                    data["flow_valid"] = data["flow_logit"].argmax(-1) != 0
+                else:
+                    data["flow_valid"] = data["flow_logit"].sigmoid() >= 0.5
 
             for hit in HITS:
-                key = f"flow_{hit}_assignment/flow_{hit}_valid"
+                key = f"flow_{hit}_valid"
                 if key in preds:
                     data[f"flow_{hit}_valid"] = torch.from_numpy(preds[key][:])
 
             # ---------------------------------------------
             # Load and prepare the sample
             # ---------------------------------------------
-            sample = dataset.load_sample(int(sample_id))
+            sample = dataset.load_sample(sample_id)
             inputs, targets = dataset.prep_sample(sample)
             data |= targets
             data |= inputs
