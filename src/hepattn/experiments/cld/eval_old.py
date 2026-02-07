@@ -14,6 +14,7 @@ import yaml
 from tqdm import tqdm
 
 from hepattn.experiments.cld.data import CLDDataModule
+from hepattn.experiments.cld.event_display import plot_cld_event
 from hepattn.models.matcher import Matcher
 from hepattn.utils.eval_utils import (
     apply_matching,
@@ -121,6 +122,31 @@ def event_filename_to_event_id(event_filename: Path) -> int:
     return int(job_id + proc_id.zfill(4) + event_id.zfill(4))
 
 _DIR_INDEX_CACHE: dict[Path, dict[tuple[str, str], list[Path]]] = {}
+_FLOW_CLASS_ID_CACHE: dict[tuple[torch.device, torch.dtype], tuple[torch.Tensor, torch.Tensor]] = {}
+
+
+def get_flow_class_ids(device: torch.device, dtype: torch.dtype) -> tuple[torch.Tensor, torch.Tensor]:
+    key = (device, dtype)
+    cached = _FLOW_CLASS_ID_CACHE.get(key)
+    if cached is None:
+        charged = torch.tensor([2, 4, 5], device=device, dtype=dtype)
+        neutral = torch.tensor([1, 3], device=device, dtype=dtype)
+        cached = (charged, neutral)
+        _FLOW_CLASS_ID_CACHE[key] = cached
+    return cached
+
+
+def filter_axes_spec_for_data(data: dict[str, Any], axes_spec: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    filtered: list[dict[str, Any]] = []
+    for spec in axes_spec:
+        input_names = [
+            name
+            for name in spec["input_names"]
+            if f"{name}_{spec['x']}" in data and f"{name}_{spec['y']}" in data
+        ]
+        if input_names:
+            filtered.append({**spec, "input_names": input_names})
+    return filtered
 
 
 def resolve_sample_id_to_file(test_dir: Path, sample_ids: list[int], cache_path: Path | None = None) -> dict[int, str]:
@@ -260,6 +286,31 @@ COMPARISON_PLOT_DIR = Path("src/hepattn/experiments/cld/plots/eval_tracking_comp
 MIN_BIN_COUNT = 16
 TRIM_XRANGE_TO_VALID_BINS = True
 
+# Tracking-only particle displays (tracking model reconstructs, combined model does not)
+MAKE_TRACKING_ONLY_PARTICLE_PLOTS = True
+TRACKING_ONLY_RUN_LABEL = "Tracking"
+TRACKING_ONLY_BASELINE_LABEL = "Combined"
+TRACKING_ONLY_METRIC = "charged_reconstructed"
+TRACKING_ONLY_SELECTION = "charged_reconstructable_loose"
+TRACKING_ONLY_MAX_PLOTS = 24  # max events to plot
+TRACKING_ONLY_PLOT_DIR = COMPARISON_PLOT_DIR / "tracking_only_particles"
+TRACKING_ONLY_AXES_SPEC = [
+    {
+        "x": "pos.x",
+        "y": "pos.y",
+        "px": "mom.x",
+        "py": "mom.y",
+        "input_names": ["vtxd", "trkr", "ecal", "hcal", "muon"],
+    },
+    {
+        "x": "pos.z",
+        "y": "pos.y",
+        "px": "mom.z",
+        "py": "mom.y",
+        "input_names": ["vtxd", "trkr", "ecal", "hcal", "muon"],
+    },
+]
+
 
 def filter_eval_config(eval_cfg: dict[str, Any], pred_objects: list[str]) -> dict[str, Any]:
     known_pred_objects = {"flow", "sitrack", "pandora"}
@@ -366,21 +417,13 @@ def main() -> None:
     run_summaries: list[dict[str, Any]] = []
     eval_objects = list(dict.fromkeys(["particle", *PRED_OBJECTS]))
     eval_matcher = Matcher(default_solver="scipy", adaptive_solver=False, parallel_solver=False)
-    flow_class_id_cache: dict[tuple[torch.device, torch.dtype], tuple[torch.Tensor, torch.Tensor]] = {}
     data_contexts: dict[str, dict[str, Any]] = {}
     cache_enabled = CACHE_BASE_DATA and len(EVAL_RUNS) > 1 and (
         BASE_DATA_CACHE_MAX_EVENTS is None or BASE_DATA_CACHE_MAX_EVENTS > 0
     )
-
-    def get_flow_class_ids(device: torch.device, dtype: torch.dtype) -> tuple[torch.Tensor, torch.Tensor]:
-        key = (device, dtype)
-        cached = flow_class_id_cache.get(key)
-        if cached is None:
-            charged = torch.tensor([2, 4, 5], device=device, dtype=dtype)
-            neutral = torch.tensor([1, 3], device=device, dtype=dtype)
-            cached = (charged, neutral)
-            flow_class_id_cache[key] = cached
-        return cached
+    tracking_only_baseline_masks: dict[int, torch.Tensor] = {}
+    tracking_only_plots_made = 0
+    tracking_only_missing_baseline_warned = False
 
     for run in EVAL_RUNS:
         eval_file_path = Path(run["path"])
@@ -688,6 +731,80 @@ def main() -> None:
                     return cached
 
                 # ---------------------------------------------
+                # Tracking-only particle plots (inline)
+                # ---------------------------------------------
+                if MAKE_TRACKING_ONLY_PARTICLE_PLOTS:
+                    run_label = str(run["label"])
+                    run_label_lower = run_label.lower()
+                    baseline_label_lower = TRACKING_ONLY_BASELINE_LABEL.lower()
+                    tracking_label_lower = TRACKING_ONLY_RUN_LABEL.lower()
+                    if run_label_lower in {baseline_label_lower, tracking_label_lower}:
+                        metric_key = f"particle_flow_{TRACKING_ONLY_METRIC}"
+                        if metric_key in data:
+                            run_mask = data[metric_key].bool()
+                            if TRACKING_ONLY_SELECTION:
+                                selection_key = f"particle_{TRACKING_ONLY_SELECTION}"
+                                if selection_key in data:
+                                    run_mask = run_mask & data[selection_key].bool()
+                            if "particle_valid" in data:
+                                run_mask = run_mask & data["particle_valid"].bool()
+
+                            if run_label_lower == baseline_label_lower:
+                                tracking_only_baseline_masks[sample_id] = run_mask.detach().cpu()
+                            else:
+                                baseline_mask = tracking_only_baseline_masks.get(sample_id)
+                                if baseline_mask is None:
+                                    if not tracking_only_missing_baseline_warned:
+                                        print(
+                                            "Tracking-only plots require baseline masks first; "
+                                            f"process '{TRACKING_ONLY_BASELINE_LABEL}' before '{TRACKING_ONLY_RUN_LABEL}'."
+                                        )
+                                        tracking_only_missing_baseline_warned = True
+                                elif tracking_only_plots_made < TRACKING_ONLY_MAX_PLOTS:
+                                    diff_mask = run_mask & ~baseline_mask.to(run_mask.device)
+                                    if diff_mask.any():
+                                        diff_idx = torch.nonzero(diff_mask[0], as_tuple=False).flatten().tolist()
+                                        if diff_idx:
+                                            if tracking_only_plots_made == 0:
+                                                TRACKING_ONLY_PLOT_DIR.mkdir(parents=True, exist_ok=True)
+
+                                            plot_data = dict(base_data)
+                                            if "particle_valid" not in plot_data:
+                                                continue
+                                            particle_valid = plot_data["particle_valid"].clone()
+                                            particle_valid[:] = False
+                                            particle_valid[0, diff_idx] = True
+                                            plot_data["particle_valid"] = particle_valid
+
+                                            axes_spec = filter_axes_spec_for_data(plot_data, TRACKING_ONLY_AXES_SPEC)
+                                            if not axes_spec:
+                                                continue
+
+                                            filename = Path(sample_id_to_file.get(sample_id, "")).stem
+                                            title_bits = [
+                                                "Tracking-only reco particles",
+                                                f"sample {sample_id}",
+                                                f"count {len(diff_idx)}",
+                                            ]
+                                            if filename:
+                                                title_bits.append(filename)
+
+                                                fig = plot_cld_event(
+                                                    plot_data,
+                                                    axes_spec,
+                                                    "particle",
+                                                    batch_idx=0,
+                                                    label_objects=True,
+                                                    high_contrast=True,
+                                                )
+                                            fig.suptitle(" | ".join(title_bits))
+
+                                            out_name = f"{sample_id}_tracking_only.png"
+                                            fig.savefig(TRACKING_ONLY_PLOT_DIR / out_name)
+                                            plt.close(fig)
+                                            tracking_only_plots_made += 1
+
+                # ---------------------------------------------
                 # Bulk metrics
                 # ---------------------------------------------
                 for name, sel_key, den_key, num_key in bulk_metric_defs:
@@ -941,6 +1058,11 @@ def main() -> None:
 
             fig.savefig(COMPARISON_PLOT_DIR / Path(f"{name}.png"))
 
+    if MAKE_TRACKING_ONLY_PARTICLE_PLOTS:
+        if tracking_only_plots_made > 0:
+            print(f"Wrote {tracking_only_plots_made} tracking-only particle plots to {TRACKING_ONLY_PLOT_DIR}")
+        else:
+            print("No tracking-only particle plots produced.")
 
 if __name__ == "__main__":
     main()
