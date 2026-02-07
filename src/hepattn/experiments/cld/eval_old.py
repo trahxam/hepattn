@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from copy import deepcopy
 import json
 from pathlib import Path
@@ -41,13 +41,19 @@ def to_numpy_1d(x: Any) -> np.ndarray:
     """Torch/array-like -> flattened float32 numpy array."""
     if isinstance(x, torch.Tensor):
         x = x.detach().cpu().numpy()
-    return np.asarray(x).astype(np.float32).reshape(-1)
+    arr = np.asarray(x)
+    if arr.dtype != np.float32:
+        arr = arr.astype(np.float32)
+    return arr.reshape(-1)
 
 
 def to_bool_1d(x: Any) -> np.ndarray:
     if isinstance(x, torch.Tensor):
         x = x.detach().cpu().numpy()
-    return np.asarray(x).astype(bool).reshape(-1)
+    arr = np.asarray(x)
+    if arr.dtype != bool:
+        arr = arr.astype(bool)
+    return arr.reshape(-1)
 
 
 def scalar_sum(x: Any) -> float:
@@ -58,13 +64,21 @@ def scalar_sum(x: Any) -> float:
     return float(np.asarray(x).sum())
 
 
-def calc_comet_style_eff_pur(data: dict[str, Any], obj: str, hit: str, wp: float, eps: float = 1e-8) -> tuple[float, float] | None:
+def accumulate_comet_style_metrics(
+    data: dict[str, Any],
+    obj: str,
+    hit: str,
+    wps: tuple[float, ...],
+    metric_sums: dict[str, float],
+    metric_counts: dict[str, int],
+    eps: float = 1e-8,
+) -> None:
     pred_key = f"{obj}_{hit}_valid"
     true_key = f"particle_{hit}_valid"
     if pred_key not in data or true_key not in data:
-        return None
+        return
     if f"{obj}_valid" not in data or "particle_valid" not in data:
-        return None
+        return
 
     pred_hit_masks = data[pred_key].bool()
     true_hit_masks = data[true_key].bool()
@@ -79,12 +93,24 @@ def calc_comet_style_eff_pur(data: dict[str, Any], obj: str, hit: str, wp: float
     hit_t = true_hit_masks.sum(-1).float()
     both_valid = true_valid & pred_valid
 
-    effs = ((hit_tp / (hit_t + eps)) >= wp) & both_valid
-    purs = ((hit_tp / (hit_p + eps)) >= wp) & both_valid
+    hit_eff = hit_tp / (hit_t + eps)
+    hit_pur = hit_tp / (hit_p + eps)
+    true_valid_count = true_valid.float().sum(-1) + eps
+    pred_valid_count = pred_valid.float().sum(-1) + eps
 
-    eff = (effs.float().sum(-1) / (true_valid.float().sum(-1) + eps)).mean().item()
-    pur = (purs.float().sum(-1) / (pred_valid.float().sum(-1) + eps)).mean().item()
-    return float(eff), float(pur)
+    for wp in wps:
+        effs = (hit_eff >= wp) & both_valid
+        purs = (hit_pur >= wp) & both_valid
+
+        eff = (effs.float().sum(-1) / true_valid_count).mean().item()
+        pur = (purs.float().sum(-1) / pred_valid_count).mean().item()
+
+        eff_key = f"p{wp}_{hit}_eff"
+        pur_key = f"p{wp}_{hit}_pur"
+        metric_sums[eff_key] += eff
+        metric_sums[pur_key] += pur
+        metric_counts[eff_key] += 1
+        metric_counts[pur_key] += 1
 
 
 def event_filename_to_event_id(event_filename: Path) -> int:
@@ -94,8 +120,11 @@ def event_filename_to_event_id(event_filename: Path) -> int:
     event_id = id_parts[-1]
     return int(job_id + proc_id.zfill(4) + event_id.zfill(4))
 
+_DIR_INDEX_CACHE: dict[Path, dict[tuple[str, str], list[Path]]] = {}
+
 
 def resolve_sample_id_to_file(test_dir: Path, sample_ids: list[int], cache_path: Path | None = None) -> dict[int, str]:
+    test_dir = test_dir.resolve()
     sample_id_to_file: dict[int, str] = {}
 
     if cache_path is not None and cache_path.is_file():
@@ -113,22 +142,25 @@ def resolve_sample_id_to_file(test_dir: Path, sample_ids: list[int], cache_path:
         return sample_id_to_file
 
     # Build a one-time index of first-level test directories keyed by (job_id, proc_id).
-    dir_index: dict[tuple[str, str], list[Path]] = defaultdict(list)
-    for subdir in test_dir.iterdir():
-        if not subdir.is_dir():
-            continue
-        stem = subdir.name.replace("_condor", "")
-        parts = stem.split("_")
-        if len(parts) < 2:
-            continue
+    dir_index = _DIR_INDEX_CACHE.get(test_dir)
+    if dir_index is None:
+        dir_index = defaultdict(list)
+        for subdir in test_dir.iterdir():
+            if not subdir.is_dir():
+                continue
+            stem = subdir.name.replace("_condor", "")
+            parts = stem.split("_")
+            if len(parts) < 2:
+                continue
 
-        job_id = parts[-2]
-        proc_id = parts[-1]
-        dir_index[(job_id, proc_id)].append(subdir)
+            job_id = parts[-2]
+            proc_id = parts[-1]
+            dir_index[(job_id, proc_id)].append(subdir)
 
-        # Also index non-zero-padded proc IDs for robust lookup.
-        if proc_id.isdigit():
-            dir_index[(job_id, str(int(proc_id)))].append(subdir)
+            # Also index non-zero-padded proc IDs for robust lookup.
+            if proc_id.isdigit():
+                dir_index[(job_id, str(int(proc_id)))].append(subdir)
+        _DIR_INDEX_CACHE[test_dir] = dir_index
 
     for sample_id in tqdm(unresolved_sample_ids, desc="Resolving sample files"):
         sample_id_str = str(sample_id)
@@ -201,19 +233,31 @@ EVAL_RUNS = [
 ]
 
 HITS = ["vtxd", "trkr", "ecal", "hcal", "muon"]
+HITS_NO_MUON = ("vtxd", "trkr", "ecal", "hcal")
+COMET_HITS = ("sihit", "vtxd", "trkr")
+COMET_WORKING_POINTS = (0.5, 0.75, 1.0)
 # Set this to ["flow"] to evaluate only model outputs and omit pandora/sitrack baselines.
 PRED_OBJECTS = ["flow"]
-# Matching between predicted objects and truth is always driven by the eval config:
+# Matching between predicted objects and truth is driven by the eval config:
 # `eval.match_metrics.default` (e.g. set it to use only `sihit` and `dice`).
+#
+# Binary metrics can either use the matched alignment ("matched") or
+# skip matching and consider a metric satisfied if any reco object
+# matches a truth object ("any").
+BINARY_METRICS_MATCH_MODE = "matched"  # "matched" or "any"
 #
 # If true, use flow class logits to define flow_is_* flags used by purity metrics.
 USE_FLOW_CLASS_LOGITS_FOR_PID = True
 
 # Optional early-stop; set None for full run
-MAX_EVENTS: int | None = 100
+MAX_EVENTS: int | None = 1000
+# Cache prepared inputs/targets across runs to avoid reloading data.
+# Set to 0 to disable. Defaults to MAX_EVENTS if set, otherwise disabled.
+BASE_DATA_CACHE_MAX_EVENTS = MAX_EVENTS if MAX_EVENTS is not None else 0
+CACHE_BASE_DATA = True
 SAVE_COMPARISON_PLOTS = True
 COMPARISON_PLOT_DIR = Path("src/hepattn/experiments/cld/plots/eval_tracking_compare")
-MIN_BIN_COUNT = 25
+MIN_BIN_COUNT = 16
 TRIM_XRANGE_TO_VALID_BINS = True
 
 
@@ -320,6 +364,23 @@ def main() -> None:
     base_eval_cfg = yaml.safe_load(eval_cfg_path.read_text())["eval"]
     eval_cfg = filter_eval_config(base_eval_cfg, PRED_OBJECTS)
     run_summaries: list[dict[str, Any]] = []
+    eval_objects = list(dict.fromkeys(["particle", *PRED_OBJECTS]))
+    eval_matcher = Matcher(default_solver="scipy", adaptive_solver=False, parallel_solver=False)
+    flow_class_id_cache: dict[tuple[torch.device, torch.dtype], tuple[torch.Tensor, torch.Tensor]] = {}
+    data_contexts: dict[str, dict[str, Any]] = {}
+    cache_enabled = CACHE_BASE_DATA and len(EVAL_RUNS) > 1 and (
+        BASE_DATA_CACHE_MAX_EVENTS is None or BASE_DATA_CACHE_MAX_EVENTS > 0
+    )
+
+    def get_flow_class_ids(device: torch.device, dtype: torch.dtype) -> tuple[torch.Tensor, torch.Tensor]:
+        key = (device, dtype)
+        cached = flow_class_id_cache.get(key)
+        if cached is None:
+            charged = torch.tensor([2, 4, 5], device=device, dtype=dtype)
+            neutral = torch.tensor([1, 3], device=device, dtype=dtype)
+            cached = (charged, neutral)
+            flow_class_id_cache[key] = cached
+        return cached
 
     for run in EVAL_RUNS:
         eval_file_path = Path(run["path"])
@@ -329,7 +390,7 @@ def main() -> None:
             raise FileNotFoundError(f"Config not found for eval file: {config_path}")
 
         run_cfg = yaml.safe_load(config_path.read_text())
-        data_cfg = run_cfg["data"]
+        data_cfg = dict(run_cfg["data"])
         data_cfg["num_workers"] = 0
         data_cfg["batch_size"] = 1
         data_cfg["fast_file_discovery"] = True
@@ -355,10 +416,20 @@ def main() -> None:
         # Data module / dataset
         # -----------------------------------------------------------------
         print(f"\nEvaluating: {eval_file_path}")
-        print("Setting up data module...")
-        datamodule = CLDDataModule(**data_cfg)
-        datamodule.setup(stage="test")
-        dataset = datamodule.test_dataloader().dataset  # type: ignore[assignment]
+        data_key = json.dumps(data_cfg, sort_keys=True, default=str)
+        data_context = data_contexts.get(data_key)
+        if data_context is None:
+            print("Setting up data module...")
+            datamodule = CLDDataModule(**data_cfg)
+            datamodule.setup(stage="test")
+            dataset = datamodule.test_dataloader().dataset  # type: ignore[assignment]
+            base_data_cache = OrderedDict() if cache_enabled else None
+            data_context = {"dataset": dataset, "base_data_cache": base_data_cache}
+            data_contexts[data_key] = data_context
+        else:
+            print("Reusing data module...")
+            dataset = data_context["dataset"]
+            base_data_cache = data_context["base_data_cache"]
         mapping_cache_path = plot_root / "sample_id_to_file.json"
         sample_id_to_file = resolve_sample_id_to_file(Path(data_cfg["test_dir"]), sample_ids, mapping_cache_path)
         if len(sample_id_to_file) != len(sample_ids):
@@ -373,8 +444,6 @@ def main() -> None:
         # -----------------------------------------------------------------
         # Matcher and binning
         # -----------------------------------------------------------------
-        eval_matcher = Matcher(default_solver="scipy", adaptive_solver=False, parallel_solver=False)
-
         bin_types = {"linear": np.linspace, "log": np.geomspace}
         bins: dict[str, np.ndarray] = {
             name: bin_types[cfg["scale"]](cfg["min"], cfg["max"], cfg["num"]) for name, cfg in eval_cfg_run["bins"].items()
@@ -406,33 +475,72 @@ def main() -> None:
                 values="residual",
             )
 
+        poisson_hist_defs: list[tuple[str, str, str, str, str]] = []
+        for name, cfg in eval_cfg_run["histograms"].items():
+            field_key = f"{cfg['object_name']}_{cfg['field']}"
+            sel_key = f"{cfg['object_name']}_{cfg['selection']}"
+            num_key = f"{cfg['object_name']}_{cfg['numerator']}"
+            den_key = f"{cfg['object_name']}_{cfg['denominator']}"
+            poisson_hist_defs.append((name, field_key, sel_key, num_key, den_key))
+
+        gauss_hist_defs: list[tuple[str, str, str, str, str]] = []
+        for name, cfg in eval_cfg_run["residual_histograms"].items():
+            gauss_hist_defs.append((name, cfg["selection"], cfg["field"], cfg["true_field"], cfg["pred_field"]))
+
+        bulk_metric_defs: list[tuple[str, str, str, str]] = []
+        for name, cfg in eval_cfg_run["bulk_metrics"].items():
+            sel_key = f"{cfg['object_name']}_{cfg['selection']}"
+            den_key = f"{cfg['object_name']}_{cfg['denominator']}"
+            num_key = f"{cfg['object_name']}_{cfg['numerator']}"
+            bulk_metric_defs.append((name, sel_key, den_key, num_key))
+
+        match_metrics = eval_cfg_run.get("match_metrics", {}).get("default", {})
+        binary_metrics_cfg = eval_cfg_run["binary_metrics"]
+        selections_cfg = eval_cfg_run["selections"]
+
         bulk_metrics: dict[str, dict[str, float]] = {name: {"n": 0.0, "k": 0.0} for name in eval_cfg_run["bulk_metrics"]}
         comet_metric_sums: dict[str, float] = defaultdict(float)
         comet_metric_counts: dict[str, int] = defaultdict(int)
 
         largest_num_particles = 0.0
 
-        with h5py.File(eval_file_path, "r") as f:
+        def load_base_data(sample_id: int) -> dict[str, Any]:
+            sample = dataset.load_sample(sample_id)
+            if sample is None:
+                raise RuntimeError(f"Failed to load sample {sample_id} from dataset.")
+            inputs, targets = dataset.prep_sample(sample)
+            base_data: dict[str, Any] = {}
+            base_data.update(targets)
+            base_data.update(inputs)
+
+            # Some datasets/configs may not explicitly include sihit as an input stream;
+            # build it from vtxd+trkr so sihit-based matching works consistently.
+            if "sihit_valid" not in base_data and "vtxd_valid" in base_data and "trkr_valid" in base_data:
+                base_data["sihit_valid"] = torch.cat((base_data["vtxd_valid"], base_data["trkr_valid"]), dim=-1)
+            return base_data
+
+        with h5py.File(eval_file_path, "r") as f, torch.inference_mode():
             for i, sample_id in tqdm(enumerate(sample_ids), total=len(sample_ids)):
-            # ---------------------------------------------
-            # Load preds/outputs (final layer only)
-            # ---------------------------------------------
+                # ---------------------------------------------
+                # Load preds/outputs (final layer only)
+                # ---------------------------------------------
                 preds = f[f"{sample_id}/preds/final/reco"]
                 outs = f[f"{sample_id}/outputs/final/reco"]
 
                 data: dict[str, Any] = {}
-                data["flow_logit"] = torch.from_numpy(outs["flow_logit"][:])
+                flow_logit = torch.from_numpy(outs["flow_logit"][:])
+                data["flow_logit"] = flow_logit
                 if "flow_valid" in preds:
                     data["flow_valid"] = torch.from_numpy(preds["flow_valid"][:]).bool()
                 else:
                     # Fallback for older files where only logits are available.
-                    if data["flow_logit"].dim() == 3 and data["flow_logit"].shape[-1] > 1:
-                        data["flow_valid"] = data["flow_logit"].argmax(-1) != 0
+                    if flow_logit.dim() == 3 and flow_logit.shape[-1] > 1:
+                        data["flow_valid"] = flow_logit.argmax(-1) != 0
                     else:
-                        data["flow_valid"] = data["flow_logit"].sigmoid() >= 0.5
+                        data["flow_valid"] = flow_logit.sigmoid() >= 0.5
 
                 if USE_FLOW_CLASS_LOGITS_FOR_PID:
-                    flow_class_idx = data["flow_logit"].argmax(-1)
+                    flow_class_idx = flow_logit.argmax(-1)
                     data["flow_class_idx"] = flow_class_idx
                     data["flow_is_null"] = flow_class_idx == 0
                     data["flow_is_neutral_hadron"] = flow_class_idx == 1
@@ -440,8 +548,7 @@ def main() -> None:
                     data["flow_is_photon"] = flow_class_idx == 3
                     data["flow_is_electron"] = flow_class_idx == 4
                     data["flow_is_muon"] = flow_class_idx == 5
-                    charged_classes = torch.tensor([2, 4, 5], device=flow_class_idx.device)
-                    neutral_classes = torch.tensor([1, 3], device=flow_class_idx.device)
+                    charged_classes, neutral_classes = get_flow_class_ids(flow_class_idx.device, flow_class_idx.dtype)
                     data["flow_is_charged"] = torch.isin(flow_class_idx, charged_classes)
                     data["flow_is_neutral"] = torch.isin(flow_class_idx, neutral_classes)
 
@@ -450,20 +557,25 @@ def main() -> None:
                     if key in preds:
                         data[f"flow_{hit}_valid"] = torch.from_numpy(preds[key][:])
 
-            # ---------------------------------------------
-            # Load and prepare the sample
-            # ---------------------------------------------
-                sample = dataset.load_sample(sample_id)
-                inputs, targets = dataset.prep_sample(sample)
-                data |= targets
-                data |= inputs
+                # ---------------------------------------------
+                # Load and prepare the sample
+                # ---------------------------------------------
+                if base_data_cache is None:
+                    base_data = load_base_data(sample_id)
+                else:
+                    base_data = base_data_cache.get(sample_id)
+                    if base_data is not None:
+                        base_data_cache.move_to_end(sample_id)
+                    else:
+                        base_data = load_base_data(sample_id)
+                        base_data_cache[sample_id] = base_data
+                        base_data_cache.move_to_end(sample_id)
+                        if BASE_DATA_CACHE_MAX_EVENTS is None or BASE_DATA_CACHE_MAX_EVENTS > 0:
+                            while BASE_DATA_CACHE_MAX_EVENTS is not None and len(base_data_cache) > BASE_DATA_CACHE_MAX_EVENTS:
+                                base_data_cache.popitem(last=False)
+                data.update(base_data)
 
-                # Some datasets/configs may not explicitly include sihit as an input stream;
-                # build it from vtxd+trkr so sihit-based matching works consistently.
-                if "sihit_valid" not in data and "vtxd_valid" in data and "trkr_valid" in data:
-                    data["sihit_valid"] = torch.cat((data["vtxd_valid"], data["trkr_valid"]), dim=-1)
-
-            # Align predicted hit slots to truth hit counts
+                # Align predicted hit slots to truth hit counts
                 for hit in HITS:
                     flow_key = f"flow_{hit}_valid"
                     truth_key = f"{hit}_valid"
@@ -484,16 +596,14 @@ def main() -> None:
                             device=data[truth_key].device,
                         )
 
-            # ---------------------------------------------
-            # Per-object bookkeeping
-            # ---------------------------------------------
-                eval_objects = list(dict.fromkeys(["particle", *PRED_OBJECTS]))
-
+                # ---------------------------------------------
+                # Per-object bookkeeping
+                # ---------------------------------------------
                 for obj in eval_objects:
                     if f"{obj}_valid" not in data:
                         continue
                     data[f"event_num_{obj}"] = data[f"{obj}_valid"].float().sum(-1)
-                    for hit in ("vtxd", "trkr", "ecal", "hcal"):
+                    for hit in HITS_NO_MUON:
                         key = f"{obj}_{hit}_valid"
                         if key in data:
                             data[key] = data[key] & data[f"{obj}_valid"].unsqueeze(-1)
@@ -518,87 +628,99 @@ def main() -> None:
                         data[f"{obj}_num_sihit"] = data[f"{obj}_num_vtxd"] + data[f"{obj}_num_trkr"]
 
                 # Comet-style tracking metrics (before extra eval-time rematching).
-                for hit in ("sihit", "vtxd", "trkr"):
-                    for wp in (0.5, 0.75, 1.0):
-                        out = calc_comet_style_eff_pur(data, "flow", hit, wp)
-                        if out is None:
-                            continue
-                        eff, pur = out
-                        eff_key = f"p{wp}_{hit}_eff"
-                        pur_key = f"p{wp}_{hit}_pur"
-                        comet_metric_sums[eff_key] += eff
-                        comet_metric_sums[pur_key] += pur
-                        comet_metric_counts[eff_key] += 1
-                        comet_metric_counts[pur_key] += 1
+                for hit in COMET_HITS:
+                    accumulate_comet_style_metrics(
+                        data,
+                        "flow",
+                        hit,
+                        COMET_WORKING_POINTS,
+                        comet_metric_sums,
+                        comet_metric_counts,
+                    )
 
-            # ---------------------------------------------
-            # Matching and binary metrics
-            # ---------------------------------------------
+                # ---------------------------------------------
+                # Matching and binary metrics
+                # ---------------------------------------------
                 for obj in PRED_OBJECTS:
-                    match_metrics = eval_cfg_run.get("match_metrics", {}).get("default", {})
-                    if match_metrics:
+                    if BINARY_METRICS_MATCH_MODE == "matched" and match_metrics:
                         costs = calc_cost(data, "particle", obj, match_metrics)
                         if costs is not None:
                             data = apply_matching(data, "particle", obj, costs, eval_matcher)
 
-                    eff_metrics = calc_binary_reco_metrics(data, "particle", obj, eval_cfg_run["binary_metrics"])
-                    pur_metrics = calc_binary_reco_metrics(data, obj, "particle", eval_cfg_run["binary_metrics"])
+                    eff_metrics = calc_binary_reco_metrics(
+                        data,
+                        "particle",
+                        obj,
+                        binary_metrics_cfg,
+                        match_mode=BINARY_METRICS_MATCH_MODE,
+                    )
+                    pur_metrics = calc_binary_reco_metrics(
+                        data,
+                        obj,
+                        "particle",
+                        binary_metrics_cfg,
+                        match_mode=BINARY_METRICS_MATCH_MODE,
+                    )
                     data |= eff_metrics
                     data |= pur_metrics
 
-            # ---------------------------------------------
-            # Truth selections
-            # ---------------------------------------------
-                selections = calculate_selections(data, "particle", eval_cfg_run["selections"])
+                # ---------------------------------------------
+                # Truth selections
+                # ---------------------------------------------
+                selections = calculate_selections(data, "particle", selections_cfg)
                 data |= selections
 
-            # ---------------------------------------------
-            # Bulk metrics
-            # ---------------------------------------------
-                for name, cfg in eval_cfg_run["bulk_metrics"].items():
-                    sel_key = f"{cfg['object_name']}_{cfg['selection']}"
-                    den_key = f"{cfg['object_name']}_{cfg['denominator']}"
-                    num_key = f"{cfg['object_name']}_{cfg['numerator']}"
+                np_cache: dict[str, np.ndarray] = {}
+                bool_cache: dict[str, np.ndarray] = {}
+
+                def get_np(key: str) -> np.ndarray:
+                    cached = np_cache.get(key)
+                    if cached is None:
+                        cached = to_numpy_1d(data[key])
+                        np_cache[key] = cached
+                    return cached
+
+                def get_bool(key: str) -> np.ndarray:
+                    cached = bool_cache.get(key)
+                    if cached is None:
+                        cached = to_bool_1d(data[key])
+                        bool_cache[key] = cached
+                    return cached
+
+                # ---------------------------------------------
+                # Bulk metrics
+                # ---------------------------------------------
+                for name, sel_key, den_key, num_key in bulk_metric_defs:
                     sel = data[sel_key].bool()
                     n = data[den_key][sel].float()
                     k = data[num_key][sel].float()
                     bulk_metrics[name]["n"] += scalar_sum(n)
                     bulk_metrics[name]["k"] += scalar_sum(k)
 
-            # ---------------------------------------------
-            # Residual Gaussian histograms
-            # ---------------------------------------------
-                for name, rcfg in eval_cfg_run["residual_histograms"].items():
-                    sel_key = rcfg["selection"]
-                    field_key = rcfg["field"]
-                    true_key = rcfg["true_field"]
-                    pred_key = rcfg["pred_field"]
-
+                # ---------------------------------------------
+                # Residual Gaussian histograms
+                # ---------------------------------------------
+                for name, sel_key, field_key, true_key, pred_key in gauss_hist_defs:
                     data_for_hist = {
-                        sel_key: to_bool_1d(data[sel_key]),
-                        field_key: to_numpy_1d(data[field_key]),
-                        "residual": to_numpy_1d((data[pred_key] - data[true_key]).float()),
+                        sel_key: get_bool(sel_key),
+                        field_key: get_np(field_key),
+                        "residual": get_np(pred_key) - get_np(true_key),
                     }
                     gauss_hists[name].fill(data_for_hist)
 
-            # ---------------------------------------------
-            # Efficiency/purity Poisson histograms
-            # ---------------------------------------------
-                for name, hcfg in eval_cfg_run["histograms"].items():
-                    field_key = f"{hcfg['object_name']}_{hcfg['field']}"
-                    sel_key = f"{hcfg['object_name']}_{hcfg['selection']}"
-                    num_key = f"{hcfg['object_name']}_{hcfg['numerator']}"
-                    den_key = f"{hcfg['object_name']}_{hcfg['denominator']}"
-
+                # ---------------------------------------------
+                # Efficiency/purity Poisson histograms
+                # ---------------------------------------------
+                for name, field_key, sel_key, num_key, den_key in poisson_hist_defs:
                     data_for_hist = {
-                        field_key: to_numpy_1d(data[field_key]),
-                        sel_key: to_bool_1d(data[sel_key]),
-                        num_key: to_numpy_1d(data[num_key]),
-                        den_key: to_numpy_1d(data[den_key]),
+                        field_key: get_np(field_key),
+                        sel_key: get_bool(sel_key),
+                        num_key: get_np(num_key),
+                        den_key: get_np(den_key),
                     }
                     poisson_hists[name].fill(data_for_hist)
 
-            # Track largest event occupancy
+                # Track largest event occupancy
                 num_particles = float(data["particle_valid"].float().sum(-1).detach().cpu().item())
                 largest_num_particles = max(largest_num_particles, num_particles)
 
