@@ -110,7 +110,6 @@ class PredictionWriter(Callback):
 
                 if isinstance(task_items, dict):
                     for name, value in task_items.items():
-                        print(task_name, name, value.shape)
                         if value.dim() != 0:
                             value = value[idx][None, ...]
                         else:

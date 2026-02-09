@@ -63,7 +63,7 @@ hepattn = { path = ".", editable = true }
 
 [tool.pixi.pypi-options]
 no-build-isolation = ["flash-attn"]
-extra-index-urls = ["https://download.pytorch.org/whl/cu128"]
+# extra-index-urls = ["https://download.pytorch.org/whl/cu128"]
 
 [tool.pixi.feature.gpu.pypi-dependencies]
 torch = { version = "==2.9.1", index = "https://download.pytorch.org/whl/cu128"}
@@ -89,6 +89,7 @@ git = ">=2.51.0,<3"
 git-lfs = ">=3.7.0,<4"
 ninja = ">=1.13.1,<2"
 cuda = "12.8.*"
+tectonic = ">=0.15.0,<0.16"
 
 [tool.pixi.tasks.test]
 cmd = "pytest"
