@@ -121,7 +121,7 @@ eval:
     vtx_r_50mm:
       min: 0
       max: 50
-      num: 32
+      num: 24
       scale: linear
 
     num_sihit:
@@ -133,13 +133,13 @@ eval:
     isolation_full:
       min: 0.01
       max: 3.14
-      num: 32
+      num: 24
       scale: log
 
     eta:
       min: -2.5
       max: 2.5
-      num: 32
+      num: 24
       scale: linear
 
   # Bulk metrics: only flow, since we compare "All" vs "Tracking" runs externally (eval_old EVAL_RUNS).

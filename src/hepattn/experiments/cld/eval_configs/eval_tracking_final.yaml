@@ -223,7 +223,7 @@ eval:
 
   bins:
     pt_100mev:
-      min: 0.1
+      min: 0.01
       max: 100.0
       num: 24
       scale: log
@@ -231,7 +231,7 @@ eval:
     vtx_r_50mm:
       min: 0
       max: 50
-      num: 32
+      num: 24
       scale: linear
 
     num_vtxd:
@@ -265,14 +265,20 @@ eval:
       scale: log
 
     isolation_full:
-      min: 0.01
+      min: 0.00001
       max: 3.14
-      num: 32
+      num: 24
       scale: log
 
     eta:
       min: -2.5
       max: 2.5
+      num: 32
+      scale: linear
+
+    phi:
+      min: -3.14159
+      max: 3.14159
       num: 32
       scale: linear
 
@@ -493,6 +499,22 @@ eval:
       denominator: charged_reconstructable_loose
       numerator: flow_charged_reconstructed
 
+    flow_charged_phi_tight:
+      object_name: particle
+      field: mom.phi
+      bins: phi
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: flow_charged_reconstructed
+
+    flow_charged_phi_loose:
+      object_name: particle
+      field: mom.phi
+      bins: phi
+      selection: charged_reconstructable_loose
+      denominator: charged_reconstructable_loose
+      numerator: flow_charged_reconstructed
+
     flow_charged_vtx_r_tight:
       object_name: particle
       field: vtx.r
@@ -622,6 +644,22 @@ eval:
       denominator: charged_hadron_reconstructable_loose
       numerator: flow_charged_hadron_reconstructed
 
+    flow_charged_hadron_phi_tight:
+      object_name: particle
+      field: mom.phi
+      bins: phi
+      selection: charged_hadron_reconstructable_tight
+      denominator: charged_hadron_reconstructable_tight
+      numerator: flow_charged_hadron_reconstructed
+
+    flow_charged_hadron_phi_loose:
+      object_name: particle
+      field: mom.phi
+      bins: phi
+      selection: charged_hadron_reconstructable_loose
+      denominator: charged_hadron_reconstructable_loose
+      numerator: flow_charged_hadron_reconstructed
+
     flow_electron_pt_tight:
       object_name: particle
       field: mom.r
@@ -638,6 +676,150 @@ eval:
       denominator: electron_reconstructable_loose
       numerator: flow_electron_reconstructed
 
+    flow_electron_phi_tight:
+      object_name: particle
+      field: mom.phi
+      bins: phi
+      selection: electron_reconstructable_tight
+      denominator: electron_reconstructable_tight
+      numerator: flow_electron_reconstructed
+
+    flow_electron_phi_loose:
+      object_name: particle
+      field: mom.phi
+      bins: phi
+      selection: electron_reconstructable_loose
+      denominator: electron_reconstructable_loose
+      numerator: flow_electron_reconstructed
+
+    flow_electron_eta_tight:
+      object_name: particle
+      field: mom.eta
+      bins: eta
+      selection: electron_reconstructable_tight
+      denominator: electron_reconstructable_tight
+      numerator: flow_electron_reconstructed
+
+    flow_electron_eta_loose:
+      object_name: particle
+      field: mom.eta
+      bins: eta
+      selection: electron_reconstructable_loose
+      denominator: electron_reconstructable_loose
+      numerator: flow_electron_reconstructed
+
+    flow_electron_vtx_r_tight:
+      object_name: particle
+      field: vtx.r
+      bins: vtx_r_50mm
+      selection: electron_reconstructable_tight
+      denominator: electron_reconstructable_tight
+      numerator: flow_electron_reconstructed
+
+    flow_electron_vtx_r_loose:
+      object_name: particle
+      field: vtx.r
+      bins: vtx_r_50mm
+      selection: electron_reconstructable_loose
+      denominator: electron_reconstructable_loose
+      numerator: flow_electron_reconstructed
+
+    flow_electron_num_sihit_tight:
+      object_name: particle
+      field: num_sihit
+      bins: num_sihit
+      selection: electron_reconstructable_tight
+      denominator: electron_reconstructable_tight
+      numerator: flow_electron_reconstructed
+
+    flow_electron_num_sihit_loose:
+      object_name: particle
+      field: num_sihit
+      bins: num_sihit
+      selection: electron_reconstructable_loose
+      denominator: electron_reconstructable_loose
+      numerator: flow_electron_reconstructed
+
+    flow_electron_num_vtxd_tight:
+      object_name: particle
+      field: num_vtxd
+      bins: num_vtxd
+      selection: electron_reconstructable_tight
+      denominator: electron_reconstructable_tight
+      numerator: flow_electron_reconstructed
+
+    flow_electron_num_vtxd_loose:
+      object_name: particle
+      field: num_vtxd
+      bins: num_vtxd
+      selection: electron_reconstructable_loose
+      denominator: electron_reconstructable_loose
+      numerator: flow_electron_reconstructed
+
+    flow_electron_num_trkr_tight:
+      object_name: particle
+      field: num_trkr
+      bins: num_trkr
+      selection: electron_reconstructable_tight
+      denominator: electron_reconstructable_tight
+      numerator: flow_electron_reconstructed
+
+    flow_electron_num_trkr_loose:
+      object_name: particle
+      field: num_trkr
+      bins: num_trkr
+      selection: electron_reconstructable_loose
+      denominator: electron_reconstructable_loose
+      numerator: flow_electron_reconstructed
+
+    flow_electron_num_ecal_tight:
+      object_name: particle
+      field: num_ecal
+      bins: num_ecal
+      selection: electron_reconstructable_tight
+      denominator: electron_reconstructable_tight
+      numerator: flow_electron_reconstructed
+
+    flow_electron_num_ecal_loose:
+      object_name: particle
+      field: num_ecal
+      bins: num_ecal
+      selection: electron_reconstructable_loose
+      denominator: electron_reconstructable_loose
+      numerator: flow_electron_reconstructed
+
+    flow_electron_num_hcal_tight:
+      object_name: particle
+      field: num_hcal
+      bins: num_hcal
+      selection: electron_reconstructable_tight
+      denominator: electron_reconstructable_tight
+      numerator: flow_electron_reconstructed
+
+    flow_electron_num_hcal_loose:
+      object_name: particle
+      field: num_hcal
+      bins: num_hcal
+      selection: electron_reconstructable_loose
+      denominator: electron_reconstructable_loose
+      numerator: flow_electron_reconstructed
+
+    flow_electron_isolation_tight:
+      object_name: particle
+      field: isolation
+      bins: isolation_full
+      selection: electron_reconstructable_tight
+      denominator: electron_reconstructable_tight
+      numerator: flow_electron_reconstructed
+
+    flow_electron_isolation_loose:
+      object_name: particle
+      field: isolation
+      bins: isolation_full
+      selection: electron_reconstructable_loose
+      denominator: electron_reconstructable_loose
+      numerator: flow_electron_reconstructed
+
     flow_muon_pt_tight:
       object_name: particle
       field: mom.r
@@ -650,6 +832,22 @@ eval:
       object_name: particle
       field: mom.r
       bins: pt_100mev
+      selection: muon_reconstructable_loose
+      denominator: muon_reconstructable_loose
+      numerator: flow_muon_reconstructed
+
+    flow_muon_phi_tight:
+      object_name: particle
+      field: mom.phi
+      bins: phi
+      selection: muon_reconstructable_tight
+      denominator: muon_reconstructable_tight
+      numerator: flow_muon_reconstructed
+
+    flow_muon_phi_loose:
+      object_name: particle
+      field: mom.phi
+      bins: phi
       selection: muon_reconstructable_loose
       denominator: muon_reconstructable_loose
       numerator: flow_muon_reconstructed
@@ -695,6 +893,28 @@ eval:
       items:
         flow:
           histogram: flow_charged_eta_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    phi_charged_tight:
+      xlabel: "Truth Particle $\\phi$"
+      ylabel: "Charged Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_charged_phi_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    phi_charged_loose:
+      xlabel: "Truth Particle $\\phi$"
+      ylabel: "Charged Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_charged_phi_loose
           label: "MaskFormer"
           color: mediumvioletred
           linestyle: "-"
@@ -875,6 +1095,28 @@ eval:
           color: mediumvioletred
           linestyle: "-"
 
+    phi_charged_hadron_tight:
+      xlabel: "Truth Particle $\\phi$"
+      ylabel: "Charged Hadron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_charged_hadron_phi_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    phi_charged_hadron_loose:
+      xlabel: "Truth Particle $\\phi$"
+      ylabel: "Charged Hadron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_charged_hadron_phi_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
     pt_electron_tight:
       xlabel: "Truth Particle $p_T$ [GeV]"
       ylabel: "Electron Tracking Efficiency"
@@ -897,6 +1139,204 @@ eval:
           color: mediumvioletred
           linestyle: "-"
 
+    phi_electron_tight:
+      xlabel: "Truth Particle $\\phi$"
+      ylabel: "Electron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_electron_phi_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    phi_electron_loose:
+      xlabel: "Truth Particle $\\phi$"
+      ylabel: "Electron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_electron_phi_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    eta_electron_tight:
+      xlabel: "Truth Particle Pseudorapidity"
+      ylabel: "Electron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_electron_eta_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    eta_electron_loose:
+      xlabel: "Truth Particle Pseudorapidity"
+      ylabel: "Electron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_electron_eta_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    vtx_r_electron_tight:
+      xlabel: "Truth Particle Vertex $r$ [mm]"
+      ylabel: "Electron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_electron_vtx_r_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    vtx_r_electron_loose:
+      xlabel: "Truth Particle Vertex $r$ [mm]"
+      ylabel: "Electron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_electron_vtx_r_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_sihit_electron_tight:
+      xlabel: "Truth Particle Number of Silicon Hits"
+      ylabel: "Electron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_electron_num_sihit_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_sihit_electron_loose:
+      xlabel: "Truth Particle Number of Silicon Hits"
+      ylabel: "Electron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_electron_num_sihit_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_vtxd_electron_tight:
+      xlabel: "Truth Particle Number of VTXD Hits"
+      ylabel: "Electron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_electron_num_vtxd_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_vtxd_electron_loose:
+      xlabel: "Truth Particle Number of VTXD Hits"
+      ylabel: "Electron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_electron_num_vtxd_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_trkr_electron_tight:
+      xlabel: "Truth Particle Number of Tracker Hits"
+      ylabel: "Electron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_electron_num_trkr_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_trkr_electron_loose:
+      xlabel: "Truth Particle Number of Tracker Hits"
+      ylabel: "Electron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_electron_num_trkr_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_ecal_electron_tight:
+      xlabel: "Truth Particle Number of ECAL Hits"
+      ylabel: "Electron Tracking Efficiency"
+      scale: log
+      items:
+        flow:
+          histogram: flow_electron_num_ecal_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_ecal_electron_loose:
+      xlabel: "Truth Particle Number of ECAL Hits"
+      ylabel: "Electron Tracking Efficiency"
+      scale: log
+      items:
+        flow:
+          histogram: flow_electron_num_ecal_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_hcal_electron_tight:
+      xlabel: "Truth Particle Number of HCAL Hits"
+      ylabel: "Electron Tracking Efficiency"
+      scale: log
+      items:
+        flow:
+          histogram: flow_electron_num_hcal_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_hcal_electron_loose:
+      xlabel: "Truth Particle Number of HCAL Hits"
+      ylabel: "Electron Tracking Efficiency"
+      scale: log
+      items:
+        flow:
+          histogram: flow_electron_num_hcal_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    isolation_electron_tight:
+      xlabel: "Truth Particle Isolation"
+      ylabel: "Electron Tracking Efficiency"
+      scale: log
+      items:
+        flow:
+          histogram: flow_electron_isolation_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    isolation_electron_loose:
+      xlabel: "Truth Particle Isolation"
+      ylabel: "Electron Tracking Efficiency"
+      scale: log
+      items:
+        flow:
+          histogram: flow_electron_isolation_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
     pt_muon_tight:
       xlabel: "Truth Particle $p_T$ [GeV]"
       ylabel: "Muon Tracking Efficiency"
@@ -915,6 +1355,28 @@ eval:
       items:
         flow:
           histogram: flow_muon_pt_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    phi_muon_tight:
+      xlabel: "Truth Particle $\\phi$"
+      ylabel: "Muon Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_muon_phi_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    phi_muon_loose:
+      xlabel: "Truth Particle $\\phi$"
+      ylabel: "Muon Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_muon_phi_loose
           label: "MaskFormer"
           color: mediumvioletred
           linestyle: "-"

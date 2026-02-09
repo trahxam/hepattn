@@ -1,0 +1,864 @@
+eval:
+  match_metrics:
+    default:
+      sihit:
+        weight: 1.0
+        metric: iou
+        field: valid
+      ecal:
+        weight: 1.0
+        metric: iou
+        field: valid
+      hcal:
+        weight: 1.0
+        metric: iou
+        field: valid
+      muon:
+        weight: 1.0
+        metric: iou
+        field: valid
+  binary_metrics:
+    charged_reconstructed_comet_eff:
+    - hit: sihit
+      thresh: 0.5
+      metric: eff
+      field: valid
+    charged_reconstructed_comet_pur:
+    - hit: sihit
+      thresh: 0.5
+      metric: pur
+      field: valid
+    charged_reconstructed:
+    - hit: sihit
+      thresh: 0.5
+      metric: eff
+      field: valid
+    - hit: sihit
+      thresh: 0.5
+      metric: pur
+      field: valid
+    - hit: ecal
+      thresh: 0.5
+      metric: eff
+      field: valid
+    - hit: ecal
+      thresh: 0.5
+      metric: pur
+      field: valid
+    - hit: hcal
+      thresh: 0.5
+      metric: eff
+      field: valid
+    - hit: hcal
+      thresh: 0.5
+      metric: pur
+      field: valid
+    neutral_reconstructed:
+    - hit: ecal
+      thresh: 0.5
+      metric: eff
+      field: valid
+    - hit: ecal
+      thresh: 0.5
+      metric: pur
+      field: valid
+    - hit: hcal
+      thresh: 0.5
+      metric: eff
+      field: valid
+    - hit: hcal
+      thresh: 0.5
+      metric: pur
+      field: valid
+    electron_reconstructed:
+    - hit: sihit
+      thresh: 0.75
+      metric: eff
+      field: valid
+    - hit: sihit
+      thresh: 0.75
+      metric: pur
+      field: valid
+    - hit: ecal
+      thresh: 0.75
+      metric: eff
+      field: valid
+    - hit: ecal
+      thresh: 0.75
+      metric: pur
+      field: valid
+    photon_reconstructed:
+    - hit: ecal
+      thresh: 0.75
+      metric: eff
+      field: valid
+    - hit: ecal
+      thresh: 0.75
+      metric: pur
+      field: valid
+    muon_reconstructed:
+    - hit: sihit
+      thresh: 0.75
+      metric: eff
+      field: valid
+    - hit: sihit
+      thresh: 0.75
+      metric: pur
+      field: valid
+    - hit: ecal
+      thresh: 0.75
+      metric: eff
+      field: valid
+    - hit: ecal
+      thresh: 0.75
+      metric: pur
+      field: valid
+    - hit: hcal
+      thresh: 0.75
+      metric: eff
+      field: valid
+    - hit: hcal
+      thresh: 0.75
+      metric: pur
+      field: valid
+    - hit: muon
+      thresh: 0.75
+      metric: eff
+      field: valid
+    - hit: muon
+      thresh: 0.75
+      metric: pur
+      field: valid
+  selections:
+    charged_reconstructable_tight:
+    - is_primary
+    - mom.r >= 0.1
+    - mom.abs_eta <= 2.44
+    - vtx.r <= 50
+    - num_sihit >= 4
+    - isolation >= 0.02
+    charged_reconstructable_loose:
+    - is_charged_hadron
+    - mom.r >= 0.01
+    - mom.abs_eta <= 4
+    - num_sihit >= 3
+    - calib_energy_ecal >= 0.01
+    - calib_energy_hcal >= 0.01
+    charged_reconstructable_comet:
+    - is_charged
+    - num_sihit >= 1
+    charged_reconstructable:
+    - is_charged_hadron
+    - is_primary
+    - mom.r >= 0.1
+    - mom.abs_eta <= 2.44
+    - vtx.r <= 50
+    - num_sihit >= 4
+    - isolation >= 0.02
+    - calib_energy_ecal >= 0.1
+    - calib_energy_hcal >= 0.1
+    neutral_reconstructable:
+    - is_neutral_hadron
+    - is_primary
+    - mom.r >= 0.1
+    - mom.abs_eta <= 2.44
+    - vtx.r <= 50
+    - isolation >= 0.02
+    - calib_energy_ecal >= 0.1
+    - calib_energy_hcal >= 0.1
+    neutral_reconstructable_loose:
+    - is_neutral_hadron
+    - mom.r >= 0.01
+    - mom.abs_eta <= 4
+    - calib_energy_ecal >= 0.1
+    - calib_energy_hcal >= 0.1
+    electron_reconstructable:
+    - is_electron
+    - is_primary
+    - mom.r >= 0.1
+    - mom.abs_eta <= 2.44
+    - vtx.r <= 50
+    - num_sihit >= 4
+    - num_ecal >= 10
+    - num_hcal < 10
+    electron_reconstructable_loose:
+    - is_electron
+    - mom.r >= 0.01
+    - num_sihit >= 4
+    - num_ecal >= 10
+    - num_hcal < 10
+    photon_reconstructable:
+    - is_photon
+    - is_primary
+    - mom.abs_eta <= 2.44
+    - vtx.r <= 50
+    - mom.r >= 0.1
+    - num_ecal >= 10
+    - num_hcal < 10
+    photon_reconstructable_loose:
+    - is_photon
+    - mom.r >= 0.01
+    - num_ecal >= 10
+    - num_hcal < 10
+    muon_reconstructable:
+    - is_muon
+    - mom.r >= 0.1
+    - num_sihit >= 4
+    - num_ecal >= 10
+    - num_hcal >= 10
+    - num_muon >= 4
+  residual_metrics: {}
+  residual_histograms:
+    pandora_charged_ecal:
+      field: particle_energy_ecal
+      bins: energy
+      selection: particle_charged_reconstructable
+      true_field: particle_energy_ecal
+      pred_field: pandora_energy_ecal
+    flow_charged_ecal:
+      field: particle_energy_ecal
+      bins: energy
+      selection: particle_charged_reconstructable
+      true_field: particle_energy_ecal
+      pred_field: flow_energy_ecal
+    pandora_neutral_ecal:
+      field: particle_energy_ecal
+      bins: energy
+      selection: particle_neutral_reconstructable
+      true_field: particle_energy_ecal
+      pred_field: pandora_energy_ecal
+    flow_neutral_ecal:
+      field: particle_energy_ecal
+      bins: energy
+      selection: particle_neutral_reconstructable
+      true_field: particle_energy_ecal
+      pred_field: flow_energy_ecal
+    pandora_charged_hcal:
+      field: particle_energy_hcal
+      bins: energy
+      selection: particle_charged_reconstructable
+      true_field: particle_energy_hcal
+      pred_field: pandora_energy_hcal
+    flow_charged_hcal:
+      field: particle_energy_hcal
+      bins: energy
+      selection: particle_charged_reconstructable
+      true_field: particle_energy_hcal
+      pred_field: flow_energy_hcal
+    pandora_neutral_hcal:
+      field: particle_energy_hcal
+      bins: energy
+      selection: particle_neutral_reconstructable
+      true_field: particle_energy_hcal
+      pred_field: pandora_energy_hcal
+    flow_neutral_hcal:
+      field: particle_energy_hcal
+      bins: energy
+      selection: particle_neutral_reconstructable
+      true_field: particle_energy_hcal
+      pred_field: flow_energy_hcal
+    pandora_electron_ecal:
+      field: particle_energy_ecal
+      bins: energy
+      selection: particle_electron_reconstructable_loose
+      true_field: particle_energy_ecal
+      pred_field: pandora_energy_ecal
+    flow_electron_ecal:
+      field: particle_energy_ecal
+      bins: energy
+      selection: particle_electron_reconstructable_loose
+      true_field: particle_energy_ecal
+      pred_field: flow_energy_ecal
+    pandora_photon_ecal:
+      field: particle_energy_ecal
+      bins: energy
+      selection: particle_photon_reconstructable_loose
+      true_field: particle_energy_ecal
+      pred_field: pandora_energy_ecal
+    flow_photon_ecal:
+      field: particle_energy_ecal
+      bins: energy
+      selection: particle_photon_reconstructable_loose
+      true_field: particle_energy_ecal
+      pred_field: flow_energy_ecal
+  residual_histogram_plots:
+    ecal:
+      xlabel: Particle ECAL Energy [GeV]
+      ylabel: Error [GeV]
+      scale: log
+      items:
+        pandora_charged:
+          histogram: flow_electron_ecal
+          label: All Training
+          color: mediumvioletred
+          linestyle: '-'
+        flow_charged:
+          histogram: pandora_electron_ecal
+          label: Pandora
+          color: cornflowerblue
+          linestyle: '-'
+        pandora_neutral:
+          histogram: flow_photon_ecal
+          label: All Training
+          color: mediumvioletred
+          linestyle: --
+        flow_neutral:
+          histogram: pandora_photon_ecal
+          label: Pandora
+          color: cornflowerblue
+          linestyle: --
+    hcal:
+      xlabel: Particle HCAL Energy [GeV]
+      ylabel: Error
+      scale: log
+      items:
+        pandora_charged:
+          histogram: flow_charged_hcal
+          label: All Training
+          color: mediumvioletred
+          linestyle: '-'
+        flow_charged:
+          histogram: pandora_charged_hcal
+          label: Pandora
+          color: cornflowerblue
+          linestyle: '-'
+        pandora_neutral:
+          histogram: flow_neutral_hcal
+          label: All Training
+          color: mediumvioletred
+          linestyle: --
+        flow_neutral:
+          histogram: pandora_neutral_hcal
+          label: Pandora
+          color: cornflowerblue
+          linestyle: --
+  bins:
+    pt_100mev:
+      min: 0.1
+      max: 100.0
+      num: 24
+      scale: log
+    pt_full:
+      min: 0.01
+      max: 100.0
+      num: 32
+      scale: log
+    vtx_r_50mm:
+      min: 0
+      max: 50
+      num: 32
+      scale: linear
+    num_sihit:
+      min: 0.5
+      max: 24.5
+      num: 25
+      scale: linear
+    isolation_full:
+      min: 0.0001
+      max: 3.14
+      num: 32
+      scale: log
+    eta:
+      min: -2.5
+      max: 2.5
+      num: 32
+      scale: linear
+    energy:
+      min: 0.1
+      max: 100.0
+      num: 32
+      scale: log
+  bulk_metrics:
+    flow_charged_eff_tight:
+      object_name: particle
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: flow_charged_reconstructed_comet_eff
+    pandora_charged_eff_tight:
+      object_name: particle
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: pandora_charged_reconstructed_comet_eff
+    flow_charged_eff_loose:
+      object_name: particle
+      selection: charged_reconstructable_loose
+      denominator: charged_reconstructable_loose
+      numerator: flow_charged_reconstructed_comet_eff
+    flow_charged_eff_comet:
+      object_name: particle
+      selection: charged_reconstructable_comet
+      denominator: charged_reconstructable_comet
+      numerator: flow_charged_reconstructed_comet_eff
+    flow_charged_eff_comet_tight:
+      object_name: particle
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: flow_charged_reconstructed_comet_eff
+    pandora_charged_eff_loose:
+      object_name: particle
+      selection: charged_reconstructable_loose
+      denominator: charged_reconstructable_loose
+      numerator: pandora_charged_reconstructed_comet_eff
+    flow_charged_pur:
+      object_name: flow
+      selection: is_charged_hadron
+      denominator: is_charged_hadron
+      numerator: particle_charged_reconstructed
+    pandora_charged_pur:
+      object_name: pandora
+      selection: is_charged_hadron
+      denominator: is_charged_hadron
+      numerator: particle_charged_reconstructed
+    pandora_charged_eff:
+      object_name: particle
+      selection: charged_reconstructable
+      denominator: charged_reconstructable
+      numerator: pandora_charged_reconstructed
+    flow_charged_eff:
+      object_name: particle
+      selection: charged_reconstructable
+      denominator: charged_reconstructable
+      numerator: flow_charged_reconstructed
+    pandora_neutral_eff:
+      object_name: particle
+      selection: neutral_reconstructable
+      denominator: neutral_reconstructable
+      numerator: pandora_neutral_reconstructed
+    flow_neutral_eff:
+      object_name: particle
+      selection: neutral_reconstructable
+      denominator: neutral_reconstructable
+      numerator: flow_neutral_reconstructed
+    pandora_neutral_pur:
+      object_name: pandora
+      selection: is_neutral_hadron
+      denominator: is_neutral_hadron
+      numerator: particle_neutral_reconstructed
+    flow_neutral_pur:
+      object_name: flow
+      selection: is_neutral_hadron
+      denominator: is_neutral_hadron
+      numerator: particle_neutral_reconstructed
+    electron_pandora_eff:
+      object_name: particle
+      selection: electron_reconstructable
+      denominator: electron_reconstructable
+      numerator: pandora_electron_reconstructed
+    electron_flow_eff:
+      object_name: particle
+      selection: electron_reconstructable
+      denominator: electron_reconstructable
+      numerator: flow_electron_reconstructed
+    photon_pandora_eff:
+      object_name: particle
+      selection: photon_reconstructable
+      denominator: photon_reconstructable
+      numerator: pandora_photon_reconstructed
+    photon_flow_eff:
+      object_name: particle
+      selection: photon_reconstructable
+      denominator: photon_reconstructable
+      numerator: flow_photon_reconstructed
+    muon_pandora_eff:
+      object_name: particle
+      selection: muon_reconstructable
+      denominator: muon_reconstructable
+      numerator: pandora_muon_reconstructed
+    muon_flow_eff:
+      object_name: particle
+      selection: muon_reconstructable
+      denominator: muon_reconstructable
+      numerator: flow_muon_reconstructed
+    electron_pandora_pur:
+      object_name: pandora
+      selection: is_electron
+      denominator: is_electron
+      numerator: particle_electron_reconstructed
+    electron_flow_pur:
+      object_name: flow
+      selection: is_electron
+      denominator: is_electron
+      numerator: particle_electron_reconstructed
+    photon_pandora_pur:
+      object_name: pandora
+      selection: is_photon
+      denominator: is_photon
+      numerator: particle_photon_reconstructed
+    photon_flow_pur:
+      object_name: flow
+      selection: is_photon
+      denominator: is_photon
+      numerator: particle_photon_reconstructed
+    muon_pandora_pur:
+      object_name: pandora
+      selection: is_muon
+      denominator: is_muon
+      numerator: particle_muon_reconstructed
+    muon_flow_pur:
+      object_name: flow
+      selection: is_muon
+      denominator: is_muon
+      numerator: particle_muon_reconstructed
+  histograms:
+    flow_charged_pt:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: charged_reconstructable
+      denominator: charged_reconstructable
+      numerator: flow_charged_reconstructed
+    pandora_charged_pt:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: charged_reconstructable
+      denominator: charged_reconstructable
+      numerator: pandora_charged_reconstructed
+    flow_charged_pt_loose:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: flow_charged_reconstructed_comet_eff
+    flow_loose_charged_pt:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: charged_reconstructable_loose
+      denominator: charged_reconstructable_loose
+      numerator: flow_charged_reconstructed
+    pandora_loose_charged_pt:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: charged_reconstructable_loose
+      denominator: charged_reconstructable_loose
+      numerator: pandora_charged_reconstructed
+    flow_charged_isolation:
+      object_name: particle
+      field: isolation
+      bins: isolation_full
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: flow_charged_reconstructed_comet_eff
+    flow_charged_num_sihit:
+      object_name: particle
+      field: num_sihit
+      bins: num_sihit
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: flow_charged_reconstructed_comet_eff
+    flow_charged_vtx_r:
+      object_name: particle
+      field: vtx.r
+      bins: vtx_r_50mm
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: flow_charged_reconstructed_comet_eff
+    flow_charged_eta:
+      object_name: particle
+      field: mom.eta
+      bins: eta
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: flow_charged_reconstructed_comet_eff
+    pandora_neutral_pt:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: neutral_reconstructable
+      denominator: neutral_reconstructable
+      numerator: pandora_neutral_reconstructed
+    flow_neutral_pt:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: neutral_reconstructable
+      denominator: neutral_reconstructable
+      numerator: flow_neutral_reconstructed
+    pandora_loose_neutral_pt:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: neutral_reconstructable_loose
+      denominator: neutral_reconstructable_loose
+      numerator: pandora_neutral_reconstructed
+    flow_loose_neutral_pt:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: neutral_reconstructable_loose
+      denominator: neutral_reconstructable_loose
+      numerator: flow_neutral_reconstructed
+    pandora_electron:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: electron_reconstructable
+      denominator: electron_reconstructable
+      numerator: pandora_electron_reconstructed
+    flow_electron:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: electron_reconstructable
+      denominator: electron_reconstructable
+      numerator: flow_electron_reconstructed
+    pandora_electron_loose:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: electron_reconstructable_loose
+      denominator: electron_reconstructable_loose
+      numerator: pandora_electron_reconstructed
+    flow_electron_loose:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: electron_reconstructable_loose
+      denominator: electron_reconstructable_loose
+      numerator: flow_electron_reconstructed
+    pandora_photon:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: photon_reconstructable
+      denominator: photon_reconstructable
+      numerator: pandora_photon_reconstructed
+    flow_photon:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: photon_reconstructable
+      denominator: photon_reconstructable
+      numerator: flow_photon_reconstructed
+    pandora_photon_loose:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: photon_reconstructable_loose
+      denominator: photon_reconstructable_loose
+      numerator: pandora_photon_reconstructed
+    flow_photon_loose:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: photon_reconstructable_loose
+      denominator: photon_reconstructable_loose
+      numerator: flow_photon_reconstructed
+    pandora_muon:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: muon_reconstructable
+      denominator: muon_reconstructable
+      numerator: pandora_muon_reconstructed
+    flow_muon:
+      object_name: particle
+      field: mom.r
+      bins: pt_100mev
+      selection: muon_reconstructable
+      denominator: muon_reconstructable
+      numerator: flow_muon_reconstructed
+  histogram_plots:
+    pt_charged_tight:
+      xlabel: Truth Particle $p_T$ [GeV]
+      ylabel: Tracking Efficiency
+      scale: log
+      items:
+        flow:
+          histogram: flow_charged_pt
+          label: All Training
+          color: mediumvioletred
+          linestyle: '-'
+    pt_charged_loose:
+      xlabel: Truth Particle $p_T$ [GeV]
+      ylabel: Tracking Efficiency
+      scale: log
+      items:
+        flow:
+          histogram: flow_charged_pt_loose
+          label: All Training
+          color: mediumvioletred
+          linestyle: '-'
+    pt_charged_tight_all:
+      xlabel: Truth Particle $p_T$ [GeV]
+      ylabel: Tracking Efficiency
+      scale: log
+      items:
+        flow:
+          histogram: flow_charged_pt
+          label: All Training
+          color: mediumvioletred
+          linestyle: '-'
+        pandora:
+          histogram: pandora_charged_pt
+          label: Pandora
+          color: cornflowerblue
+          linestyle: '-'
+    pt_loose_charged:
+      xlabel: Particle $p_T$ [GeV]
+      ylabel: Tracking Efficiency
+      scale: log
+      items:
+        flow:
+          histogram: flow_loose_charged_pt
+          label: All Training
+          color: mediumvioletred
+          linestyle: '-'
+    num_sihit_charged:
+      xlabel: Particle Number of Silicon Tracker Hits
+      ylabel: Tracking Efficiency
+      scale: linear
+      items:
+        flow_loose:
+          histogram: flow_charged_num_sihit
+          label: All Training
+          color: mediumvioletred
+          linestyle: '-'
+    isolation_charged:
+      xlabel: Angular Isolation
+      ylabel: Tracking Efficiency
+      scale: log
+      items:
+        flow_loose:
+          histogram: flow_charged_isolation
+          label: All Training
+          color: mediumvioletred
+          linestyle: '-'
+    vtx_r_charged:
+      xlabel: Particle Vertex $r$ [mm]
+      ylabel: Tracking Efficiency
+      scale: linear
+      items:
+        flow_loose:
+          histogram: flow_charged_vtx_r
+          label: All Training
+          color: mediumvioletred
+          linestyle: '-'
+    eta_charged:
+      xlabel: Particle Pseudorapidity
+      ylabel: Tracking Efficiency
+      scale: linear
+      items:
+        flow_loose:
+          histogram: flow_charged_eta
+          label: All Training
+          color: mediumvioletred
+          linestyle: '-'
+    pt_charged:
+      xlabel: Truth Particle $p_T$ [GeV]
+      ylabel: Charged Hadron Efficiency
+      scale: log
+      items:
+        flow:
+          histogram: flow_charged_pt
+          label: All Training
+          color: mediumvioletred
+          linestyle: '-'
+        pandora:
+          histogram: pandora_charged_pt
+          label: Pandora
+          color: cornflowerblue
+          linestyle: '-'
+        flow_loose:
+          histogram: flow_loose_charged_pt
+          label: All Training
+          color: mediumvioletred
+          linestyle: --
+        pandora_loose:
+          histogram: pandora_loose_charged_pt
+          label: Pandora
+          color: cornflowerblue
+          linestyle: --
+    pt_neutral:
+      xlabel: Truth Particle $p_T$ [GeV]
+      ylabel: Neutral Hadron Efficiency
+      scale: log
+      items:
+        flow:
+          histogram: flow_neutral_pt
+          label: All Training
+          color: mediumvioletred
+          linestyle: '-'
+        pandora:
+          histogram: pandora_neutral_pt
+          label: Pandora
+          color: cornflowerblue
+          linestyle: '-'
+        flow_loose:
+          histogram: flow_loose_neutral_pt
+          label: All Training
+          color: mediumvioletred
+          linestyle: --
+        pandora_loose:
+          histogram: pandora_loose_neutral_pt
+          label: Pandora
+          color: cornflowerblue
+          linestyle: --
+    electron:
+      xlabel: Truth Particle $p_T$ [GeV]
+      ylabel: Electron Efficiency
+      scale: log
+      items:
+        flow:
+          histogram: flow_electron
+          label: All Training
+          color: mediumvioletred
+          linestyle: '-'
+        pandora:
+          histogram: pandora_electron
+          label: Pandora
+          color: cornflowerblue
+          linestyle: '-'
+        flow_loose:
+          histogram: flow_electron_loose
+          label: All Training
+          color: mediumvioletred
+          linestyle: --
+        pandora_loose:
+          histogram: pandora_electron_loose
+          label: Pandora
+          color: cornflowerblue
+          linestyle: --
+    photon:
+      xlabel: Truth Particle $p_T$ [GeV]
+      ylabel: Photon Efficiency
+      scale: log
+      items:
+        flow:
+          histogram: flow_photon
+          label: All Training
+          color: mediumvioletred
+          linestyle: '-'
+        pandora:
+          histogram: pandora_photon
+          label: Pandora
+          color: cornflowerblue
+          linestyle: '-'
+        flow_loose:
+          histogram: flow_photon_loose
+          label: All Training
+          color: mediumvioletred
+          linestyle: --
+        pandora_loose:
+          histogram: pandora_photon_loose
+          label: Pandora
+          color: cornflowerblue
+          linestyle: --
+    muon:
+      xlabel: Truth Particle $p_T$ [GeV]
+      ylabel: Muon Efficiency
+      scale: log
+      items:
+        flow:
+          histogram: flow_muon
+          label: All Training
+          color: mediumvioletred
+          linestyle: '-'
+        pandora:
+          histogram: pandora_muon
+          label: Pandora
+          color: cornflowerblue
+          linestyle: '-'
