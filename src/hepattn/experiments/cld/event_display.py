@@ -5,7 +5,18 @@ import torch
 plt.rcParams["figure.dpi"] = 300
 
 
-def plot_cld_event(data, axes_spec, object_name, batch_idx=0, valid=True, mark_transparent=None, label_objects=False, gridspec_kw=None):
+def plot_cld_event(
+    data,
+    axes_spec,
+    object_name,
+    batch_idx=0,
+    valid=True,
+    mark_transparent=None,
+    label_objects=False,
+    gridspec_kw=None,
+    particle_color=None,
+    high_contrast=False,
+):
     # Setup the axes
     num_axes = len(axes_spec)
 
@@ -15,8 +26,23 @@ def plot_cld_event(data, axes_spec, object_name, batch_idx=0, valid=True, mark_t
     ax = [ax] if num_axes == 1 else ax.flatten()
 
     # Setup the color cycler that will be used
-    colormap = plt.cm.tab20
-    cycler = [colormap(i) for i in range(colormap.N)]
+    if particle_color is None:
+        if high_contrast:
+            cycler = [
+                "#1f77b4",  # blue
+                "#ff7f0e",  # orange
+                "#2ca02c",  # green
+                "#d62728",  # red
+                "#9467bd",  # purple
+                "#e377c2",  # pink
+                "#17becf",  # cyan
+                "#bcbd22",  # yellow-green
+            ]
+        else:
+            colormap = plt.cm.tab20
+            cycler = [colormap(i) for i in range(colormap.N)]
+    else:
+        cycler = [particle_color]
 
     # Used to define the different plotting styles for the differnt hits
     sihit_names = ["vtb", "vte", "itb", "ite", "otb", "ote", "sihit", "vtxd", "trkr"]

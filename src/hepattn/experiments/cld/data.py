@@ -1,4 +1,5 @@
 from pathlib import Path
+from itertools import islice
 
 import numpy as np
 import torch
@@ -47,6 +48,7 @@ class CLDDataset(LRSMDataset):
         event_max_num_particles: int = 320,
         truth_filter_hits: list[str] | None = None,
         calo_energy_thresh: float = 1e-6,
+        fast_file_discovery: bool = True,
     ):
         if truth_filter_hits is None:
             truth_filter_hits = []
@@ -105,12 +107,22 @@ class CLDDataset(LRSMDataset):
         self.event_max_num_particles = event_max_num_particles
 
         # Setup the number of events that will be used
-        event_filenames = list(Path(self.dirpath).rglob("*reco*.npz"))
-        num_available_events = len(event_filenames)
-        num_requested_events = num_available_events if num_samples == -1 else num_samples
-        self.num_samples = min(num_available_events, num_requested_events)
-
-        print(f"Found {num_available_events} available events, {num_requested_events} requested, {self.num_samples} used")
+        event_pattern = "*reco*.npz"
+        if fast_file_discovery and num_samples != -1:
+            event_filenames = self._discover_event_files_limited(Path(self.dirpath), event_pattern, num_samples)
+            num_available_events = None
+            num_requested_events = num_samples
+            self.num_samples = len(event_filenames)
+            print(
+                "Using fast file discovery. "
+                f"Found at least {self.num_samples} events, {num_requested_events} requested, {self.num_samples} used"
+            )
+        else:
+            event_filenames = list(Path(self.dirpath).rglob(event_pattern))
+            num_available_events = len(event_filenames)
+            num_requested_events = num_available_events if num_samples == -1 else num_samples
+            self.num_samples = min(num_available_events, num_requested_events)
+            print(f"Found {num_available_events} available events, {num_requested_events} requested, {self.num_samples} used")
 
         # Shuffle events so we don't order by event class
         random.shuffle(event_filenames)
@@ -132,6 +144,48 @@ class CLDDataset(LRSMDataset):
 
         # Initialise sample IDs for the parent class
         self.sample_ids = self.event_ids
+
+    @staticmethod
+    def _discover_event_files_limited(dirpath: Path, pattern: str, limit: int) -> list[Path]:
+        """Collect up to `limit` event files without scanning the full directory tree.
+
+        This is intended for evaluation runs where we only need a bounded number of events.
+        """
+        if limit <= 0:
+            return []
+
+        event_filenames: list[Path] = []
+
+        # Prefer stratified sampling across first-level directories when possible.
+        subdirs = [path for path in dirpath.iterdir() if path.is_dir()]
+        random.shuffle(subdirs)
+
+        if subdirs:
+            for idx, subdir in enumerate(subdirs):
+                if len(event_filenames) >= limit:
+                    break
+
+                remaining = limit - len(event_filenames)
+                dirs_left = len(subdirs) - idx
+                take = max(1, (remaining + dirs_left - 1) // dirs_left)
+                event_filenames.extend(list(islice(subdir.glob(pattern), take)))
+
+        # Fill from root-level files.
+        if len(event_filenames) < limit:
+            event_filenames.extend(list(islice(dirpath.glob(pattern), limit - len(event_filenames))))
+
+        # Fall back to recursive discovery only if still short.
+        if len(event_filenames) < limit:
+            seen = set(event_filenames)
+            for event_filename in dirpath.rglob(pattern):
+                if event_filename in seen:
+                    continue
+                event_filenames.append(event_filename)
+                seen.add(event_filename)
+                if len(event_filenames) >= limit:
+                    break
+
+        return event_filenames
 
     def load_event(self, event_id: int) -> dict[str, np.ndarray] | None:
         """Loads a single CLD event from a preprocessed npz file."""

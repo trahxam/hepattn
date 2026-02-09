@@ -149,6 +149,42 @@ def filter_axes_spec_for_data(data: dict[str, Any], axes_spec: list[dict[str, An
     return filtered
 
 
+def build_flow_plot_data(base_data: dict[str, Any], preds: h5py.Group, outs: h5py.Group) -> dict[str, Any]:
+    plot_data = dict(base_data)
+    flow_logit = torch.from_numpy(outs["flow_logit"][:])
+    plot_data["flow_logit"] = flow_logit
+    if "flow_valid" in preds:
+        plot_data["flow_valid"] = torch.from_numpy(preds["flow_valid"][:]).bool()
+    else:
+        if flow_logit.dim() == 3 and flow_logit.shape[-1] > 1:
+            plot_data["flow_valid"] = flow_logit.argmax(-1) != 0
+        else:
+            plot_data["flow_valid"] = flow_logit.sigmoid() >= 0.5
+
+    for hit in HITS:
+        key = f"flow_{hit}_valid"
+        if key in preds:
+            plot_data[key] = torch.from_numpy(preds[key][:])
+
+    # Align predicted hit slots to truth hit counts
+    for hit in HITS:
+        flow_key = f"flow_{hit}_valid"
+        truth_key = f"{hit}_valid"
+        if flow_key in plot_data and truth_key in plot_data:
+            n_truth = plot_data[truth_key].shape[-1]
+            plot_data[flow_key] = plot_data[flow_key][:, :, :n_truth]
+        elif truth_key in plot_data and "flow_valid" in plot_data:
+            batch_size, num_queries = plot_data["flow_valid"].shape
+            n_truth = plot_data[truth_key].shape[-1]
+            plot_data[flow_key] = torch.zeros(
+                (batch_size, num_queries, n_truth),
+                dtype=torch.bool,
+                device=plot_data[truth_key].device,
+            )
+
+    return plot_data
+
+
 def resolve_sample_id_to_file(test_dir: Path, sample_ids: list[int], cache_path: Path | None = None) -> dict[int, str]:
     test_dir = test_dir.resolve()
     sample_id_to_file: dict[int, str] = {}
@@ -294,6 +330,7 @@ TRACKING_ONLY_METRIC = "charged_reconstructed"
 TRACKING_ONLY_SELECTION = "charged_reconstructable_loose"
 TRACKING_ONLY_MAX_PLOTS = 24  # max events to plot
 TRACKING_ONLY_PLOT_DIR = COMPARISON_PLOT_DIR / "tracking_only_particles"
+TRACKING_ONLY_FORCE_COUNT = 3
 TRACKING_ONLY_AXES_SPEC = [
     {
         "x": "pos.x",
@@ -310,6 +347,45 @@ TRACKING_ONLY_AXES_SPEC = [
         "input_names": ["vtxd", "trkr", "ecal", "hcal", "muon"],
     },
 ]
+
+# Pairwise angular separations for unreconstructed particles (loose selection)
+MAKE_MISSING_PAIR_PLOTS = True
+MISSING_PAIR_METRIC = "charged_reconstructed"
+MISSING_PAIR_SELECTION = "charged_reconstructable_loose"
+MISSING_PAIR_NORMALIZE = True
+MISSING_PAIR_PLOT_DIR = COMPARISON_PLOT_DIR / "missing_pair_hists"
+MISSING_PAIR_BINS = {
+    "delta_eta": np.linspace(0.0, 5.0, 26),
+    "delta_phi": np.linspace(0.0, np.pi, 26),
+    "delta_r": np.linspace(0.0, 5.0, 26),
+}
+MISSING_PAIR_LABELS = {
+    "delta_eta": r"$|\Delta\eta|$",
+    "delta_phi": r"$|\Delta\phi|$",
+    "delta_r": r"$\Delta R$",
+}
+MAKE_MISSING_PAIR_2D_PLOTS = True
+MISSING_PAIR_2D_NORMALIZE = True
+MISSING_PAIR_2D_PLOT_DIR = COMPARISON_PLOT_DIR / "missing_pair_hists_2d"
+
+# Density histograms for reconstructed vs unreconstructed particles (loose selection)
+MAKE_RECO_DENSITY_PLOTS = True
+RECO_DENSITY_METRIC = "charged_reconstructed"
+RECO_DENSITY_SELECTION = "charged_reconstructable_loose"
+RECO_DENSITY_NORMALIZE = True
+RECO_DENSITY_PLOT_DIR = COMPARISON_PLOT_DIR / "reco_density_hists"
+RECO_DENSITY_VARS = {
+    "pt": ("particle_mom.r", "pt_100mev", "Truth Particle $p_T$ [GeV]"),
+    "eta": ("particle_mom.eta", "eta", "Truth Particle Pseudorapidity"),
+    "phi": ("particle_mom.phi", "phi", "Truth Particle $\\phi$"),
+    "vtx_r": ("particle_vtx.r", "vtx_r_50mm", "Truth Particle Vertex $r$ [mm]"),
+    "num_sihit": ("particle_num_sihit", "num_sihit", "Truth Particle Number of Silicon Hits"),
+    "num_vtxd": ("particle_num_vtxd", "num_vtxd", "Truth Particle Number of VTXD Hits"),
+    "num_trkr": ("particle_num_trkr", "num_trkr", "Truth Particle Number of Tracker Hits"),
+    "num_ecal": ("particle_num_ecal", "num_ecal", "Truth Particle Number of ECAL Hits"),
+    "num_hcal": ("particle_num_hcal", "num_hcal", "Truth Particle Number of HCAL Hits"),
+    "isolation": ("particle_isolation", "isolation_full", "Truth Particle Isolation"),
+}
 
 
 def filter_eval_config(eval_cfg: dict[str, Any], pred_objects: list[str]) -> dict[str, Any]:
@@ -424,6 +500,13 @@ def main() -> None:
     tracking_only_baseline_masks: dict[int, torch.Tensor] = {}
     tracking_only_plots_made = 0
     tracking_only_missing_baseline_warned = False
+    tracking_only_baseline_path: Path | None = None
+    tracking_only_baseline_file: h5py.File | None = None
+    if MAKE_TRACKING_ONLY_PARTICLE_PLOTS:
+        for run in EVAL_RUNS:
+            if str(run.get("label", "")).lower() == TRACKING_ONLY_BASELINE_LABEL.lower():
+                tracking_only_baseline_path = Path(run["path"])
+                break
 
     for run in EVAL_RUNS:
         eval_file_path = Path(run["path"])
@@ -544,6 +627,30 @@ def main() -> None:
         bulk_metrics: dict[str, dict[str, float]] = {name: {"n": 0.0, "k": 0.0} for name in eval_cfg_run["bulk_metrics"]}
         comet_metric_sums: dict[str, float] = defaultdict(float)
         comet_metric_counts: dict[str, int] = defaultdict(int)
+        missing_pair_hists: dict[str, np.ndarray] = {}
+        if MAKE_MISSING_PAIR_PLOTS:
+            missing_pair_hists = {
+                name: np.zeros(len(bins) - 1, dtype=np.float64) for name, bins in MISSING_PAIR_BINS.items()
+            }
+        missing_pair_hists_2d: np.ndarray | None = None
+        if MAKE_MISSING_PAIR_2D_PLOTS:
+            missing_pair_hists_2d = np.zeros(
+                (
+                    len(MISSING_PAIR_BINS["delta_eta"]) - 1,
+                    len(MISSING_PAIR_BINS["delta_phi"]) - 1,
+                ),
+                dtype=np.float64,
+            )
+        reco_density_hists: dict[str, dict[str, np.ndarray]] = {}
+        if MAKE_RECO_DENSITY_PLOTS:
+            reco_density_hists = {
+                name: {
+                    "reco": np.zeros(len(bins[bins_key]) - 1, dtype=np.float64),
+                    "miss": np.zeros(len(bins[bins_key]) - 1, dtype=np.float64),
+                }
+                for name, (_, bins_key, _) in RECO_DENSITY_VARS.items()
+                if bins_key in bins
+            }
 
         largest_num_particles = 0.0
 
@@ -760,34 +867,39 @@ def main() -> None:
                                             f"process '{TRACKING_ONLY_BASELINE_LABEL}' before '{TRACKING_ONLY_RUN_LABEL}'."
                                         )
                                         tracking_only_missing_baseline_warned = True
-                                elif tracking_only_plots_made < TRACKING_ONLY_MAX_PLOTS:
+                                else:
                                     diff_mask = run_mask & ~baseline_mask.to(run_mask.device)
                                     if diff_mask.any():
                                         diff_idx = torch.nonzero(diff_mask[0], as_tuple=False).flatten().tolist()
                                         if diff_idx:
-                                            if tracking_only_plots_made == 0:
-                                                TRACKING_ONLY_PLOT_DIR.mkdir(parents=True, exist_ok=True)
+                                            force_save = len(diff_idx) > TRACKING_ONLY_FORCE_COUNT
+                                            if force_save or tracking_only_plots_made < TRACKING_ONLY_MAX_PLOTS:
+                                                if tracking_only_plots_made == 0:
+                                                    TRACKING_ONLY_PLOT_DIR.mkdir(parents=True, exist_ok=True)
 
-                                            plot_data = dict(base_data)
-                                            if "particle_valid" not in plot_data:
-                                                continue
-                                            particle_valid = plot_data["particle_valid"].clone()
-                                            particle_valid[:] = False
-                                            particle_valid[0, diff_idx] = True
-                                            plot_data["particle_valid"] = particle_valid
+                                                event_dir = TRACKING_ONLY_PLOT_DIR / str(sample_id)
+                                                event_dir.mkdir(parents=True, exist_ok=True)
 
-                                            axes_spec = filter_axes_spec_for_data(plot_data, TRACKING_ONLY_AXES_SPEC)
-                                            if not axes_spec:
-                                                continue
+                                                plot_data = dict(base_data)
+                                                if "particle_valid" not in plot_data:
+                                                    continue
+                                                particle_valid = plot_data["particle_valid"].clone()
+                                                particle_valid[:] = False
+                                                particle_valid[0, diff_idx] = True
+                                                plot_data["particle_valid"] = particle_valid
 
-                                            filename = Path(sample_id_to_file.get(sample_id, "")).stem
-                                            title_bits = [
-                                                "Tracking-only reco particles",
-                                                f"sample {sample_id}",
-                                                f"count {len(diff_idx)}",
-                                            ]
-                                            if filename:
-                                                title_bits.append(filename)
+                                                axes_spec = filter_axes_spec_for_data(plot_data, TRACKING_ONLY_AXES_SPEC)
+                                                if not axes_spec:
+                                                    continue
+
+                                                filename = Path(sample_id_to_file.get(sample_id, "")).stem
+                                                title_bits = [
+                                                    "Tracking-only reco particles (truth)",
+                                                    f"sample {sample_id}",
+                                                    f"count {len(diff_idx)}",
+                                                ]
+                                                if filename:
+                                                    title_bits.append(filename)
 
                                                 fig = plot_cld_event(
                                                     plot_data,
@@ -797,12 +909,144 @@ def main() -> None:
                                                     label_objects=True,
                                                     high_contrast=True,
                                                 )
-                                            fig.suptitle(" | ".join(title_bits))
+                                                fig.suptitle(" | ".join(title_bits))
+                                                fig.savefig(event_dir / "truth_tracking_only.png")
+                                                plt.close(fig)
 
-                                            out_name = f"{sample_id}_tracking_only.png"
-                                            fig.savefig(TRACKING_ONLY_PLOT_DIR / out_name)
-                                            plt.close(fig)
-                                            tracking_only_plots_made += 1
+                                                # Tracking reconstruction
+                                                tracking_plot_data = build_flow_plot_data(base_data, preds, outs)
+                                                tracking_axes_spec = filter_axes_spec_for_data(
+                                                    tracking_plot_data, TRACKING_ONLY_AXES_SPEC
+                                                )
+                                                if tracking_axes_spec:
+                                                    fig = plot_cld_event(
+                                                        tracking_plot_data,
+                                                        tracking_axes_spec,
+                                                        "flow",
+                                                        batch_idx=0,
+                                                        label_objects=False,
+                                                        high_contrast=True,
+                                                    )
+                                                    fig.suptitle(f"Tracking reconstruction | sample {sample_id}")
+                                                    fig.savefig(event_dir / "tracking_reco.png")
+                                                    plt.close(fig)
+
+                                                # Combined reconstruction
+                                                if tracking_only_baseline_path is not None:
+                                                    if tracking_only_baseline_file is None:
+                                                        tracking_only_baseline_file = h5py.File(
+                                                            tracking_only_baseline_path, "r"
+                                                        )
+                                                    if str(sample_id) in tracking_only_baseline_file:
+                                                        base_group = tracking_only_baseline_file[str(sample_id)]
+                                                        preds_base = base_group["preds/final/reco"]
+                                                        outs_base = base_group["outputs/final/reco"]
+                                                        combined_plot_data = build_flow_plot_data(
+                                                            base_data, preds_base, outs_base
+                                                        )
+                                                        combined_axes_spec = filter_axes_spec_for_data(
+                                                            combined_plot_data, TRACKING_ONLY_AXES_SPEC
+                                                        )
+                                                        if combined_axes_spec:
+                                                            fig = plot_cld_event(
+                                                                combined_plot_data,
+                                                                combined_axes_spec,
+                                                                "flow",
+                                                                batch_idx=0,
+                                                                label_objects=False,
+                                                                high_contrast=True,
+                                                            )
+                                                            fig.suptitle(
+                                                                f"Combined reconstruction | sample {sample_id}"
+                                                            )
+                                                            fig.savefig(event_dir / "combined_reco.png")
+                                                            plt.close(fig)
+
+                                                tracking_only_plots_made += 1
+
+                # ---------------------------------------------
+                # Pairwise angular separations for unreconstructed particles
+                # ---------------------------------------------
+                if (MAKE_MISSING_PAIR_PLOTS or MAKE_MISSING_PAIR_2D_PLOTS) and missing_pair_hists:
+                    metric_key = f"particle_flow_{MISSING_PAIR_METRIC}"
+                    selection_key = f"particle_{MISSING_PAIR_SELECTION}"
+                    if (
+                        metric_key in data
+                        and selection_key in data
+                        and "particle_mom.eta" in data
+                        and "particle_mom.phi" in data
+                    ):
+                        missing_mask = ~data[metric_key].bool()
+                        missing_mask &= data[selection_key].bool()
+                        if "particle_valid" in data:
+                            missing_mask &= data["particle_valid"].bool()
+
+                        if missing_mask.any():
+                            eta = data["particle_mom.eta"][0][missing_mask[0]]
+                            phi = data["particle_mom.phi"][0][missing_mask[0]]
+                            n = int(eta.numel())
+                            if n >= 2:
+                                idx = torch.triu_indices(n, n, offset=1, device=eta.device)
+                                deta = (eta[idx[0]] - eta[idx[1]]).abs()
+                                dphi = phi[idx[0]] - phi[idx[1]]
+                                dphi = torch.remainder(dphi + np.pi, 2.0 * np.pi) - np.pi
+                                dphi = dphi.abs()
+                                dr = torch.sqrt(deta**2 + dphi**2)
+
+                                pair_vals = {
+                                    "delta_eta": deta,
+                                    "delta_phi": dphi,
+                                    "delta_r": dr,
+                                }
+                                if MAKE_MISSING_PAIR_PLOTS:
+                                    for name, vals in pair_vals.items():
+                                        vals_np = vals.detach().cpu().numpy()
+                                        missing_pair_hists[name] += np.histogram(
+                                            vals_np, bins=MISSING_PAIR_BINS[name]
+                                        )[0]
+
+                                if MAKE_MISSING_PAIR_2D_PLOTS and missing_pair_hists_2d is not None:
+                                    deta_np = deta.detach().cpu().numpy()
+                                    dphi_np = dphi.detach().cpu().numpy()
+                                    missing_pair_hists_2d += np.histogram2d(
+                                        deta_np,
+                                        dphi_np,
+                                        bins=[MISSING_PAIR_BINS["delta_eta"], MISSING_PAIR_BINS["delta_phi"]],
+                                    )[0]
+
+                # ---------------------------------------------
+                # Density histograms for reconstructed vs missing particles
+                # ---------------------------------------------
+                if MAKE_RECO_DENSITY_PLOTS and reco_density_hists:
+                    metric_key = f"particle_flow_{RECO_DENSITY_METRIC}"
+                    selection_key = f"particle_{RECO_DENSITY_SELECTION}"
+                    if metric_key in data and selection_key in data:
+                        base_mask = data[selection_key].bool()
+                        if "particle_valid" in data:
+                            base_mask &= data["particle_valid"].bool()
+                        reco_mask = base_mask & data[metric_key].bool()
+                        miss_mask = base_mask & ~data[metric_key].bool()
+
+                        for name, (field_key, bins_key, _) in RECO_DENSITY_VARS.items():
+                            if name not in reco_density_hists:
+                                continue
+                            if field_key not in data:
+                                continue
+                            bins_for_field = bins.get(bins_key)
+                            if bins_for_field is None:
+                                continue
+
+                            reco_vals = data[field_key][0][reco_mask[0]]
+                            miss_vals = data[field_key][0][miss_mask[0]]
+
+                            if reco_vals.numel() > 0:
+                                reco_density_hists[name]["reco"] += np.histogram(
+                                    reco_vals.detach().cpu().numpy(), bins=bins_for_field
+                                )[0]
+                            if miss_vals.numel() > 0:
+                                reco_density_hists[name]["miss"] += np.histogram(
+                                    miss_vals.detach().cpu().numpy(), bins=bins_for_field
+                                )[0]
 
                 # ---------------------------------------------
                 # Bulk metrics
@@ -973,6 +1217,12 @@ def main() -> None:
                 "bins": bins,
                 "bulk_metrics": run_bulk_metrics,
                 "poisson_hists": {name: {"n": hist.n.copy(), "k": hist.k.copy()} for name, hist in poisson_hists.items()},
+                "missing_pair_hists": {name: hist.copy() for name, hist in missing_pair_hists.items()},
+                "missing_pair_hists_2d": None if missing_pair_hists_2d is None else missing_pair_hists_2d.copy(),
+                "reco_density_hists": {
+                    name: {"reco": hist["reco"].copy(), "miss": hist["miss"].copy()}
+                    for name, hist in reco_density_hists.items()
+                },
             }
         )
 
@@ -1057,6 +1307,102 @@ def main() -> None:
             ax.set_ylim(max(ymin, 0.05), min(ymax, 1.01))
 
             fig.savefig(COMPARISON_PLOT_DIR / Path(f"{name}.png"))
+
+    if SAVE_COMPARISON_PLOTS and MAKE_MISSING_PAIR_PLOTS and len(run_summaries) > 1:
+        MISSING_PAIR_PLOT_DIR.mkdir(parents=True, exist_ok=True)
+        for name, bins in MISSING_PAIR_BINS.items():
+            fig, ax = plt.subplots()
+            fig.set_size_inches(6, 4)
+            for summary in run_summaries:
+                hist = summary.get("missing_pair_hists", {}).get(name)
+                if hist is None:
+                    continue
+                y = hist.astype(np.float64)
+                if MISSING_PAIR_NORMALIZE:
+                    total = y.sum()
+                    if total > 0:
+                        y = y / total
+                plot_hist_to_ax(
+                    ax,
+                    y,
+                    bins,
+                    label=str(summary["label"]),
+                    color=str(summary["color"]),
+                    linestyle="-",
+                )
+            ax.set_xlabel(MISSING_PAIR_LABELS.get(name, name))
+            ax.set_ylabel("Density" if MISSING_PAIR_NORMALIZE else "Counts")
+            ax.grid(zorder=0, alpha=0.25, linestyle="--")
+            ax.legend(fontsize=8)
+            fig.savefig(MISSING_PAIR_PLOT_DIR / Path(f"missing_{name}.png"))
+
+    if SAVE_COMPARISON_PLOTS and MAKE_MISSING_PAIR_2D_PLOTS and len(run_summaries) > 0:
+        MISSING_PAIR_2D_PLOT_DIR.mkdir(parents=True, exist_ok=True)
+        eta_bins = MISSING_PAIR_BINS["delta_eta"]
+        phi_bins = MISSING_PAIR_BINS["delta_phi"]
+        for summary in run_summaries:
+            hist2d = summary.get("missing_pair_hists_2d")
+            if hist2d is None:
+                continue
+
+            z = hist2d.astype(np.float64)
+            if MISSING_PAIR_2D_NORMALIZE:
+                total = z.sum()
+                if total > 0:
+                    z = z / total
+
+            fig, ax = plt.subplots()
+            fig.set_size_inches(6, 4.5)
+            mesh = ax.pcolormesh(phi_bins, eta_bins, z, shading="auto", cmap="viridis")
+            ax.set_xlabel(MISSING_PAIR_LABELS["delta_phi"])
+            ax.set_ylabel(MISSING_PAIR_LABELS["delta_eta"])
+            ax.set_title(str(summary["label"]))
+            fig.colorbar(mesh, ax=ax, label="Density" if MISSING_PAIR_2D_NORMALIZE else "Counts")
+            fig.savefig(MISSING_PAIR_2D_PLOT_DIR / Path(f"missing_delta_eta_phi_{summary['label']}.png"))
+
+    if SAVE_COMPARISON_PLOTS and MAKE_RECO_DENSITY_PLOTS and len(run_summaries) > 1:
+        RECO_DENSITY_PLOT_DIR.mkdir(parents=True, exist_ok=True)
+        for name, (_, bins_key, xlabel) in RECO_DENSITY_VARS.items():
+            plot_bins = run_summaries[0]["bins"].get(bins_key)
+            if plot_bins is None:
+                continue
+
+            fig, ax = plt.subplots()
+            fig.set_size_inches(6, 4)
+
+            for summary in run_summaries:
+                hist_pair = summary.get("reco_density_hists", {}).get(name)
+                if hist_pair is None:
+                    continue
+
+                for kind, linestyle in (("reco", "-"), ("miss", "--")):
+                    y = hist_pair.get(kind)
+                    if y is None:
+                        continue
+                    y = y.astype(np.float64)
+                    if RECO_DENSITY_NORMALIZE:
+                        total = y.sum()
+                        if total > 0:
+                            y = y / total
+                    plot_hist_to_ax(
+                        ax,
+                        y,
+                        plot_bins,
+                        label=f"{summary['label']} {kind}",
+                        color=str(summary["color"]),
+                        linestyle=linestyle,
+                    )
+
+            scale = eval_cfg.get("bins", {}).get(bins_key, {}).get("scale", "linear")
+            ax.set_xscale(scale)
+            ax.set_xlabel(xlabel)
+            ax.set_ylabel("Density" if RECO_DENSITY_NORMALIZE else "Counts")
+            ax.grid(zorder=0, alpha=0.25, linestyle="--")
+            ax.legend(fontsize=8)
+            fig.savefig(RECO_DENSITY_PLOT_DIR / Path(f"reco_density_{name}.png"))
+
+    if tracking_only_baseline_file is not None:
+        tracking_only_baseline_file.close()
 
     if MAKE_TRACKING_ONLY_PARTICLE_PLOTS:
         if tracking_only_plots_made > 0:
