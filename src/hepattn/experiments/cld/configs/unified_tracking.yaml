@@ -1,4 +1,4 @@
-name: CLD_5_384_10MeV
+name: TrackingNew
 
 matmul_precision: high
 
@@ -9,7 +9,7 @@ data:
   test_dir: /share/rcif2/maxhart/data/cld/prepped/test/
 
   # Number of events to include in each set
-  num_workers: 10
+  num_workers: 16
   num_train: -1
   num_test: 1000
   num_val: 100
@@ -30,10 +30,10 @@ data:
 
   # Whether to include charged / neutral particles as targets
   include_charged: true
-  include_neutral: true
+  include_neutral: false
 
   # Events with more particles than this are skipped
-  event_max_num_particles: &num_particles 512
+  event_max_num_particles: &num_particles 384
 
   # Number of query slots / particles to generate per event
   force_pad_sizes:
@@ -58,8 +58,8 @@ data:
     sihit: 24
 
   particle_cut_veto_min_num_hits:
-    ecal: 32
-    hcal: 16
+    ecal: 100000
+    hcal: 100000
 
   # Cuts on minimum fraction of particle pT a hit should have
   particle_hit_min_p_ratio:
@@ -506,112 +506,13 @@ model:
                       - pos.r
                       - pos.theta
                       - pos.phi
-
-            - class_path: hepattn.models.InputNet
-              init_args:
-                input_name: ecal
-                input_dtype: float32
-                fields:
-                  - pos.x
-                  - pos.y
-                  - pos.z
-                  - pos.s
-                  - pos.r
-                  - pos.theta
-                  - pos.phi
-                  - log_energy
-                net:
-                  class_path: hepattn.models.Dense
-                  init_args:
-                    input_size: 8
-                    hidden_layers: [128]
-                    output_size: *dim
-                    activation: SwiGLU
-                posenc:
-                  class_path: hepattn.models.posenc.PositionEncoder
-                  init_args:
-                    input_name: ecal
-                    dim: *dim
-                    fields:
-                      - pos.x
-                      - pos.y
-                      - pos.z
-                      - pos.r
-                      - pos.theta
-                      - pos.phi
-
-            - class_path: hepattn.models.InputNet
-              init_args:
-                input_name: hcal
-                input_dtype: float32
-                fields:
-                  - pos.x
-                  - pos.y
-                  - pos.z
-                  - pos.s
-                  - pos.r
-                  - pos.theta
-                  - pos.phi
-                  - log_energy
-                net:
-                  class_path: hepattn.models.Dense
-                  init_args:
-                    input_size: 8
-                    hidden_layers: [128]
-                    output_size: *dim
-                    activation: SwiGLU
-                posenc:
-                  class_path: hepattn.models.posenc.PositionEncoder
-                  init_args:
-                    input_name: hcal
-                    dim: *dim
-                    fields:
-                      - pos.x
-                      - pos.y
-                      - pos.z
-                      - pos.r
-                      - pos.theta
-                      - pos.phi
-
-            - class_path: hepattn.models.InputNet
-              init_args:
-                input_name: muon
-                input_dtype: float32
-                fields:
-                  - pos.x
-                  - pos.y
-                  - pos.z
-                  - pos.s
-                  - pos.r
-                  - pos.theta
-                  - pos.phi
-                net:
-                  class_path: hepattn.models.Dense
-                  init_args:
-                    input_size: 7
-                    hidden_layers: [128]
-                    output_size: *dim
-                    activation: SwiGLU
-                posenc:
-                  class_path: hepattn.models.posenc.PositionEncoder
-                  init_args:
-                    input_name: muon
-                    dim: *dim
-                    fields:
-                      - pos.x
-                      - pos.y
-                      - pos.z
-                      - pos.r
-                      - pos.theta
-                      - pos.phi
-
       encoder:
         class_path: hepattn.models.Encoder
         init_args:
-          num_layers: 12
+          num_layers: 8
           dim: *dim
           attn_type: flash-varlen
-          window_size: 1024
+          window_size: 512
           window_wrap: true
           hybrid_norm: true
           norm: CustomLayerNorm
@@ -653,9 +554,9 @@ model:
                 hits_included:
                   - trkr
                   - vtxd
-                  - ecal
-                  - hcal
-                  - muon
+                  # - ecal
+                  # - hcal
+                  # - muon
                 hit_mask_attn_thresholds: null
                 tracker_helix_fit: false
                 helix_fit_warmup_steps: 10000

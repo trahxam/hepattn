@@ -4,8 +4,8 @@ model:
   model:
     init_args:
       decoder:
-        num_decoder_layers: 4
-        num_queries: 384
+        num_decoder_layers: 6
+        num_queries: 512
 
         # kMaX / k-means CA works best without Mask2Former-style boolean attention masking
         mask_attention: false
