@@ -204,9 +204,14 @@ class MaskFormerDecoder(nn.Module):
                 for task in self.tasks:
                     if requested_names is not None and task.name not in requested_names:
                         continue
-                        
+
                     task_outputs = outputs[f"layer_{layer_index}"].get(task.name)
+                    if task_outputs is None:
+                        task_outputs = task(x)
+
                     task_affinity = task.affinity(task_outputs, x, num_constituents)
+                    if task_affinity is None:
+                        continue
 
                     if affinity_logits is None:
                         affinity_logits = task_affinity

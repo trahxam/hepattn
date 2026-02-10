@@ -1,3 +1,4 @@
+import inspect
 from typing import Literal
 
 import torch
@@ -40,7 +41,18 @@ class ModelWrapper(LightningModule):
             assert all(task.has_intermediate_loss is False for task in self.model.tasks)
 
     def forward(self, inputs: DictTensor) -> DoubleNestedDictTensor:
+        self._propagate_global_step()
         return self.model(inputs)
+
+    def _propagate_global_step(self) -> None:
+        if not hasattr(self.model, "tasks"):
+            return
+        step = getattr(self, "global_step", None)
+        if step is None:
+            return
+        step_val = int(step)
+        for task in self.model.tasks:
+            task.global_step = step_val
 
     def predict(self, outputs: DoubleNestedDictTensor) -> DoubleNestedDictTensor:
         return self.model.predict(outputs)
@@ -85,13 +97,26 @@ class ModelWrapper(LightningModule):
         self.log_task_metrics(preds, targets, stage)
 
         # Log any custom metrics implemented by subclass
-        if hasattr(self, "log_custom_metrics"):
-            self.log_custom_metrics(inputs, preds, targets, stage)
+        log_custom_metrics = getattr(self, "log_custom_metrics", None)
+        if log_custom_metrics is None:
+            return
+
+        num_params = len(inspect.signature(log_custom_metrics).parameters)
+        if num_params == 4:
+            log_custom_metrics(inputs, preds, targets, stage)
+        elif num_params == 3:
+            log_custom_metrics(preds, targets, stage)
+        else:
+            raise TypeError(
+                "log_custom_metrics must accept either (preds, targets, stage) "
+                "or (inputs, preds, targets, stage)."
+            )
 
     def training_step(self, batch: tuple[DictTensor, DictTensor], batch_idx: int) -> DoubleNestedDictTensor | None:
         inputs, targets = batch
 
         # Get the model outputs
+        self._propagate_global_step()
         outputs = self.model(inputs)
 
         # Compute and log losses
@@ -114,6 +139,7 @@ class ModelWrapper(LightningModule):
         inputs, targets = batch
 
         # Get the raw model outputs
+        self._propagate_global_step()
         outputs = self.model(inputs)
 
         # Compute losses then aggregate and log them
@@ -128,6 +154,7 @@ class ModelWrapper(LightningModule):
 
     def test_step(self, batch: tuple[DictTensor, DictTensor]) -> tuple[DoubleNestedDictTensor, ...]:
         inputs, targets = batch
+        self._propagate_global_step()
         outputs = self.model(inputs)
 
         # Calculate loss to also run matching

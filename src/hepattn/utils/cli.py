@@ -88,6 +88,7 @@ class CLI(LightningCLI):
             # Modify callbacks when testing
             self.save_config_callback = None
             sc["trainer.logger"] = False
+            sc["data.fast_file_discovery"] = True
             for c in sc["trainer.callbacks"]:
                 if hasattr(c, "init_args") and hasattr(c.init_args, "refresh_rate"):
                     c.init_args.refresh_rate = 1
