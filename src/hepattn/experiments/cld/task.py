@@ -282,7 +282,7 @@ class CLDTask(Task):
         logit_null = flow_class_logit[..., 0]
         logit_nonnull = torch.logsumexp(flow_class_logit[..., 1:], dim=-1)
         valid_logit = logit_nonnull - logit_null
-        costs["object_bce"] = cost_fns["object_bce"](valid_logit, targets["particle_valid"].to(torch.float32))
+        costs["object_bce"] = 1 + cost_fns["object_bce"](valid_logit, targets["particle_valid"].to(torch.float32))
 
         for hit in self.hits_included:
             hit_weight = float(self.hit_cost_weights.get(hit, 1.0))

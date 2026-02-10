@@ -133,7 +133,7 @@ class FourierPositionEncoder(nn.Module):
         assert dim % 2 == 0, "Dimension must be even"
         self.input_name = input_name
         self.fields = fields
-        self.B = torch.nn.parameter.Buffer(scale * torch.randn((len(fields), dim // 2)))
+        self.B = torch.nn.parameter.Buffer((1 / scale) * torch.randn((len(fields), dim // 2)))
         self.pi = torch.tensor(math.pi)
 
     def forward(self, inputs: dict[str, Tensor]) -> Tensor:
