@@ -233,8 +233,69 @@ class Encoder(nn.Module):
 
         # Handle flash-varlen attention unpadding at encoder level
         varlen_kwargs = None
+        flash_varlen_window_wrap = False
+        flash_varlen_window_wrap_seq_lens: list[int] | None = None
+        flash_varlen_window_wrap_sizes: list[int] | None = None
         if self.attn_type == "flash-varlen" and kv_mask is not None:
+            seq_lens = kv_mask.sum(dim=-1, dtype=torch.int32)
             x, indices, varlen_kwargs = unpad_for_flash_varlen(x, kv_mask)
+
+            # Emulate "window wrap" for flash-varlen by explicitly wrapping each sequence
+            # (by half the window size on each side) before running flash attention.
+            #
+            # This matches the behavior of the flash (non-varlen) backend below, but must be done
+            # on the unpadded representation to avoid mixing padding and to respect per-sequence lengths.
+            if self.window_wrap and self.window_size:
+                half_window = int(self.window_size // 2)
+                if half_window > 0:
+                    flash_varlen_window_wrap_seq_lens = [int(x) for x in seq_lens.tolist()]
+                    flash_varlen_window_wrap_sizes = [
+                        half_window if seq_len_i > (half_window + 1) else 0
+                        for seq_len_i in flash_varlen_window_wrap_seq_lens
+                    ]
+
+                    if any(w > 0 for w in flash_varlen_window_wrap_sizes):
+                        flash_varlen_window_wrap = True
+                        wrapped: list[Tensor] = []
+                        offset = 0
+                        ext_lens: list[int] = []
+
+                        for seq_len_i, wrap_i in zip(
+                            flash_varlen_window_wrap_seq_lens,
+                            flash_varlen_window_wrap_sizes,
+                            strict=True,
+                        ):
+                            start = offset
+                            end = offset + seq_len_i
+                            offset = end
+
+                            if wrap_i > 0:
+                                wrapped.append(x[:, end - wrap_i : end])
+                                wrapped.append(x[:, start:end])
+                                wrapped.append(x[:, start : start + wrap_i])
+                                ext_lens.append(seq_len_i + 2 * wrap_i)
+                            else:
+                                wrapped.append(x[:, start:end])
+                                ext_lens.append(seq_len_i)
+
+                        if offset != x.shape[1]:
+                            raise RuntimeError(
+                                f"flash-varlen window wrap: expected {offset} valid tokens, got {x.shape[1]}"
+                            )
+
+                        x = torch.cat(wrapped, dim=1) if wrapped else x[:, :0]
+                        cu = [0]
+                        for L in ext_lens:
+                            cu.append(cu[-1] + int(L))
+                        varlen_kwargs = {
+                            "cu_seqlens": torch.tensor(
+                                cu,
+                                device=varlen_kwargs["cu_seqlens"].device,
+                                dtype=varlen_kwargs["cu_seqlens"].dtype,
+                            ),
+                            "max_seqlen": int(max(ext_lens) if ext_lens else 0),
+                        }
+
             kwargs["varlen_kwargs"] = varlen_kwargs
         elif self.attn_type == "flash-varlen":
             raise ValueError("kv_mask must be provided for flash-varlen attention.")
@@ -269,6 +330,27 @@ class Encoder(nn.Module):
 
         # Repad sequence if flash-varlen attention is used
         if varlen_kwargs is not None:
+            if flash_varlen_window_wrap:
+                assert flash_varlen_window_wrap_seq_lens is not None
+                assert flash_varlen_window_wrap_sizes is not None
+
+                unwrapped: list[Tensor] = []
+                offset = 0
+                for seq_len_i, wrap_i in zip(
+                    flash_varlen_window_wrap_seq_lens,
+                    flash_varlen_window_wrap_sizes,
+                    strict=True,
+                ):
+                    ext_len = seq_len_i + 2 * wrap_i
+                    start = offset
+                    offset += ext_len
+                    if wrap_i > 0:
+                        unwrapped.append(x[:, start + wrap_i : start + wrap_i + seq_len_i])
+                    else:
+                        unwrapped.append(x[:, start : start + seq_len_i])
+
+                x = torch.cat(unwrapped, dim=1) if unwrapped else x[:, :0]
+
             seq_len = seq_len if not self.num_register_tokens else seq_len + self.num_register_tokens
             x = repad_from_flash_varlen(x, batch_size, seq_len, indices)
 
