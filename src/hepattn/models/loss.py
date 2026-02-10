@@ -84,7 +84,43 @@ def mask_dice_loss(pred_logits, targets, object_valid_mask=None, input_pad_mask=
 
     numerator = 2 * (probs * targets).sum(-1)
     denominator = probs.sum(-1) + targets.sum(-1)
-    loss = 1 - (numerator + 1) / (denominator + 1)
+    denom_safe = denominator.clamp_min(1e-8)
+    dice = numerator / denom_safe
+    # If both are empty, treat as perfect match
+    dice = torch.where(denominator == 0, torch.ones_like(dice), dice)
+    loss = 1 - dice
+    return loss.mean()
+
+
+def mask_iou_loss(pred_logits, targets, object_valid_mask=None, input_pad_mask=None, sample_weight=None, eps=1e-6):  # noqa: ARG001
+    """Compute the IoU loss for binary masks.
+
+    Args:
+        pred_logits: [batch_size, num_objects, num_inputs] - predicted logits for binary masks
+        targets: [batch_size, num_objects, num_inputs] - ground truth binary masks
+        object_valid_mask: [batch_size, num_objects] - mask indicating valid target objects
+        input_pad_mask: [batch_size, num_inputs] - mask indicating valid inputs
+        sample_weight: Not used by IoU
+        eps: Small value to avoid division by zero
+
+    Returns:
+        loss: Scalar tensor representing the IoU loss
+    """
+    # only condition on valid object masks
+    if object_valid_mask is not None:
+        pred_logits = pred_logits[object_valid_mask]
+        targets = targets[object_valid_mask]
+
+    probs = pred_logits.sigmoid()
+    if input_pad_mask is not None:
+        probs = probs * input_pad_mask.unsqueeze(1)
+
+    intersection = (probs * targets).sum(-1)
+    union = probs.sum(-1) + targets.sum(-1) - intersection
+    iou = (intersection + eps) / (union + eps)
+    # If both are empty, treat as perfect match
+    iou = torch.where(union == 0, torch.ones_like(iou), iou)
+    loss = 1 - iou
     return loss.mean()
 
 
@@ -110,7 +146,11 @@ def mask_dice_cost(pred_logits, targets, input_pad_mask=None, sample_weight=None
 
     numerator = 2 * torch.einsum("bnc,bmc->bnm", inputs, targets)
     denominator = inputs.sum(-1).unsqueeze(2) + targets.sum(-1).unsqueeze(1)
-    return 1 - (numerator + 1) / (denominator + 1)
+    denom_safe = denominator.clamp_min(1e-8)
+    dice = numerator / denom_safe
+    # If both are empty, treat as perfect match
+    dice = torch.where(denominator == 0, torch.ones_like(dice), dice)
+    return 1 - dice
 
 
 def mask_iou_cost(pred_logits, targets, input_pad_mask=None, eps=1e-6):
@@ -364,6 +404,7 @@ loss_fns = {
     "object_ce": torch.compile(object_ce_loss, dynamic=True),
     "mask_bce": torch.compile(mask_bce_loss, dynamic=True),
     "mask_dice": torch.compile(mask_dice_loss, dynamic=True),
+    "mask_iou": torch.compile(mask_iou_loss, dynamic=True),
     "mask_focal": torch.compile(mask_focal_loss, dynamic=True),
     "kl_div": torch.compile(kl_div_loss, dynamic=True),
     "mask_kl_div": torch.compile(mask_kl_div_loss, dynamic=True),
