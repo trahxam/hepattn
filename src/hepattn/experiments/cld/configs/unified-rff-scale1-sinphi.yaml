@@ -1,4 +1,4 @@
-name: CLD_5_384_10MeV
+name: CLD_5_384_10MeV_rff_scale1_sinphi
 
 matmul_precision: high
 
@@ -9,7 +9,7 @@ data:
   test_dir: /share/rcif2/maxhart/data/cld/prepped/test/
 
   # Number of events to include in each set
-  num_workers: 12
+  num_workers: 10
   num_train: -1
   num_test: 1000
   num_val: 100
@@ -137,6 +137,8 @@ data:
       - pos.s_dm
       - pos.r_dm
       - pos.theta
+      - pos.sinphi
+      - pos.cosphi
       - pos.eta
       - pos.phi
       - pos.u
@@ -160,6 +162,8 @@ data:
       - pos.s
       - pos.r
       - pos.theta
+      - pos.sinphi
+      - pos.cosphi
       - pos.eta
       - pos.phi
       - pos.u
@@ -185,6 +189,8 @@ data:
       - pos.s
       - pos.r
       - pos.theta
+      - pos.sinphi
+      - pos.cosphi
       - pos.eta
       - pos.phi
       - pos.u
@@ -202,6 +208,8 @@ data:
       - pos.s
       - pos.r
       - pos.theta
+      - pos.sinphi
+      - pos.cosphi
       - pos.eta
       - pos.phi
       - pos.u
@@ -219,6 +227,8 @@ data:
       - pos.s
       - pos.r
       - pos.theta
+      - pos.sinphi
+      - pos.cosphi
       - pos.eta
       - pos.phi
       - pos.u
@@ -457,17 +467,20 @@ model:
                     output_size: *dim
                     activation: SwiGLU
                 posenc:
-                  class_path: hepattn.models.posenc.PositionEncoder
+                  class_path: hepattn.models.posenc.FourierPositionEncoder
                   init_args:
                     input_name: vtxd
                     dim: *dim
+                    scale: 1
                     fields:
-                      - pos.x
-                      - pos.y
-                      - pos.z
-                      - pos.r
+                      - pos.x_dm
+                      - pos.y_dm
+                      - pos.z_dm
+                      - pos.r_dm
                       - pos.theta
                       - pos.phi
+                      - pos.sinphi
+                      - pos.cosphi
 
             - class_path: hepattn.models.InputNet
               init_args:
@@ -495,10 +508,11 @@ model:
                     output_size: *dim
                     activation: SwiGLU
                 posenc:
-                  class_path: hepattn.models.posenc.PositionEncoder
+                  class_path: hepattn.models.posenc.FourierPositionEncoder
                   init_args:
                     input_name: trkr
                     dim: *dim
+                    scale: 1
                     fields:
                       - pos.x
                       - pos.y
@@ -506,6 +520,8 @@ model:
                       - pos.r
                       - pos.theta
                       - pos.phi
+                      - pos.sinphi
+                      - pos.cosphi
 
             - class_path: hepattn.models.InputNet
               init_args:
@@ -528,10 +544,11 @@ model:
                     output_size: *dim
                     activation: SwiGLU
                 posenc:
-                  class_path: hepattn.models.posenc.PositionEncoder
+                  class_path: hepattn.models.posenc.FourierPositionEncoder
                   init_args:
                     input_name: ecal
                     dim: *dim
+                    scale: 1
                     fields:
                       - pos.x
                       - pos.y
@@ -539,6 +556,8 @@ model:
                       - pos.r
                       - pos.theta
                       - pos.phi
+                      - pos.sinphi
+                      - pos.cosphi
 
             - class_path: hepattn.models.InputNet
               init_args:
@@ -561,10 +580,11 @@ model:
                     output_size: *dim
                     activation: SwiGLU
                 posenc:
-                  class_path: hepattn.models.posenc.PositionEncoder
+                  class_path: hepattn.models.posenc.FourierPositionEncoder
                   init_args:
                     input_name: hcal
                     dim: *dim
+                    scale: 1
                     fields:
                       - pos.x
                       - pos.y
@@ -572,6 +592,8 @@ model:
                       - pos.r
                       - pos.theta
                       - pos.phi
+                      - pos.sinphi
+                      - pos.cosphi
 
             - class_path: hepattn.models.InputNet
               init_args:
@@ -593,10 +615,11 @@ model:
                     output_size: *dim
                     activation: SwiGLU
                 posenc:
-                  class_path: hepattn.models.posenc.PositionEncoder
+                  class_path: hepattn.models.posenc.FourierPositionEncoder
                   init_args:
                     input_name: muon
                     dim: *dim
+                    scale: 1
                     fields:
                       - pos.x
                       - pos.y
@@ -604,11 +627,13 @@ model:
                       - pos.r
                       - pos.theta
                       - pos.phi
+                      - pos.sinphi
+                      - pos.cosphi
 
       encoder:
         class_path: hepattn.models.Encoder
         init_args:
-          num_layers: 8
+          num_layers: 12
           dim: *dim
           attn_type: flash-varlen
           window_size: 1024
