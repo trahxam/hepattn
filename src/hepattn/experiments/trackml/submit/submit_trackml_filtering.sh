@@ -25,7 +25,7 @@ echo "CPU count: $(cat /proc/cpuinfo | awk '/^processor/{print $3}' | tail -1)"
 echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
 
 # Move to workdir
-cd /share/rcifdata/svanstroud/hepattn/src/hepattn/experiments/trackml/
+cd /share/rcifdata/maxhart/hepattn/src/hepattn/experiments/trackml/
 echo "Moved dir, now in: ${PWD}"
 
 # Set tmpdir
