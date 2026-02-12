@@ -2,6 +2,17 @@ import torch
 import torch.nn.functional as F
 
 
+def _reduce_object_loss(loss_per_object, object_valid_mask=None):
+    """Average per-object losses, optionally selecting only valid objects."""
+    if object_valid_mask is not None:
+        loss_per_object = loss_per_object[object_valid_mask]
+
+    if loss_per_object.numel() == 0:
+        return loss_per_object.new_tensor(0.0)
+
+    return loss_per_object.mean()
+
+
 def object_bce_loss(pred_logits, targets, sample_weight=None):
     """Loss function for binary object classification.
 
@@ -67,20 +78,17 @@ def mask_dice_loss(pred_logits, targets, object_valid_mask=None, input_pad_mask=
         pred_logits: [batch_size, num_objects, num_inputs] - predicted logits for binary masks
         targets: [batch_size, num_objects, num_inputs] - ground truth binary masks
         object_valid_mask: [batch_size, num_objects] - mask indicating valid target objects
-        input_pad_mask: [batch_size, num_inputs] - mask indicating valid inputs (not used by DICE)
+        input_pad_mask: [batch_size, num_inputs] - mask indicating valid inputs
         sample_weight: Not used by DICE!
 
     Returns:
         loss: Scalar tensor representing the DICE loss
     """
-    # only condition on  valid object masks
-    if object_valid_mask is not None:
-        pred_logits = pred_logits[object_valid_mask]
-        targets = targets[object_valid_mask]
-
     probs = pred_logits.sigmoid()
     if input_pad_mask is not None:
-        probs = probs * input_pad_mask.unsqueeze(1)
+        input_mask = input_pad_mask.unsqueeze(1).to(probs.dtype)
+        probs = probs * input_mask
+        targets = targets * input_mask
 
     numerator = 2 * (probs * targets).sum(-1)
     denominator = probs.sum(-1) + targets.sum(-1)
@@ -89,7 +97,7 @@ def mask_dice_loss(pred_logits, targets, object_valid_mask=None, input_pad_mask=
     # If both are empty, treat as perfect match
     dice = torch.where(denominator == 0, torch.ones_like(dice), dice)
     loss = 1 - dice
-    return loss.mean()
+    return _reduce_object_loss(loss, object_valid_mask)
 
 
 def mask_iou_loss(pred_logits, targets, object_valid_mask=None, input_pad_mask=None, sample_weight=None, eps=1e-6):  # noqa: ARG001
@@ -106,14 +114,11 @@ def mask_iou_loss(pred_logits, targets, object_valid_mask=None, input_pad_mask=N
     Returns:
         loss: Scalar tensor representing the IoU loss
     """
-    # only condition on valid object masks
-    if object_valid_mask is not None:
-        pred_logits = pred_logits[object_valid_mask]
-        targets = targets[object_valid_mask]
-
     probs = pred_logits.sigmoid()
     if input_pad_mask is not None:
-        probs = probs * input_pad_mask.unsqueeze(1)
+        input_mask = input_pad_mask.unsqueeze(1).to(probs.dtype)
+        probs = probs * input_mask
+        targets = targets * input_mask
 
     intersection = (probs * targets).sum(-1)
     union = probs.sum(-1) + targets.sum(-1) - intersection
@@ -121,7 +126,7 @@ def mask_iou_loss(pred_logits, targets, object_valid_mask=None, input_pad_mask=N
     # If both are empty, treat as perfect match
     iou = torch.where(union == 0, torch.ones_like(iou), iou)
     loss = 1 - iou
-    return loss.mean()
+    return _reduce_object_loss(loss, object_valid_mask)
 
 
 def mask_dice_cost(pred_logits, targets, input_pad_mask=None, sample_weight=None):
@@ -131,7 +136,7 @@ def mask_dice_cost(pred_logits, targets, input_pad_mask=None, sample_weight=None
     Args:
         pred_logits: [batch_size, num_objects, num_inputs] - predicted logits for binary masks
         targets: [batch_size, num_objects, num_inputs] - ground truth binary masks
-        input_pad_mask: [batch_size, num_inputs] - mask indicating valid inputs (not used by DICE)
+        input_pad_mask: [batch_size, num_inputs] - mask indicating valid inputs
         sample_weight: Not used by DICE!
 
     Returns:
@@ -182,29 +187,27 @@ def mask_focal_loss(pred_logits, targets, gamma=2.0, object_valid_mask=None, inp
     Returns:
         loss: Scalar tensor representing the focal loss
     """
-    if object_valid_mask is not None:
-        pred_logits = pred_logits[object_valid_mask]
-        targets = targets[object_valid_mask]
-        sample_weight = sample_weight[object_valid_mask] if sample_weight is not None else None
-
     pred = pred_logits.sigmoid()
     ce_loss = F.binary_cross_entropy_with_logits(pred_logits, targets.type_as(pred_logits), weight=sample_weight, reduction="none")
 
     # Apply input padding mask
     if input_pad_mask is not None:
-        ce_loss = ce_loss * input_pad_mask.unsqueeze(1)
-        pred = pred * input_pad_mask.unsqueeze(1)
+        input_mask = input_pad_mask.unsqueeze(1).to(ce_loss.dtype)
+        ce_loss = ce_loss * input_mask
+        pred = pred * input_mask
+        targets = targets * input_mask
 
     p_t = pred * targets + (1 - pred) * (1 - targets)
     loss = ce_loss * ((1 - p_t) ** gamma)
 
     # Normalise by valid elements such that each mask contributes equally
     if input_pad_mask is not None:
-        valid_counts = input_pad_mask.sum(-1, keepdim=True)
-        loss = loss.sum(-1) / valid_counts.clamp_min(1.0)
-        return loss.mean()
+        valid_counts = input_pad_mask.sum(-1, keepdim=True).to(loss.dtype)
+        loss_per_object = loss.sum(-1) / valid_counts.clamp_min(1.0)
+    else:
+        loss_per_object = loss.mean(-1)
 
-    return loss.mean(-1).mean()
+    return _reduce_object_loss(loss_per_object, object_valid_mask)
 
 
 def mask_focal_cost(pred_logits, targets, gamma=2.0, input_pad_mask=None, sample_weight=None):
@@ -248,51 +251,93 @@ def mask_bce_loss(pred_logits, targets, object_valid_mask=None, input_pad_mask=N
     Returns:
         loss: Scalar tensor representing the binary cross-entropy loss
     """
-    if object_valid_mask is not None:
-        pred_logits = pred_logits[object_valid_mask]
-        targets = targets[object_valid_mask]
-        sample_weight = sample_weight[object_valid_mask] if sample_weight is not None else None
-
     loss = F.binary_cross_entropy_with_logits(pred_logits, targets, weight=sample_weight, reduction="none")
 
     # Apply input padding mask
     if input_pad_mask is not None:
-        loss = loss * input_pad_mask.unsqueeze(1)
+        input_mask = input_pad_mask.unsqueeze(1).to(loss.dtype)
+        loss = loss * input_mask
 
     # Normalise by valid elements such that each mask contributes equally
     if input_pad_mask is not None:
-        valid_counts = input_pad_mask.sum(-1, keepdim=True)
-        loss = loss.sum(-1) / valid_counts.clamp_min(1.0)
-        return loss.mean()
+        valid_counts = input_pad_mask.sum(-1, keepdim=True).to(loss.dtype)
+        loss_per_object = loss.sum(-1) / valid_counts.clamp_min(1.0)
+    else:
+        loss_per_object = loss.mean(-1)
 
-    return loss.mean(-1).mean()
+    return _reduce_object_loss(loss_per_object, object_valid_mask)
 
 
 def mask_bce_cost(pred_logits, targets, input_pad_mask=None, sample_weight=None):
-    """Compute binary cross-entropy costs for binary masks.
-
-    Args:
-        pred_logits: [batch_size, num_objects, num_inputs] - predicted logits for binary masks
-        targets: [batch_size, num_objects, num_inputs] - ground truth binary masks
-        input_pad_mask: [batch_size, num_inputs] - mask indicating valid inputs
-        sample_weight: Optional sample weights for each element. Recommended to use focal instead.
-
-    Returns:
-        cost: [batch_size, num_objects, num_objects] - binary cross-entropy cost
-    """
     pred_logits = torch.clamp(pred_logits, -100, 100)
 
-    pos = F.binary_cross_entropy_with_logits(pred_logits, torch.ones_like(pred_logits), weight=sample_weight, reduction="none")
-    neg = F.binary_cross_entropy_with_logits(pred_logits, torch.zeros_like(pred_logits), weight=sample_weight, reduction="none")
+    pos = F.binary_cross_entropy_with_logits(
+        pred_logits, torch.ones_like(pred_logits),
+        weight=sample_weight, reduction="none"
+    )
+    neg = F.binary_cross_entropy_with_logits(
+        pred_logits, torch.zeros_like(pred_logits),
+        weight=sample_weight, reduction="none"
+    )
 
-    # Apply input padding mask
     if input_pad_mask is not None:
         pos = pos * input_pad_mask.unsqueeze(1)
         neg = neg * input_pad_mask.unsqueeze(1)
+        norm = input_pad_mask.sum(-1).clamp_min(1.0)          # [b]
+    else:
+        norm = pred_logits.new_full((pred_logits.size(0),), pred_logits.size(-1))  # [b]
 
-    # Context manager necessary to overwrite global autocast to ensure float32 cost is returned
     with torch.autocast(device_type="cuda", enabled=False):
-        return torch.einsum("bnc,bmc->bnm", pos, targets) + torch.einsum("bnc,bmc->bnm", neg, (1 - targets))
+        cost = (
+            torch.einsum("bnc,bmc->bnm", pos, targets) +
+            torch.einsum("bnc,bmc->bnm", neg, (1 - targets))
+        )
+        cost = cost / norm[:, None, None]
+        return cost
+
+
+def mask_bce_balanced_cost(pred_logits, targets, input_pad_mask=None, sample_weight=None):
+    """Balanced BCE cost with equal weight on positive and negative targets."""
+    pred_logits = torch.clamp(pred_logits, -100, 100)
+
+    pos = F.binary_cross_entropy_with_logits(
+        pred_logits,
+        torch.ones_like(pred_logits),
+        weight=sample_weight,
+        reduction="none",
+    )
+    neg = F.binary_cross_entropy_with_logits(
+        pred_logits,
+        torch.zeros_like(pred_logits),
+        weight=sample_weight,
+        reduction="none",
+    )
+
+    if input_pad_mask is not None:
+        input_mask = input_pad_mask.unsqueeze(1).to(targets.dtype)
+        pos = pos * input_mask
+        neg = neg * input_mask
+        target_pos = targets * input_mask
+        target_neg = (1 - targets) * input_mask
+    else:
+        target_pos = targets
+        target_neg = 1 - targets
+
+    with torch.autocast(device_type="cuda", enabled=False):
+        pos_sum = torch.einsum("bnc,bmc->bnm", pos, target_pos)
+        neg_sum = torch.einsum("bnc,bmc->bnm", neg, target_neg)
+
+        pos_count = target_pos.sum(-1).unsqueeze(1)
+        neg_count = target_neg.sum(-1).unsqueeze(1)
+
+        pos_avg = pos_sum / pos_count.clamp_min(1.0)
+        neg_avg = neg_sum / neg_count.clamp_min(1.0)
+
+        has_pos = (pos_count > 0).to(pos_avg.dtype)
+        has_neg = (neg_count > 0).to(neg_avg.dtype)
+        denom = (has_pos + has_neg).clamp_min(1.0)
+
+        return (has_pos * pos_avg + has_neg * neg_avg) / denom
 
 
 def kl_div_loss(pred_logits, true, mask=None, weight=None, eps=1e-8):  # noqa: ARG001
@@ -324,13 +369,10 @@ def mask_kl_div_loss(pred_logits, targets, object_valid_mask=None, input_pad_mas
     Returns:
         loss: KL loss
     """
-    if object_valid_mask is not None:
-        pred_logits = pred_logits[object_valid_mask]
-        targets = targets[object_valid_mask]
-
     if input_pad_mask is not None:
-        pred_logits = pred_logits.masked_fill(~input_pad_mask.unsqueeze(1), float("-inf"))
-        targets = targets * input_pad_mask.unsqueeze(1)
+        input_mask = input_pad_mask.unsqueeze(1)
+        pred_logits = pred_logits.masked_fill(~input_mask, float("-inf"))
+        targets = targets * input_mask.to(targets.dtype)
         # Renormalise to keep targets sums to 1 for each object
         targets = targets / (targets.sum(-1, keepdim=True) + eps)
 
@@ -339,10 +381,12 @@ def mask_kl_div_loss(pred_logits, targets, object_valid_mask=None, input_pad_mas
 
     # Apply input padding mask such that each mask contributes equally
     if input_pad_mask is not None:
-        valid_counts = input_pad_mask.sum(-1, keepdim=True)
-        loss = loss.sum(-1) / (valid_counts + eps)
-        return loss.mean()
-    return loss.mean(-1).mean()
+        valid_counts = input_pad_mask.sum(-1, keepdim=True).to(loss.dtype)
+        loss_per_object = loss.sum(-1) / (valid_counts + eps)
+    else:
+        loss_per_object = loss.mean(-1)
+
+    return _reduce_object_loss(loss_per_object, object_valid_mask)
 
 
 def mask_kl_div_cost(pred_logits, targets, input_pad_mask=None, sample_weight=None, eps=1e-8):  # noqa: ARG001
@@ -392,6 +436,7 @@ cost_fns = {
     "object_bce": torch.compile(object_bce_cost, dynamic=True),
     "object_ce": torch.compile(object_ce_cost, dynamic=True),
     "mask_bce": torch.compile(mask_bce_cost, dynamic=True),
+    "mask_bce_balanced": torch.compile(mask_bce_balanced_cost, dynamic=True),
     "mask_dice": torch.compile(mask_dice_cost, dynamic=True),
     "mask_focal": torch.compile(mask_focal_cost, dynamic=True),
     "mask_iou": torch.compile(mask_iou_cost, dynamic=True),
