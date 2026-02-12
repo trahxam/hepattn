@@ -14,6 +14,18 @@ def is_valid_file(path):
     return path.is_file() and path.stat().st_size > 0
 
 
+TRACKML_RFF_OPTIMAL_SCALES = {
+    "x": 2.82887,
+    "y": 2.82887,
+    "z": 21.0175,
+    "r": 1.81161,
+    "eta": 3.53498,
+    "phi": 0.594557,
+    "sinphi": 0.380755,
+    "cosphi": 0.475794,
+}
+
+
 class TrackMLDataset(Dataset):
     def __init__(
         self,
@@ -30,6 +42,7 @@ class TrackMLDataset(Dataset):
         strict_max_objects: bool = False,
         hit_eval_path: str | None = None,
         dummy_data: bool = False,
+        add_scaled_coords: bool = False,
     ):
         super().__init__()
 
@@ -55,6 +68,7 @@ class TrackMLDataset(Dataset):
             self.particle_max_abs_eta = particle_max_abs_eta
             self.particle_min_num_hits = particle_min_num_hits
             self.event_max_num_particles = event_max_num_particles
+            self.add_scaled_coords = add_scaled_coords
             return
 
         # Get a list of event names
@@ -99,6 +113,7 @@ class TrackMLDataset(Dataset):
         # Event level cuts
         self.event_max_num_particles = event_max_num_particles
         self.strict_max_objects = strict_max_objects
+        self.add_scaled_coords = add_scaled_coords
 
     def __len__(self):
         return int(self.num_events)
@@ -186,8 +201,18 @@ class TrackMLDataset(Dataset):
         hits["theta"] = np.arccos(hits["z"] / hits["s"])
         hits["phi"] = np.arctan2(hits["y"], hits["x"])
         hits["eta"] = -np.log(np.tan(hits["theta"] / 2))
+        hits["sinphi"] = np.sin(hits["phi"])
+        hits["cosphi"] = np.cos(hits["phi"])
+        # Alias for compatibility with configs that request "coshphi".
+        hits["coshphi"] = hits["cosphi"]
         hits["u"] = hits["x"] / (hits["x"] ** 2 + hits["y"] ** 2)
         hits["v"] = hits["y"] / (hits["x"] ** 2 + hits["y"] ** 2)
+
+        if self.add_scaled_coords:
+            for coord_name, scale_value in TRACKML_RFF_OPTIMAL_SCALES.items():
+                hits[f"scaled_{coord_name}"] = hits[coord_name] / float(scale_value)
+            # Alias matching unscaled compatibility alias above.
+            hits["scaled_coshphi"] = hits["scaled_cosphi"]
 
         # Add extra particle fields
         particles["p"] = np.sqrt(particles["px"] ** 2 + particles["py"] ** 2 + particles["pz"] ** 2)
