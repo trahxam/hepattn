@@ -122,3 +122,5 @@ tmp/
 *.npy
 *.npz
 *.tex
+*.txt
+*.png

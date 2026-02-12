@@ -96,7 +96,13 @@ def calc_cost(data: dict[str, Tensor], true: str, pred: str, metrics: dict) -> T
     return total_cost
 
 
-def calc_binary_reco_metrics(data: dict[str, Tensor], true: str, pred: str, metric_definitions: dict) -> dict[str, Tensor]:
+def calc_binary_reco_metrics(
+    data: dict[str, Tensor],
+    true: str,
+    pred: str,
+    metric_definitions: dict,
+    match_mode: str = "matched",
+) -> dict[str, Tensor]:
     """Computes binary reconstruction metrics indicating whether each true object is matched by a predicted one.
 
     For each named metric, a composite condition is evaluated over multiple constituents. The result is a
@@ -116,6 +122,9 @@ def calc_binary_reco_metrics(data: dict[str, Tensor], true: str, pred: str, metr
         - "field": str, the feature to compare.
         - "metric": callable or identifier for score computation.
         - "thresh": float, the minimum acceptable score.
+    match_mode : str
+        "matched" (default): assumes pred objects are already aligned to true objects.
+        "any": considers the metric satisfied if any pred object matches the true object.
 
     Returns:
     -------
@@ -123,25 +132,83 @@ def calc_binary_reco_metrics(data: dict[str, Tensor], true: str, pred: str, metr
         Dictionary with keys `{true}_{pred}_{metric_name}` and boolean tensors indicating which true objects
         are successfully reconstructed under each metric by the pred object collection.
     """
-    # Calculates whether the true objects are reconstructed by the pred under some metrics
 
+    def pairwise_metric_score(
+        preds: Tensor,
+        targets: Tensor,
+        input_pad_mask: Tensor | None = None,
+        metric: str = "iou",
+    ) -> Tensor:
+        targets = targets.type_as(preds)
+
+        if input_pad_mask is not None:
+            mask = input_pad_mask.unsqueeze(1).float()
+            preds = preds * mask
+
+        tp = torch.einsum("bnc,bmc->bnm", preds, targets)
+        tn = torch.einsum("bnc,bmc->bnm", 1 - preds, 1 - targets)
+        fp = torch.einsum("bnc,bmc->bnm", preds, 1 - targets)
+        fn = torch.einsum("bnc,bmc->bnm", 1 - preds, targets)
+
+        eps = 1e-6
+
+        if metric == "smc":
+            score = (tp + tn) / (tp + tn + fp + fn + eps)
+        elif metric == "dice":
+            score = 2 * tp / (2 * tp + fp + fn + eps)
+        elif metric in {"iou", "jac"}:
+            score = tp / (tp + fp + fn + eps)
+        elif metric == "eff":
+            n_true = torch.sum(targets, dim=-1).unsqueeze(1)
+            score = tp / (n_true + eps)
+        elif metric == "pur":
+            n_pred = torch.sum(preds, dim=-1).unsqueeze(2)
+            score = tp / (n_pred + eps)
+        else:
+            raise ValueError(f"Unknown metric '{metric}'")
+
+        return score
+
+    if match_mode not in {"matched", "any"}:
+        raise ValueError(f"Unknown match_mode '{match_mode}'. Expected 'matched' or 'any'.")
+
+    # Calculates whether the true objects are reconstructed by the pred under some metrics
     metric_evals = {}
     for metric_name, constituent_metrics in metric_definitions.items():
         # Contains a mask which will true if this metric is satisfied
         metric_satisfied = torch.full_like(data[f"{true}_valid"], True)
 
-        # Go through all the conditions needed for the metric to be satisfied
-        for metric in constituent_metrics:
-            constituent = metric["hit"]
-            field = metric["field"]
-            scores = mask_metric_score(
-                data[f"{pred}_{constituent}_{field}"].float(),
-                data[f"{true}_{constituent}_{field}"].float(),
-                input_pad_mask=data[f"{constituent}_valid"],
-                metric=metric["metric"],
-            )
+        if match_mode == "matched":
+            # Go through all the conditions needed for the metric to be satisfied
+            for metric in constituent_metrics:
+                constituent = metric["hit"]
+                field = metric["field"]
+                scores = mask_metric_score(
+                    data[f"{pred}_{constituent}_{field}"].float(),
+                    data[f"{true}_{constituent}_{field}"].float(),
+                    input_pad_mask=data[f"{constituent}_valid"],
+                    metric=metric["metric"],
+                )
 
-            metric_satisfied &= scores >= metric["thresh"]
+                metric_satisfied &= scores >= metric["thresh"]
+        else:
+            pair_satisfied: Tensor | None = None
+            for metric in constituent_metrics:
+                constituent = metric["hit"]
+                field = metric["field"]
+                scores = pairwise_metric_score(
+                    data[f"{pred}_{constituent}_{field}"].float(),
+                    data[f"{true}_{constituent}_{field}"].float(),
+                    input_pad_mask=data[f"{constituent}_valid"],
+                    metric=metric["metric"],
+                )
+                condition = scores >= metric["thresh"]
+                pair_satisfied = condition if pair_satisfied is None else (pair_satisfied & condition)
+
+            if pair_satisfied is None:
+                metric_satisfied = torch.full_like(data[f"{true}_valid"], True)
+            else:
+                metric_satisfied = pair_satisfied.any(dim=1)
 
         # The true object is reconstructed by the pred object under the metric definition
         metric_evals[f"{true}_{pred}_{metric_name}"] = metric_satisfied
