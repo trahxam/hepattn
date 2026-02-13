@@ -38,7 +38,6 @@ pred_object = "reco"  # output group name in eval file
 out_path = None  # set to Path(...) to override default output location
 default_output_dir = Path("src/hepattn/experiments/cld/plots/data/eval_costs")
 include_object_valid_cost = True  # match CLDTask.cost: 1 + object_bce(valid vs invalid)
-mask_bce_scale_in_combined_cost = 0.1  # CLDTask.cost combines hit term as dice + 0.1 * bce
 
 
 def event_filename_to_event_id(event_filename: Path) -> int:
@@ -173,7 +172,7 @@ def compute_combined_and_term_cost_matrices(
     outputs: dict[str, torch.Tensor],
     targets: dict[str, torch.Tensor],
     cld_task: CLDTask,
-    hits: list[str],
+    _hits: list[str],
 ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
     combined_cost = None
     term_costs: dict[str, torch.Tensor] = {}
@@ -187,26 +186,36 @@ def compute_combined_and_term_cost_matrices(
         term_costs["object_ce_valid_invalid"] = object_cost
         combined_cost = object_cost
 
-    for hit in hits:
-        hit_weight = float(cld_task.hit_cost_weights.get(hit, 1.0))
-        flow_hit_logit = outputs[f"flow_{hit}_logit"].detach().to(torch.float32)
-        target_hit_mask = targets[f"particle_{hit}_valid"].to(torch.float32)
-        hit_pad_mask = targets[f"{hit}_valid"]
+    for hit, hit_cost_terms in cld_task.hit_cost_weights.items():
+        if hit == "sihit":
+            base_hit_logit = torch.cat(
+                [outputs["flow_vtxd_logit"], outputs["flow_trkr_logit"]],
+                dim=-1,
+            ).detach().to(torch.float32)
+            target_hit_mask = torch.cat(
+                [targets["particle_vtxd_valid"], targets["particle_trkr_valid"]],
+                dim=-1,
+            ).to(torch.float32)
+            hit_pad_mask = torch.cat([targets["vtxd_valid"], targets["trkr_valid"]], dim=-1)
+        else:
+            base_hit_logit = outputs[f"flow_{hit}_logit"].detach().to(torch.float32)
+            target_hit_mask = targets[f"particle_{hit}_valid"].to(torch.float32)
+            hit_pad_mask = targets[f"{hit}_valid"]
 
-        hit_mask_dice_cost = cost_fns["mask_dice"](
-            flow_hit_logit * cld_task.mask_dice_cost_logit_scale,
-            target_hit_mask,
-            input_pad_mask=hit_pad_mask,
-        )
-        hit_mask_bce_cost = cost_fns["mask_bce"](
-            flow_hit_logit,
-            target_hit_mask,
-            input_pad_mask=hit_pad_mask,
-        )
-        term_costs[f"{hit}_mask_dice"] = hit_mask_dice_cost
+        for cost_name, cost_weight in hit_cost_terms.items():
+            flow_hit_logit = base_hit_logit
+            if cost_name == "mask_dice":
+                flow_hit_logit = flow_hit_logit * cld_task.mask_dice_cost_logit_scale
 
-        combined_hit_cost = hit_weight * (hit_mask_dice_cost + mask_bce_scale_in_combined_cost * hit_mask_bce_cost)
-        combined_cost = combined_hit_cost if combined_cost is None else combined_cost + combined_hit_cost
+            hit_term_cost = cost_fns[cost_name](
+                flow_hit_logit,
+                target_hit_mask,
+                input_pad_mask=hit_pad_mask,
+            )
+            term_costs[f"{hit}_{cost_name}"] = hit_term_cost
+
+            weighted_cost = float(cost_weight) * hit_term_cost
+            combined_cost = weighted_cost if combined_cost is None else combined_cost + weighted_cost
 
     if combined_cost is None:
         raise RuntimeError("No cost terms found while computing total cost.")
