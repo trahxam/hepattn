@@ -173,6 +173,42 @@ def mask_iou_cost(pred_logits, targets, input_pad_mask=None, eps=1e-6):
         return 1 - (intersection + eps) / (eps + num_pred + num_targets - intersection)
 
 
+def mask_fm_cost(pred_logits, targets, input_pad_mask=None, sample_weight=None, eps=1e-8):
+    """Compute Fowlkes-Mallows costs for binary masks.
+    Invalid objects are handled later in the matching process.
+
+    Args:
+        pred_logits: [batch_size, num_objects, num_inputs] - predicted logits for binary masks
+        targets: [batch_size, num_objects, num_inputs] - ground truth binary masks
+        input_pad_mask: [batch_size, num_inputs] - mask indicating valid inputs
+        sample_weight: Not used
+        eps: Small value to avoid division by zero
+
+    Returns:
+        cost: [batch_size, num_objects, num_objects] - Fowlkes-Mallows cost matrix
+    """
+    assert sample_weight is None
+    probs = pred_logits.sigmoid()
+    targets = targets.type_as(probs)
+
+    if input_pad_mask is not None:
+        input_mask = input_pad_mask.unsqueeze(1).to(probs.dtype)
+        probs = probs * input_mask
+        targets = targets * input_mask
+
+    # Context manager necessary to overwrite global autocast to ensure float32 cost is returned
+    with torch.autocast(device_type="cuda", enabled=False):
+        tp = torch.einsum("bnc,bmc->bnm", probs, targets)
+        num_pred = probs.sum(-1).unsqueeze(2)
+        num_targets = targets.sum(-1).unsqueeze(1)
+
+        denominator = torch.sqrt((num_pred * num_targets).clamp_min(0.0))
+        fm = tp / denominator.clamp_min(eps)
+        both_empty = (num_pred == 0) & (num_targets == 0)
+        fm = torch.where(denominator == 0, both_empty.to(fm.dtype), fm)
+        return 1 - fm
+
+
 def mask_focal_loss(pred_logits, targets, gamma=2.0, object_valid_mask=None, input_pad_mask=None, sample_weight=None):
     """Compute the focal loss for binary classification.
 
@@ -435,6 +471,7 @@ def regr_smooth_l1_cost(pred, targets):
 cost_fns = {
     "object_bce": torch.compile(object_bce_cost, dynamic=True),
     "object_ce": torch.compile(object_ce_cost, dynamic=True),
+    "mask_fm": torch.compile(mask_fm_cost, dynamic=True),
     "mask_bce": torch.compile(mask_bce_cost, dynamic=True),
     "mask_bce_balanced": torch.compile(mask_bce_balanced_cost, dynamic=True),
     "mask_dice": torch.compile(mask_dice_cost, dynamic=True),
