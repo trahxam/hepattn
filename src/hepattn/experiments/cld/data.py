@@ -49,6 +49,7 @@ class CLDDataset(LRSMDataset):
         truth_filter_hits: list[str] | None = None,
         calo_energy_thresh: float = 1e-6,
         fast_file_discovery: bool = True,
+        remove_neutral_sihits_from_truth_masks: bool = False,
     ):
         if truth_filter_hits is None:
             truth_filter_hits = []
@@ -92,6 +93,7 @@ class CLDDataset(LRSMDataset):
         self.particle_min_pt = particle_min_pt
         self.include_neutral = include_neutral
         self.include_charged = include_charged
+        self.remove_neutral_sihits_from_truth_masks = remove_neutral_sihits_from_truth_masks
         self.charged_particle_min_num_hits = charged_particle_min_num_hits
         self.charged_particle_max_num_hits = charged_particle_max_num_hits
         self.neutral_particle_min_num_hits = neutral_particle_min_num_hits
@@ -568,6 +570,25 @@ class CLDDataset(LRSMDataset):
         merge_name = set(num_hit_cut_names) - set(deflection_cut_names)
         for name in merge_name:
             event[f"particle_{name}_valid"] = np.concatenate(particle_hit_valid, axis=-1)
+
+        if self.remove_neutral_sihits_from_truth_masks:
+            neutral_truth_particles = event["particle.is_neutral_hadron"] | event["particle.is_photon"]
+            silicon_hit_names = ["vtb", "vte", "itb", "ite", "otb", "ote", "vtxd", "trkr", "sihit"]
+
+            for hit_name in silicon_hit_names:
+                hit_valid_name = f"particle_{hit_name}_valid"
+                if hit_valid_name not in event:
+                    continue
+
+                event[hit_valid_name][neutral_truth_particles] = False
+
+                hit_target_name = f"particle_{hit_name}"
+                if hit_target_name not in self.targets:
+                    continue
+
+                valid = event[hit_valid_name].astype(np.float32)
+                for field in self.targets[hit_target_name]:
+                    event[f"{hit_target_name}.{field}"] *= valid
 
         # Now we have built the masks, we can apply hit/counting based cuts
         for hit_name, min_num_hits in self.charged_particle_min_num_hits.items():
