@@ -23,8 +23,8 @@ class CLDTask(Task):
         calo_line_fit: bool = False,
         calo_score_method: str = "sigmoid",
         loss_object_mask: str = "selective",
-        hit_loss_weights: dict[str, float] | None = None,
-        hit_cost_weights: dict[str, float] | None = None,
+        hit_loss_weights: dict[str, dict[str, float]] | None = None,
+        hit_cost_weights: dict[str, dict[str, float]] | None = None,
         mask_dice_cost_logit_scale: float = 1.0,
         return_embeddings: bool = False,
     ):
@@ -284,14 +284,34 @@ class CLDTask(Task):
         valid_logit = logit_nonnull - logit_null
         costs["object_bce"] = 1 + cost_fns["object_bce"](valid_logit, targets["particle_valid"].to(torch.float32))
 
-        for hit in self.hits_included:
-            hit_weight = float(self.hit_cost_weights.get(hit, 1.0))
-            cost_logits = outputs[f"flow_{hit}_logit"].detach().to(torch.float32) * self.mask_dice_cost_logit_scale
-            costs[f"{hit}_mask_dice"] = hit_weight * cost_fns["mask_dice"](
-                cost_logits,
-                targets[f"particle_{hit}_valid"].to(torch.float32),
-                input_pad_mask=targets[f"{hit}_valid"],
-            )
+        for hit, hit_cost_terms in self.hit_cost_weights.items():
+            if hit == "sihit":
+                base_cost_logits = (
+                    torch.cat(
+                        [outputs["flow_vtxd_logit"], outputs["flow_trkr_logit"]],
+                        dim=-1,
+                    ).detach().to(torch.float32)
+                )
+                cost_targets = torch.cat(
+                    [targets["particle_vtxd_valid"], targets["particle_trkr_valid"]],
+                    dim=-1,
+                ).to(torch.float32)
+                input_pad_mask = torch.cat([targets["vtxd_valid"], targets["trkr_valid"]], dim=-1)
+            else:
+                base_cost_logits = outputs[f"flow_{hit}_logit"].detach().to(torch.float32)
+                cost_targets = targets[f"particle_{hit}_valid"].to(torch.float32)
+                input_pad_mask = targets[f"{hit}_valid"]
+
+            for cost_name, cost_weight in hit_cost_terms.items():
+                cost_logits = base_cost_logits
+                if cost_name == "mask_dice":
+                    cost_logits = cost_logits * self.mask_dice_cost_logit_scale
+
+                costs[f"{hit}_{cost_name}"] = float(cost_weight) * cost_fns[cost_name](
+                    cost_logits,
+                    cost_targets,
+                    input_pad_mask=input_pad_mask,
+                )
 
         return costs
 
@@ -309,28 +329,39 @@ class CLDTask(Task):
             reduction="none",
         ).mean()
 
-        for hit in self.hits_included:
-            # Compute the mask loss over all queries, even for null quries
-            if self.loss_object_mask == "all":
-                object_mask = torch.full_like(targets["particle_valid"], False, dtype=torch.bool)
-            # Compute the mask loss only for queries matched to a valid particle
-            elif self.loss_object_mask == "valid":
-                object_mask = targets["particle_valid"]
-            # Compute the mask loss only for queries matched to a particle that involves this hit type
-            elif self.loss_object_mask == "selective":
-                object_mask = torch.full_like(targets["particle_valid"], False, dtype=torch.bool)
-                for class_name in self.class_name_to_idx:
-                    if class_name == "null":
-                        continue
-                    object_mask = torch.logical_or(object_mask, targets[f"particle_is_{class_name}"])
+        # Compute the mask loss over all queries, even for null quries
+        if self.loss_object_mask == "all":
+            object_mask = torch.full_like(targets["particle_valid"], False, dtype=torch.bool)
+        # Compute the mask loss only for queries matched to a valid particle
+        elif self.loss_object_mask == "valid":
+            object_mask = targets["particle_valid"]
+        # Compute the mask loss only for queries matched to a particle that involves this hit type
+        elif self.loss_object_mask == "selective":
+            object_mask = torch.full_like(targets["particle_valid"], False, dtype=torch.bool)
+            for class_name in self.class_name_to_idx:
+                if class_name == "null":
+                    continue
+                object_mask = torch.logical_or(object_mask, targets[f"particle_is_{class_name}"])
 
-            hit_weight = float(self.hit_loss_weights.get(hit, 1.0))
-            for loss_name, loss_weight in {"mask_dice": 1.0, "mask_bce": 0.5}.items():
-                losses[f"{hit}_{loss_name}"] = hit_weight * loss_weight * loss_fns[loss_name](
-                    outputs[f"flow_{hit}_logit"],
-                    targets[f"particle_{hit}_valid"].to(dtype),
+        for hit, hit_loss_terms in self.hit_loss_weights.items():
+            if hit == "sihit":
+                loss_logits = torch.cat([outputs["flow_vtxd_logit"], outputs["flow_trkr_logit"]], dim=-1)
+                loss_targets = torch.cat(
+                    [targets["particle_vtxd_valid"], targets["particle_trkr_valid"]],
+                    dim=-1,
+                ).to(dtype)
+                input_pad_mask = torch.cat([targets["vtxd_valid"], targets["trkr_valid"]], dim=-1)
+            else:
+                loss_logits = outputs[f"flow_{hit}_logit"]
+                loss_targets = targets[f"particle_{hit}_valid"].to(dtype)
+                input_pad_mask = targets[f"{hit}_valid"]
+
+            for loss_name, loss_weight in hit_loss_terms.items():
+                losses[f"{hit}_{loss_name}"] = float(loss_weight) * loss_fns[loss_name](
+                    loss_logits,
+                    loss_targets,
                     object_valid_mask=object_mask,
-                    input_pad_mask=targets[f"{hit}_valid"],
+                    input_pad_mask=input_pad_mask,
                 )
 
         if self.tracker_helix_fit:
