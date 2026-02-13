@@ -1,12 +1,12 @@
-name: CLD_5_256_10MeV
+name: CLD_Combined_v0
 
 matmul_precision: high
 
 data:
   # Paths to preprocessed data directories
-  train_dir: /share/rcif2/maxhart/data/cld/prepped_new/
-  val_dir: /share/rcif2/maxhart/data/cld/prepped_new/
-  test_dir: /share/rcif2/maxhart/data/cld/prepped_new/
+  train_dir: /share/rcif2/maxhart/data/cld/prepped/train/
+  val_dir: /share/rcif2/maxhart/data/cld/prepped/val/
+  test_dir: /share/rcif2/maxhart/data/cld/prepped/test/
 
   # Number of events to include in each set
   num_workers: 10
@@ -15,7 +15,7 @@ data:
   num_val: 100
 
   # Minibatch size / number of events used per training step
-  batch_size: 5
+  batch_size: 10
 
   # Precision of any float values returned by the dataloader
   input_dtype: float32
@@ -33,7 +33,7 @@ data:
   include_neutral: true
 
   # Events with more particles than this are skipped
-  event_max_num_particles: &num_particles 256
+  event_max_num_particles: &num_particles 512
 
   # Number of query slots / particles to generate per event
   force_pad_sizes:
@@ -130,17 +130,17 @@ data:
       - pos.y
       - pos.z
       - pos.s
-      - pos.x
+      - pos.r
       - pos.x_dm
       - pos.y_dm
       - pos.z_dm
       - pos.s_dm
       - pos.r_dm
       - pos.theta
-      - pos.sinphi
-      - pos.cosphi
       - pos.eta
       - pos.phi
+      - pos.sinphi
+      - pos.cosphi
       - pos.u
       - pos.v
       - eDep
@@ -162,10 +162,10 @@ data:
       - pos.s
       - pos.r
       - pos.theta
-      - pos.sinphi
-      - pos.cosphi
       - pos.eta
       - pos.phi
+      - pos.sinphi
+      - pos.cosphi
       - pos.u
       - pos.v
       - eDep
@@ -189,10 +189,10 @@ data:
       - pos.s
       - pos.r
       - pos.theta
-      - pos.sinphi
-      - pos.cosphi
       - pos.eta
       - pos.phi
+      - pos.sinphi
+      - pos.cosphi
       - pos.u
       - pos.v
       - energy
@@ -208,10 +208,10 @@ data:
       - pos.s
       - pos.r
       - pos.theta
-      - pos.sinphi
-      - pos.cosphi
       - pos.eta
       - pos.phi
+      - pos.sinphi
+      - pos.cosphi
       - pos.u
       - pos.v
       - energy
@@ -227,10 +227,10 @@ data:
       - pos.s
       - pos.r
       - pos.theta
-      - pos.sinphi
-      - pos.cosphi
       - pos.eta
       - pos.phi
+      - pos.sinphi
+      - pos.cosphi
       - pos.u
       - pos.v
       - energy
@@ -295,6 +295,7 @@ data:
       - is_other
       - is_primary
       - is_secondary
+      - class_idx
 
 
     particle_vtxd:
@@ -384,7 +385,7 @@ trainer:
   devices: 1
   precision: bf16-mixed
   log_every_n_steps: 10
-  val_check_interval: 500
+  val_check_interval: 1000
   default_root_dir: logs
   gradient_clip_val: 0.1
   accumulate_grad_batches: 1
@@ -396,13 +397,13 @@ trainer:
       project: cld
 
   callbacks:
-    # - class_path: hepattn.callbacks.Compile
+    - class_path: hepattn.callbacks.Compile
     - class_path: hepattn.callbacks.InferenceTimer
     - class_path: hepattn.callbacks.SaveConfig
     - class_path: hepattn.callbacks.Checkpoint
       init_args:
         monitor: val/loss
-        every_n_train_steps: 1000
+        every_n_train_steps: 5000
     - class_path: hepattn.callbacks.PredictionWriter
       init_args:
         write_inputs: false
@@ -423,7 +424,7 @@ model:
     initial: 1e-5
     max: 5e-5
     end: 1e-5
-    pct_start: 0.01
+    pct_start: 0.001
     skip_scheduler: false
     weight_decay: 1e-5
 
@@ -433,7 +434,7 @@ model:
     class_path: hepattn.models.MaskFormer
     init_args:
       dim: &dim 256
-      input_sort_field: pos.phi
+      input_sort_field: pos.theta
       common_decoder_dense: false
 
       input_nets:
@@ -466,11 +467,10 @@ model:
                     output_size: *dim
                     activation: SwiGLU
                 posenc:
-                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  class_path: hepattn.models.posenc.PositionEncoder
                   init_args:
                     input_name: vtxd
                     dim: *dim
-                    scale: 1
                     fields:
                       - pos.x_dm
                       - pos.y_dm
@@ -478,8 +478,6 @@ model:
                       - pos.r_dm
                       - pos.theta
                       - pos.phi
-                      - pos.sinphi
-                      - pos.cosphi
 
             - class_path: hepattn.models.InputNet
               init_args:
@@ -507,11 +505,10 @@ model:
                     output_size: *dim
                     activation: SwiGLU
                 posenc:
-                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  class_path: hepattn.models.posenc.PositionEncoder
                   init_args:
                     input_name: trkr
                     dim: *dim
-                    scale: 1
                     fields:
                       - pos.x
                       - pos.y
@@ -519,8 +516,6 @@ model:
                       - pos.r
                       - pos.theta
                       - pos.phi
-                      - pos.sinphi
-                      - pos.cosphi
 
             - class_path: hepattn.models.InputNet
               init_args:
@@ -543,11 +538,10 @@ model:
                     output_size: *dim
                     activation: SwiGLU
                 posenc:
-                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  class_path: hepattn.models.posenc.PositionEncoder
                   init_args:
                     input_name: ecal
                     dim: *dim
-                    scale: 1
                     fields:
                       - pos.x
                       - pos.y
@@ -555,8 +549,6 @@ model:
                       - pos.r
                       - pos.theta
                       - pos.phi
-                      - pos.sinphi
-                      - pos.cosphi
 
             - class_path: hepattn.models.InputNet
               init_args:
@@ -579,11 +571,10 @@ model:
                     output_size: *dim
                     activation: SwiGLU
                 posenc:
-                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  class_path: hepattn.models.posenc.PositionEncoder
                   init_args:
                     input_name: hcal
                     dim: *dim
-                    scale: 1
                     fields:
                       - pos.x
                       - pos.y
@@ -591,8 +582,6 @@ model:
                       - pos.r
                       - pos.theta
                       - pos.phi
-                      - pos.sinphi
-                      - pos.cosphi
 
             - class_path: hepattn.models.InputNet
               init_args:
@@ -614,11 +603,10 @@ model:
                     output_size: *dim
                     activation: SwiGLU
                 posenc:
-                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  class_path: hepattn.models.posenc.PositionEncoder
                   init_args:
                     input_name: muon
                     dim: *dim
-                    scale: 1
                     fields:
                       - pos.x
                       - pos.y
@@ -626,8 +614,6 @@ model:
                       - pos.r
                       - pos.theta
                       - pos.phi
-                      - pos.sinphi
-                      - pos.cosphi
 
       encoder:
         class_path: hepattn.models.Encoder
@@ -635,15 +621,15 @@ model:
           num_layers: 8
           dim: *dim
           attn_type: flash-varlen
-          window_size: 512
-          window_wrap: true
+          window_size: 1024
+          window_wrap: false
           hybrid_norm: true
           norm: CustomLayerNorm
           dense_kwargs: {activation: SwiGLU}
           attn_kwargs: {bias: false}
 
       decoder:
-        num_decoder_layers: 8
+        num_decoder_layers: 4
         num_queries: *num_particles
         mask_attention: true
         use_query_masks: false
@@ -662,117 +648,40 @@ model:
         init_args:
           default_solver: scipy
           adaptive_solver: false
-          parallel_solver: true
+          parallel_solver: false
 
       tasks:
         class_path: torch.nn.ModuleList
         init_args:
           modules:
-            - class_path: hepattn.models.task.ObjectClassificationTask
+            - class_path: hepattn.experiments.cld.task.CLDTask
               init_args:
-                name: flow_valid
-                input_object: query
-                output_object: flow
-                target_object: particle
-                losses:
-                  object_bce: 0.1
-                costs:
-                  object_bce: 1.0
+                name: reco
                 dim: *dim
-                null_weight: 1.0
-                mask_queries: false
+                mask_attn: false
                 has_intermediate_loss: true
-                has_first_layer_loss: false
-
-            - class_path: hepattn.models.task.ObjectHitMaskTask
-              init_args:
-                name: flow_vtxd_assignment
-                input_constituent: vtxd
-                input_object: query
-                output_object: flow
-                target_object: particle
-                losses:
-                  mask_bce: 0.5
-                  mask_dice: 1.0
-                  #mask_focal: 1.0
-                costs:
-                  #mask_bce: 1.0
-                  mask_dice: 1.0
-                  #mask_focal: 1.0
-                dim: *dim
-                null_weight: 1.0
-
-            - class_path: hepattn.models.task.ObjectHitMaskTask
-              init_args:
-                name: flow_trkr_assignment
-                input_constituent: trkr
-                input_object: query
-                output_object: flow
-                target_object: particle
-                losses:
-                  mask_bce: 0.5
-                  mask_dice: 1.0
-                  #mask_focal: 1.0
-                costs:
-                  #mask_bce: 1.0
-                  mask_dice: 1.0
-                  #mask_focal: 1.0
-                dim: *dim
-                null_weight: 1.0
-
-            - class_path: hepattn.models.task.ObjectHitMaskTask
-              init_args:
-                name: flow_ecal_assignment
-                input_constituent: ecal
-                input_object: query
-                output_object: flow
-                target_object: particle
-                target_field: valid
-                losses:
-                  mask_bce: 0.5
-                  mask_dice: 1.0
-                  #mask_focal: 1.0
-                costs:
-                  #mask_bce: 1.0
-                  mask_dice: 1.0
-                  #mask_focal: 1.0
-                dim: *dim
-                null_weight: 1.0
-
-            - class_path: hepattn.models.task.ObjectHitMaskTask
-              init_args:
-                name: flow_hcal_assignment
-                input_constituent: hcal
-                input_object: query
-                output_object: flow
-                target_object: particle
-                target_field: valid
-                losses:
-                  mask_bce: 0.5
-                  mask_dice: 1.0
-                  #mask_focal: 1.0
-                costs:
-                  #mask_bce: 1.0
-                  mask_dice: 1.0
-                  #mask_focal: 1.0
-                dim: *dim
-                null_weight: 1.0
-
-            - class_path: hepattn.models.task.ObjectHitMaskTask
-              init_args:
-                name: flow_muon_assignment
-                input_constituent: muon
-                input_object: query
-                output_object: flow
-                target_object: particle
-                target_field: valid
-                losses:
-                  mask_bce: 0.5
-                  mask_dice: 1.0
-                  #mask_focal: 1.0
-                costs:
-                  #mask_bce: 1.0
-                  mask_dice: 1.0
-                  #mask_focal: 1.0
-                dim: *dim
-                null_weight: 1.0
+                hits_included:
+                  - trkr
+                  - vtxd
+                  - ecal
+                  - hcal
+                  - muon
+                hit_mask_attn_thresholds: null
+                tracker_helix_fit: false
+                helix_fit_warmup_steps: 10000
+                calo_line_fit: false
+                calo_score_method: sigmoid
+                loss_object_mask: valid
+                hit_loss_weights:
+                  vtxd: {mask_dice: 2.0, mask_bce: 5.0}
+                  trkr: {mask_dice: 2.0, mask_bce: 5.0}
+                  ecal: {mask_dice: 2.0, mask_bce: 5.0}
+                  hcal: {mask_dice: 2.0, mask_bce: 5.0}
+                  muon: {mask_dice: 2.0, mask_bce: 5.0}
+                hit_cost_weights:
+                  # vtxd: {mask_dice: 1.0}
+                  # trkr: {mask_dice: 1.0}
+                  sihit: {mask_dice: 1.0}
+                  ecal: {mask_dice: 1.0}
+                  hcal: {mask_dice: 1.0}
+                  muon: {mask_dice: 1.0}

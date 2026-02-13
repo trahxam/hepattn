@@ -1,5 +1,3 @@
-name: CLD_10_384_10MeV_kMax
-
 model:
   model:
     init_args:
