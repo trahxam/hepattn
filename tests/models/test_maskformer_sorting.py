@@ -80,6 +80,10 @@ class TestMaskFormerSorting:
         )
 
     @pytest.fixture
+    def input_encoders(self):
+        return nn.ModuleList([Encoder(num_layers=1, dim=64), Encoder(num_layers=1, dim=64)])
+
+    @pytest.fixture
     def tasks(self):
         return nn.ModuleList([MockTask("test_task")])
 
@@ -233,3 +237,20 @@ class TestMaskFormerSorting:
         assert sorted_targets["input2_target"].shape == (2, 15)
         assert torch.allclose(sorted_targets["input1_target"], torch.gather(targets["input1_target"], -1, input1_sort_idx))
         assert torch.allclose(sorted_targets["input2_target"], torch.gather(targets["input2_target"], -1, input2_sort_idx))
+
+    def test_per_input_encoders_without_join_encoder(self, input_nets, input_encoders, decoder, tasks, sample_inputs):
+        """Test separate per-input encoders can be used without a merged join encoder."""
+        model = MaskFormer(
+            input_nets=input_nets,
+            input_encoders=input_encoders,
+            encoder=None,
+            decoder=decoder,
+            tasks=tasks,
+            dim=64,
+            input_sort_field="phi",
+            matcher=MockMatcher(),
+        )
+
+        outputs = model(sample_inputs)
+        assert "final" in outputs
+        assert "test_task" in outputs["final"]

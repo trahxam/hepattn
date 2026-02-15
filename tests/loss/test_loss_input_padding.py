@@ -1,7 +1,16 @@
 import pytest
 import torch
 
-from hepattn.models.loss import mask_bce_cost, mask_bce_loss, mask_dice_cost, mask_dice_loss, mask_focal_cost, mask_focal_loss, mask_iou_cost
+from hepattn.models.loss import (
+    mask_bce_cost,
+    mask_bce_loss,
+    mask_dice_cost,
+    mask_dice_loss,
+    mask_focal_cost,
+    mask_focal_loss,
+    mask_iou_cost,
+    mask_mcc_cost,
+)
 
 torch.manual_seed(42)
 
@@ -160,6 +169,42 @@ def test_mask_iou_cost_input_padding(batch_size, num_objects, num_inputs):
     cost_with_pad = mask_iou_cost(pred_logits_padded, targets_padded, input_pad_mask)
 
     assert torch.allclose(cost_no_pad, cost_with_pad, atol=1e-6)
+
+
+@pytest.mark.parametrize("batch_size", [1, 2])
+@pytest.mark.parametrize("num_objects", [3, 4])
+@pytest.mark.parametrize("num_inputs", [10, 15])
+def test_mask_mcc_cost_input_padding(batch_size, num_objects, num_inputs):
+    """Test that mask_mcc_cost gives same results with and without input padding."""
+    pred_logits = torch.randn(batch_size, num_objects, num_inputs)
+    targets = torch.randint(0, 2, (batch_size, num_objects, num_inputs)).float()
+
+    cost_no_pad = mask_mcc_cost(pred_logits, targets, None)
+
+    # Add padding
+    pad_length = 4
+    pred_logits_padded = torch.cat([pred_logits, torch.randn(batch_size, num_objects, pad_length)], dim=-1)
+    targets_padded = torch.cat([targets, torch.zeros(batch_size, num_objects, pad_length)], dim=-1)
+    input_pad_mask = torch.cat([torch.ones(batch_size, num_inputs), torch.zeros(batch_size, pad_length)], dim=-1)
+
+    cost_with_pad = mask_mcc_cost(pred_logits_padded, targets_padded, input_pad_mask)
+
+    assert torch.allclose(cost_no_pad, cost_with_pad, atol=1e-6)
+
+
+def test_mask_mcc_cost_degenerate_cases():
+    """Test degenerate MCC cases (undefined denominator) map to sensible costs."""
+    # Perfect all-positive match should have zero cost.
+    perfect_logits = torch.full((1, 1, 8), 100.0)
+    perfect_targets = torch.ones(1, 1, 8)
+    perfect_cost = mask_mcc_cost(perfect_logits, perfect_targets)
+    assert torch.allclose(perfect_cost, torch.zeros_like(perfect_cost), atol=1e-6)
+
+    # Complete mismatch in a degenerate case should have high cost.
+    mismatch_logits = torch.full((1, 1, 8), -100.0)
+    mismatch_targets = torch.ones(1, 1, 8)
+    mismatch_cost = mask_mcc_cost(mismatch_logits, mismatch_targets)
+    assert torch.all(mismatch_cost > 0.9)
 
 
 def test_edge_cases():
