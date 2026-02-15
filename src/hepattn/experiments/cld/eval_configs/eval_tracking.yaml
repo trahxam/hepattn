@@ -1,93 +1,263 @@
+settings:
+  runs:
+    - path: /share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/logs/All_20260202-T181849/ckpts/epoch=000-val_loss=17.18311_test_eval.h5
+      label: Combined
+      color: mediumvioletred
+    - path: /share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/logs/TrackingFixed_20260205-T000653/ckpts/epoch=000-val_loss=7.40857_test_eval.h5
+      label: Tracking
+      color: dodgerblue
+
+  hits: [vtxd, trkr, ecal, hcal, muon]
+  hits_no_muon: [vtxd, trkr, ecal, hcal]
+  comet_hits: [sihit, vtxd, trkr]
+  comet_working_points: [0.5, 0.75, 1.0]
+  pred_objects: [flow]
+  binary_metrics_match_mode: matched
+  use_flow_class_logits_for_pid: true
+  flow_valid_prob_threshold: 0.5
+  max_events: 1000
+  base_data_cache_max_events: 1000
+  cache_base_data: true
+  save_comparison_plots: true
+  comparison_plot_dir: src/hepattn/experiments/cld/plots/eval_tracking_compare
+  min_bin_count: 16
+  trim_xrange_to_valid_bins: true
+
+  tracking_only:
+    run_label: Tracking
+    baseline_label: Combined
+    metric: charged_reconstructed
+    selection: charged_reconstructable_loose
+
+  reco_density:
+    enabled: true
+    metric: charged_reconstructed
+    selection: charged_reconstructable_loose
+    normalize: true
+    output_subdir: reco_density_hists
+    vars:
+      pt:
+        field: particle_mom.r
+        bins: pt_100mev
+        xlabel: 'Truth Particle $p_T$ [GeV]'
+      eta:
+        field: particle_mom.eta
+        bins: eta
+        xlabel: Truth Particle Pseudorapidity
+      phi:
+        field: particle_mom.phi
+        bins: phi
+        xlabel: 'Truth Particle $\phi$'
+      vtx_r:
+        field: particle_vtx.r
+        bins: vtx_r_50mm
+        xlabel: 'Truth Particle Vertex $r$ [mm]'
+      num_sihit:
+        field: particle_num_sihit
+        bins: num_sihit
+        xlabel: Truth Particle Number of Silicon Hits
+      num_vtxd:
+        field: particle_num_vtxd
+        bins: num_vtxd
+        xlabel: Truth Particle Number of VTXD Hits
+      num_trkr:
+        field: particle_num_trkr
+        bins: num_trkr
+        xlabel: Truth Particle Number of Tracker Hits
+      num_ecal:
+        field: particle_num_ecal
+        bins: num_ecal
+        xlabel: Truth Particle Number of ECAL Hits
+      num_hcal:
+        field: particle_num_hcal
+        bins: num_hcal
+        xlabel: Truth Particle Number of HCAL Hits
+      isolation:
+        field: particle_isolation
+        bins: isolation_full
+        xlabel: Truth Particle Isolation
+
+  tracking_only_truth_hist:
+    enabled: true
+    normalize: true
+    show_errors: true
+    colors:
+      all_truth: tab:green
+      all_truth_charged: tab:orange
+      tracking_only_missed: tab:blue
+    output_subdir: tracking_only_truth_hists
+
 eval:
-  # Define metrics which give a score between pairs of objects which can
-  # be used to match the objects to eachother
+  # Matching is only used to align flow query slots with truth particles.
+  # Reconstruction requirements below use only silicon-hit eff/pur (not IoU).
   match_metrics:
     default:
-      sihit:
+      vtxd:
         weight: 1.0
         metric: dice
         field: valid
 
-  # Define binary metrics which evaluate to true if all of its conditions are met
+      trkr:
+        weight: 1.0
+        metric: dice
+        field: valid
+
+  # Single-hit reconstruction requirement used everywhere:
+  # reconstructed := (sihit_eff >= 0.5) AND (sihit_pur >= 0.5)
   binary_metrics:
-    charged_reconstructed_tight:
+    charged_reconstructed:
       - hit: sihit
         thresh: 0.5
         metric: eff
         field: valid
-
       - hit: sihit
         thresh: 0.5
         metric: pur
         field: valid
 
-    charged_reconstructed_loose:
+    charged_hadron_reconstructed:
+      - hit: sihit
+        thresh: 0.5
+        metric: eff
+        field: valid
+      - hit: sihit
+        thresh: 0.5
+        metric: pur
+        field: valid
+
+    electron_reconstructed:
+      - hit: sihit
+        thresh: 0.5
+        metric: eff
+        field: valid
+      - hit: sihit
+        thresh: 0.5
+        metric: pur
+        field: valid
+
+    muon_reconstructed:
+      - hit: sihit
+        thresh: 0.5
+        metric: eff
+        field: valid
+      - hit: sihit
+        thresh: 0.5
+        metric: pur
+        field: valid
+
+    # Comet-style hit-level thresholds (eff/pur).
+    p0.5_sihit_eff:
+      - hit: sihit
+        thresh: 0.5
+        metric: eff
+        field: valid
+
+    p0.5_sihit_pur:
+      - hit: sihit
+        thresh: 0.5
+        metric: pur
+        field: valid
+
+    p0.75_sihit_eff:
+      - hit: sihit
+        thresh: 0.75
+        metric: eff
+        field: valid
+
+    p0.75_sihit_pur:
       - hit: sihit
         thresh: 0.75
         metric: pur
         field: valid
 
-    charged_hadron_reconstructed_tight:
+    p1.0_sihit_eff:
       - hit: sihit
+        thresh: 0.99
+        metric: eff
+        field: valid
+
+    p1.0_sihit_pur:
+      - hit: sihit
+        thresh: 0.99
+        metric: pur
+        field: valid
+
+    p0.5_vtxd_eff:
+      - hit: vtxd
         thresh: 0.5
         metric: eff
         field: valid
 
-      - hit: sihit
+    p0.5_vtxd_pur:
+      - hit: vtxd
         thresh: 0.5
         metric: pur
         field: valid
 
-    charged_hadron_reconstructed_loose:
-      - hit: sihit
+    p0.75_vtxd_eff:
+      - hit: vtxd
+        thresh: 0.75
+        metric: eff
+        field: valid
+
+    p0.75_vtxd_pur:
+      - hit: vtxd
         thresh: 0.75
         metric: pur
         field: valid
 
-    electron_reconstructed_tight:
-      - hit: sihit
+    p1.0_vtxd_eff:
+      - hit: vtxd
+        thresh: 0.99
+        metric: eff
+        field: valid
+
+    p1.0_vtxd_pur:
+      - hit: vtxd
+        thresh: 0.99
+        metric: pur
+        field: valid
+
+    p0.5_trkr_eff:
+      - hit: trkr
         thresh: 0.5
         metric: eff
         field: valid
 
-      - hit: sihit
+    p0.5_trkr_pur:
+      - hit: trkr
         thresh: 0.5
         metric: pur
         field: valid
 
-    electron_reconstructed_loose:
-      - hit: sihit
+    p0.75_trkr_eff:
+      - hit: trkr
+        thresh: 0.75
+        metric: eff
+        field: valid
+
+    p0.75_trkr_pur:
+      - hit: trkr
         thresh: 0.75
         metric: pur
         field: valid
 
-    muon_reconstructed_tight:
-      - hit: sihit
-        thresh: 0.5
+    p1.0_trkr_eff:
+      - hit: trkr
+        thresh: 0.99
         metric: eff
         field: valid
 
-      - hit: sihit
-        thresh: 0.5
+    p1.0_trkr_pur:
+      - hit: trkr
+        thresh: 0.99
         metric: pur
         field: valid
 
-    muon_reconstructed_loose:
-      - hit: sihit
-        thresh: 0.75
-        metric: pur
-        field: valid
-
-    # Comet-like tracking efficiency: require only efficiency >= 0.5 on sihits.
-    charged_reconstructed_comet:
-      - hit: sihit
-        thresh: 0.5
-        metric: eff
-        field: valid
-
+  # Tight/loose only refers to truth selections/denominators.
   selections:
     charged_reconstructable_tight:
-      - "is_primary"
+      - is_primary
       - "mom.r >= 0.1"
       - "mom.abs_eta <= 2.44"
       - "vtx.r <= 50"
@@ -95,12 +265,11 @@ eval:
       - "isolation >= 0.02"
 
     charged_reconstructable_loose:
-      - "mom.r >= 0.01"
-      - "num_sihit >= 4"
+      - "num_sihit >= 3"
 
     charged_hadron_reconstructable_tight:
-      - "is_charged_hadron"
-      - "is_primary"
+      - is_charged_hadron
+      - is_primary
       - "mom.r >= 0.1"
       - "mom.abs_eta <= 2.44"
       - "vtx.r <= 50"
@@ -108,13 +277,12 @@ eval:
       - "isolation >= 0.02"
 
     charged_hadron_reconstructable_loose:
-      - "is_charged_hadron"
-      - "mom.r >= 0.01"
-      - "num_sihit >= 4"
+      - is_charged_hadron
+      - "num_sihit >= 3"
 
     electron_reconstructable_tight:
-      - "is_electron"
-      - "is_primary"
+      - is_electron
+      - is_primary
       - "mom.r >= 0.1"
       - "mom.abs_eta <= 2.44"
       - "vtx.r <= 50"
@@ -122,13 +290,12 @@ eval:
       - "isolation >= 0.02"
 
     electron_reconstructable_loose:
-      - "is_electron"
-      - "mom.r >= 0.01"
-      - "num_sihit >= 4"
+      - is_electron
+      - "num_sihit >= 3"
 
     muon_reconstructable_tight:
-      - "is_muon"
-      - "is_primary"
+      - is_muon
+      - is_primary
       - "mom.r >= 0.1"
       - "mom.abs_eta <= 2.44"
       - "vtx.r <= 50"
@@ -136,50 +303,60 @@ eval:
       - "isolation >= 0.02"
 
     muon_reconstructable_loose:
-      - "is_muon"
-      - "mom.r >= 0.01"
-      - "num_sihit >= 4"
-
-    # Approximate denominator used by Comet p0.5_sihit_eff.
-    charged_reconstructable_comet:
-      - "is_charged"
-      - "num_sihit >= 1"
+      - is_muon
+      - "num_sihit >= 3"
 
   residual_metrics: {}
-
   residual_histograms: {}
-
   residual_histogram_plots: {}
 
   bins:
     pt_100mev:
-      min: 0.1
-      max: 100.0
-      num: 24
-      scale: log
-
-    pt_full:
       min: 0.01
       max: 100.0
-      num: 32
+      num: 24
       scale: log
 
     vtx_r_50mm:
       min: 0
       max: 50
-      num: 32
+      num: 24
+      scale: linear
+
+    num_vtxd:
+      min: -0.5
+      max: 11.5
+      num: 13
+      scale: linear
+
+    num_trkr:
+      min: -0.5
+      max: 11.5
+      num: 13
       scale: linear
 
     num_sihit:
-      min: 0.5
+      min: -0.5
       max: 24.5
-      num: 25
+      num: 26
       scale: linear
 
-    isolation_full:
-      min: 0.01
-      max: 3.14
+    num_ecal:
+      min: 1
+      max: 1000
       num: 32
+      scale: log
+
+    num_hcal:
+      min: 1
+      max: 500
+      num: 32
+      scale: log
+
+    isolation_full:
+      min: 0.00001
+      max: 3.14
+      num: 24
       scale: log
 
     eta:
@@ -188,895 +365,1107 @@ eval:
       num: 32
       scale: linear
 
+    phi:
+      min: -3.14159
+      max: 3.14159
+      num: 32
+      scale: linear
 
+  # Bulk metrics: only flow, since we compare "All" vs "Tracking" runs externally (eval_old EVAL_RUNS).
   bulk_metrics:
-    # Bulk efficiency metrics
-    sitrack_charged_eff_tight:
-      object_name: particle
-      selection: charged_reconstructable_tight
-      denominator: charged_reconstructable_tight
-      numerator: sitrack_charged_reconstructed_tight
-
     flow_charged_eff_tight:
       object_name: particle
       selection: charged_reconstructable_tight
       denominator: charged_reconstructable_tight
-      numerator: flow_charged_reconstructed_tight
-
-
-    pandora_charged_eff_tight:
-      object_name: particle
-      selection: charged_reconstructable_tight
-      denominator: charged_reconstructable_tight
-      numerator: pandora_charged_reconstructed_tight
-
-    sitrack_charged_eff_loose:
-      object_name: particle
-      selection: charged_reconstructable_loose
-      denominator: charged_reconstructable_loose
-      numerator: sitrack_charged_reconstructed_tight
+      numerator: flow_charged_reconstructed
 
     flow_charged_eff_loose:
       object_name: particle
       selection: charged_reconstructable_loose
       denominator: charged_reconstructable_loose
-      numerator: flow_charged_reconstructed_tight
-
-    flow_charged_eff_comet:
-      object_name: particle
-      selection: charged_reconstructable_comet
-      denominator: charged_reconstructable_comet
-      numerator: flow_charged_reconstructed_comet
-
-
-    pandora_charged_eff_loose:
-      object_name: particle
-      selection: charged_reconstructable_loose
-      denominator: charged_reconstructable_loose
-      numerator: pandora_charged_reconstructed_tight
-
-    # Bulk purity metrics
-    sitrack_charged_pur:
-      object_name: sitrack
-      selection: is_charged
-      denominator: is_charged
-      numerator: particle_charged_reconstructed_tight
-
-    flow_charged_pur:
-      object_name: flow
-      selection: is_charged
-      denominator: is_charged
-      numerator: particle_charged_reconstructed_tight
-
-    pandora_charged_pur:
-      object_name: pandora
-      selection: is_charged
-      denominator: is_charged
-      numerator: particle_charged_reconstructed_tight
-
-    # Charged hadron metrics
-    sitrack_charged_hadron_eff_tight:
-      object_name: particle
-      selection: charged_hadron_reconstructable_tight
-      denominator: charged_hadron_reconstructable_tight
-      numerator: sitrack_charged_hadron_reconstructed_tight
+      numerator: flow_charged_reconstructed
 
     flow_charged_hadron_eff_tight:
       object_name: particle
       selection: charged_hadron_reconstructable_tight
       denominator: charged_hadron_reconstructable_tight
-      numerator: flow_charged_hadron_reconstructed_tight
-
-    pandora_charged_hadron_eff_tight:
-      object_name: particle
-      selection: charged_hadron_reconstructable_tight
-      denominator: charged_hadron_reconstructable_tight
-      numerator: pandora_charged_hadron_reconstructed_tight
-
-    sitrack_charged_hadron_eff_loose:
-      object_name: particle
-      selection: charged_hadron_reconstructable_loose
-      denominator: charged_hadron_reconstructable_loose
-      numerator: sitrack_charged_hadron_reconstructed_tight
+      numerator: flow_charged_hadron_reconstructed
 
     flow_charged_hadron_eff_loose:
       object_name: particle
       selection: charged_hadron_reconstructable_loose
       denominator: charged_hadron_reconstructable_loose
-      numerator: flow_charged_hadron_reconstructed_tight
-
-    pandora_charged_hadron_eff_loose:
-      object_name: particle
-      selection: charged_hadron_reconstructable_loose
-      denominator: charged_hadron_reconstructable_loose
-      numerator: pandora_charged_hadron_reconstructed_tight
-
-    sitrack_charged_hadron_pur:
-      object_name: sitrack
-      selection: is_charged_hadron
-      denominator: is_charged_hadron
-      numerator: particle_charged_hadron_reconstructed_tight
-
-    flow_charged_hadron_pur:
-      object_name: flow
-      selection: is_charged_hadron
-      denominator: is_charged_hadron
-      numerator: particle_charged_hadron_reconstructed_tight
-
-    pandora_charged_hadron_pur:
-      object_name: pandora
-      selection: is_charged_hadron
-      denominator: is_charged_hadron
-      numerator: particle_charged_hadron_reconstructed_tight
-
-    # Electron metrics
-    sitrack_electron_eff_tight:
-      object_name: particle
-      selection: electron_reconstructable_tight
-      denominator: electron_reconstructable_tight
-      numerator: sitrack_electron_reconstructed_tight
+      numerator: flow_charged_hadron_reconstructed
 
     flow_electron_eff_tight:
       object_name: particle
       selection: electron_reconstructable_tight
       denominator: electron_reconstructable_tight
-      numerator: flow_electron_reconstructed_tight
-
-    pandora_electron_eff_tight:
-      object_name: particle
-      selection: electron_reconstructable_tight
-      denominator: electron_reconstructable_tight
-      numerator: pandora_electron_reconstructed_tight
-
-    sitrack_electron_eff_loose:
-      object_name: particle
-      selection: electron_reconstructable_loose
-      denominator: electron_reconstructable_loose
-      numerator: sitrack_electron_reconstructed_tight
+      numerator: flow_electron_reconstructed
 
     flow_electron_eff_loose:
       object_name: particle
       selection: electron_reconstructable_loose
       denominator: electron_reconstructable_loose
-      numerator: flow_electron_reconstructed_tight
-
-    pandora_electron_eff_loose:
-      object_name: particle
-      selection: electron_reconstructable_loose
-      denominator: electron_reconstructable_loose
-      numerator: pandora_electron_reconstructed_tight
-
-    sitrack_electron_pur:
-      object_name: sitrack
-      selection: is_electron
-      denominator: is_electron
-      numerator: particle_electron_reconstructed_tight
-
-    flow_electron_pur:
-      object_name: flow
-      selection: is_electron
-      denominator: is_electron
-      numerator: particle_electron_reconstructed_tight
-
-    pandora_electron_pur:
-      object_name: pandora
-      selection: is_electron
-      denominator: is_electron
-      numerator: particle_electron_reconstructed_tight
-
-    # Muon metrics
-    sitrack_muon_eff_tight:
-      object_name: particle
-      selection: muon_reconstructable_tight
-      denominator: muon_reconstructable_tight
-      numerator: sitrack_muon_reconstructed_tight
+      numerator: flow_electron_reconstructed
 
     flow_muon_eff_tight:
       object_name: particle
       selection: muon_reconstructable_tight
       denominator: muon_reconstructable_tight
-      numerator: flow_muon_reconstructed_tight
-
-    pandora_muon_eff_tight:
-      object_name: particle
-      selection: muon_reconstructable_tight
-      denominator: muon_reconstructable_tight
-      numerator: pandora_muon_reconstructed_tight
-
-    sitrack_muon_eff_loose:
-      object_name: particle
-      selection: muon_reconstructable_loose
-      denominator: muon_reconstructable_loose
-      numerator: sitrack_muon_reconstructed_tight
+      numerator: flow_muon_reconstructed
 
     flow_muon_eff_loose:
       object_name: particle
       selection: muon_reconstructable_loose
       denominator: muon_reconstructable_loose
-      numerator: flow_muon_reconstructed_tight
+      numerator: flow_muon_reconstructed
 
-    pandora_muon_eff_loose:
-      object_name: particle
-      selection: muon_reconstructable_loose
-      denominator: muon_reconstructable_loose
-      numerator: pandora_muon_reconstructed_tight
+    flow_charged_pur:
+      object_name: flow
+      selection: is_charged
+      denominator: is_charged
+      numerator: particle_charged_reconstructed
 
-    sitrack_muon_pur:
-      object_name: sitrack
-      selection: is_muon
-      denominator: is_muon
-      numerator: particle_muon_reconstructed_tight
+    flow_charged_hadron_pur:
+      object_name: flow
+      selection: is_charged_hadron
+      denominator: is_charged_hadron
+      numerator: particle_charged_hadron_reconstructed
+
+    flow_electron_pur:
+      object_name: flow
+      selection: is_electron
+      denominator: is_electron
+      numerator: particle_electron_reconstructed
 
     flow_muon_pur:
       object_name: flow
       selection: is_muon
       denominator: is_muon
-      numerator: particle_muon_reconstructed_tight
+      numerator: particle_muon_reconstructed
 
-    pandora_muon_pur:
-      object_name: pandora
-      selection: is_muon
-      denominator: is_muon
-      numerator: particle_muon_reconstructed_tight
+    # Comet-style bulk metrics (hit-level thresholds).
+    flow_p0.5_sihit_eff:
+      object_name: particle
+      selection: num_sihit
+      denominator: valid
+      numerator: flow_p0.5_sihit_eff
+
+    flow_p0.5_sihit_pur:
+      object_name: flow
+      selection: num_sihit
+      denominator: valid
+      numerator: particle_p0.5_sihit_pur
+
+    flow_p0.75_sihit_eff:
+      object_name: particle
+      selection: num_sihit
+      denominator: valid
+      numerator: flow_p0.75_sihit_eff
+
+    flow_p0.75_sihit_pur:
+      object_name: flow
+      selection: num_sihit
+      denominator: valid
+      numerator: particle_p0.75_sihit_pur
+
+    flow_p1.0_sihit_eff:
+      object_name: particle
+      selection: num_sihit
+      denominator: valid
+      numerator: flow_p1.0_sihit_eff
+
+    flow_p1.0_sihit_pur:
+      object_name: flow
+      selection: num_sihit
+      denominator: valid
+      numerator: particle_p1.0_sihit_pur
+
+    flow_p0.5_vtxd_eff:
+      object_name: particle
+      selection: num_vtxd
+      denominator: valid
+      numerator: flow_p0.5_vtxd_eff
+
+    flow_p0.5_vtxd_pur:
+      object_name: flow
+      selection: num_vtxd
+      denominator: valid
+      numerator: particle_p0.5_vtxd_pur
+
+    flow_p0.75_vtxd_eff:
+      object_name: particle
+      selection: num_vtxd
+      denominator: valid
+      numerator: flow_p0.75_vtxd_eff
+
+    flow_p0.75_vtxd_pur:
+      object_name: flow
+      selection: num_vtxd
+      denominator: valid
+      numerator: particle_p0.75_vtxd_pur
+
+    flow_p1.0_vtxd_eff:
+      object_name: particle
+      selection: num_vtxd
+      denominator: valid
+      numerator: flow_p1.0_vtxd_eff
+
+    flow_p1.0_vtxd_pur:
+      object_name: flow
+      selection: num_vtxd
+      denominator: valid
+      numerator: particle_p1.0_vtxd_pur
+
+    flow_p0.5_trkr_eff:
+      object_name: particle
+      selection: num_trkr
+      denominator: valid
+      numerator: flow_p0.5_trkr_eff
+
+    flow_p0.5_trkr_pur:
+      object_name: flow
+      selection: num_trkr
+      denominator: valid
+      numerator: particle_p0.5_trkr_pur
+
+    flow_p0.75_trkr_eff:
+      object_name: particle
+      selection: num_trkr
+      denominator: valid
+      numerator: flow_p0.75_trkr_eff
+
+    flow_p0.75_trkr_pur:
+      object_name: flow
+      selection: num_trkr
+      denominator: valid
+      numerator: particle_p0.75_trkr_pur
+
+    flow_p1.0_trkr_eff:
+      object_name: particle
+      selection: num_trkr
+      denominator: valid
+      numerator: flow_p1.0_trkr_eff
+
+    flow_p1.0_trkr_pur:
+      object_name: flow
+      selection: num_trkr
+      denominator: valid
+      numerator: particle_p1.0_trkr_pur
 
   histograms:
-    # Charged pt hists
-    sitrack_charged_pt:
+    # Charged efficiency vs truth variables (tight/loose selections)
+    flow_charged_pt_tight:
       object_name: particle
       field: mom.r
       bins: pt_100mev
       selection: charged_reconstructable_tight
       denominator: charged_reconstructable_tight
-      numerator: sitrack_charged_reconstructed_tight
-
-    flow_charged_pt:
-      object_name: particle
-      field: mom.r
-      bins: pt_100mev
-      selection: charged_reconstructable_tight
-      denominator: charged_reconstructable_tight
-      numerator: flow_charged_reconstructed_tight
-
-    pandora_charged_pt:
-      object_name: particle
-      field: mom.r
-      bins: pt_100mev
-      selection: charged_reconstructable_tight
-      denominator: charged_reconstructable_tight
-      numerator: pandora_charged_reconstructed_tight
+      numerator: flow_charged_reconstructed
 
     flow_charged_pt_loose:
       object_name: particle
       field: mom.r
       bins: pt_100mev
-      selection: charged_reconstructable_tight
-      denominator: charged_reconstructable_tight
-      numerator: flow_charged_reconstructed_loose
-
-    sitrack_charged_pt_loose:
-      object_name: particle
-      field: mom.r
-      bins: pt_100mev
-      selection: charged_reconstructable_tight
-      denominator: charged_reconstructable_tight
-      numerator: sitrack_charged_reconstructed_loose
-
-    flow_loose_charged_pt:
-      object_name: particle
-      field: mom.r
-      bins: pt_100mev
       selection: charged_reconstructable_loose
       denominator: charged_reconstructable_loose
-      numerator: flow_charged_reconstructed_tight
+      numerator: flow_charged_reconstructed
 
-    sitrack_loose_charged_pt:
-      object_name: particle
-      field: mom.r
-      bins: pt_100mev
-      selection: charged_reconstructable_loose
-      denominator: charged_reconstructable_loose
-      numerator: sitrack_charged_reconstructed_tight
-
-    pandora_loose_charged_pt:
-      object_name: particle
-      field: mom.r
-      bins: pt_100mev
-      selection: charged_reconstructable_loose
-      denominator: charged_reconstructable_loose
-      numerator: pandora_charged_reconstructed_tight
-
-
-
-
-    # Isolation
-    sitrack_charged_isolation:
-      object_name: particle
-      field: isolation
-      bins: isolation_full
-      selection: charged_reconstructable_tight
-      denominator: charged_reconstructable_tight
-      numerator: sitrack_charged_reconstructed_tight
-
-    flow_charged_isolation:
-      object_name: particle
-      field: isolation
-      bins: isolation_full
-      selection: charged_reconstructable_tight
-      denominator: charged_reconstructable_tight
-      numerator: flow_charged_reconstructed_tight
-
-    sitrack_charged_num_sihit:
-      object_name: particle
-      field: num_sihit
-      bins: num_sihit
-      selection: charged_reconstructable_tight
-      denominator: charged_reconstructable_tight
-      numerator: sitrack_charged_reconstructed_tight
-
-    flow_charged_num_sihit:
-      object_name: particle
-      field: num_sihit
-      bins: num_sihit
-      selection: charged_reconstructable_tight
-      denominator: charged_reconstructable_tight
-      numerator: flow_charged_reconstructed_tight
-
-    sitrack_charged_vtx_r:
-      object_name: particle
-      field: vtx.r
-      bins: vtx_r_50mm
-      selection: charged_reconstructable_tight
-      denominator: charged_reconstructable_tight
-      numerator: sitrack_charged_reconstructed_tight
-
-    flow_charged_vtx_r:
-      object_name: particle
-      field: vtx.r
-      bins: vtx_r_50mm
-      selection: charged_reconstructable_tight
-      denominator: charged_reconstructable_tight
-      numerator: flow_charged_reconstructed_tight
-
-    sitrack_charged_eta:
+    flow_charged_eta_tight:
       object_name: particle
       field: mom.eta
       bins: eta
       selection: charged_reconstructable_tight
       denominator: charged_reconstructable_tight
-      numerator: sitrack_charged_reconstructed_tight
+      numerator: flow_charged_reconstructed
 
-    flow_charged_eta:
+    flow_charged_eta_loose:
       object_name: particle
       field: mom.eta
       bins: eta
+      selection: charged_reconstructable_loose
+      denominator: charged_reconstructable_loose
+      numerator: flow_charged_reconstructed
+
+    flow_charged_phi_tight:
+      object_name: particle
+      field: mom.phi
+      bins: phi
       selection: charged_reconstructable_tight
       denominator: charged_reconstructable_tight
-      numerator: flow_charged_reconstructed_tight
+      numerator: flow_charged_reconstructed
 
-    # Charged hadron pT hists
-    sitrack_charged_hadron_pt:
+    flow_charged_phi_loose:
+      object_name: particle
+      field: mom.phi
+      bins: phi
+      selection: charged_reconstructable_loose
+      denominator: charged_reconstructable_loose
+      numerator: flow_charged_reconstructed
+
+    flow_charged_vtx_r_tight:
+      object_name: particle
+      field: vtx.r
+      bins: vtx_r_50mm
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: flow_charged_reconstructed
+
+    flow_charged_vtx_r_loose:
+      object_name: particle
+      field: vtx.r
+      bins: vtx_r_50mm
+      selection: charged_reconstructable_loose
+      denominator: charged_reconstructable_loose
+      numerator: flow_charged_reconstructed
+
+    flow_charged_num_sihit_tight:
+      object_name: particle
+      field: num_sihit
+      bins: num_sihit
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: flow_charged_reconstructed
+
+    flow_charged_num_sihit_loose:
+      object_name: particle
+      field: num_sihit
+      bins: num_sihit
+      selection: charged_reconstructable_loose
+      denominator: charged_reconstructable_loose
+      numerator: flow_charged_reconstructed
+
+    flow_charged_num_vtxd_tight:
+      object_name: particle
+      field: num_vtxd
+      bins: num_vtxd
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: flow_charged_reconstructed
+
+    flow_charged_num_vtxd_loose:
+      object_name: particle
+      field: num_vtxd
+      bins: num_vtxd
+      selection: charged_reconstructable_loose
+      denominator: charged_reconstructable_loose
+      numerator: flow_charged_reconstructed
+
+    flow_charged_num_trkr_tight:
+      object_name: particle
+      field: num_trkr
+      bins: num_trkr
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: flow_charged_reconstructed
+
+    flow_charged_num_trkr_loose:
+      object_name: particle
+      field: num_trkr
+      bins: num_trkr
+      selection: charged_reconstructable_loose
+      denominator: charged_reconstructable_loose
+      numerator: flow_charged_reconstructed
+
+    flow_charged_num_ecal_tight:
+      object_name: particle
+      field: num_ecal
+      bins: num_ecal
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: flow_charged_reconstructed
+
+    flow_charged_num_ecal_loose:
+      object_name: particle
+      field: num_ecal
+      bins: num_ecal
+      selection: charged_reconstructable_loose
+      denominator: charged_reconstructable_loose
+      numerator: flow_charged_reconstructed
+
+    flow_charged_num_hcal_tight:
+      object_name: particle
+      field: num_hcal
+      bins: num_hcal
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: flow_charged_reconstructed
+
+    flow_charged_num_hcal_loose:
+      object_name: particle
+      field: num_hcal
+      bins: num_hcal
+      selection: charged_reconstructable_loose
+      denominator: charged_reconstructable_loose
+      numerator: flow_charged_reconstructed
+
+    flow_charged_isolation_tight:
+      object_name: particle
+      field: isolation
+      bins: isolation_full
+      selection: charged_reconstructable_tight
+      denominator: charged_reconstructable_tight
+      numerator: flow_charged_reconstructed
+
+    flow_charged_isolation_loose:
+      object_name: particle
+      field: isolation
+      bins: isolation_full
+      selection: charged_reconstructable_loose
+      denominator: charged_reconstructable_loose
+      numerator: flow_charged_reconstructed
+
+    # Per-class efficiency vs truth pT (tight/loose selections)
+    flow_charged_hadron_pt_tight:
       object_name: particle
       field: mom.r
       bins: pt_100mev
       selection: charged_hadron_reconstructable_tight
       denominator: charged_hadron_reconstructable_tight
-      numerator: sitrack_charged_hadron_reconstructed_tight
-
-    flow_charged_hadron_pt:
-      object_name: particle
-      field: mom.r
-      bins: pt_100mev
-      selection: charged_hadron_reconstructable_tight
-      denominator: charged_hadron_reconstructable_tight
-      numerator: flow_charged_hadron_reconstructed_tight
-
-    pandora_charged_hadron_pt:
-      object_name: particle
-      field: mom.r
-      bins: pt_100mev
-      selection: charged_hadron_reconstructable_tight
-      denominator: charged_hadron_reconstructable_tight
-      numerator: pandora_charged_hadron_reconstructed_tight
+      numerator: flow_charged_hadron_reconstructed
 
     flow_charged_hadron_pt_loose:
       object_name: particle
       field: mom.r
       bins: pt_100mev
+      selection: charged_hadron_reconstructable_loose
+      denominator: charged_hadron_reconstructable_loose
+      numerator: flow_charged_hadron_reconstructed
+
+    flow_charged_hadron_phi_tight:
+      object_name: particle
+      field: mom.phi
+      bins: phi
       selection: charged_hadron_reconstructable_tight
       denominator: charged_hadron_reconstructable_tight
-      numerator: flow_charged_hadron_reconstructed_loose
+      numerator: flow_charged_hadron_reconstructed
 
-    sitrack_charged_hadron_pt_loose:
+    flow_charged_hadron_phi_loose:
       object_name: particle
-      field: mom.r
-      bins: pt_100mev
-      selection: charged_hadron_reconstructable_tight
-      denominator: charged_hadron_reconstructable_tight
-      numerator: sitrack_charged_hadron_reconstructed_loose
-
-    flow_loose_charged_hadron_pt:
-      object_name: particle
-      field: mom.r
-      bins: pt_100mev
+      field: mom.phi
+      bins: phi
       selection: charged_hadron_reconstructable_loose
       denominator: charged_hadron_reconstructable_loose
-      numerator: flow_charged_hadron_reconstructed_tight
+      numerator: flow_charged_hadron_reconstructed
 
-    sitrack_loose_charged_hadron_pt:
-      object_name: particle
-      field: mom.r
-      bins: pt_100mev
-      selection: charged_hadron_reconstructable_loose
-      denominator: charged_hadron_reconstructable_loose
-      numerator: sitrack_charged_hadron_reconstructed_tight
-
-    pandora_loose_charged_hadron_pt:
-      object_name: particle
-      field: mom.r
-      bins: pt_100mev
-      selection: charged_hadron_reconstructable_loose
-      denominator: charged_hadron_reconstructable_loose
-      numerator: pandora_charged_hadron_reconstructed_tight
-
-    # Electron pT hists
-    sitrack_electron_pt:
+    flow_electron_pt_tight:
       object_name: particle
       field: mom.r
       bins: pt_100mev
       selection: electron_reconstructable_tight
       denominator: electron_reconstructable_tight
-      numerator: sitrack_electron_reconstructed_tight
-
-    flow_electron_pt:
-      object_name: particle
-      field: mom.r
-      bins: pt_100mev
-      selection: electron_reconstructable_tight
-      denominator: electron_reconstructable_tight
-      numerator: flow_electron_reconstructed_tight
-
-    pandora_electron_pt:
-      object_name: particle
-      field: mom.r
-      bins: pt_100mev
-      selection: electron_reconstructable_tight
-      denominator: electron_reconstructable_tight
-      numerator: pandora_electron_reconstructed_tight
+      numerator: flow_electron_reconstructed
 
     flow_electron_pt_loose:
       object_name: particle
       field: mom.r
       bins: pt_100mev
+      selection: electron_reconstructable_loose
+      denominator: electron_reconstructable_loose
+      numerator: flow_electron_reconstructed
+
+    flow_electron_phi_tight:
+      object_name: particle
+      field: mom.phi
+      bins: phi
       selection: electron_reconstructable_tight
       denominator: electron_reconstructable_tight
-      numerator: flow_electron_reconstructed_loose
+      numerator: flow_electron_reconstructed
 
-    sitrack_electron_pt_loose:
+    flow_electron_phi_loose:
       object_name: particle
-      field: mom.r
-      bins: pt_100mev
+      field: mom.phi
+      bins: phi
+      selection: electron_reconstructable_loose
+      denominator: electron_reconstructable_loose
+      numerator: flow_electron_reconstructed
+
+    flow_electron_eta_tight:
+      object_name: particle
+      field: mom.eta
+      bins: eta
       selection: electron_reconstructable_tight
       denominator: electron_reconstructable_tight
-      numerator: sitrack_electron_reconstructed_loose
+      numerator: flow_electron_reconstructed
 
-    flow_loose_electron_pt:
+    flow_electron_eta_loose:
       object_name: particle
-      field: mom.r
-      bins: pt_100mev
+      field: mom.eta
+      bins: eta
       selection: electron_reconstructable_loose
       denominator: electron_reconstructable_loose
-      numerator: flow_electron_reconstructed_tight
+      numerator: flow_electron_reconstructed
 
-    sitrack_loose_electron_pt:
+    flow_electron_vtx_r_tight:
       object_name: particle
-      field: mom.r
-      bins: pt_100mev
+      field: vtx.r
+      bins: vtx_r_50mm
+      selection: electron_reconstructable_tight
+      denominator: electron_reconstructable_tight
+      numerator: flow_electron_reconstructed
+
+    flow_electron_vtx_r_loose:
+      object_name: particle
+      field: vtx.r
+      bins: vtx_r_50mm
       selection: electron_reconstructable_loose
       denominator: electron_reconstructable_loose
-      numerator: sitrack_electron_reconstructed_tight
+      numerator: flow_electron_reconstructed
 
-    pandora_loose_electron_pt:
+    flow_electron_num_sihit_tight:
       object_name: particle
-      field: mom.r
-      bins: pt_100mev
+      field: num_sihit
+      bins: num_sihit
+      selection: electron_reconstructable_tight
+      denominator: electron_reconstructable_tight
+      numerator: flow_electron_reconstructed
+
+    flow_electron_num_sihit_loose:
+      object_name: particle
+      field: num_sihit
+      bins: num_sihit
       selection: electron_reconstructable_loose
       denominator: electron_reconstructable_loose
-      numerator: pandora_electron_reconstructed_tight
+      numerator: flow_electron_reconstructed
 
-    # Muon pT hists
-    sitrack_muon_pt:
+    flow_electron_num_vtxd_tight:
+      object_name: particle
+      field: num_vtxd
+      bins: num_vtxd
+      selection: electron_reconstructable_tight
+      denominator: electron_reconstructable_tight
+      numerator: flow_electron_reconstructed
+
+    flow_electron_num_vtxd_loose:
+      object_name: particle
+      field: num_vtxd
+      bins: num_vtxd
+      selection: electron_reconstructable_loose
+      denominator: electron_reconstructable_loose
+      numerator: flow_electron_reconstructed
+
+    flow_electron_num_trkr_tight:
+      object_name: particle
+      field: num_trkr
+      bins: num_trkr
+      selection: electron_reconstructable_tight
+      denominator: electron_reconstructable_tight
+      numerator: flow_electron_reconstructed
+
+    flow_electron_num_trkr_loose:
+      object_name: particle
+      field: num_trkr
+      bins: num_trkr
+      selection: electron_reconstructable_loose
+      denominator: electron_reconstructable_loose
+      numerator: flow_electron_reconstructed
+
+    flow_electron_num_ecal_tight:
+      object_name: particle
+      field: num_ecal
+      bins: num_ecal
+      selection: electron_reconstructable_tight
+      denominator: electron_reconstructable_tight
+      numerator: flow_electron_reconstructed
+
+    flow_electron_num_ecal_loose:
+      object_name: particle
+      field: num_ecal
+      bins: num_ecal
+      selection: electron_reconstructable_loose
+      denominator: electron_reconstructable_loose
+      numerator: flow_electron_reconstructed
+
+    flow_electron_num_hcal_tight:
+      object_name: particle
+      field: num_hcal
+      bins: num_hcal
+      selection: electron_reconstructable_tight
+      denominator: electron_reconstructable_tight
+      numerator: flow_electron_reconstructed
+
+    flow_electron_num_hcal_loose:
+      object_name: particle
+      field: num_hcal
+      bins: num_hcal
+      selection: electron_reconstructable_loose
+      denominator: electron_reconstructable_loose
+      numerator: flow_electron_reconstructed
+
+    flow_electron_isolation_tight:
+      object_name: particle
+      field: isolation
+      bins: isolation_full
+      selection: electron_reconstructable_tight
+      denominator: electron_reconstructable_tight
+      numerator: flow_electron_reconstructed
+
+    flow_electron_isolation_loose:
+      object_name: particle
+      field: isolation
+      bins: isolation_full
+      selection: electron_reconstructable_loose
+      denominator: electron_reconstructable_loose
+      numerator: flow_electron_reconstructed
+
+    flow_muon_pt_tight:
       object_name: particle
       field: mom.r
       bins: pt_100mev
       selection: muon_reconstructable_tight
       denominator: muon_reconstructable_tight
-      numerator: sitrack_muon_reconstructed_tight
-
-    flow_muon_pt:
-      object_name: particle
-      field: mom.r
-      bins: pt_100mev
-      selection: muon_reconstructable_tight
-      denominator: muon_reconstructable_tight
-      numerator: flow_muon_reconstructed_tight
-
-    pandora_muon_pt:
-      object_name: particle
-      field: mom.r
-      bins: pt_100mev
-      selection: muon_reconstructable_tight
-      denominator: muon_reconstructable_tight
-      numerator: pandora_muon_reconstructed_tight
+      numerator: flow_muon_reconstructed
 
     flow_muon_pt_loose:
       object_name: particle
       field: mom.r
       bins: pt_100mev
+      selection: muon_reconstructable_loose
+      denominator: muon_reconstructable_loose
+      numerator: flow_muon_reconstructed
+
+    flow_muon_phi_tight:
+      object_name: particle
+      field: mom.phi
+      bins: phi
       selection: muon_reconstructable_tight
       denominator: muon_reconstructable_tight
-      numerator: flow_muon_reconstructed_loose
+      numerator: flow_muon_reconstructed
 
-    sitrack_muon_pt_loose:
+    flow_muon_phi_loose:
       object_name: particle
-      field: mom.r
-      bins: pt_100mev
-      selection: muon_reconstructable_tight
-      denominator: muon_reconstructable_tight
-      numerator: sitrack_muon_reconstructed_loose
-
-    flow_loose_muon_pt:
-      object_name: particle
-      field: mom.r
-      bins: pt_100mev
+      field: mom.phi
+      bins: phi
       selection: muon_reconstructable_loose
       denominator: muon_reconstructable_loose
-      numerator: flow_muon_reconstructed_tight
-
-    sitrack_loose_muon_pt:
-      object_name: particle
-      field: mom.r
-      bins: pt_100mev
-      selection: muon_reconstructable_loose
-      denominator: muon_reconstructable_loose
-      numerator: sitrack_muon_reconstructed_tight
-
-    pandora_loose_muon_pt:
-      object_name: particle
-      field: mom.r
-      bins: pt_100mev
-      selection: muon_reconstructable_loose
-      denominator: muon_reconstructable_loose
-      numerator: pandora_muon_reconstructed_tight
-
+      numerator: flow_muon_reconstructed
 
   histogram_plots:
     pt_charged_tight:
       xlabel: "Truth Particle $p_T$ [GeV]"
-      ylabel: "Tracking Efficiency"
+      ylabel: "Charged Tracking Efficiency"
       scale: log
-
       items:
         flow:
-          histogram: flow_charged_pt
-          label: "MaskFormer, tight"
+          histogram: flow_charged_pt_tight
+          label: "MaskFormer"
           color: mediumvioletred
-          linestyle: "-"
-
-        sitrack:
-          histogram: sitrack_charged_pt
-          label: "Conformal, tight"
-          color: mediumseagreen
           linestyle: "-"
 
     pt_charged_loose:
       xlabel: "Truth Particle $p_T$ [GeV]"
-      ylabel: "Tracking Efficiency"
+      ylabel: "Charged Tracking Efficiency"
       scale: log
-
       items:
         flow:
           histogram: flow_charged_pt_loose
-          label: "MaskFormer, loose"
+          label: "MaskFormer"
           color: mediumvioletred
           linestyle: "-"
 
-        sitrack:
-          histogram: sitrack_charged_pt_loose
-          label: "Conformal, loose"
-          color: mediumseagreen
-          linestyle: "-"
-
-    pt_charged_tight_all:
-      xlabel: "Truth Particle $p_T$ [GeV]"
-      ylabel: "Tracking Efficiency"
-      scale: log
-
+    eta_charged_tight:
+      xlabel: "Truth Particle Pseudorapidity"
+      ylabel: "Charged Tracking Efficiency"
+      scale: linear
       items:
         flow:
-          histogram: flow_charged_pt
-          label: "MaskFormer, tight"
+          histogram: flow_charged_eta_tight
+          label: "MaskFormer"
           color: mediumvioletred
           linestyle: "-"
 
-        sitrack:
-          histogram: sitrack_charged_pt
-          label: "Conformal, tight"
-          color: mediumseagreen
-          linestyle: "-"
-
-        pandora:
-          histogram: pandora_charged_pt
-          label: "Pandora, tight"
-          color: cornflowerblue
-          linestyle: "-"
-
-    pt_loose_charged:
-      xlabel: "Particle $p_T$ [GeV]"
-      ylabel: "Tracking Efficiency"
-      scale: log
-
+    eta_charged_loose:
+      xlabel: "Truth Particle Pseudorapidity"
+      ylabel: "Charged Tracking Efficiency"
+      scale: linear
       items:
         flow:
-          histogram: flow_loose_charged_pt
-          label: "MaskFormer, loose"
+          histogram: flow_charged_eta_loose
+          label: "MaskFormer"
           color: mediumvioletred
           linestyle: "-"
 
-        sitrack:
-          histogram: sitrack_loose_charged_pt
-          label: "Conformal, loose"
-          color: mediumseagreen
-          linestyle: "-"
-
-    num_sihit_charged:
-      xlabel: "Particle Number of Silicon Tracker Hits"
-      ylabel: "Tracking Efficiency"
+    phi_charged_tight:
+      xlabel: "Truth Particle $\\phi$"
+      ylabel: "Charged Tracking Efficiency"
       scale: linear
-
       items:
-        sitrack_loose:
-          histogram: sitrack_charged_num_sihit
-          label: "Conformal, loose"
-          color: mediumseagreen
-          linestyle: "-"
-
-        flow_loose:
-          histogram: flow_charged_num_sihit
-          label: "MaskFormer, loose"
+        flow:
+          histogram: flow_charged_phi_tight
+          label: "MaskFormer"
           color: mediumvioletred
           linestyle: "-"
 
-    isolation_charged:
-      xlabel: "Angular Isolation"
-      ylabel: "Tracking Efficiency"
+    phi_charged_loose:
+      xlabel: "Truth Particle $\\phi$"
+      ylabel: "Charged Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_charged_phi_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    vtx_r_charged_tight:
+      xlabel: "Truth Particle Vertex $r$ [mm]"
+      ylabel: "Charged Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_charged_vtx_r_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    vtx_r_charged_loose:
+      xlabel: "Truth Particle Vertex $r$ [mm]"
+      ylabel: "Charged Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_charged_vtx_r_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_sihit_charged_tight:
+      xlabel: "Truth Particle Number of Silicon Hits"
+      ylabel: "Charged Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_charged_num_sihit_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_sihit_charged_loose:
+      xlabel: "Truth Particle Number of Silicon Hits"
+      ylabel: "Charged Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_charged_num_sihit_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_vtxd_charged_tight:
+      xlabel: "Truth Particle Number of VTXD Hits"
+      ylabel: "Charged Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_charged_num_vtxd_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_vtxd_charged_loose:
+      xlabel: "Truth Particle Number of VTXD Hits"
+      ylabel: "Charged Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_charged_num_vtxd_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_trkr_charged_tight:
+      xlabel: "Truth Particle Number of Tracker Hits"
+      ylabel: "Charged Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_charged_num_trkr_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_trkr_charged_loose:
+      xlabel: "Truth Particle Number of Tracker Hits"
+      ylabel: "Charged Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_charged_num_trkr_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_ecal_charged_tight:
+      xlabel: "Truth Particle Number of ECAL Hits"
+      ylabel: "Charged Tracking Efficiency"
       scale: log
-
       items:
-        sitrack_loose:
-          histogram: sitrack_charged_isolation
-          label: "Conformal, loose"
-          color: mediumseagreen
-          linestyle: "-"
-
-        flow_loose:
-          histogram: flow_charged_isolation
-          label: "MaskFormer loose"
+        flow:
+          histogram: flow_charged_num_ecal_tight
+          label: "MaskFormer"
           color: mediumvioletred
           linestyle: "-"
 
-
-    vtx_r_charged:
-      xlabel: "Particle Vertex $r$ [mm]"
-      ylabel: "Tracking Efficiency"
-      scale: linear
-
+    num_ecal_charged_loose:
+      xlabel: "Truth Particle Number of ECAL Hits"
+      ylabel: "Charged Tracking Efficiency"
+      scale: log
       items:
-        sitrack_loose:
-          histogram: sitrack_charged_vtx_r
-          label: "Conformal loose"
-          color: mediumseagreen
-          linestyle: "-"
-
-        flow_loose:
-          histogram: flow_charged_vtx_r
-          label: "MaskFormer loose"
+        flow:
+          histogram: flow_charged_num_ecal_loose
+          label: "MaskFormer"
           color: mediumvioletred
           linestyle: "-"
 
-    eta_charged:
-      xlabel: "Particle Pseudorapidity"
-      ylabel: "Tracking Efficiency"
-      scale: linear
-
+    num_hcal_charged_tight:
+      xlabel: "Truth Particle Number of HCAL Hits"
+      ylabel: "Charged Tracking Efficiency"
+      scale: log
       items:
-        sitrack_loose:
-          histogram: sitrack_charged_eta
-          label: "Conformal loose"
-          color: mediumseagreen
+        flow:
+          histogram: flow_charged_num_hcal_tight
+          label: "MaskFormer"
+          color: mediumvioletred
           linestyle: "-"
 
-        flow_loose:
-          histogram: flow_charged_eta
-          label: "MaskFormer loose"
+    num_hcal_charged_loose:
+      xlabel: "Truth Particle Number of HCAL Hits"
+      ylabel: "Charged Tracking Efficiency"
+      scale: log
+      items:
+        flow:
+          histogram: flow_charged_num_hcal_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    isolation_charged_tight:
+      xlabel: "Truth Particle Isolation"
+      ylabel: "Charged Tracking Efficiency"
+      scale: log
+      items:
+        flow:
+          histogram: flow_charged_isolation_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    isolation_charged_loose:
+      xlabel: "Truth Particle Isolation"
+      ylabel: "Charged Tracking Efficiency"
+      scale: log
+      items:
+        flow:
+          histogram: flow_charged_isolation_loose
+          label: "MaskFormer"
           color: mediumvioletred
           linestyle: "-"
 
     pt_charged_hadron_tight:
       xlabel: "Truth Particle $p_T$ [GeV]"
-      ylabel: "Tracking Efficiency"
+      ylabel: "Charged Hadron Tracking Efficiency"
       scale: log
-
       items:
         flow:
-          histogram: flow_charged_hadron_pt
-          label: "MaskFormer, tight"
+          histogram: flow_charged_hadron_pt_tight
+          label: "MaskFormer"
           color: mediumvioletred
-          linestyle: "-"
-
-        sitrack:
-          histogram: sitrack_charged_hadron_pt
-          label: "Conformal, tight"
-          color: mediumseagreen
-          linestyle: "-"
-
-    pt_charged_hadron_tight_all:
-      xlabel: "Truth Particle $p_T$ [GeV]"
-      ylabel: "Tracking Efficiency"
-      scale: log
-
-      items:
-        flow:
-          histogram: flow_charged_hadron_pt
-          label: "MaskFormer, tight"
-          color: mediumvioletred
-          linestyle: "-"
-
-        sitrack:
-          histogram: sitrack_charged_hadron_pt
-          label: "Conformal, tight"
-          color: mediumseagreen
-          linestyle: "-"
-
-        pandora:
-          histogram: pandora_charged_hadron_pt
-          label: "Pandora, tight"
-          color: cornflowerblue
           linestyle: "-"
 
     pt_charged_hadron_loose:
       xlabel: "Truth Particle $p_T$ [GeV]"
-      ylabel: "Tracking Efficiency"
+      ylabel: "Charged Hadron Tracking Efficiency"
       scale: log
-
       items:
         flow:
           histogram: flow_charged_hadron_pt_loose
-          label: "MaskFormer, loose"
+          label: "MaskFormer"
           color: mediumvioletred
           linestyle: "-"
 
-        sitrack:
-          histogram: sitrack_charged_hadron_pt_loose
-          label: "Conformal, loose"
-          color: mediumseagreen
+    phi_charged_hadron_tight:
+      xlabel: "Truth Particle $\\phi$"
+      ylabel: "Charged Hadron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_charged_hadron_phi_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    phi_charged_hadron_loose:
+      xlabel: "Truth Particle $\\phi$"
+      ylabel: "Charged Hadron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_charged_hadron_phi_loose
+          label: "MaskFormer"
+          color: mediumvioletred
           linestyle: "-"
 
     pt_electron_tight:
       xlabel: "Truth Particle $p_T$ [GeV]"
-      ylabel: "Tracking Efficiency"
+      ylabel: "Electron Tracking Efficiency"
       scale: log
-
       items:
         flow:
-          histogram: flow_electron_pt
-          label: "MaskFormer, tight"
+          histogram: flow_electron_pt_tight
+          label: "MaskFormer"
           color: mediumvioletred
-          linestyle: "-"
-
-        sitrack:
-          histogram: sitrack_electron_pt
-          label: "Conformal, tight"
-          color: mediumseagreen
-          linestyle: "-"
-
-    pt_electron_tight_all:
-      xlabel: "Truth Particle $p_T$ [GeV]"
-      ylabel: "Tracking Efficiency"
-      scale: log
-
-      items:
-        flow:
-          histogram: flow_electron_pt
-          label: "MaskFormer, tight"
-          color: mediumvioletred
-          linestyle: "-"
-
-        sitrack:
-          histogram: sitrack_electron_pt
-          label: "Conformal, tight"
-          color: mediumseagreen
-          linestyle: "-"
-
-        pandora:
-          histogram: pandora_electron_pt
-          label: "Pandora, tight"
-          color: cornflowerblue
           linestyle: "-"
 
     pt_electron_loose:
       xlabel: "Truth Particle $p_T$ [GeV]"
-      ylabel: "Tracking Efficiency"
+      ylabel: "Electron Tracking Efficiency"
       scale: log
-
       items:
         flow:
           histogram: flow_electron_pt_loose
-          label: "MaskFormer, loose"
+          label: "MaskFormer"
           color: mediumvioletred
           linestyle: "-"
 
-        sitrack:
-          histogram: sitrack_electron_pt_loose
-          label: "Conformal, loose"
-          color: mediumseagreen
+    phi_electron_tight:
+      xlabel: "Truth Particle $\\phi$"
+      ylabel: "Electron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_electron_phi_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    phi_electron_loose:
+      xlabel: "Truth Particle $\\phi$"
+      ylabel: "Electron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_electron_phi_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    eta_electron_tight:
+      xlabel: "Truth Particle Pseudorapidity"
+      ylabel: "Electron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_electron_eta_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    eta_electron_loose:
+      xlabel: "Truth Particle Pseudorapidity"
+      ylabel: "Electron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_electron_eta_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    vtx_r_electron_tight:
+      xlabel: "Truth Particle Vertex $r$ [mm]"
+      ylabel: "Electron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_electron_vtx_r_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    vtx_r_electron_loose:
+      xlabel: "Truth Particle Vertex $r$ [mm]"
+      ylabel: "Electron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_electron_vtx_r_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_sihit_electron_tight:
+      xlabel: "Truth Particle Number of Silicon Hits"
+      ylabel: "Electron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_electron_num_sihit_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_sihit_electron_loose:
+      xlabel: "Truth Particle Number of Silicon Hits"
+      ylabel: "Electron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_electron_num_sihit_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_vtxd_electron_tight:
+      xlabel: "Truth Particle Number of VTXD Hits"
+      ylabel: "Electron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_electron_num_vtxd_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_vtxd_electron_loose:
+      xlabel: "Truth Particle Number of VTXD Hits"
+      ylabel: "Electron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_electron_num_vtxd_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_trkr_electron_tight:
+      xlabel: "Truth Particle Number of Tracker Hits"
+      ylabel: "Electron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_electron_num_trkr_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_trkr_electron_loose:
+      xlabel: "Truth Particle Number of Tracker Hits"
+      ylabel: "Electron Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_electron_num_trkr_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_ecal_electron_tight:
+      xlabel: "Truth Particle Number of ECAL Hits"
+      ylabel: "Electron Tracking Efficiency"
+      scale: log
+      items:
+        flow:
+          histogram: flow_electron_num_ecal_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_ecal_electron_loose:
+      xlabel: "Truth Particle Number of ECAL Hits"
+      ylabel: "Electron Tracking Efficiency"
+      scale: log
+      items:
+        flow:
+          histogram: flow_electron_num_ecal_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_hcal_electron_tight:
+      xlabel: "Truth Particle Number of HCAL Hits"
+      ylabel: "Electron Tracking Efficiency"
+      scale: log
+      items:
+        flow:
+          histogram: flow_electron_num_hcal_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    num_hcal_electron_loose:
+      xlabel: "Truth Particle Number of HCAL Hits"
+      ylabel: "Electron Tracking Efficiency"
+      scale: log
+      items:
+        flow:
+          histogram: flow_electron_num_hcal_loose
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    isolation_electron_tight:
+      xlabel: "Truth Particle Isolation"
+      ylabel: "Electron Tracking Efficiency"
+      scale: log
+      items:
+        flow:
+          histogram: flow_electron_isolation_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    isolation_electron_loose:
+      xlabel: "Truth Particle Isolation"
+      ylabel: "Electron Tracking Efficiency"
+      scale: log
+      items:
+        flow:
+          histogram: flow_electron_isolation_loose
+          label: "MaskFormer"
+          color: mediumvioletred
           linestyle: "-"
 
     pt_muon_tight:
       xlabel: "Truth Particle $p_T$ [GeV]"
-      ylabel: "Tracking Efficiency"
+      ylabel: "Muon Tracking Efficiency"
       scale: log
-
       items:
         flow:
-          histogram: flow_muon_pt
-          label: "MaskFormer, tight"
+          histogram: flow_muon_pt_tight
+          label: "MaskFormer"
           color: mediumvioletred
-          linestyle: "-"
-
-        sitrack:
-          histogram: sitrack_muon_pt
-          label: "Conformal, tight"
-          color: mediumseagreen
-          linestyle: "-"
-
-    pt_muon_tight_all:
-      xlabel: "Truth Particle $p_T$ [GeV]"
-      ylabel: "Tracking Efficiency"
-      scale: log
-
-      items:
-        flow:
-          histogram: flow_muon_pt
-          label: "MaskFormer, tight"
-          color: mediumvioletred
-          linestyle: "-"
-
-        sitrack:
-          histogram: sitrack_muon_pt
-          label: "Conformal, tight"
-          color: mediumseagreen
-          linestyle: "-"
-
-        pandora:
-          histogram: pandora_muon_pt
-          label: "Pandora, tight"
-          color: cornflowerblue
           linestyle: "-"
 
     pt_muon_loose:
       xlabel: "Truth Particle $p_T$ [GeV]"
-      ylabel: "Tracking Efficiency"
+      ylabel: "Muon Tracking Efficiency"
       scale: log
-
       items:
         flow:
           histogram: flow_muon_pt_loose
-          label: "MaskFormer, loose"
+          label: "MaskFormer"
           color: mediumvioletred
           linestyle: "-"
 
-        sitrack:
-          histogram: sitrack_muon_pt_loose
-          label: "Conformal, loose"
-          color: mediumseagreen
+    phi_muon_tight:
+      xlabel: "Truth Particle $\\phi$"
+      ylabel: "Muon Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_muon_phi_tight
+          label: "MaskFormer"
+          color: mediumvioletred
+          linestyle: "-"
+
+    phi_muon_loose:
+      xlabel: "Truth Particle $\\phi$"
+      ylabel: "Muon Tracking Efficiency"
+      scale: linear
+      items:
+        flow:
+          histogram: flow_muon_phi_loose
+          label: "MaskFormer"
+          color: mediumvioletred
           linestyle: "-"
