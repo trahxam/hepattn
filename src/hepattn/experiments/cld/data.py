@@ -1,5 +1,6 @@
 from pathlib import Path
 from itertools import islice
+import os
 
 import numpy as np
 import torch
@@ -12,7 +13,29 @@ from zipfile import BadZipFile
 from hepattn.utils.array_utils import masked_angle_diff_last_axis, masked_diff_last_axis
 from hepattn.utils.lrsm_dataset import LRSMDataset
 
-torch.multiprocessing.set_sharing_strategy("file_system")
+
+def _configure_torch_sharing_strategy() -> None:
+    """Configure torch multiprocessing sharing strategy.
+
+    Default to file_descriptor to avoid torch_shm_manager timeouts seen with
+    file_system on this cluster. Allow override via TORCH_SHARING_STRATEGY.
+    """
+    requested = os.environ.get("TORCH_SHARING_STRATEGY", "file_descriptor")
+    available = torch.multiprocessing.get_all_sharing_strategies()
+
+    if requested not in available:
+        fallback = "file_descriptor" if "file_descriptor" in available else torch.multiprocessing.get_sharing_strategy()
+        print(
+            f"Invalid TORCH_SHARING_STRATEGY={requested!r}. "
+            f"Available={sorted(available)}. Falling back to {fallback!r}."
+        )
+        requested = fallback
+
+    if torch.multiprocessing.get_sharing_strategy() != requested:
+        torch.multiprocessing.set_sharing_strategy(requested)
+
+
+_configure_torch_sharing_strategy()
 
 
 class CLDDataset(LRSMDataset):
