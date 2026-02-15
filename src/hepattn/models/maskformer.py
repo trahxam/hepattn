@@ -13,10 +13,11 @@ class MaskFormer(nn.Module):
     def __init__(
         self,
         input_nets: nn.ModuleList,
-        encoder: nn.Module,
+        encoder: nn.Module | None,
         decoder: MaskFormerDecoder,
         tasks: nn.ModuleList,
         dim: int,
+        input_encoders: nn.ModuleList | None = None,
         target_object: str = "particle",
         pooling: nn.Module | None = None,
         matcher: nn.Module | None = None,
@@ -30,10 +31,11 @@ class MaskFormer(nn.Module):
 
         Args:
             input_nets: A list of input modules, each responsible for embedding a specific constituent type.
-            encoder: An optional encoder module that processes merged constituent embeddings with optional sorting.
+            encoder: Optional encoder module that processes merged constituent embeddings with optional sorting.
             decoder: The decoder module that handles multi-layer decoding and task integration.
             tasks: A list of task modules, each responsible for producing and processing predictions from decoder outputs.
             dim: The dimensionality of the query and key embeddings.
+            input_encoders: Optional list of per-input encoders applied before merging inputs into a shared key set.
             target_object: The target object name which is used to mark valid/invalid objects during matching.
             pooling: An optional pooling module used to aggregate features from the input constituents.
             matcher: A module used to match predictions to targets (e.g., using the Hungarian algorithm) for loss computation.
@@ -44,6 +46,7 @@ class MaskFormer(nn.Module):
         super().__init__()
 
         self.input_nets = input_nets
+        self.input_encoders = input_encoders
         self.encoder = encoder
         self.decoder = decoder
         self.decoder.tasks = tasks
@@ -54,6 +57,11 @@ class MaskFormer(nn.Module):
         self.unified_decoding = unified_decoding
         self.decoder.unified_decoding = unified_decoding
         self.common_decoder_dense = common_decoder_dense
+
+        if self.input_encoders is not None:
+            assert len(self.input_encoders) == len(self.input_nets), (
+                f"Expected one input encoder per input net, got {len(self.input_encoders)} and {len(self.input_nets)}"
+            )
 
         assert not (input_sort_field and sorter), "Cannot specify both input_sort_field and sorter."
         self.input_sort_field = input_sort_field
@@ -79,12 +87,21 @@ class MaskFormer(nn.Module):
     def forward(self, inputs: dict[str, Tensor]) -> tuple[dict[str, Tensor], dict[str, Tensor]]:
         batch_size = inputs[self.input_names[0] + "_valid"].shape[0]
         x = {"inputs": inputs}
+        per_input_sort_field = self.sorter.input_sort_field if self.sorter is not None else self.input_sort_field
 
         # Embed the input constituents
-        for input_net in self.input_nets:
+        for input_idx, input_net in enumerate(self.input_nets):
             input_name = input_net.input_name
             x[input_name + "_embed"] = input_net(inputs)
             x[input_name + "_valid"] = inputs[input_name + "_valid"]
+
+            if self.input_encoders is not None:
+                x_sort_value = inputs[f"{input_name}_{per_input_sort_field}"] if per_input_sort_field is not None else None
+                x[input_name + "_embed"] = self.input_encoders[input_idx](
+                    x[input_name + "_embed"],
+                    x_sort_value=x_sort_value,
+                    kv_mask=x[input_name + "_valid"],
+                )
 
             for i in {"pos.x", "pos.y", "pos.z", "pos.eta", "pos.phi"}:
                 x[f"{input_name}_{i}"] = inputs[f"{input_name}_{i}"]
@@ -103,7 +120,7 @@ class MaskFormer(nn.Module):
 
         # If all key_valid are true, then we can just set it to None, however,
         # if we are using flash-varlen, we have to always provide a kv_mask argument
-        if batch_size == 1 and x["key_valid"].all() and self.encoder.attn_type != "flash-varlen":
+        if self.encoder is not None and batch_size == 1 and x["key_valid"].all() and self.encoder.attn_type != "flash-varlen":
             x["key_valid"] = None
 
         # LEGACY. TODO: remove
@@ -123,8 +140,9 @@ class MaskFormer(nn.Module):
             x = self.sorter.sort_inputs(x)
 
         # Pass merged input constituents through the encoder
-        x_sort_value = x.get(f"key_{self.input_sort_field}") if self.sorter is None else None
-        x["key_embed"] = self.encoder(x["key_embed"], x_sort_value=x_sort_value, kv_mask=x.get("key_valid"))
+        if self.encoder is not None:
+            x_sort_value = x.get(f"key_{self.input_sort_field}") if self.sorter is None else None
+            x["key_embed"] = self.encoder(x["key_embed"], x_sort_value=x_sort_value, kv_mask=x.get("key_valid"))
 
         # Unmerge the updated features back into the separate input types only if not doing unified decoding
         if not self.unified_decoding:
