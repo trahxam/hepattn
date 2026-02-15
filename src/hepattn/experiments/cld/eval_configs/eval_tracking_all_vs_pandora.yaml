@@ -1,3 +1,92 @@
+settings:
+  runs:
+    - path: /share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/logs/All_20260202-T181849/ckpts/epoch=000-val_loss=17.18311_test_eval.h5
+      label: Combined
+      color: mediumvioletred
+    - path: /share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/logs/TrackingFixed_20260205-T000653/ckpts/epoch=000-val_loss=7.40857_test_eval.h5
+      label: Tracking
+      color: dodgerblue
+
+  hits: [vtxd, trkr, ecal, hcal, muon]
+  hits_no_muon: [vtxd, trkr, ecal, hcal]
+  comet_hits: [sihit, vtxd, trkr]
+  comet_working_points: [0.5, 0.75, 1.0]
+  pred_objects: [flow, pandora]
+  binary_metrics_match_mode: matched
+  use_flow_class_logits_for_pid: true
+  flow_valid_prob_threshold: 0.5
+  max_events: 100
+  base_data_cache_max_events: 100
+  cache_base_data: true
+  save_comparison_plots: true
+  comparison_plot_dir: src/hepattn/experiments/cld/plots/eval_tracking_compare
+  min_bin_count: 16
+  trim_xrange_to_valid_bins: true
+
+  tracking_only:
+    run_label: Tracking
+    baseline_label: Combined
+    metric: charged_reconstructed
+    selection: charged_reconstructable_loose
+
+  reco_density:
+    enabled: true
+    metric: charged_reconstructed
+    selection: charged_reconstructable_loose
+    normalize: true
+    output_subdir: reco_density_hists
+    vars:
+      pt:
+        field: particle_mom.r
+        bins: pt_100mev
+        xlabel: 'Truth Particle $p_T$ [GeV]'
+      eta:
+        field: particle_mom.eta
+        bins: eta
+        xlabel: Truth Particle Pseudorapidity
+      phi:
+        field: particle_mom.phi
+        bins: phi
+        xlabel: 'Truth Particle $\phi$'
+      vtx_r:
+        field: particle_vtx.r
+        bins: vtx_r_50mm
+        xlabel: 'Truth Particle Vertex $r$ [mm]'
+      num_sihit:
+        field: particle_num_sihit
+        bins: num_sihit
+        xlabel: Truth Particle Number of Silicon Hits
+      num_vtxd:
+        field: particle_num_vtxd
+        bins: num_vtxd
+        xlabel: Truth Particle Number of VTXD Hits
+      num_trkr:
+        field: particle_num_trkr
+        bins: num_trkr
+        xlabel: Truth Particle Number of Tracker Hits
+      num_ecal:
+        field: particle_num_ecal
+        bins: num_ecal
+        xlabel: Truth Particle Number of ECAL Hits
+      num_hcal:
+        field: particle_num_hcal
+        bins: num_hcal
+        xlabel: Truth Particle Number of HCAL Hits
+      isolation:
+        field: particle_isolation
+        bins: isolation_full
+        xlabel: Truth Particle Isolation
+
+  tracking_only_truth_hist:
+    enabled: true
+    normalize: true
+    show_errors: true
+    colors:
+      all_truth: tab:green
+      all_truth_charged: tab:orange
+      tracking_only_missed: tab:blue
+    output_subdir: tracking_only_truth_hists
+
 eval:
   match_metrics:
     default:
@@ -349,9 +438,9 @@ eval:
       num: 32
       scale: linear
     num_sihit:
-      min: 0.5
+      min: -0.5
       max: 24.5
-      num: 25
+      num: 26
       scale: linear
     isolation_full:
       min: 0.0001
