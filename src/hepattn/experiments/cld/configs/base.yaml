@@ -130,7 +130,7 @@ data:
       - pos.y
       - pos.z
       - pos.s
-      - pos.x
+      - pos.r
       - pos.x_dm
       - pos.y_dm
       - pos.z_dm

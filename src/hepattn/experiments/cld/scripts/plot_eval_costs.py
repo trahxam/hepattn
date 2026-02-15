@@ -6,6 +6,7 @@ from pathlib import Path
 
 import h5py
 import matplotlib
+import numpy as np
 import torch
 import yaml
 
@@ -172,7 +173,7 @@ def compute_combined_and_term_cost_matrices(
     outputs: dict[str, torch.Tensor],
     targets: dict[str, torch.Tensor],
     cld_task: CLDTask,
-    _hits: list[str],
+    hits: list[str],
 ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
     combined_cost = None
     term_costs: dict[str, torch.Tensor] = {}
@@ -187,7 +188,28 @@ def compute_combined_and_term_cost_matrices(
         combined_cost = object_cost
 
     for hit, hit_cost_terms in cld_task.hit_cost_weights.items():
+        # Backward compatibility:
+        # - New format: {"vtxd": {"mask_dice": 1.0, "mask_bce": 0.5}}
+        # - Legacy format: {"vtxd": 1.0} (interpreted as mask_dice weight)
+        if isinstance(hit_cost_terms, dict):
+            cost_term_weights = hit_cost_terms
+        elif isinstance(hit_cost_terms, (int, float)):
+            cost_term_weights = {"mask_dice": float(hit_cost_terms)}
+        elif hit_cost_terms is None:
+            continue
+        else:
+            raise TypeError(
+                f"Unsupported hit_cost_weights entry for hit={hit!r}: "
+                f"{type(hit_cost_terms).__name__} (value={hit_cost_terms!r})"
+            )
+
         if hit == "sihit":
+            required_output_keys = ("flow_vtxd_logit", "flow_trkr_logit")
+            required_target_keys = ("particle_vtxd_valid", "particle_trkr_valid", "vtxd_valid", "trkr_valid")
+            if any(k not in outputs for k in required_output_keys) or any(k not in targets for k in required_target_keys):
+                print(f"Skipping hit cost term for {hit!r}: missing required silicon keys in outputs/targets")
+                continue
+
             base_hit_logit = torch.cat(
                 [outputs["flow_vtxd_logit"], outputs["flow_trkr_logit"]],
                 dim=-1,
@@ -198,11 +220,21 @@ def compute_combined_and_term_cost_matrices(
             ).to(torch.float32)
             hit_pad_mask = torch.cat([targets["vtxd_valid"], targets["trkr_valid"]], dim=-1)
         else:
-            base_hit_logit = outputs[f"flow_{hit}_logit"].detach().to(torch.float32)
-            target_hit_mask = targets[f"particle_{hit}_valid"].to(torch.float32)
-            hit_pad_mask = targets[f"{hit}_valid"]
+            output_key = f"flow_{hit}_logit"
+            target_key = f"particle_{hit}_valid"
+            pad_key = f"{hit}_valid"
+            if output_key not in outputs or target_key not in targets or pad_key not in targets:
+                print(
+                    f"Skipping hit cost term for {hit!r}: missing one of "
+                    f"{output_key!r}, {target_key!r}, {pad_key!r}"
+                )
+                continue
 
-        for cost_name, cost_weight in hit_cost_terms.items():
+            base_hit_logit = outputs[output_key].detach().to(torch.float32)
+            target_hit_mask = targets[target_key].to(torch.float32)
+            hit_pad_mask = targets[pad_key]
+
+        for cost_name, cost_weight in cost_term_weights.items():
             flow_hit_logit = base_hit_logit
             if cost_name == "mask_dice":
                 flow_hit_logit = flow_hit_logit * cld_task.mask_dice_cost_logit_scale
@@ -257,6 +289,74 @@ def plot_cost_matrix(
     cbar.set_label("cost")
     fig.tight_layout()
 
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_file, dpi=200)
+    plt.close(fig)
+
+
+def plot_vtxd_cost_vs_true_num_hits(
+    vtxd_cost_matrix: torch.Tensor,
+    true_num_vtxd_hits: torch.Tensor,
+    *,
+    title: str,
+    out_file: Path,
+) -> None:
+    fig, ax = plt.subplots(1, 1, figsize=(6, 4))
+    ax.set_title(title)
+
+    if vtxd_cost_matrix.numel() == 0 or true_num_vtxd_hits.numel() == 0:
+        ax.text(0.5, 0.5, "No valid pred-truth pairs", ha="center", va="center", transform=ax.transAxes)
+        ax.set_xlabel("truth particle num_vtxd hits")
+        ax.set_ylabel("vtxd mask dice cost")
+        fig.tight_layout()
+        out_file.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(out_file, dpi=200)
+        plt.close(fig)
+        return
+
+    # Expand truth hit counts across all valid predicted rows to build pairwise x-values.
+    x = (
+        true_num_vtxd_hits.unsqueeze(0)
+        .expand(vtxd_cost_matrix.shape[0], -1)
+        .reshape(-1)
+        .detach()
+        .cpu()
+        .numpy()
+    )
+    y = vtxd_cost_matrix.reshape(-1).detach().cpu().numpy()
+
+    finite = np.isfinite(x) & np.isfinite(y)
+    if not np.any(finite):
+        ax.text(0.5, 0.5, "No finite values", ha="center", va="center", transform=ax.transAxes)
+        ax.set_xlabel("truth particle num_vtxd hits")
+        ax.set_ylabel("vtxd mask dice cost")
+        fig.tight_layout()
+        out_file.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(out_file, dpi=200)
+        plt.close(fig)
+        return
+
+    x = x[finite]
+    y = y[finite]
+
+    x_max = int(np.max(x)) if x.size > 0 else 0
+    x_bins = np.arange(-0.5, x_max + 1.5, 1.0)
+    if x_bins.size < 2:
+        x_bins = np.array([-0.5, 0.5])
+
+    y_min, y_max = float(np.min(y)), float(np.max(y))
+    if y_min == y_max:
+        y_min -= 0.5
+        y_max += 0.5
+    y_bins = np.linspace(y_min, y_max, 120)
+
+    hist2d = ax.hist2d(x, y, bins=[x_bins, y_bins], cmap="viridis")
+    cbar = fig.colorbar(hist2d[3], ax=ax)
+    cbar.set_label("pair count")
+
+    ax.set_xlabel("truth particle num_vtxd hits")
+    ax.set_ylabel("vtxd mask dice cost")
+    fig.tight_layout()
     out_file.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_file, dpi=200)
     plt.close(fig)
@@ -435,9 +535,44 @@ for run in eval_files:
         )
         written_term_paths.extend([term_valid_path, term_all_path])
 
+    # Additional diagnostic: for all valid pred-truth pairs, compare vtxd dice cost
+    # against truth particle num_vtxd hits.
+    vtxd_dice_matrix = term_costs.get("vtxd_mask_dice")
+    if vtxd_dice_matrix is None and ("flow_vtxd_logit" in outputs) and ("particle_vtxd_valid" in targets):
+        vtxd_dice_matrix = cost_fns["mask_dice"](
+            outputs["flow_vtxd_logit"].detach().to(torch.float32) * cld_task.mask_dice_cost_logit_scale,
+            targets["particle_vtxd_valid"].to(torch.float32),
+            input_pad_mask=targets["vtxd_valid"],
+        )
+
+    if vtxd_dice_matrix is not None and ("particle_vtxd_valid" in targets):
+        vtxd_dice_all = vtxd_dice_matrix[0].detach().cpu().index_select(0, matched_pred_idx_cpu)
+
+        if pred_idx.numel() > 0 and truth_idx.numel() > 0:
+            vtxd_dice_valid_pairs = vtxd_dice_all.index_select(0, pred_idx).index_select(1, truth_idx)
+            true_num_vtxd_hits = targets["particle_vtxd_valid"][0].sum(dim=-1).to(torch.float32).cpu().index_select(0, truth_idx)
+        else:
+            vtxd_dice_valid_pairs = vtxd_dice_all.new_empty((0, 0))
+            true_num_vtxd_hits = torch.empty((0,), dtype=torch.float32)
+
+        vtxd_vs_hits_path = out_root / "diagnostics" / "vtxd_mask_dice_vs_true_num_vtxd_hits_valid_pairs.png"
+        plot_vtxd_cost_vs_true_num_hits(
+            vtxd_dice_valid_pairs,
+            true_num_vtxd_hits,
+            title=(
+                f"vtxd mask dice cost vs truth num_vtxd hits ({label})\n"
+                f"sample_id={shared_sample_id}, valid_pairs={vtxd_dice_valid_pairs.numel()}"
+            ),
+            out_file=vtxd_vs_hits_path,
+        )
+    else:
+        vtxd_vs_hits_path = None
+
     print(f"Sample id ({label}): {shared_sample_id}")
     print(f"Using filtered particles: {using_filtered_particles}")
     print(f"Wrote {combined_valid_path}")
     print(f"Wrote {combined_all_path}")
     for term_path in written_term_paths:
         print(f"Wrote {term_path}")
+    if vtxd_vs_hits_path is not None:
+        print(f"Wrote {vtxd_vs_hits_path}")

@@ -49,7 +49,7 @@ data:
   charged_particle_min_num_hits:
     vtxd: 0
     trkr: 0
-    sihit: 4
+    sihit: 3
 
   # Charged particle cuts based on hit content
   charged_particle_max_num_hits:
@@ -673,15 +673,15 @@ model:
                 calo_score_method: sigmoid
                 loss_object_mask: valid
                 hit_loss_weights:
-                  vtxd: {mask_dice: 2.0, mask_bce: 5.0}
-                  trkr: {mask_dice: 2.0, mask_bce: 5.0}
-                  ecal: {mask_dice: 2.0, mask_bce: 5.0}
-                  hcal: {mask_dice: 2.0, mask_bce: 5.0}
-                  muon: {mask_dice: 2.0, mask_bce: 5.0}
+                  vtxd: {mask_dice: 1.0, mask_bce: 0.5}
+                  trkr: {mask_dice: 1.0, mask_bce: 0.5}
+                  ecal: {mask_dice: 1.0, mask_bce: 0.5}
+                  hcal: {mask_dice: 1.0, mask_bce: 0.5}
+                  muon: {mask_dice: 1.0, mask_bce: 0.5}
                 hit_cost_weights:
-                  # vtxd: {mask_dice: 1.0}
-                  # trkr: {mask_dice: 1.0}
-                  sihit: {mask_dice: 1.0}
+                  vtxd: {mask_dice: 1.0}
+                  trkr: {mask_dice: 1.0}
+                  # sihit: {mask_dice: 1.0}
                   ecal: {mask_dice: 1.0}
                   hcal: {mask_dice: 1.0}
                   muon: {mask_dice: 1.0}
