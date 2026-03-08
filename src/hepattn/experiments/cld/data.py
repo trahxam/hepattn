@@ -1,14 +1,14 @@
-from pathlib import Path
-from itertools import islice
 import os
+import random
+from itertools import islice
+from pathlib import Path
+from zipfile import BadZipFile
 
 import numpy as np
 import torch
-import random
 from lightning import LightningDataModule
 from scipy.sparse import csr_array, csr_matrix
 from torch.utils.data import DataLoader
-from zipfile import BadZipFile
 
 from hepattn.utils.array_utils import masked_angle_diff_last_axis, masked_diff_last_axis
 from hepattn.utils.lrsm_dataset import LRSMDataset
@@ -25,10 +25,7 @@ def _configure_torch_sharing_strategy() -> None:
 
     if requested not in available:
         fallback = "file_descriptor" if "file_descriptor" in available else torch.multiprocessing.get_sharing_strategy()
-        print(
-            f"Invalid TORCH_SHARING_STRATEGY={requested!r}. "
-            f"Available={sorted(available)}. Falling back to {fallback!r}."
-        )
+        print(f"Invalid TORCH_SHARING_STRATEGY={requested!r}. Available={sorted(available)}. Falling back to {fallback!r}.")
         requested = fallback
 
     if torch.multiprocessing.get_sharing_strategy() != requested:
@@ -138,10 +135,7 @@ class CLDDataset(LRSMDataset):
             num_available_events = None
             num_requested_events = num_samples
             self.num_samples = len(event_filenames)
-            print(
-                "Using fast file discovery. "
-                f"Found at least {self.num_samples} events, {num_requested_events} requested, {self.num_samples} used"
-            )
+            print(f"Using fast file discovery. Found at least {self.num_samples} events, {num_requested_events} requested, {self.num_samples} used")
         else:
             event_filenames = list(Path(self.dirpath).rglob(event_pattern))
             num_available_events = len(event_filenames)
@@ -350,6 +344,8 @@ class CLDDataset(LRSMDataset):
         sitrack_hit_masks = [("sitrack", hit) for hit in trkr_hits]
 
         masks = particle_hit_masks + pandora_hit_masks + sitrack_hit_masks
+        if "sitrack_to_particle_data" in event:
+            masks += [("sitrack", "particle")]
 
         def load_csr_mask(src, tgt):
             data = (event[f"{src}_to_{tgt}_data"], event[f"{src}_to_{tgt}_indices"], event[f"{src}_to_{tgt}_indptr"])
@@ -490,11 +486,11 @@ class CLDDataset(LRSMDataset):
             event["particle.class_idx"][event[f"particle.is_{class_name}"]] = new_id
 
         # Compute angular isolation
-        dphi = event["particle.mom.phi"][:, None] - event["particle.mom.phi"][None, :]
-        deta = event["particle.mom.eta"][:, None] - event["particle.mom.eta"][None, :]
-        isolation = np.sqrt(dphi**2 + deta**2)
-        isolation[np.arange(num_particles), np.arange(num_particles)] = np.inf
-        event["particle.isolation"] = np.min(isolation, axis=-1)
+        # dphi = event["particle.mom.phi"][:, None] - event["particle.mom.phi"][None, :]
+        # deta = event["particle.mom.eta"][:, None] - event["particle.mom.eta"][None, :]
+        # isolation = np.sqrt(dphi**2 + deta**2)
+        # isolation[np.arange(num_particles), np.arange(num_particles)] = np.inf
+        # event["particle.isolation"] = np.min(isolation, axis=-1)
 
         # Set which particles we deem to be targets / reconstructable
         particle_cuts = {"min_pt": event["particle.mom.r"] >= self.particle_min_pt}
@@ -698,7 +694,16 @@ class CLDDataset(LRSMDataset):
         # Remove invalid particle slots
         # Assue that particle axis is always 0, make a copy as we will also change particle_valid
         particle_valid = np.copy(event["particle_valid"])
+
+        if "sitrack_particle_valid" in event:
+            event["sitrack_particle_valid"] = event["sitrack_particle_valid"][:, particle_valid]
+            if "sitrack_valid" in event:
+                event["sitrack_particle_valid"] = event["sitrack_particle_valid"][event["sitrack_valid"], :]
+
         for target_name, fields in self.targets.items():
+            if target_name == "sitrack_particle":
+                continue
+
             if "particle" in target_name:
                 event[f"{target_name}_valid"] = event[f"{target_name}_valid"][particle_valid, ...]
                 for field in fields:

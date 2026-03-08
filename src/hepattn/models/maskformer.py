@@ -4,9 +4,9 @@ import torch
 from torch import Tensor, nn
 
 from hepattn.models.decoder import MaskFormerDecoder
-from hepattn.models.task import IncidenceRegressionTask, ObjectClassificationTask, ObjectHitMaskTask
-from hepattn.utils.model_utils import unmerge_inputs
 from hepattn.models.dense import Dense
+from hepattn.models.task import IncidenceRegressionTask, ObjectClassificationTask, ObjectHitMaskTask, ObjectTrackFitTask
+from hepattn.utils.model_utils import unmerge_inputs
 
 
 class MaskFormer(nn.Module):
@@ -42,6 +42,7 @@ class MaskFormer(nn.Module):
             input_sort_field: An optional key used to sort the input constituents (e.g., for windowed attention).
             sorter: An optional sorter module used to reorder input constituents before processing.
             unified_decoding: If True, inputs remain merged for task processing instead of being unmerged after encoding.
+            common_decoder_dense: If True, use a shared dense layer for all decoder outputs.
         """
         super().__init__()
 
@@ -70,11 +71,24 @@ class MaskFormer(nn.Module):
             self.sorter.input_names = self.input_names
 
         if self.common_decoder_dense:
-            self.object_net = Dense(dim, dim, [2*dim]*3)
-            
+            self.object_net = Dense(dim, dim, [2 * dim] * 3)
             for task in self.tasks:
                 if isinstance(task, ObjectHitMaskTask):
                     task.object_net = self.object_net
+                elif isinstance(task, ObjectTrackFitTask):
+                    for constituent in task.input_constituents:
+                        task.object_nets[constituent] = self.object_net
+
+        # Share object_net from ObjectHitMaskTask to ObjectTrackFitTask when not using common_decoder_dense
+        for task in self.tasks:
+            if isinstance(task, ObjectTrackFitTask):
+                for constituent in task.input_constituents:
+                    if constituent in task.object_nets:
+                        continue
+                    for other in self.tasks:
+                        if isinstance(other, ObjectHitMaskTask) and other.input_constituent == constituent:
+                            task.object_nets[constituent] = other.object_net
+                            break
 
         assert "key" not in self.input_names, "'key' input name is reserved."
         assert "query" not in self.input_names, "'query' input name is reserved."
@@ -103,7 +117,7 @@ class MaskFormer(nn.Module):
                     kv_mask=x[input_name + "_valid"],
                 )
 
-            for i in {"pos.x", "pos.y", "pos.z", "pos.eta", "pos.phi"}:
+            for i in ("pos.x", "pos.y", "pos.z", "pos.eta", "pos.phi"):
                 x[f"{input_name}_{i}"] = inputs[f"{input_name}_{i}"]
 
             # These slices can be used to pick out specific
@@ -158,7 +172,11 @@ class MaskFormer(nn.Module):
 
         # Get the final outputs
         outputs["final"] = {}
+
         for task in self.tasks:
+            if self.training and getattr(task, "_loss_scale", 1.0) == 0.0:
+                continue
+
             outputs["final"][task.name] = task(x)
 
             # Need this for incidence-based regression task
@@ -213,13 +231,11 @@ class MaskFormer(nn.Module):
             losses: A dictionary containing the computed losses for each task.
         """
         if self.unified_decoding:
-            targets["key_valid"] = torch.cat([
-                targets[f"{input_net.input_name}_valid"] for input_net in self.input_nets
-            ], dim=-1)
+            targets["key_valid"] = torch.cat([targets[f"{input_net.input_name}_valid"] for input_net in self.input_nets], dim=-1)
 
-            targets[f"{self.target_object}_key_valid"] = torch.cat([
-                targets[f"{self.target_object}_{input_net.input_name}_valid"] for input_net in self.input_nets
-            ], dim=-1)
+            targets[f"{self.target_object}_key_valid"] = torch.cat(
+                [targets[f"{self.target_object}_{input_net.input_name}_valid"] for input_net in self.input_nets], dim=-1
+            )
 
         # Will hold the costs between all pairs of objects - cost axes are (batch, pred, true)
         costs = {}

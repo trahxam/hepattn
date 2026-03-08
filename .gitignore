@@ -92,6 +92,7 @@ venv.bak/
 *.pdf
 logs/
 test_logs/
+slurm_logs/
 
 # Extra
 target

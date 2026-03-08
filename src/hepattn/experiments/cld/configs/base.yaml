@@ -1,12 +1,11 @@
-name: CLD_5_256_10MeV
-
+name: CLD_5_256_10MeV_charged_tracking_check
 matmul_precision: high
 
 data:
   # Paths to preprocessed data directories
-  train_dir: /share/rcif2/maxhart/data/cld/prepped_new/
-  val_dir: /share/rcif2/maxhart/data/cld/prepped_new/
-  test_dir: /share/rcif2/maxhart/data/cld/prepped_new/
+  train_dir: /share/rcif2/maxhart/data/cld/prepped/
+  val_dir: /share/rcif2/maxhart/data/cld/prepped/
+  test_dir: /share/rcif2/maxhart/data/cld/prepped/
 
   # Number of events to include in each set
   num_workers: 10
@@ -30,7 +29,7 @@ data:
 
   # Whether to include charged / neutral particles as targets
   include_charged: true
-  include_neutral: true
+  include_neutral: false
 
   # Events with more particles than this are skipped
   event_max_num_particles: &num_particles 256
@@ -265,7 +264,7 @@ data:
       - num_sihit
       - num_muon
       # Angular isolation
-      - isolation
+      # - isolation
       # Calorimeter energy info
       - energy_ecal
       - energy_hcal
@@ -383,7 +382,7 @@ trainer:
   logger:
     class_path: hepattn.utils.loggers.MyCometLogger
     init_args:
-      project: cld
+      project: hepattn-cld
 
   callbacks:
     # - class_path: hepattn.callbacks.Compile
@@ -622,8 +621,6 @@ model:
         num_queries: *num_particles
         mask_attention: true
         use_query_masks: false
-        mask_attention: true
-        use_query_masks: false
         unmask_all_false: true
         decoder_layer_config:
           dim: *dim
@@ -694,6 +691,24 @@ model:
                   #mask_focal: 1.0
                 dim: *dim
                 null_weight: 1.0
+
+            # - class_path: hepattn.models.task.ObjectTrackFitTask
+            #   init_args:
+            #     name: flow_track_fit
+            #     input_constituent:
+            #       - vtxd
+            #       - trkr
+            #     input_object: query
+            #     output_object: flow
+            #     target_object: particle
+            #     target_field: mom.rinv
+            #     dim: *dim
+            #     loss_weight: 0.01
+            #     cost_weight: 0.0
+            #     fit_mode: "correction_head"
+            #     warmup_steps: 30000
+            #     rampup_steps: 50000
+
 
             - class_path: hepattn.models.task.ObjectHitMaskTask
               init_args:
