@@ -1,4 +1,4 @@
-name: CLD_5_256_10MeV_charged_tracking_check
+name: CLD_5_256_10MeV
 matmul_precision: high
 
 data:
