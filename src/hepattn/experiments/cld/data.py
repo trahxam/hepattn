@@ -486,11 +486,11 @@ class CLDDataset(LRSMDataset):
             event["particle.class_idx"][event[f"particle.is_{class_name}"]] = new_id
 
         # Compute angular isolation
-        # dphi = event["particle.mom.phi"][:, None] - event["particle.mom.phi"][None, :]
-        # deta = event["particle.mom.eta"][:, None] - event["particle.mom.eta"][None, :]
-        # isolation = np.sqrt(dphi**2 + deta**2)
-        # isolation[np.arange(num_particles), np.arange(num_particles)] = np.inf
-        # event["particle.isolation"] = np.min(isolation, axis=-1)
+        dphi = event["particle.mom.phi"][:, None] - event["particle.mom.phi"][None, :]
+        deta = event["particle.mom.eta"][:, None] - event["particle.mom.eta"][None, :]
+        isolation = np.sqrt(dphi**2 + deta**2)
+        isolation[np.arange(num_particles), np.arange(num_particles)] = np.inf
+        event["particle.isolation"] = np.min(isolation, axis=-1)
 
         # Set which particles we deem to be targets / reconstructable
         particle_cuts = {"min_pt": event["particle.mom.r"] >= self.particle_min_pt}
