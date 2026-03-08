@@ -3,9 +3,9 @@ matmul_precision: high
 
 data:
   # Paths to preprocessed data directories
-  train_dir: /share/rcif2/maxhart/data/cld/prepped/
-  val_dir: /share/rcif2/maxhart/data/cld/prepped/
-  test_dir: /share/rcif2/maxhart/data/cld/prepped/
+  train_dir: /share/rcif2/maxhart/data/cld/prepped_new/
+  val_dir: /share/rcif2/maxhart/data/cld/prepped_new/
+  test_dir: /share/rcif2/maxhart/data/cld/prepped_new/
 
   # Number of events to include in each set
   num_workers: 10
@@ -29,7 +29,7 @@ data:
 
   # Whether to include charged / neutral particles as targets
   include_charged: true
-  include_neutral: false
+  include_neutral: true
 
   # Events with more particles than this are skipped
   event_max_num_particles: &num_particles 256
@@ -264,7 +264,7 @@ data:
       - num_sihit
       - num_muon
       # Angular isolation
-      # - isolation
+      - isolation
       # Calorimeter energy info
       - energy_ecal
       - energy_hcal
@@ -382,7 +382,7 @@ trainer:
   logger:
     class_path: hepattn.utils.loggers.MyCometLogger
     init_args:
-      project: hepattn-cld
+      project: cld
 
   callbacks:
     # - class_path: hepattn.callbacks.Compile
