@@ -21,16 +21,24 @@ class ModelWrapper(LightningModule):
         lrs_config: dict,
         optimizer: Literal["AdamW", "Lion"] = "AdamW",
         mtl: bool = False,
+        # freeze_except: list[str] | None = None,
     ):
         super().__init__()
 
         self.save_hyperparameters(logger=False)
+
+        # self.strict_loading = False
 
         self.name = name
         self.model = model
         self.optimizer = optimizer
         self.lrs_config = lrs_config
         self.mtl = mtl
+
+        # if freeze_except is not None:
+        #     for name_, param in self.named_parameters():
+        #         if not any(pattern in name_ for pattern in freeze_except):
+        #             param.requires_grad = False
 
         if mtl:
             # Donated buffers can cause issues with graph retention needed for MTL
@@ -65,6 +73,7 @@ class ModelWrapper(LightningModule):
             layer_loss = 0
             for task_name, task_losses in layer_losses.items():
                 for loss_name, loss_value in task_losses.items():
+                    self.log(f"{stage}/{layer_name}_{task_name}_{loss_name}", loss_value, sync_dist=True)
                     total_loss += loss_value
                     layer_loss += loss_value
 
@@ -83,6 +92,10 @@ class ModelWrapper(LightningModule):
         for task in self.model.tasks:
             # Check that the task actually has some metrics to log
             if not hasattr(task, "metrics"):
+                continue
+
+            # Skip tasks that were not active (e.g. during warmup)
+            if task.name not in preds["final"]:
                 continue
 
             # Just log the predictions from the final layer for now
@@ -107,13 +120,22 @@ class ModelWrapper(LightningModule):
         elif num_params == 3:
             log_custom_metrics(preds, targets, stage)
         else:
-            raise TypeError(
-                "log_custom_metrics must accept either (preds, targets, stage) "
-                "or (inputs, preds, targets, stage)."
-            )
+            raise TypeError("log_custom_metrics must accept either (preds, targets, stage) or (inputs, preds, targets, stage).")
+
+    def _update_task_loss_scales(self) -> None:
+        for task in self.model.tasks:
+            if hasattr(task, "update_loss_scale"):
+                task.update_loss_scale(self.global_step)
+
+    def _update_task_loss_scales(self) -> None:
+        for task in self.model.tasks:
+            if hasattr(task, "update_loss_scale"):
+                task.update_loss_scale(self.global_step)
 
     def training_step(self, batch: tuple[DictTensor, DictTensor], batch_idx: int) -> DoubleNestedDictTensor | None:
         inputs, targets = batch
+
+        self._update_task_loss_scales()
 
         # Get the model outputs
         self._propagate_global_step()
@@ -137,6 +159,8 @@ class ModelWrapper(LightningModule):
 
     def validation_step(self, batch: tuple[DictTensor, DictTensor]) -> DoubleNestedDictTensor:
         inputs, targets = batch
+
+        self._update_task_loss_scales()
 
         # Get the raw model outputs
         self._propagate_global_step()

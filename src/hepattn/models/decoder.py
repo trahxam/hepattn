@@ -138,10 +138,13 @@ class MaskFormerDecoder(nn.Module):
             query_mask = None
 
             assert self.tasks is not None
+
             for task in self.tasks:
                 if not task.has_intermediate_loss:
                     continue
                 if layer_index == 0 and not task.has_first_layer_loss:
+                    continue
+                if getattr(task, "_loss_scale", 1.0) == 0.0:
                     continue
 
                 # Get the outputs of the task given the current embeddings
@@ -196,10 +199,7 @@ class MaskFormerDecoder(nn.Module):
             if getattr(decoder_layer, "cross_attn_mode", "softmax") == "kmeans":
                 requested_names = None
                 if self.kmeans_affinity_task is not None:
-                    if isinstance(self.kmeans_affinity_task, str):
-                        requested_names = {self.kmeans_affinity_task}
-                    else:
-                        requested_names = set(self.kmeans_affinity_task)
+                    requested_names = {self.kmeans_affinity_task} if isinstance(self.kmeans_affinity_task, str) else set(self.kmeans_affinity_task)
 
                 for task in self.tasks:
                     if requested_names is not None and task.name not in requested_names:
@@ -213,10 +213,7 @@ class MaskFormerDecoder(nn.Module):
                     if task_affinity is None:
                         continue
 
-                    if affinity_logits is None:
-                        affinity_logits = task_affinity
-                    else:
-                        affinity_logits = torch.maximum(affinity_logits, task_affinity)
+                    affinity_logits = task_affinity if affinity_logits is None else torch.maximum(affinity_logits, task_affinity)
 
             # Update the keys and queries
             x["query_embed"], x["key_embed"] = decoder_layer(

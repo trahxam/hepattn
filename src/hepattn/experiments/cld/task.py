@@ -1,12 +1,11 @@
 import torch
-from torch import Tensor
-from typing import Literal
 import torch.nn.functional as F
+from torch import Tensor
 
-from hepattn.models.task import Task
 from hepattn.models.dense import Dense
 from hepattn.models.loss import cost_fns, loss_fns
-from hepattn.utils.helix import fit_helices
+from hepattn.models.task import Task
+from hepattn.utils.helix_fit import fit_helices
 
 
 class CLDTask(Task):
@@ -90,18 +89,14 @@ class CLDTask(Task):
         self.hit_mask_nets = torch.nn.ModuleDict({hit: Dense(dim, dim) for hit in self.hits_included})
 
         # Defines which outputs of forward() need to be permuted during the matching
-        self.outputs = (
-            ["flow_logit"]
-            + [f"flow_{hit}_logit" for hit in self.hits_included]
-            + [f"flow_{hit}_prob" for hit in self.hits_included]
-        )
+        self.outputs = ["flow_logit"] + [f"flow_{hit}_logit" for hit in self.hits_included] + [f"flow_{hit}_prob" for hit in self.hits_included]
 
         if tracker_helix_fit:
             self.outputs += [
                 "flow_regr_helix",
                 "flow_helix_fittable",
                 "flow_helix_fitted",
-                ]
+            ]
 
             self.helix_fit_fields = [
                 "mom.rinv",
@@ -144,8 +139,8 @@ class CLDTask(Task):
 
         for hit, mask_net in self.hit_mask_nets.items():
             # query-side mask embedding
-            q = mask_net(x["query_embed"])      # [B, Nq, C]
-            k = x[f"{hit}_embed"]               # [B, Nh, C]
+            q = mask_net(x["query_embed"])  # [B, Nq, C]
+            k = x[f"{hit}_embed"]  # [B, Nh, C]
 
             if self.return_embeddings:
                 outputs[f"mask_token_{hit}"] = q
@@ -155,9 +150,7 @@ class CLDTask(Task):
             flow_hit_logit = torch.einsum("bnc,bmc->bnm", q, k)
 
             # Set padding entries to -inf (mask invalid hits)
-            flow_hit_logit[~x[f"{hit}_valid"].unsqueeze(-2).expand_as(flow_hit_logit)] = torch.finfo(
-                flow_hit_logit.dtype
-            ).min
+            flow_hit_logit[~x[f"{hit}_valid"].unsqueeze(-2).expand_as(flow_hit_logit)] = torch.finfo(flow_hit_logit.dtype).min
 
             outputs[f"flow_{hit}_logit"] = flow_hit_logit
 
@@ -178,20 +171,17 @@ class CLDTask(Task):
                 # In this case, p[i,j] = frac of energy of particle i which was provided by hit j
                 elif self.calo_score_method == "hit_softmax":
                     outputs[f"flow_{hit}_prob"] = outputs[f"flow_{hit}_logit"].softmax(-1)
-        
+
         flow_class_idx = outputs["flow_logit"].argmax(-1)
         flow_charged = torch.isin(flow_class_idx, self.charged_class_idxs)
-        
+
         if self.tracker_helix_fit:
             helix_fit_enabled = self._helix_fit_enabled()
             flow_sihit_prob = torch.cat([outputs[f"flow_{hit}_prob"] for hit in ("vtxd", "trkr")], dim=-1)
             flow_num_sihit = (flow_sihit_prob >= 0.5).sum(-1)
             flow_fittable = (flow_num_sihit >= 6) & (flow_num_sihit <= 24) & flow_charged
 
-            sihit_x, sihit_y, sihit_z = tuple(
-                torch.cat(tuple(x[f"{hit}_pos.{c}"] for hit in ("vtxd", "trkr")), dim=-1)
-                for c in ("x", "y", "z")
-            )
+            sihit_x, sihit_y, sihit_z = tuple(torch.cat(tuple(x[f"{hit}_pos.{c}"] for hit in ("vtxd", "trkr")), dim=-1) for c in ("x", "y", "z"))
 
             if helix_fit_enabled:
                 # Perform the fit
@@ -204,13 +194,13 @@ class CLDTask(Task):
                 )
 
                 # Record the raw helix fit for diagnostics
-                ptinv = 1.0 / (0.3 * 2.0 * radius) # Transform from radius to 1/pT
+                ptinv = 1.0 / (0.3 * 2.0 * radius)  # Transform from radius to 1/pT
 
                 outputs["flow_helix_mom.rinv"] = ptinv
                 outputs["flow_helix_mom.phi"] = phi0
                 outputs["flow_helix_mom.eta"] = eta
-                outputs["flow_helix_vtx.r"] = d0 # In m as global coords in m
-                outputs["flow_helix_vtx.z"] = z0 # In m as global coords in m
+                outputs["flow_helix_vtx.r"] = d0  # In m as global coords in m
+                outputs["flow_helix_vtx.z"] = z0  # In m as global coords in m
             else:
                 flow_fitted = torch.zeros_like(flow_fittable, dtype=torch.bool)
                 zero = outputs["flow_logit"].new_zeros(flow_fittable.shape)
@@ -229,7 +219,7 @@ class CLDTask(Task):
                 outputs["flow_regr_helix"] = self.helix_refine_net(outputs["flow_regr_helix"])
 
             outputs["flow_helix_fittable"] = flow_fittable
-            outputs["flow_helix_fitted"] = flow_fitted            
+            outputs["flow_helix_fitted"] = flow_fitted
 
         return outputs
 
@@ -271,7 +261,7 @@ class CLDTask(Task):
         outputs["flow_is_neutral"] = torch.isin(outputs["flow_class_idx"], self.neutral_class_idxs)
 
         for hit in self.hits_included:
-            outputs[f"flow_{hit}_valid"] = outputs[f"flow_{hit}_prob"] >= 0.5 
+            outputs[f"flow_{hit}_valid"] = outputs[f"flow_{hit}_prob"] >= 0.5
 
         return outputs
 
@@ -290,7 +280,9 @@ class CLDTask(Task):
                     torch.cat(
                         [outputs["flow_vtxd_logit"], outputs["flow_trkr_logit"]],
                         dim=-1,
-                    ).detach().to(torch.float32)
+                    )
+                    .detach()
+                    .to(torch.float32)
                 )
                 cost_targets = torch.cat(
                     [targets["particle_vtxd_valid"], targets["particle_trkr_valid"]],
@@ -323,11 +315,14 @@ class CLDTask(Task):
         dtype = flow_class_logit.dtype
 
         # Object class loss
-        losses["object_class_ce"] = 0.5 * F.cross_entropy(
-            flow_class_logit.flatten(0, 1),
-            part_class_idx.flatten(0, 1),
-            reduction="none",
-        ).mean()
+        losses["object_class_ce"] = (
+            0.5
+            * F.cross_entropy(
+                flow_class_logit.flatten(0, 1),
+                part_class_idx.flatten(0, 1),
+                reduction="none",
+            ).mean()
+        )
 
         # Compute the mask loss over all queries, even for null quries
         if self.loss_object_mask == "all":
@@ -369,18 +364,18 @@ class CLDTask(Task):
             part_helix_params = torch.stack(
                 [targets[f"particle_{field}"] for field in self.helix_fit_fields],
                 dim=-1,
-                )
-
-            helix_fit_mask = (
-                outputs["flow_helix_fitted"].bool()
-                & targets["particle_is_primary"].bool()
             )
 
+            helix_fit_mask = outputs["flow_helix_fitted"].bool() & targets["particle_is_primary"].bool()
+
             if helix_fit_mask.any():
-                losses["helix_l1"] = 0.001 * F.smooth_l1_loss(
-                    flow_helix_params[helix_fit_mask],
-                    part_helix_params[helix_fit_mask],
-                ).mean()
+                losses["helix_l1"] = (
+                    0.001
+                    * F.smooth_l1_loss(
+                        flow_helix_params[helix_fit_mask],
+                        part_helix_params[helix_fit_mask],
+                    ).mean()
+                )
 
         return losses
 
@@ -391,15 +386,10 @@ class CLDTask(Task):
         has_sihits = {"vtxd", "trkr"}.issubset(set(self.hits_included))
         if has_sihits:
             preds["flow_sihits_valid"] = torch.cat([preds["flow_vtxd_valid"], preds["flow_trkr_valid"]], dim=-1)
-            targets["particle_sihits_valid"] = torch.cat(
-                [targets["particle_vtxd_valid"], targets["particle_trkr_valid"]], dim=-1
-            )
+            targets["particle_sihits_valid"] = torch.cat([targets["particle_vtxd_valid"], targets["particle_trkr_valid"]], dim=-1)
 
         if self.tracker_helix_fit:
-            helix_fit_mask = (
-                preds["flow_helix_fitted"].bool()
-                & targets["particle_is_primary"].bool()
-            )
+            helix_fit_mask = preds["flow_helix_fitted"].bool() & targets["particle_is_primary"].bool()
             helix_pred = torch.stack(
                 [preds[f"flow_helix_{f}"] for f in self.helix_fit_fields],
                 dim=-1,
@@ -412,7 +402,7 @@ class CLDTask(Task):
             if helix_fit_mask.any():
                 diff = helix_pred[helix_fit_mask] - helix_true[helix_fit_mask]
                 abs_err = diff.abs()
-                rmse = torch.sqrt((diff ** 2).mean(dim=0))
+                rmse = torch.sqrt((diff**2).mean(dim=0))
                 mae = abs_err.mean(dim=0)
                 relerr = (abs_err / helix_true[helix_fit_mask].abs().clamp_min(eps)).mean(dim=0)
                 ape_pct = relerr * 100.0

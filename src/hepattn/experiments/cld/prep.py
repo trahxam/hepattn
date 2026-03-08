@@ -1,6 +1,7 @@
 import os
 import time
 from argparse import ArgumentParser
+from collections import deque
 from pathlib import Path
 
 import awkward as ak
@@ -60,6 +61,8 @@ item_names = [
     "PandoraPFOs",
     "PandoraClusters",
     "SiTracks_Refitted",
+    "_SiTracks_Refitted_trackStates",
+    "_SiTracks_Refitted_trackerHits",
 ]
 
 ###############################################################
@@ -100,6 +103,12 @@ relations_links = {
         ("MUON", "YokeBarrelCollection"),
         ("MUON", "YokeEndcapCollection"),
     ],
+    "SiTracksMCTruthLink": [
+        ("SiTracks_Refitted", "MCParticles"),
+    ],
+    "RecoMCTruthLink": [
+        ("PandoraPFOs", "MCParticles"),
+    ],
 }
 
 # Specify the mask/links which use particle based links
@@ -130,6 +139,7 @@ start_end_links_single = {
     ("HCalRingCollection", "contributions"): "HCalRingCollectionContributions",
     ("YokeBarrelCollection", "contributions"): "YokeBarrelCollectionContributions",
     ("YokeEndcapCollection", "contributions"): "YokeEndcapCollectionContributions",
+    ("SiTracks_Refitted", "trackStates"): "_SiTracks_Refitted_trackStates",
 }
 
 # Specify links that specify start/end indices of some shared collection
@@ -252,6 +262,7 @@ item_aliases = {
     "YokeEndcapCollectionContributions": "mse_con",
     "PandoraPFOs": "pandora",  # Reco pandora particle flow objects
     "SiTracks_Refitted": "sitrack",  # Reco conformal tracking / pandora tracks
+    "_SiTracks_Refitted_trackStates": "sitrack_state",  # Track states of the reco conformal tracking / pandora tracks
     "PandoraClusters": "topocluster",  # Reco pandora calo topo clusters
 }
 
@@ -330,6 +341,7 @@ output_items = [
     "mse_con",
     "pandora",
     "sitrack",
+    "sitrack_state",
     "topocluster",
 ]
 
@@ -396,6 +408,9 @@ output_masks = [
     ("sitrack", "ite"),
     ("sitrack", "otb"),
     ("sitrack", "ote"),
+    ("sitrack", "sitrack_state"),
+    ("sitrack", "particle"),
+    ("pandora", "particle"),
     ("topocluster", "ecb"),
     ("topocluster", "ece"),
     ("topocluster", "hcb"),
@@ -428,6 +443,80 @@ non_hadron_pdgid_to_class = {
     16: 7,  # Neutrino
 }
 
+# For collecting mc daughters
+PARENTS = [23, -24, 24, 25]  # pdgid
+TARGET_STATUS = [1, 2, 22, 23]  # generator status code
+# For reco sitrack track state
+sitrack_fields = ["location", "D0", "Z0", "phi", "omega", "tanLambda", "referencePoint.x", "referencePoint.y", "referencePoint.z"]
+
+
+# Decoding cellids
+def _extract_bits_u64(x_u64: np.ndarray, start: int, width: int) -> np.ndarray:
+    """Extract [start, start+width) bits from uint64 array."""
+    mask = (np.uint64(1) << np.uint64(width)) - np.uint64(1)
+    return (x_u64 >> np.uint64(start)) & mask
+
+
+def _to_signed(raw_u64: np.ndarray, width: int) -> np.ndarray:
+    """Interpret raw_u64 (width bits) as signed two's complement, return int64."""
+    signbit = np.uint64(1) << np.uint64(width - 1)
+    signed = raw_u64.copy()
+    signed[signed & signbit != 0] -= np.uint64(1) << np.uint64(width)
+    return signed.astype(np.int64)
+
+
+def decode_calo_cellid(cellid: np.ndarray) -> dict:
+    """CALO encoding:
+    system:5,side:2,module:8,stave:4,layer:9,submodule:4,x:32:-16,y:-16.
+    """
+    x = cellid.astype(np.uint64, copy=False)
+    out = {}
+
+    b = 0
+    out["system"] = _extract_bits_u64(x, b, 5).astype(np.int64)
+    b += 5
+    out["side"] = _extract_bits_u64(x, b, 2).astype(np.int64)
+    b += 2
+    out["module"] = _extract_bits_u64(x, b, 8).astype(np.int64)
+    b += 8
+    out["stave"] = _extract_bits_u64(x, b, 4).astype(np.int64)
+    b += 4
+    out["layer"] = _extract_bits_u64(x, b, 9).astype(np.int64)
+    b += 9
+    out["submodule"] = _extract_bits_u64(x, b, 4).astype(np.int64)
+    b += 4
+
+    raw_x = _extract_bits_u64(x, 32, 16)
+    raw_y = _extract_bits_u64(x, 48, 16)
+
+    out["x"] = _to_signed(raw_x, 16)
+    out["y"] = _to_signed(raw_y, 16)
+
+    return out
+
+
+def decode_tracker_cellid(cellid: np.ndarray) -> dict:
+    """TRACKER encoding:
+    system:5,side:-2,layer:6,module:11,sensor:8.
+    """
+    x = cellid.astype(np.uint64, copy=False)
+    out = {}
+
+    b = 0
+    out["system"] = _extract_bits_u64(x, b, 5).astype(np.int64)
+    b += 5
+    raw_side = _extract_bits_u64(x, b, 2)
+    b += 2
+    out["side"] = _to_signed(raw_side, 2)
+    out["layer"] = _extract_bits_u64(x, b, 6).astype(np.int64)
+    b += 6
+    out["module"] = _extract_bits_u64(x, b, 11).astype(np.int64)
+    b += 11
+    out["sensor"] = _extract_bits_u64(x, b, 8).astype(np.int64)
+    b += 8
+
+    return out
+
 
 def get_particle_class(pid, charge):
     if is_hadron(pid):
@@ -441,6 +530,61 @@ def get_particle_class(pid, charge):
     return -1
 
 
+def parent_daughter_masks(pdg, gen_status, dau_begin, dau_end, dau_index):
+    """Runs a BFS for parent particles with generator status code 22 and collect their daughters.
+
+    Returns:
+    -------
+    par_dau_mask: Mask that denotes particle kept due to it being a parent or a daughter
+    parent_linking: 1D-Array that returns the index of the parent. Returns -1 if no parent recorded.
+
+    Currently assuming one particle to have only one parent. Can change the 1D array into a N
+    by N matrix for generlisation.
+    """
+    par_dau_mask = np.zeros(len(pdg), dtype=bool)
+    parent_linking = -np.ones(len(pdg))
+
+    # We keep bosons with generator status code 22 only, then look for their daughters
+    # 23: Z, 24: W, 25: H
+    selected_parents = np.where((gen_status == 22) & np.isin(pdg, PARENTS))[0]
+
+    for root in selected_parents:
+        par_dau_mask[root] = True
+        parent_pdg = int(pdg[root])
+
+        q = deque()
+        for i in dau_index[dau_begin[root] : dau_end[root]]:
+            q.append(int(i))
+
+        visited = set()
+
+        while q:
+            j = q.popleft()
+            if j in visited:
+                continue
+            visited.add(j)
+
+            status_j = int(gen_status[j])
+            pdg_j = int(pdg[j])
+
+            # Kill the photon emission branch
+            if pdg_j == 22:
+                continue
+
+            # Keep as daughter if code is 1/2/22/23, and stop the search
+            # We do not keep copies as daughter
+            if status_j in TARGET_STATUS and pdg_j != parent_pdg:
+                par_dau_mask[j] = True
+                if parent_linking[j] == -1:
+                    parent_linking[j] = root
+                continue
+
+            for k in dau_index[dau_begin[j] : dau_end[j]]:
+                q.append(int(k))
+
+    return par_dau_mask, parent_linking
+
+
 def preprocess_event(events, event_idx, namecodes, min_pt, verbose):
     items = {}
 
@@ -450,6 +594,22 @@ def preprocess_event(events, event_idx, namecodes, min_pt, verbose):
         x = events[item_name].array(entry_start=event_idx, entry_stop=event_idx + 1)[0]
         x = ak.zip({field.replace(f"{item_name}.", ""): x[field] for field in x.fields}, depth_limit=1)
         items[item_name] = x
+
+    # Decode cellid
+    calo_hit_items = ["ECALBarrel", "ECALEndcap", "HCALBarrel", "HCALEndcap", "HCALOther", "MUON"]
+    tracker_hit_items = ["VXDTrackerHits", "VXDEndcapTrackerHits", "ITrackerHits", "ITrackerEndcapHits", "OTrackerHits", "OTrackerEndcapHits"]
+
+    for item_name in calo_hit_items:
+        if "cellID" in items[item_name].fields:
+            decoded = decode_calo_cellid(ak.to_numpy(items[item_name]["cellID"]))
+            for k, v in decoded.items():
+                items[item_name][f"cellID_dec.{k}"] = v
+
+    for item_name in tracker_hit_items:
+        if "cellID" in items[item_name].fields:
+            decoded = decode_tracker_cellid(ak.to_numpy(items[item_name]["cellID"]))
+            for k, v in decoded.items():
+                items[item_name][f"cellID_dec.{k}"] = v
 
     # Add in particle classes
     pids = items["MCParticles"]["PDG"]
@@ -502,6 +662,14 @@ def preprocess_event(events, event_idx, namecodes, min_pt, verbose):
         tgt_idx = np.arange(num_tgt)
         mask = (tgt_idx[None, :] >= start_idx[:, None]) & (tgt_idx[None, :] < end_idx[:, None])
         masks[src, tgt] = mask
+
+        if src == "SiTracks_Refitted" and name == "trackStates":
+            trackstate = items[tgt]
+            # Sitracks has 4 track states measured at 4 different locations
+            idx4 = start_idx[:, None] + np.arange(4)[None, :]
+
+            for x in sitrack_fields:
+                items["SiTracks_Refitted"][f"state.{x}"] = trackstate[x][idx4]
 
     for (src, name), tgts in start_end_links_multi.items():
         # These specify the indices and collection ids of the trackerhits / clusters
@@ -710,7 +878,7 @@ def preprocess_event(events, event_idx, namecodes, min_pt, verbose):
             if output_item.dtype == np.float64:
                 output_item = output_item.astype(np.float32)
 
-            if output_item.dtype == np.int64:
+            if output_item.dtype == np.int64 and field != "cellID":
                 output_item = output_item.astype(np.int32)
 
             data_out[f"{item_name}.{field}"] = output_item
