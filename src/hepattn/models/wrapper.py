@@ -37,8 +37,6 @@ class ModelWrapper(LightningModule):
             functorch_config.donated_buffer = False
             # If we are doing multi-task-learning, optimisation step must be done manually
             self.automatic_optimization = False
-            # MTL does not currently support intermediate losses
-            assert all(task.has_intermediate_loss is False for task in self.model.tasks)
 
     def forward(self, inputs: DictTensor) -> DoubleNestedDictTensor:
         self._propagate_global_step()
@@ -199,19 +197,57 @@ class ModelWrapper(LightningModule):
         print("Skipping learning rate scheduler.")
         return opt
 
+    def configure_gradient_clipping(self, optimizer, gradient_clip_val=None, gradient_clip_algorithm=None):
+        clip_val = self.lrs_config.get("gradient_clip_val") or gradient_clip_val
+        if clip_val:
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), clip_val)
+
     def mlt_opt(self, losses: DictTensor, outputs: DictTensor) -> None:
         opt = self.optimizers()
         opt.zero_grad()
 
-        # TODO: Make this not hard coded?
-        feature_names = ["query_embed", "key_embed"]
+        # Backprop intermediate layer losses normally — they provide auxiliary supervision
+        # for the decoder but don't participate in conflict resolution
+        intermediate_losses = [
+            loss_value
+            for layer_name, layer_losses in losses.items()
+            if layer_name != "final"
+            for task_losses in layer_losses.values()
+            for loss_value in task_losses.values()
+        ]
+        if intermediate_losses:
+            sum(intermediate_losses).backward(retain_graph=True)
 
-        # Remove any duplicate features that are used by multiple tasks
-        features = [outputs["final"][feature_name] for feature_name in feature_names]
+        # Split final layer losses into tracking (si-hit + classification) vs calo groups
+        tracker_prefixes = ("vtxd", "trkr", "object")
+        calo_prefixes = ("ecal", "hcal", "muon")
+        tracking_losses, calo_losses = [], []
+        for task_losses in losses["final"].values():
+            if not isinstance(task_losses, dict):
+                continue
+            for loss_name, loss_value in task_losses.items():
+                if any(loss_name.startswith(p) for p in tracker_prefixes):
+                    tracking_losses.append(loss_value)
+                elif any(loss_name.startswith(p) for p in calo_prefixes):
+                    calo_losses.append(loss_value)
 
-        # TODO: Figure out if we can set retain_graph to false somehow, since it uses a lot of memory
-        task_losses = [sum(losses["final"][task.name].values()) for task in self.model.tasks]
-        mtl_backward(losses=task_losses, features=features, aggregator=UPGrad(), retain_graph=True)
+        task_loss_groups = [
+            g for g in [
+                sum(tracking_losses) if tracking_losses else None,
+                sum(calo_losses) if calo_losses else None,
+            ]
+            if g is not None
+        ]
 
-        # Manually perform the optimizer step
+        features = [outputs["final"]["query_embed"], outputs["final"]["key_embed"]]
+
+        if len(task_loss_groups) > 1:
+            mtl_backward(losses=task_loss_groups, features=features, aggregator=UPGrad(), retain_graph=True)
+        elif len(task_loss_groups) == 1:
+            task_loss_groups[0].backward()
+
+        clip_val = self.lrs_config.get("gradient_clip_val") or self.trainer.gradient_clip_val
+        if clip_val:
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), clip_val)
+
         opt.step()

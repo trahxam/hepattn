@@ -1,0 +1,12 @@
+
+data:
+  # Which particle classes to include as targets (null means include all)
+  include_classes:
+    - charged_hadron
+
+  truth_filter_hits:
+    - vtxd
+    - trkr
+    - ecal
+    - hcal
+    - muon

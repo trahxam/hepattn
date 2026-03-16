@@ -368,6 +368,96 @@ class Encoder(nn.Module):
         return x
 
 
+class CrossTypePairLayer(nn.Module):
+    """Single directed cross-attention update: tgt attends to src."""
+
+    def __init__(
+        self,
+        dim: int,
+        depth: int = 0,
+        norm: str = "LayerNorm",
+        hybrid_norm: bool = False,
+        attn_kwargs: dict | None = None,
+        dense_kwargs: dict | None = None,
+    ) -> None:
+        super().__init__()
+        attn_kwargs = attn_kwargs or {}
+        dense_kwargs = dense_kwargs or {}
+
+        attn_norm, dense_post_norm, _ = get_hybrid_norm_config(norm, depth, hybrid_norm, False)
+        residual = partial(Residual, dim=dim)
+
+        self.ca = residual(Attention(dim, **attn_kwargs), norm=attn_norm)
+        self.ffn = residual(Dense(dim, **dense_kwargs), norm=norm, post_norm=dense_post_norm)
+
+        # Zero-init out_proj so this layer is an identity at initialisation
+        nn.init.zeros_(self.ca.fn.out_proj.weight)
+        if self.ca.fn.out_proj.bias is not None:
+            nn.init.zeros_(self.ca.fn.out_proj.bias)
+
+    def forward(self, tgt: Tensor, src: Tensor, q_mask: Tensor | None = None, kv_mask: Tensor | None = None) -> Tensor:
+        tgt = self.ca(tgt, k=src, v=src, q_mask=q_mask, kv_mask=kv_mask)
+        tgt = self.ffn(tgt)
+        return tgt
+
+
+class CrossTypeEncoder(nn.Module):
+    """Applies a sequence of cross-attention updates between specified pairs of hit types.
+
+    Each pair updates the tgt embeddings by attending to the src embeddings.
+    Bidirectional pairs also update src by attending to the (already updated) tgt.
+    All cross-attention output projections are zero-initialised so each layer starts
+    as an identity and can only improve over the baseline.
+    """
+
+    def __init__(
+        self,
+        pairs: list[dict],
+        dim: int,
+        norm: str = "LayerNorm",
+        hybrid_norm: bool = False,
+        attn_kwargs: dict | None = None,
+        dense_kwargs: dict | None = None,
+    ) -> None:
+        """Args:
+            pairs: List of dicts with keys 'src', 'tgt', and optionally 'bidirectional' (default False).
+                   Bidirectional pairs run tgt←src first, then src←(updated tgt).
+                   Example: [{'src': 'trkr', 'tgt': 'ecal', 'bidirectional': True}]
+            dim: Embedding dimension.
+            norm: Normalization type.
+            hybrid_norm: Whether to use hybrid normalization.
+            attn_kwargs: Kwargs forwarded to each Attention layer.
+            dense_kwargs: Kwargs forwarded to each Dense layer.
+        """
+        super().__init__()
+
+        # Expand bidirectional pairs into a flat ordered list of directed (src→tgt) updates
+        self._directions: list[tuple[str, str]] = []
+        layers: list[nn.Module] = []
+
+        for depth, pair in enumerate(pairs):
+            src, tgt = pair["src"], pair["tgt"]
+            self._directions.append((src, tgt))
+            layers.append(CrossTypePairLayer(dim, depth=depth * 2, norm=norm, hybrid_norm=hybrid_norm,
+                                             attn_kwargs=attn_kwargs, dense_kwargs=dense_kwargs))
+            if pair.get("bidirectional", False):
+                self._directions.append((tgt, src))
+                layers.append(CrossTypePairLayer(dim, depth=depth * 2 + 1, norm=norm, hybrid_norm=hybrid_norm,
+                                                 attn_kwargs=attn_kwargs, dense_kwargs=dense_kwargs))
+
+        self.layers = nn.ModuleList(layers)
+
+    def forward(self, x: dict) -> dict:
+        for (src, tgt), layer in zip(self._directions, self.layers):
+            x[f"{tgt}_embed"] = layer(
+                x[f"{tgt}_embed"],
+                x[f"{src}_embed"],
+                q_mask=x.get(f"{tgt}_valid"),
+                kv_mask=x.get(f"{src}_valid"),
+            )
+        return x
+
+
 def change_attn_backends(module: nn.Module, backend: str) -> None:
     """Recursively change the attention backend of a module and all its children.
 

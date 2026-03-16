@@ -26,9 +26,18 @@ class CLDTask(Task):
         hit_loss_weights: dict[str, dict[str, float]] | None = None,
         hit_cost_weights: dict[str, dict[str, float]] | None = None,
         mask_dice_cost_logit_scale: float = 1.0,
+        sihit_gated_calo_cost: bool = False,
+        class_conditional_cost: bool = True,
+        hit_cost_classes: dict[str, list[str]] | None = None,
+        per_hit_class_loss_mask: bool = False,
         return_embeddings: bool = False,
+        task_stage: int = 0,
+        charged_query_slots: list[int] | None = None,
+        neutral_query_slots: list[int] | None = None,
+        class_query_slots: dict[str, list[int]] | None = None,
+        use_slot_class: bool = False,
     ):
-        super().__init__(has_intermediate_loss=has_intermediate_loss)
+        super().__init__(has_intermediate_loss=has_intermediate_loss, task_stage=task_stage)
 
         self.name = name
         self.dim = dim
@@ -39,6 +48,9 @@ class CLDTask(Task):
         self.hit_loss_weights = hit_loss_weights or {}
         self.hit_cost_weights = hit_cost_weights or {}
         self.mask_dice_cost_logit_scale = float(mask_dice_cost_logit_scale)
+        self.sihit_gated_calo_cost = sihit_gated_calo_cost
+        self.class_conditional_cost = class_conditional_cost
+        self.per_hit_class_loss_mask = per_hit_class_loss_mask
 
         # Which detector subhits will be used
         if hits_included == "all":
@@ -77,14 +89,45 @@ class CLDTask(Task):
 
                 self.hit_active_classes[sys].append(class_name)
 
+        # Precompute: for each hit (including "sihit"), which class indices should activate it.
+        # Only real classes (in class_name_to_idx) are included; meta-classes like "charged"/"neutral" are skipped.
+        self.hit_active_class_idxs: dict[str, list[int]] = {}
+        for hit, classes in self.hit_active_classes.items():
+            self.hit_active_class_idxs[hit] = [
+                self.class_name_to_idx[c] for c in classes if c in self.class_name_to_idx
+            ]
+        # sihit is the union of vtxd and trkr active classes
+        sihit_classes = set(self.hit_active_classes.get("vtxd", [])) | set(self.hit_active_classes.get("trkr", []))
+        self.hit_active_class_idxs["sihit"] = [
+            self.class_name_to_idx[c] for c in sihit_classes if c in self.class_name_to_idx
+        ]
+
+        # Optional per-hit class override for the cost (independent of the loss masking).
+        # If provided, replaces hit_active_class_idxs for cost computation only.
+        if hit_cost_classes is not None:
+            self.hit_cost_class_idxs: dict[str, list[int]] = {
+                hit: [self.class_name_to_idx[c] for c in classes if c in self.class_name_to_idx]
+                for hit, classes in hit_cost_classes.items()
+            }
+        else:
+            self.hit_cost_class_idxs = self.hit_active_class_idxs
+
         self.charged_classes = ["charged_hadron", "electron", "muon"]
         self.neutral_classes = ["neutral_hadron", "photon"]
 
         self.register_buffer("charged_class_idxs", torch.tensor([2, 4, 5], dtype=torch.long))
         self.register_buffer("neutral_class_idxs", torch.tensor([1, 3], dtype=torch.long))
 
-        # Network for particle classification
-        self.class_net = Dense(dim, len(self.class_name_to_idx))
+        # Partition query slots: restrict which queries can be matched to charged vs neutral particles
+        self.charged_query_slots = charged_query_slots  # [start, end] inclusive-exclusive
+        self.neutral_query_slots = neutral_query_slots  # [start, end] inclusive-exclusive
+        # Fine-grained per-class slot partitioning: each range is reserved for one class
+        self.class_query_slots = class_query_slots  # {class_name: [start, end]}
+        # When True: class is determined by slot assignment; class_net only predicts valid/null
+        self.use_slot_class = use_slot_class and class_query_slots is not None
+
+        # Network for particle classification (binary valid/null when slot class is used)
+        self.class_net = Dense(dim, 1 if self.use_slot_class else len(self.class_name_to_idx))
 
         # Networks for producing mask tokens for assignment
         self.hit_mask_nets = torch.nn.ModuleDict({hit: Dense(dim, dim) for hit in self.hits_included})
@@ -137,14 +180,31 @@ class CLDTask(Task):
     def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:
         outputs: dict[str, Tensor] = {}
 
-        outputs["flow_logit"] = self.class_net(x["query_embed"])
+        if self.use_slot_class:
+            B, N_q, _ = x["query_embed"].shape
+            valid_logit = self.class_net(x["query_embed"]).squeeze(-1)  # [B, N_q]
+
+            # Build slot→class index mapping (cached after first call)
+            if not hasattr(self, "_slot_class_idx") or self._slot_class_idx.shape[0] != N_q:
+                slot_class = valid_logit.new_zeros(N_q, dtype=torch.long)
+                for class_name, (s, e) in self.class_query_slots.items():
+                    slot_class[s:e] = self.class_name_to_idx[class_name]
+                self._slot_class_idx = slot_class
+
+            # Synthetic 6-class logit: null=0 (reference), assigned class=valid_logit, others=-1e4
+            flow_logit = valid_logit.new_full((B, N_q, len(self.class_name_to_idx)), -1e4)
+            flow_logit[:, :, 0] = 0.0
+            flow_logit.scatter_(2, self._slot_class_idx[None, :, None].expand(B, -1, 1), valid_logit[:, :, None])
+            outputs["flow_logit"] = flow_logit
+        else:
+            outputs["flow_logit"] = self.class_net(x["query_embed"])
 
         if self.return_embeddings:
             outputs["query_embed"] = x["query_embed"]
 
         for hit, mask_net in self.hit_mask_nets.items():
-            # query-side mask embedding
-            q = mask_net(x["query_embed"])      # [B, Nq, C]
+            # query-side mask embedding: use per-type query if available, else shared
+            q = mask_net(x.get(f"query_embed_{hit}", x["query_embed"]))  # [B, Nq, C]
             k = x[f"{hit}_embed"]               # [B, Nh, C]
 
             if self.return_embeddings:
@@ -284,6 +344,54 @@ class CLDTask(Task):
         valid_logit = logit_nonnull - logit_null
         costs["object_bce"] = 1 + cost_fns["object_bce"](valid_logit, targets["particle_valid"].to(torch.float32))
 
+        # Partition cost: large penalty when charged slots match neutral particles or vice versa
+        if self.charged_query_slots is not None or self.neutral_query_slots is not None:
+            B, N_q = flow_class_logit.shape[:2]
+            N_p = targets["particle_class_idx"].shape[1]
+            part_class = targets["particle_class_idx"]  # (B, N_p)
+            is_charged = torch.isin(part_class, self.charged_class_idxs)  # (B, N_p)
+            is_neutral = torch.isin(part_class, self.neutral_class_idxs)  # (B, N_p)
+            penalty = flow_class_logit.new_zeros(B, N_q, N_p)
+            if self.charged_query_slots is not None:
+                cs, ce = self.charged_query_slots
+                # Charged slots should not be matched to neutral particles
+                penalty[:, cs:ce, :] += 1e4 * is_neutral.unsqueeze(1).float()
+            if self.neutral_query_slots is not None:
+                ns, ne = self.neutral_query_slots
+                # Neutral slots should not be matched to charged particles
+                penalty[:, ns:ne, :] += 1e4 * is_charged.unsqueeze(1).float()
+            costs["partition"] = penalty
+
+        # Fine-grained per-class slot partitioning
+        if self.class_query_slots is not None:
+            B, N_q = flow_class_logit.shape[:2]
+            N_p = targets["particle_class_idx"].shape[1]
+            part_class = targets["particle_class_idx"]  # (B, N_p)
+            part_valid = targets["particle_valid"]       # (B, N_p)
+            penalty = flow_class_logit.new_zeros(B, N_q, N_p)
+            for class_name, (s, e) in self.class_query_slots.items():
+                target_idx = self.class_name_to_idx[class_name]
+                # Penalise slots reserved for class_name when the target particle is a
+                # different (valid) class; null padding targets are never penalised.
+                wrong_class = part_valid & (part_class != target_idx)
+                penalty[:, s:e, :] += 1e4 * wrong_class.unsqueeze(1).float()
+            costs["partition"] = costs.get("partition", flow_class_logit.new_zeros(B, N_q, N_p)) + penalty
+
+        # Pre-compute sihit cost for gating calo costs (only if needed)
+        sihit_gate = None
+        if self.sihit_gated_calo_cost and "sihit" in self.hit_cost_weights:
+            sihit_logits = torch.cat(
+                [outputs["flow_vtxd_logit"], outputs["flow_trkr_logit"]], dim=-1
+            ).detach().to(torch.float32)
+            sihit_targets = torch.cat(
+                [targets["particle_vtxd_valid"], targets["particle_trkr_valid"]], dim=-1
+            ).to(torch.float32)
+            sihit_pad_mask = torch.cat([targets["vtxd_valid"], targets["trkr_valid"]], dim=-1)
+            sihit_gate = cost_fns["mask_dice"](sihit_logits, sihit_targets, input_pad_mask=sihit_pad_mask)
+
+        # Hits that are considered tracker-type (not gated by sihit)
+        tracker_hits = {"sihit", "vtxd", "trkr"}
+
         for hit, hit_cost_terms in self.hit_cost_weights.items():
             if hit == "sihit":
                 base_cost_logits = (
@@ -307,11 +415,26 @@ class CLDTask(Task):
                 if cost_name == "mask_dice":
                     cost_logits = cost_logits * self.mask_dice_cost_logit_scale
 
-                costs[f"{hit}_{cost_name}"] = float(cost_weight) * cost_fns[cost_name](
+                c = float(cost_weight) * cost_fns[cost_name](
                     cost_logits,
                     cost_targets,
                     input_pad_mask=input_pad_mask,
                 )
+
+                # Gate calo costs by sihit cost: calo only contributes when sihit is uncertain
+                if sihit_gate is not None and hit not in tracker_hits:
+                    c = c * sihit_gate
+
+                # Zero out cost for particles whose class should not activate this hit type
+                if self.class_conditional_cost:
+                    active_idxs = self.hit_cost_class_idxs.get(hit, [])
+                    part_class = targets["particle_class_idx"]  # (B, N_particles)
+                    class_mask = torch.zeros_like(part_class, dtype=c.dtype)
+                    for idx in active_idxs:
+                        class_mask = class_mask + (part_class == idx).to(c.dtype)
+                    c = c * class_mask.unsqueeze(1)  # (B, 1, N_particles)
+
+                costs[f"{hit}_{cost_name}"] = c
 
         return costs
 
@@ -323,11 +446,26 @@ class CLDTask(Task):
         dtype = flow_class_logit.dtype
 
         # Object class loss
-        losses["object_class_ce"] = 0.5 * F.cross_entropy(
-            flow_class_logit.flatten(0, 1),
-            part_class_idx.flatten(0, 1),
-            reduction="none",
-        ).mean()
+        if self.use_slot_class:
+            # Class is determined by slot; only predict valid/null.
+            # valid_logit = class_net output; in the synthetic flow_logit: null=0, assigned=valid_logit
+            # So valid_logit = flow_logit[assigned_class] - flow_logit[null=0]
+            slot_cls = self._slot_class_idx if hasattr(self, "_slot_class_idx") else None
+            if slot_cls is not None:
+                assigned_logit = flow_class_logit.gather(2, slot_cls[None, :, None].expand(flow_class_logit.shape[0], -1, 1)).squeeze(-1)
+            else:
+                assigned_logit = flow_class_logit[..., 1:].max(-1).values
+            losses["object_valid_bce"] = 0.5 * F.binary_cross_entropy_with_logits(
+                assigned_logit,
+                targets["particle_valid"].to(dtype),
+                reduction="mean",
+            )
+        else:
+            losses["object_class_ce"] = 0.5 * F.cross_entropy(
+                flow_class_logit.flatten(0, 1),
+                part_class_idx.flatten(0, 1),
+                reduction="none",
+            ).mean()
 
         # Compute the mask loss over all queries, even for null quries
         if self.loss_object_mask == "all":
@@ -351,16 +489,28 @@ class CLDTask(Task):
                     dim=-1,
                 ).to(dtype)
                 input_pad_mask = torch.cat([targets["vtxd_valid"], targets["trkr_valid"]], dim=-1)
+                active_idxs = self.hit_active_class_idxs.get("sihit", [])
             else:
                 loss_logits = outputs[f"flow_{hit}_logit"]
                 loss_targets = targets[f"particle_{hit}_valid"].to(dtype)
                 input_pad_mask = targets[f"{hit}_valid"]
+                active_idxs = self.hit_active_class_idxs.get(hit, [])
+
+            # Optionally restrict loss to particles whose class activates this hit type,
+            # preventing e.g. photon queries from being trained to suppress silicon hits.
+            if self.per_hit_class_loss_mask and active_idxs:
+                hit_object_mask = torch.zeros_like(targets["particle_valid"], dtype=torch.bool)
+                for idx in active_idxs:
+                    hit_object_mask |= (targets["particle_class_idx"] == idx)
+                effective_mask = object_mask & hit_object_mask
+            else:
+                effective_mask = object_mask
 
             for loss_name, loss_weight in hit_loss_terms.items():
                 losses[f"{hit}_{loss_name}"] = float(loss_weight) * loss_fns[loss_name](
                     loss_logits,
                     loss_targets,
-                    object_valid_mask=object_mask,
+                    object_valid_mask=effective_mask,
                     input_pad_mask=input_pad_mask,
                 )
 

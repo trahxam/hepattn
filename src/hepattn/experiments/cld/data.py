@@ -56,8 +56,7 @@ class CLDDataset(LRSMDataset):
         merge_inputs: dict[str, list[str]] | None = None,
         particle_min_pt: float = 0.01,
         particle_max_abs_eta: float = 4.0,
-        include_neutral: bool = True,
-        include_charged: bool = True,
+        include_classes: list[str] | None = None,
         charged_particle_min_num_hits: dict[str, int] | None = None,
         charged_particle_max_num_hits: dict[str, int] | None = None,
         neutral_particle_min_num_hits: dict[str, int] | None = None,
@@ -114,8 +113,7 @@ class CLDDataset(LRSMDataset):
 
         self.merge_inputs = merge_inputs
         self.particle_min_pt = particle_min_pt
-        self.include_neutral = include_neutral
-        self.include_charged = include_charged
+        self.include_classes = include_classes
         self.remove_neutral_sihits_from_truth_masks = remove_neutral_sihits_from_truth_masks
         self.charged_particle_min_num_hits = charged_particle_min_num_hits
         self.charged_particle_max_num_hits = charged_particle_max_num_hits
@@ -508,11 +506,11 @@ class CLDDataset(LRSMDataset):
         # Add the eta cut
         particle_cuts["max_eta"] = np.abs(event["particle.mom.eta"]) <= self.particle_max_abs_eta
 
-        if not self.include_charged:
-            particle_cuts["not_charged"] = ~event["particle.is_charged"]
-
-        if not self.include_neutral:
-            particle_cuts["not_neutral"] = ~event["particle.is_neutral"]
+        if self.include_classes is not None:
+            include_mask = np.zeros(num_particles, dtype=bool)
+            for class_name in self.include_classes:
+                include_mask |= event[f"particle.is_{class_name}"]
+            particle_cuts["include_classes"] = include_mask
 
         # TODO: Clean this up...
         for item_name, min_ratio in self.particle_hit_min_p_ratio.items():
@@ -636,11 +634,11 @@ class CLDDataset(LRSMDataset):
 
         # Need to re-apply these in case the veto made them valid again
         # TODO: Do this in a cleaner way
-        if not self.include_charged:
-            event["particle_valid"] = event["particle_valid"] & (~event["particle.is_charged"])
-
-        if not self.include_neutral:
-            event["particle_valid"] = event["particle_valid"] & (~event["particle.is_neutral"])
+        if self.include_classes is not None:
+            include_mask = np.zeros(len(event["particle_valid"]), dtype=bool)
+            for class_name in self.include_classes:
+                include_mask |= event[f"particle.is_{class_name}"]
+            event["particle_valid"] = event["particle_valid"] & include_mask
 
         # Remove any mask slots for invalid particles
         for input_name in self.inputs:
@@ -668,13 +666,15 @@ class CLDDataset(LRSMDataset):
             for field in self.inputs[input_name]:
                 event[f"{input_name}.{field}"] = event[f"{input_name}.{field}"][mask]
 
-            # Also drop hits from the target masks
-            if f"particle_{input_name}" in self.targets:
-                event[f"particle_{input_name}_valid"] = event[f"particle_{input_name}_valid"][:, mask]
-
-                if f"particle_{input_name}" in self.targets:
-                    for field in self.targets[f"particle_{input_name}"]:
-                        event[f"particle_{input_name}.{field}"] = event[f"particle_{input_name}.{field}"][:, mask]
+            # Also drop hits from all object-hit target masks (particle, pandora, sitrack, etc.)
+            for target_name in self.targets:
+                if not target_name.endswith(f"_{input_name}"):
+                    continue
+                if f"{target_name}_valid" not in event:
+                    continue
+                event[f"{target_name}_valid"] = event[f"{target_name}_valid"][:, mask]
+                for field in self.targets[target_name]:
+                    event[f"{target_name}.{field}"] = event[f"{target_name}.{field}"][:, mask]
 
         # Event level info
         event["event_num_particles"] = event["particle_valid"].sum()

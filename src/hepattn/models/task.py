@@ -28,11 +28,12 @@ class Task(nn.Module, ABC):
     that can be trained as part of a multi-task learning setup.
     """
 
-    def __init__(self, has_intermediate_loss: bool, has_first_layer_loss: bool | None = None, permute_loss: bool = True):
+    def __init__(self, has_intermediate_loss: bool, has_first_layer_loss: bool | None = None, permute_loss: bool = True, task_stage: int = 0):
         super().__init__()
         self.has_intermediate_loss = has_intermediate_loss
         self.has_first_layer_loss = has_first_layer_loss if has_first_layer_loss is not None else has_intermediate_loss
         self.permute_loss = permute_loss
+        self.task_stage = task_stage
 
     @abstractmethod
     def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:

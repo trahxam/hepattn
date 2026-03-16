@@ -1,9 +1,9 @@
 settings:
   runs:
-    - path: /share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/logs/All_20260202-T181849/ckpts/epoch=000-val_loss=17.18311_test_eval.h5
+    - path: /share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/logs/ChargedHad_kMax_Combined_20260310-T200712/ckpts/epoch=000-val_loss=8.00533_test_eval.h5
       label: Combined
       color: mediumvioletred
-    - path: /share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/logs/TrackingFixed_20260205-T000653/ckpts/epoch=000-val_loss=7.40857_test_eval.h5
+    - path: /share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/logs/ChargedHad_kMax_Tracking_20260310-T200708/ckpts/epoch=000-val_loss=1.41329_test_eval.h5
       label: Tracking
       color: dodgerblue
 
@@ -15,7 +15,7 @@ settings:
   binary_metrics_match_mode: matched
   use_flow_class_logits_for_pid: true
   flow_valid_prob_threshold: 0.5
-  max_events: 1000
+  max_events: 100
   base_data_cache_max_events: 1000
   cache_base_data: true
   save_comparison_plots: true
@@ -257,6 +257,7 @@ eval:
   # Tight/loose only refers to truth selections/denominators.
   selections:
     charged_reconstructable_tight:
+      - is_charged
       - is_primary
       - "mom.r >= 0.1"
       - "mom.abs_eta <= 2.44"
@@ -265,6 +266,7 @@ eval:
       - "isolation >= 0.02"
 
     charged_reconstructable_loose:
+      - is_charged
       - "num_sihit >= 3"
 
     charged_hadron_reconstructable_tight:

@@ -18,6 +18,7 @@ class MaskFormer(nn.Module):
         tasks: nn.ModuleList,
         dim: int,
         input_encoders: nn.ModuleList | None = None,
+        cross_type_encoder: nn.Module | None = None,
         target_object: str = "particle",
         pooling: nn.Module | None = None,
         matcher: nn.Module | None = None,
@@ -47,6 +48,7 @@ class MaskFormer(nn.Module):
 
         self.input_nets = input_nets
         self.input_encoders = input_encoders
+        self.cross_type_encoder = cross_type_encoder
         self.encoder = encoder
         self.decoder = decoder
         self.decoder.tasks = tasks
@@ -114,6 +116,10 @@ class MaskFormer(nn.Module):
                 mask = torch.cat([torch.full((inputs[i + "_valid"].shape[-1],), i == input_name, device=device) for i in self.input_names], dim=-1)
                 x[f"key_is_{input_name}"] = mask.unsqueeze(0).expand(batch_size, -1)
 
+        # Optional cross-type cross-attention between specified hit-type pairs
+        if self.cross_type_encoder is not None:
+            x = self.cross_type_encoder(x)
+
         # Merge the input constituents and the padding mask into a single set
         x["key_embed"] = torch.concatenate([x[input_name + "_embed"] for input_name in self.input_names], dim=-2)
         x["key_valid"] = torch.concatenate([x[input_name + "_valid"] for input_name in self.input_names], dim=-1)
@@ -166,6 +172,10 @@ class MaskFormer(nn.Module):
                 x["incidence"] = outputs["final"][task.name][task.incidence_key].detach()
             if isinstance(task, ObjectClassificationTask):
                 x["class_probs"] = outputs["final"][task.name][task.probs_key].detach()
+
+        # Store shared embeddings for MTL gradient conflict resolution
+        outputs["final"]["query_embed"] = x["query_embed"]
+        outputs["final"]["key_embed"] = x["key_embed"]
 
         # store info about the input sort field for each input type
         if self.sorter is not None:

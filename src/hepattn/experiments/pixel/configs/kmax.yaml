@@ -1,0 +1,31 @@
+name: pixel-kMax
+
+model:
+  model:
+    init_args:
+      decoder:
+        num_decoder_layers: 2
+        num_queries: 4
+
+        # kMaX / k-means CA works best without Mask2Former-style boolean attention masking.
+        mask_attention: false
+        use_query_masks: false
+        unmask_all_false: false
+
+        decoder_layer_config:
+          dim: 128
+          norm: CustomLayerNorm
+          hybrid_norm: true
+          dense_kwargs: {activation: SwiGLU}
+          attn_kwargs: {bias: false}
+
+          # Enable k-means cross-attention updates.
+          cross_attn_mode: kmeans
+
+          # kMaX-like behavior: do not update keys/values from queries.
+          bidirectional_ca: false
+
+          kmeans_kwargs:
+            update: mean
+            value_proj: true
+            mask_attn: false

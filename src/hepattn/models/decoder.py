@@ -38,8 +38,16 @@ class MaskFormerDecoder(nn.Module):
         block_size: int = 128,
         unified_decoding: bool = False,
         phi_shift: float = 0.0,
-        unmask_all_false: bool = True,
+        unmask_all_false: bool = False,
         kmeans_affinity_task: str | list[str] | None = None,
+        per_input_decoding: bool = False,
+        num_input_types: int | None = None,
+        query_dim_slices: dict[str, list[int]] | None = None,
+        split_query_types: list[str] | None = None,
+        cross_query_attn: bool = False,
+        num_tracking_layers: int = 0,
+        tracking_input_names: list[str] | None = None,
+        query_slot_ranges: dict[str, list[int]] | None = None,
     ):
         """MaskFormer decoder that handles multiple decoder layers and task integration.
 
@@ -60,13 +68,101 @@ class MaskFormerDecoder(nn.Module):
             unmask_all_false: If True, queries with all-false attention masks will be unmasked to attend everywhere.
             kmeans_affinity_task: If using cross_attn_mode="kmeans", optionally select which task name(s)
                 provide affinity logits via affinity(). If None, all task affinities in that layer are combined.
+            per_input_decoding: If True, each input type gets its own dedicated decoder layer per macro-layer.
+                Queries are updated sequentially by attending to each hit type through its own decoder.
+                Requires unified_decoding=False and num_input_types to be set.
+            num_input_types: Number of input hit types. Required when per_input_decoding=True.
+            query_dim_slices: Optional mapping from input type name to [start, end] index range (exclusive end)
+                defining which slice of the query embedding is exclusively updated by that hit type.
+                Requires per_input_decoding=True. All dims from max(end) onwards are treated as shared and
+                are updated by every hit type. Hit types not listed here only update the shared dims.
+                Example: {"vtxd": [0, 32], "trkr": [32, 64]} with dim=256 gives vtxd dims [0:32],
+                trkr dims [32:64], and shared dims [64:256] updated by all types.
+            split_query_types: Optional list of input type names that each receive their own independent
+                learned initial query embedding (nn.Parameter). Requires per_input_decoding=True.
+                Types not listed fall back to the shared initial_queries. With full gradient isolation:
+                the tracker loss cannot contaminate calo initial query params and vice versa.
+                Per-type queries are stored in x["query_embed_{name}"] for downstream task use.
+                x["query_embed"] is set to the mean of all per-type queries for shared task compatibility.
+            cross_query_attn: If True (and split_query_types is set), add one self-attention + FFN layer
+                per macro-decoder-layer that operates over all per-type queries concatenated along the
+                sequence dim. This allows information to flow between per-type query sets while keeping
+                the initial query parameters gradient-isolated.
         """
         super().__init__()
 
-        self.decoder_layers = nn.ModuleList([MaskFormerDecoderLayer(depth=i, **decoder_layer_config) for i in range(num_decoder_layers)])
+        self.per_input_decoding = per_input_decoding
+        self.num_tracking_layers = num_tracking_layers
+        self.tracking_input_names = tracking_input_names or []
+        self.query_slot_ranges = query_slot_ranges
+        if per_input_decoding:
+            if num_input_types is None:
+                raise ValueError("num_input_types must be specified when per_input_decoding=True")
+            if unified_decoding:
+                raise ValueError("per_input_decoding is incompatible with unified_decoding")
+            if local_strided_attn:
+                raise ValueError("per_input_decoding is incompatible with local_strided_attn")
+            num_tracking_types = len(self.tracking_input_names)
+            depth_offset = num_tracking_layers * num_tracking_types
+            # Tracking phase layers: num_tracking_layers x num_tracking_types
+            if num_tracking_layers > 0:
+                self.tracking_decoder_layers = nn.ModuleList([
+                    nn.ModuleList([
+                        MaskFormerDecoderLayer(depth=i * num_tracking_types + j, **decoder_layer_config)
+                        for j in range(num_tracking_types)
+                    ])
+                    for i in range(num_tracking_layers)
+                ])
+            # Combined phase layers: num_decoder_layers x num_input_types
+            # decoder_layers[i][j] = layer for macro-layer i, input type j
+            self.decoder_layers = nn.ModuleList([
+                nn.ModuleList([
+                    MaskFormerDecoderLayer(depth=depth_offset + i * num_input_types + j, **decoder_layer_config)
+                    for j in range(num_input_types)
+                ])
+                for i in range(num_decoder_layers)
+            ])
+        else:
+            self.decoder_layers = nn.ModuleList([MaskFormerDecoderLayer(depth=i, **decoder_layer_config) for i in range(num_decoder_layers)])
+
+        if query_dim_slices is not None and not per_input_decoding:
+            raise ValueError("query_dim_slices requires per_input_decoding=True")
+        self.query_dim_slices = query_dim_slices
+        self.query_shared_start = max(s[1] for s in query_dim_slices.values()) if query_dim_slices else 0
         self.dim = decoder_layer_config["dim"]
         self.tasks: list | None = None  # Will be set by MaskFormer
         self.num_queries = num_queries
+
+        # Split initial queries: separate learned nn.Parameter per input type
+        self.split_query_types = split_query_types
+        if split_query_types is not None:
+            if not per_input_decoding:
+                raise ValueError("split_query_types requires per_input_decoding=True")
+            self.per_type_initial_queries = nn.ParameterDict({
+                name: nn.Parameter(torch.randn(num_queries, decoder_layer_config["dim"]))
+                for name in split_query_types
+            })
+
+        # Cross-query self-attention: one SA+FFN layer per macro-layer over concatenated per-type queries
+        # Covers both tracking and combined phases: entries 0..num_tracking_layers-1 are tracking,
+        # entries num_tracking_layers..num_tracking_layers+num_decoder_layers-1 are combined.
+        self.cross_query_attn = cross_query_attn and split_query_types is not None
+        if self.cross_query_attn:
+            _dim = decoder_layer_config["dim"]
+            _norm = decoder_layer_config.get("norm", "LayerNorm")
+            _hybrid_norm = decoder_layer_config.get("hybrid_norm", False)
+            _attn_kwargs = decoder_layer_config.get("attn_kwargs", {})
+            _dense_kwargs = decoder_layer_config.get("dense_kwargs", {})
+            _attn_norm, _dense_post_norm, _ = get_hybrid_norm_config(_norm, 0, _hybrid_norm, False)
+            _residual = partial(Residual, dim=_dim)
+            total_cqa_layers = num_tracking_layers + num_decoder_layers
+            self.cross_query_sa_layers = nn.ModuleList([
+                nn.ModuleList([
+                    _residual(Attention(_dim, **_attn_kwargs), norm=_attn_norm),
+                    _residual(Dense(_dim, **_dense_kwargs), norm=_norm, post_norm=_dense_post_norm),
+                ])
+                for _ in range(total_cqa_layers)
+            ])
         self.mask_attention = mask_attention
         self.use_query_masks = use_query_masks
         self.posenc = posenc
@@ -108,6 +204,16 @@ class MaskFormerDecoder(nn.Module):
         x["query_embed"] = self.initial_queries.expand(batch_size, -1, -1)
         x["query_valid"] = torch.full((batch_size, self.num_queries), True, device=x["query_embed"].device)
 
+        # For split-query mode: initialise per-type query embeddings from separate parameters
+        if self.split_query_types is not None:
+            for name in input_names:
+                if name in self.per_type_initial_queries:
+                    x[f"query_embed_{name}"] = self.per_type_initial_queries[name].expand(batch_size, -1, -1)
+                else:
+                    x[f"query_embed_{name}"] = x["query_embed"]
+            # Shared query = mean of per-type queries; used by tasks for class prediction etc.
+            x["query_embed"] = torch.stack([x[f"query_embed_{n}"] for n in input_names], dim=0).mean(0)
+
         if self.posenc:
             x["query_posenc"], x["key_posenc"] = self.generate_positional_encodings(x)
 
@@ -126,114 +232,307 @@ class MaskFormerDecoder(nn.Module):
                 attn_mask_transpose = transpose_blockmask(attn_mask, q_tokens=q_len, kv_tokens=kv_len, dev=device)
 
         outputs: dict[str, dict] = {}
-        for layer_index, decoder_layer in enumerate(self.decoder_layers):
-            outputs[f"layer_{layer_index}"] = {}
 
-            # if maskattention, PE should be added before generating the mask
-            if self.posenc and self.mask_attention:
-                x["query_embed"] = x["query_embed"] + x["query_posenc"]
-                x["key_embed"] = x["key_embed"] + x["key_posenc"]
+        if self.per_input_decoding:
+            # Helper to run one macro-layer's worth of per-type decoder updates.
+            # Returns the layer output dict (filled with task outputs for active tasks).
+            def _run_per_input_macro_layer(
+                layer_index: int,
+                type_layers: nn.ModuleList,
+                active_type_names: list[str],
+                active_task_stages,
+                cqa_index: int,
+            ) -> dict:
+                layer_out: dict = {}
+                query_mask = None
 
-            attn_masks: dict[str, torch.Tensor] = {}
-            query_mask = None
-
-            assert self.tasks is not None
-            for task in self.tasks:
-                if not task.has_intermediate_loss:
-                    continue
-                if layer_index == 0 and not task.has_first_layer_loss:
-                    continue
-
-                # Get the outputs of the task given the current embeddings
-                task_outputs = task(x)
-
-                # Update x with task outputs for downstream use
-                if isinstance(task, IncidenceRegressionTask):
-                    x["incidence"] = task_outputs[task.incidence_key].detach()
-                if isinstance(task, ObjectClassificationTask):
-                    x["class_probs"] = task_outputs[task.probs_key].detach()
-
-                outputs[f"layer_{layer_index}"][task.name] = task_outputs
-
-                # Collect attention masks from different tasks
-                task_attn_masks = task.attn_mask(task_outputs)
-                for input_name, task_attn_mask in task_attn_masks.items():
-                    if input_name in attn_masks:
-                        attn_masks[input_name] |= task_attn_mask
-                    else:
-                        attn_masks[input_name] = task_attn_mask
-
-                # Collect query masks
-                if self.use_query_masks:
-                    task_query_mask = task.query_mask(task_outputs)
-                    if task_query_mask is not None:
-                        query_mask = task_query_mask if query_mask is None else query_mask | task_query_mask
-                        x["query_mask"] = query_mask
-
-            # Construct the full attention mask for MaskAttention decoder
-            if attn_masks and self.mask_attention:
-                if self.unified_decoding:
-                    if len(attn_masks) > 1:
-                        raise ValueError(f"In merged input mode, expected only one attention mask, got {len(attn_masks)}")
-                    attn_mask = next(iter(attn_masks.values()))
-                    if attn_mask.dim() == 2:  # (batch, num_queries) -> (batch, num_queries, num_constituents)
-                        attn_mask = attn_mask.unsqueeze(-1).expand(-1, -1, num_constituents)
-                else:
-                    attn_mask = torch.full((batch_size, self.num_queries, num_constituents), False, device=x["key_embed"].device)
-                    for input_name, task_attn_mask in attn_masks.items():
-                        attn_mask[x[f"key_is_{input_name}"].unsqueeze(1).expand_as(attn_mask)] = task_attn_mask.flatten()
-
-                attn_mask = attn_mask.detach()
-                # If the attn mask is completely invalid for a given query, allow it to attend everywhere
-                if self.unmask_all_false:
-                    attn_mask = torch.where(torch.all(~attn_mask, dim=-1, keepdim=True), True, attn_mask)
-
-            if (attn_mask is not None) and self.attn_type != "flex":
-                outputs[f"layer_{layer_index}"]["attn_mask"] = attn_mask
-
-            # If this decoder layer uses kmeans cross-attn, provide affinity logits (B, N, M_total)
-            affinity_logits = None
-            if getattr(decoder_layer, "cross_attn_mode", "softmax") == "kmeans":
-                requested_names = None
-                if self.kmeans_affinity_task is not None:
-                    if isinstance(self.kmeans_affinity_task, str):
-                        requested_names = {self.kmeans_affinity_task}
-                    else:
-                        requested_names = set(self.kmeans_affinity_task)
-
+                assert self.tasks is not None
                 for task in self.tasks:
-                    if requested_names is not None and task.name not in requested_names:
+                    if not task.has_intermediate_loss:
+                        continue
+                    if layer_index == 0 and not task.has_first_layer_loss:
+                        continue
+                    # Only include tasks whose stage is in the allowed set
+                    if getattr(task, "task_stage", 0) not in active_task_stages:
                         continue
 
-                    task_outputs = outputs[f"layer_{layer_index}"].get(task.name)
-                    if task_outputs is None:
-                        task_outputs = task(x)
+                    task_outputs = task(x)
 
-                    task_affinity = task.affinity(task_outputs, x, num_constituents)
-                    if task_affinity is None:
-                        continue
+                    if isinstance(task, IncidenceRegressionTask):
+                        x["incidence"] = task_outputs[task.incidence_key].detach()
+                    if isinstance(task, ObjectClassificationTask):
+                        x["class_probs"] = task_outputs[task.probs_key].detach()
 
-                    if affinity_logits is None:
-                        affinity_logits = task_affinity
+                    layer_out[task.name] = task_outputs
+
+                    if self.use_query_masks:
+                        task_query_mask = task.query_mask(task_outputs)
+                        if task_query_mask is not None:
+                            query_mask = task_query_mask if query_mask is None else query_mask | task_query_mask
+                            x["query_mask"] = query_mask
+
+                # Collect per-type attention masks from tasks
+                attn_masks: dict[str, torch.Tensor] = {}
+                if self.mask_attention:
+                    for task in self.tasks:
+                        task_outputs_for_mask = layer_out.get(task.name)
+                        if task_outputs_for_mask is None:
+                            continue
+                        for input_name, task_attn_mask in task.attn_mask(task_outputs_for_mask).items():
+                            if input_name in attn_masks:
+                                attn_masks[input_name] |= task_attn_mask
+                            else:
+                                attn_masks[input_name] = task_attn_mask
+
+                # Compute merged affinity logits (B, N, M_total) then slice per type below
+                affinity_logits = None
+                if getattr(type_layers[0], "cross_attn_mode", "softmax") == "kmeans":
+                    requested_names = None
+                    if self.kmeans_affinity_task is not None:
+                        if isinstance(self.kmeans_affinity_task, str):
+                            requested_names = {self.kmeans_affinity_task}
+                        else:
+                            requested_names = set(self.kmeans_affinity_task)
+
+                    for task in self.tasks:
+                        if requested_names is not None and task.name not in requested_names:
+                            continue
+                        # Skip tasks not active in this phase
+                        if getattr(task, "task_stage", 0) not in active_task_stages:
+                            continue
+
+                        task_out = layer_out.get(task.name)
+                        if task_out is None:
+                            task_out = task(x)
+
+                        task_affinity = task.affinity(task_out, x, num_constituents)
+                        if task_affinity is None:
+                            continue
+
+                        affinity_logits = task_affinity if affinity_logits is None else torch.maximum(affinity_logits, task_affinity)
+
+                # Update queries sequentially, one hit type at a time
+                for input_name, type_layer in zip(active_type_names, type_layers):
+                    x_type = x[f"{input_name}_embed"]
+                    kv_mask_type = x.get(f"{input_name}_valid")
+
+                    # Slice affinity to just this type's hits: (B, N, M_type)
+                    per_type_affinity = None
+                    if affinity_logits is not None:
+                        type_mask = x[f"key_is_{input_name}"][0]  # (M_total,) bool
+                        per_type_affinity = affinity_logits[:, :, type_mask]
+
+                        # Apply query slot range masking: restrict which query slots
+                        # can be assigned to this hit type via kMaX argmax.
+                        if self.query_slot_ranges is not None and input_name in self.query_slot_ranges:
+                            start, end = self.query_slot_ranges[input_name]
+                            N = per_type_affinity.shape[1]
+                            slot_mask = torch.zeros(N, dtype=torch.bool, device=per_type_affinity.device)
+                            slot_mask[start:end] = True
+                            per_type_affinity = per_type_affinity.masked_fill(~slot_mask.view(1, N, 1), float("-inf"))
+
+                    # Slice attention mask to this type's hits: (B, N, M_type)
+                    per_type_attn_mask = None
+                    if self.mask_attention and input_name in attn_masks:
+                        per_type_attn_mask = attn_masks[input_name].detach()
+                        if self.unmask_all_false:
+                            per_type_attn_mask = torch.where(
+                                torch.all(~per_type_attn_mask, dim=-1, keepdim=True),
+                                True,
+                                per_type_attn_mask,
+                            )
+
+                    # Use per-type query when in split-query mode, else the shared query
+                    if self.split_query_types is not None:
+                        old_query = x[f"query_embed_{input_name}"]
                     else:
-                        affinity_logits = torch.maximum(affinity_logits, task_affinity)
+                        old_query = x["query_embed"]
 
-            # Update the keys and queries
-            x["query_embed"], x["key_embed"] = decoder_layer(
-                x["query_embed"],
-                x["key_embed"],
-                attn_mask=attn_mask,
-                q_mask=x.get("query_mask"),
-                kv_mask=x.get("key_valid"),
-                query_posenc=x["query_posenc"] if self.posenc else None,
-                key_posenc=x["key_posenc"] if self.posenc else None,
-                attn_mask_transpose=attn_mask_transpose,
-                affinity_logits=affinity_logits,
-            )
+                    new_query, new_kv = type_layer(
+                        old_query,
+                        x_type,
+                        attn_mask=per_type_attn_mask,
+                        q_mask=x.get("query_mask"),
+                        kv_mask=kv_mask_type,
+                        query_posenc=None,
+                        key_posenc=None,
+                        affinity_logits=per_type_affinity,
+                    )
 
-            # update the individual input constituent representations only if not in merged input mode
-            if not self.unified_decoding:
-                x = unmerge_inputs(x, input_names)
+                    if self.split_query_types is not None:
+                        x[f"query_embed_{input_name}"] = new_query
+                    elif self.query_dim_slices is not None:
+                        merged = old_query.clone()
+                        merged[..., self.query_shared_start:] = new_query[..., self.query_shared_start:]
+                        if input_name in self.query_dim_slices:
+                            s, e = self.query_dim_slices[input_name]
+                            merged[..., s:e] = new_query[..., s:e]
+                        x["query_embed"] = merged
+                    else:
+                        x["query_embed"] = new_query
+                    x[f"{input_name}_embed"] = new_kv
+
+                # Cross-query self-attention over the active per-type query sets
+                if self.cross_query_attn:
+                    N = self.num_queries
+                    q_all = torch.cat([x[f"query_embed_{n}"] for n in active_type_names], dim=1)
+                    sa_layer, dense_layer = self.cross_query_sa_layers[cqa_index]
+                    q_all = sa_layer(q_all, k=q_all, v=q_all)
+                    q_all = dense_layer(q_all)
+                    for i, n in enumerate(active_type_names):
+                        x[f"query_embed_{n}"] = q_all[:, i * N : (i + 1) * N]
+
+                # Update shared query_embed to mean of ALL per-type queries for task calls
+                if self.split_query_types is not None:
+                    x["query_embed"] = torch.stack([x[f"query_embed_{n}"] for n in input_names], dim=0).mean(0)
+
+                # Scatter updated per-type embeds back into key_embed for task consistency
+                embed_dim = x["key_embed"].shape[-1]
+                new_key_embed = torch.empty_like(x["key_embed"])
+                for name in input_names:
+                    type_mask = x[f"key_is_{name}"]  # (B, M_total)
+                    new_key_embed[type_mask] = x[f"{name}_embed"].reshape(-1, embed_dim)
+                x["key_embed"] = new_key_embed
+
+                return layer_out
+
+            # --- Tracking phase (silicon-only layers) ---
+            if self.num_tracking_layers > 0:
+                for layer_index, type_layers in enumerate(self.tracking_decoder_layers):
+                    outputs[f"tracking_layer_{layer_index}"] = _run_per_input_macro_layer(
+                        layer_index=layer_index,
+                        type_layers=type_layers,
+                        active_type_names=self.tracking_input_names,
+                        active_task_stages={0, 1},
+                        cqa_index=layer_index,
+                    )
+
+                # Detach tracking-type queries so calo gradients cannot flow back into
+                # the tracking decoder parameters.
+                for name in self.tracking_input_names:
+                    x[f"query_embed_{name}"] = x[f"query_embed_{name}"].detach()
+                if self.split_query_types is not None:
+                    x["query_embed"] = torch.stack([x[f"query_embed_{n}"] for n in input_names], dim=0).mean(0)
+
+            # --- Combined phase (all hit types) ---
+            for layer_index, type_layers in enumerate(self.decoder_layers):
+                outputs[f"layer_{layer_index}"] = _run_per_input_macro_layer(
+                    layer_index=layer_index,
+                    type_layers=type_layers,
+                    active_type_names=input_names,
+                    active_task_stages={0, 2} if self.num_tracking_layers > 0 else {0, 1, 2},
+                    cqa_index=self.num_tracking_layers + layer_index,
+                )
+
+        else:
+            for layer_index, decoder_layer in enumerate(self.decoder_layers):
+                outputs[f"layer_{layer_index}"] = {}
+
+                # if maskattention, PE should be added before generating the mask
+                if self.posenc and self.mask_attention:
+                    x["query_embed"] = x["query_embed"] + x["query_posenc"]
+                    x["key_embed"] = x["key_embed"] + x["key_posenc"]
+
+                attn_masks: dict[str, torch.Tensor] = {}
+                query_mask = None
+
+                assert self.tasks is not None
+                for task in self.tasks:
+                    if not task.has_intermediate_loss:
+                        continue
+                    if layer_index == 0 and not task.has_first_layer_loss:
+                        continue
+
+                    # Get the outputs of the task given the current embeddings
+                    task_outputs = task(x)
+
+                    # Update x with task outputs for downstream use
+                    if isinstance(task, IncidenceRegressionTask):
+                        x["incidence"] = task_outputs[task.incidence_key].detach()
+                    if isinstance(task, ObjectClassificationTask):
+                        x["class_probs"] = task_outputs[task.probs_key].detach()
+
+                    outputs[f"layer_{layer_index}"][task.name] = task_outputs
+
+                    # Collect attention masks from different tasks
+                    task_attn_masks = task.attn_mask(task_outputs)
+                    for input_name, task_attn_mask in task_attn_masks.items():
+                        if input_name in attn_masks:
+                            attn_masks[input_name] |= task_attn_mask
+                        else:
+                            attn_masks[input_name] = task_attn_mask
+
+                    # Collect query masks
+                    if self.use_query_masks:
+                        task_query_mask = task.query_mask(task_outputs)
+                        if task_query_mask is not None:
+                            query_mask = task_query_mask if query_mask is None else query_mask | task_query_mask
+                            x["query_mask"] = query_mask
+
+                # Construct the full attention mask for MaskAttention decoder
+                if attn_masks and self.mask_attention:
+                    if self.unified_decoding:
+                        if len(attn_masks) > 1:
+                            raise ValueError(f"In merged input mode, expected only one attention mask, got {len(attn_masks)}")
+                        attn_mask = next(iter(attn_masks.values()))
+                        if attn_mask.dim() == 2:  # (batch, num_queries) -> (batch, num_queries, num_constituents)
+                            attn_mask = attn_mask.unsqueeze(-1).expand(-1, -1, num_constituents)
+                    else:
+                        attn_mask = torch.full((batch_size, self.num_queries, num_constituents), False, device=x["key_embed"].device)
+                        for input_name, task_attn_mask in attn_masks.items():
+                            attn_mask[x[f"key_is_{input_name}"].unsqueeze(1).expand_as(attn_mask)] = task_attn_mask.flatten()
+
+                    attn_mask = attn_mask.detach()
+                    # If the attn mask is completely invalid for a given query, allow it to attend everywhere
+                    if self.unmask_all_false:
+                        attn_mask = torch.where(torch.all(~attn_mask, dim=-1, keepdim=True), True, attn_mask)
+
+                if (attn_mask is not None) and self.attn_type != "flex":
+                    outputs[f"layer_{layer_index}"]["attn_mask"] = attn_mask
+
+                # If this decoder layer uses kmeans cross-attn, provide affinity logits (B, N, M_total)
+                affinity_logits = None
+                if getattr(decoder_layer, "cross_attn_mode", "softmax") == "kmeans":
+                    requested_names = None
+                    if self.kmeans_affinity_task is not None:
+                        if isinstance(self.kmeans_affinity_task, str):
+                            requested_names = {self.kmeans_affinity_task}
+                        else:
+                            requested_names = set(self.kmeans_affinity_task)
+
+                    for task in self.tasks:
+                        if requested_names is not None and task.name not in requested_names:
+                            continue
+
+                        task_outputs = outputs[f"layer_{layer_index}"].get(task.name)
+                        if task_outputs is None:
+                            task_outputs = task(x)
+
+                        task_affinity = task.affinity(task_outputs, x, num_constituents)
+                        if task_affinity is None:
+                            continue
+
+                        if affinity_logits is None:
+                            affinity_logits = task_affinity
+                        else:
+                            affinity_logits = torch.maximum(affinity_logits, task_affinity)
+
+                # Update the keys and queries
+                x["query_embed"], x["key_embed"] = decoder_layer(
+                    x["query_embed"],
+                    x["key_embed"],
+                    attn_mask=attn_mask,
+                    q_mask=x.get("query_mask"),
+                    kv_mask=x.get("key_valid"),
+                    query_posenc=x["query_posenc"] if self.posenc else None,
+                    key_posenc=x["key_posenc"] if self.posenc else None,
+                    attn_mask_transpose=attn_mask_transpose,
+                    affinity_logits=affinity_logits,
+                )
+
+                # update the individual input constituent representations only if not in merged input mode
+                if not self.unified_decoding:
+                    x = unmerge_inputs(x, input_names)
 
         return x, outputs
 

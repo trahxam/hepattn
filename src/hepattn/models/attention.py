@@ -232,6 +232,10 @@ class Attention(nn.Module):
         x = x.unflatten(-1, (num_heads, -1))  # B S D -> B S H Dh
         if self.attn_type not in FLASH_ATTN_TYPES:
             x = x.transpose(-3, -2)  # B S H Dh -> B H S Dh
+        else:
+            # F._in_projection_packed chunks the projection output, producing non-contiguous views
+            # (stride of seq dim = 3*D instead of D). Contiguous is required by flash attention backends.
+            x = x.contiguous()
         return x
 
     def recombine_heads(self, x: Tensor) -> Tensor:
@@ -285,7 +289,10 @@ class Attention(nn.Module):
     def _flash_varlen_attention(self, q: Tensor, k: Tensor, v: Tensor, cu_seqlens: Tensor, max_seqlen: int) -> Tensor:
         # Assume unpadding has been handled by the caller, so inputs are (1, total_valid_tokens, dim)
         # Flatten for flash attention which expects (total_valid_tokens, num_heads, head_dim)
-        q_flat, k_flat, v_flat = q.squeeze(0), k.squeeze(0), v.squeeze(0)
+        # .contiguous() is required by flash attention 3 (Hopper) which requires stride-1 last dim
+        q_flat = q.squeeze(0).contiguous()
+        k_flat = k.squeeze(0).contiguous()
+        v_flat = v.squeeze(0).contiguous()
         out = self.attn(q_flat, k_flat, v_flat, cu_seqlens, cu_seqlens, max_seqlen, max_seqlen, window_size=self.window_size)
         return out.view(q.shape[0], -1, self.dim)
 

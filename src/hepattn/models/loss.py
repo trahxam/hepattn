@@ -332,6 +332,36 @@ def mask_bce_cost(pred_logits, targets, input_pad_mask=None, sample_weight=None)
         return cost
 
 
+def mask_recall_cost(pred_logits, targets, input_pad_mask=None, sample_weight=None, eps=1e-8):
+    """Recall-only cost: 1 - intersection / num_target_hits.
+    Only penalizes false negatives (missed target hits), not false positives (extra predicted hits).
+    This avoids penalizing a query for predicting hits that belong to overlapping nearby particles.
+
+    Args:
+        pred_logits: [batch_size, num_objects, num_inputs] - predicted logits for binary masks
+        targets: [batch_size, num_objects, num_inputs] - ground truth binary masks
+        input_pad_mask: [batch_size, num_inputs] - mask indicating valid inputs
+        sample_weight: Not used
+        eps: Small value to avoid division by zero
+
+    Returns:
+        cost: [batch_size, num_objects, num_objects] - recall cost matrix
+    """
+    assert sample_weight is None
+    inputs = pred_logits.sigmoid()
+
+    if input_pad_mask is not None:
+        inputs = inputs * input_pad_mask.unsqueeze(1)
+
+    with torch.autocast(device_type="cuda", enabled=False):
+        intersection = torch.einsum("bnc,bmc->bnm", inputs, targets)
+        num_targets = targets.sum(-1).unsqueeze(1)  # (B, 1, M)
+        recall = intersection / num_targets.clamp_min(eps)
+        # If target is empty, treat as perfect match (nothing to recall)
+        recall = torch.where(num_targets == 0, torch.ones_like(recall), recall)
+        return 1 - recall
+
+
 def mask_bce_balanced_cost(pred_logits, targets, input_pad_mask=None, sample_weight=None):
     """Balanced BCE cost with equal weight on positive and negative targets."""
     pred_logits = torch.clamp(pred_logits, -100, 100)
@@ -475,6 +505,7 @@ cost_fns = {
     "mask_bce": torch.compile(mask_bce_cost, dynamic=True),
     "mask_bce_balanced": torch.compile(mask_bce_balanced_cost, dynamic=True),
     "mask_dice": torch.compile(mask_dice_cost, dynamic=True),
+    "mask_recall": torch.compile(mask_recall_cost, dynamic=True),
     "mask_focal": torch.compile(mask_focal_cost, dynamic=True),
     "mask_iou": torch.compile(mask_iou_cost, dynamic=True),
     "kl_div": torch.compile(kl_div_cost, dynamic=True),

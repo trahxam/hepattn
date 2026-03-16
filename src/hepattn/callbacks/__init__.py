@@ -1,6 +1,7 @@
 from hepattn.callbacks.attn_mask_logger import AttnMaskLogger
 from hepattn.callbacks.checkpoint import Checkpoint
 from hepattn.callbacks.compile import Compile
+from hepattn.callbacks.grad_conflict import GradConflictLogger
 from hepattn.callbacks.gradient_logger import GradientLoggerCallback
 from hepattn.callbacks.inference_timer import InferenceTimer
 from hepattn.callbacks.prediction_writer import PredictionWriter
@@ -13,6 +14,7 @@ __all__ = [
     "AttnMaskLogger",
     "Checkpoint",
     "Compile",
+    "GradConflictLogger",
     "GradientLoggerCallback",
     "InferenceTimer",
     "MyThroughputMonitor",

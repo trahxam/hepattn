@@ -1,4 +1,4 @@
-name: CLD_Tracking_SeparateHitEncoders_v0
+name: CLD_Combined_f32_v0
 
 matmul_precision: high
 
@@ -28,12 +28,16 @@ data:
   particle_min_pt: 0.01
   particle_max_abs_eta: 4.0
 
-  # Whether to include charged / neutral particles as targets
-  include_charged: true
-  include_neutral: false
+  # Which particle classes to include as targets (null means include all)
+  include_classes:
+    - neutral_hadron
+    - charged_hadron
+    - photon
+    - electron
+    - muon
 
   # Events with more particles than this are skipped
-  event_max_num_particles: &num_particles 512
+  event_max_num_particles: &num_particles 384
 
   # Number of query slots / particles to generate per event
   force_pad_sizes:
@@ -49,7 +53,7 @@ data:
   charged_particle_min_num_hits:
     vtxd: 0
     trkr: 0
-    sihit: 4
+    sihit: 3
 
   # Charged particle cuts based on hit content
   charged_particle_max_num_hits:
@@ -383,7 +387,7 @@ trainer:
   max_epochs: 10
   accelerator: gpu
   devices: 1
-  precision: bf16-mixed
+  precision: 32-true
   log_every_n_steps: 10
   val_check_interval: 1000
   default_root_dir: logs
@@ -416,6 +420,9 @@ trainer:
     - class_path: lightning.pytorch.callbacks.TQDMProgressBar
       init_args:
         refresh_rate: 10
+    - class_path: hepattn.callbacks.GradConflictLogger
+      init_args:
+        log_every_n_steps: 100
 
 model:
   optimizer: lion
@@ -517,35 +524,116 @@ model:
                       - pos.theta
                       - pos.phi
 
-      input_encoders:
-        class_path: torch.nn.ModuleList
-        init_args:
-          modules:
-            # Order matches input_nets: vtxd, trkr
-            - class_path: hepattn.models.Encoder
+            - class_path: hepattn.models.InputNet
               init_args:
-                num_layers: 8
-                dim: *dim
-                attn_type: flash-varlen
-                window_size: 1024
-                window_wrap: false
-                hybrid_norm: true
-                norm: CustomLayerNorm
-                dense_kwargs: {activation: SwiGLU}
-                attn_kwargs: {bias: false}
-            - class_path: hepattn.models.Encoder
-              init_args:
-                num_layers: 8
-                dim: *dim
-                attn_type: flash-varlen
-                window_size: 1024
-                window_wrap: false
-                hybrid_norm: true
-                norm: CustomLayerNorm
-                dense_kwargs: {activation: SwiGLU}
-                attn_kwargs: {bias: false}
+                input_name: ecal
+                input_dtype: float32
+                fields:
+                  - pos.x
+                  - pos.y
+                  - pos.z
+                  - pos.s
+                  - pos.r
+                  - pos.theta
+                  - pos.phi
+                  - log_energy
+                net:
+                  class_path: hepattn.models.Dense
+                  init_args:
+                    input_size: 8
+                    hidden_layers: [128]
+                    output_size: *dim
+                    activation: SwiGLU
+                posenc:
+                  class_path: hepattn.models.posenc.PositionEncoder
+                  init_args:
+                    input_name: ecal
+                    dim: *dim
+                    fields:
+                      - pos.x
+                      - pos.y
+                      - pos.z
+                      - pos.r
+                      - pos.theta
+                      - pos.phi
 
-      encoder: null
+            - class_path: hepattn.models.InputNet
+              init_args:
+                input_name: hcal
+                input_dtype: float32
+                fields:
+                  - pos.x
+                  - pos.y
+                  - pos.z
+                  - pos.s
+                  - pos.r
+                  - pos.theta
+                  - pos.phi
+                  - log_energy
+                net:
+                  class_path: hepattn.models.Dense
+                  init_args:
+                    input_size: 8
+                    hidden_layers: [128]
+                    output_size: *dim
+                    activation: SwiGLU
+                posenc:
+                  class_path: hepattn.models.posenc.PositionEncoder
+                  init_args:
+                    input_name: hcal
+                    dim: *dim
+                    fields:
+                      - pos.x
+                      - pos.y
+                      - pos.z
+                      - pos.r
+                      - pos.theta
+                      - pos.phi
+
+            - class_path: hepattn.models.InputNet
+              init_args:
+                input_name: muon
+                input_dtype: float32
+                fields:
+                  - pos.x
+                  - pos.y
+                  - pos.z
+                  - pos.s
+                  - pos.r
+                  - pos.theta
+                  - pos.phi
+                net:
+                  class_path: hepattn.models.Dense
+                  init_args:
+                    input_size: 7
+                    hidden_layers: [128]
+                    output_size: *dim
+                    activation: SwiGLU
+                posenc:
+                  class_path: hepattn.models.posenc.PositionEncoder
+                  init_args:
+                    input_name: muon
+                    dim: *dim
+                    fields:
+                      - pos.x
+                      - pos.y
+                      - pos.z
+                      - pos.r
+                      - pos.theta
+                      - pos.phi
+
+      encoder:
+        class_path: hepattn.models.Encoder
+        init_args:
+          num_layers: 8
+          dim: *dim
+          attn_type: torch
+          # window_size: 1024
+          # window_wrap: false
+          hybrid_norm: true
+          norm: CustomLayerNorm
+          dense_kwargs: {activation: SwiGLU}
+          attn_kwargs: {bias: false}
 
       decoder:
         num_decoder_layers: 4
@@ -582,9 +670,9 @@ model:
                 hits_included:
                   - trkr
                   - vtxd
-                  # - ecal
-                  # - hcal
-                  # - muon
+                  - ecal
+                  - hcal
+                  - muon
                 hit_mask_attn_thresholds: null
                 tracker_helix_fit: false
                 helix_fit_warmup_steps: 10000
@@ -594,10 +682,13 @@ model:
                 hit_loss_weights:
                   vtxd: {mask_dice: 1.0, mask_bce: 0.5}
                   trkr: {mask_dice: 1.0, mask_bce: 0.5}
-                  # ecal: {mask_dice: 1.0, mask_bce: 0.5}
-                  # hcal: {mask_dice: 1.0, mask_bce: 0.5}
-                  # muon: {mask_dice: 1.0, mask_bce: 0.5}
+                  ecal: {mask_dice: 1.0, mask_bce: 0.5}
+                  hcal: {mask_dice: 1.0, mask_bce: 0.5}
+                  muon: {mask_dice: 1.0, mask_bce: 0.5}
                 hit_cost_weights:
                   # vtxd: {mask_dice: 1.0}
                   # trkr: {mask_dice: 1.0}
                   sihit: {mask_dice: 1.0}
+                  ecal: {mask_dice: 1.0}
+                  hcal: {mask_dice: 1.0}
+                  muon: {mask_dice: 1.0}

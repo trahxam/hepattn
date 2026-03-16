@@ -608,9 +608,10 @@ def main() -> None:
             base_data.update(targets)
             base_data.update(inputs)
 
-            # Some datasets/configs may not explicitly include sihit as an input stream;
-            # build it from vtxd+trkr so sihit-based matching works consistently.
-            if "sihit_valid" not in base_data and "vtxd_valid" in base_data and "trkr_valid" in base_data:
+            # Always build sihit_valid from vtxd+trkr so it stays consistent with truth-filtered
+            # vtxd/trkr hits. If sihit is a raw model input (combined config), it may include noise
+            # hits not present in vtxd_valid/trkr_valid, causing size mismatches with flow masks.
+            if "vtxd_valid" in base_data and "trkr_valid" in base_data:
                 base_data["sihit_valid"] = torch.cat((base_data["vtxd_valid"], base_data["trkr_valid"]), dim=-1)
             return base_data
 

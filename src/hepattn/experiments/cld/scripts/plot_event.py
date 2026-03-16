@@ -8,7 +8,7 @@ import yaml
 import matplotlib.pyplot as plt
 
 
-config_path = Path("src/hepattn/experiments/cld/configs/base.yaml")
+config_path = Path("configs/base.yaml")
 config = yaml.safe_load(config_path.read_text())["data"]
 config["num_workers"] = 0
 
@@ -17,7 +17,7 @@ datamodule.setup(stage="test")
 
 test_dataloader = datamodule.test_dataloader()
 
-out_dir = Path("src/hepattn/experiments/cld/plots")
+out_dir = Path("cld/plots")
 out_dir.mkdir(parents=True, exist_ok=True)
 
 sample_ids = [

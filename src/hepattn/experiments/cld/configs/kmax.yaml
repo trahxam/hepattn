@@ -3,14 +3,19 @@ model:
     init_args:
       decoder:
         num_decoder_layers: 4
-        num_queries: 512
+        num_queries: 384
 
         # kMaX / k-means CA works best without Mask2Former-style boolean attention masking
         mask_attention: false
         use_query_masks: false
         unmask_all_false: false
-        
+
         kmeans_affinity_task: reco
+
+        # Per-input decoding: each hit type gets its own dedicated decoder layer per macro-layer.
+        # Queries are updated sequentially through each hit type's decoder rather than attending
+        # to all hit types merged together. Set num_input_types to match the number of input nets.
+        # per_input_decoding: true  # enable in sep configs; set num_input_types to match input_nets count
 
         decoder_layer_config:
           dim: 256
@@ -24,5 +29,5 @@ model:
           # k-means CA options
           kmeans_kwargs:
             update: mean          # "mean" is usually more stable than "sum"
-            value_proj: true      # learnable V projection
+            value_proj: false      # learnable V projection
             mask_attn: false      # since mask_attention is off anyway
