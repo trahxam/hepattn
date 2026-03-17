@@ -28,7 +28,7 @@ class CLDTask(Task):
         mask_dice_cost_logit_scale: float = 1.0,
         sihit_gated_calo_cost: bool = False,
         class_conditional_cost: bool = True,
-        hit_cost_classes: dict[str, list[str]] | None = None,
+        particle_cost_hits: dict[str, list[str]] | None = None,
         per_hit_class_loss_mask: bool = False,
         return_embeddings: bool = False,
         task_stage: int = 0,
@@ -36,6 +36,8 @@ class CLDTask(Task):
         neutral_query_slots: list[int] | None = None,
         class_query_slots: dict[str, list[int]] | None = None,
         use_slot_class: bool = False,
+        class_valid_hit: dict[str, str] | None = None,
+        mask_unphysical_hits: bool = False,
     ):
         super().__init__(has_intermediate_loss=has_intermediate_loss, task_stage=task_stage)
 
@@ -102,13 +104,17 @@ class CLDTask(Task):
             self.class_name_to_idx[c] for c in sihit_classes if c in self.class_name_to_idx
         ]
 
-        # Optional per-hit class override for the cost (independent of the loss masking).
-        # If provided, replaces hit_active_class_idxs for cost computation only.
-        if hit_cost_classes is not None:
-            self.hit_cost_class_idxs: dict[str, list[int]] = {
-                hit: [self.class_name_to_idx[c] for c in classes if c in self.class_name_to_idx]
-                for hit, classes in hit_cost_classes.items()
-            }
+        # Optional per-particle override for the cost (independent of the loss masking).
+        # Specified as particle_class -> [hit_types]; inverted to hit -> [class_idxs] for the cost loop.
+        # If not provided, falls back to hit_active_class_idxs (i.e. all hits expected for each class).
+        if particle_cost_hits is not None:
+            self.hit_cost_class_idxs: dict[str, list[int]] = {}
+            for class_name, hits in particle_cost_hits.items():
+                if class_name not in self.class_name_to_idx:
+                    continue
+                class_idx = self.class_name_to_idx[class_name]
+                for hit in hits:
+                    self.hit_cost_class_idxs.setdefault(hit, []).append(class_idx)
         else:
             self.hit_cost_class_idxs = self.hit_active_class_idxs
 
@@ -125,6 +131,8 @@ class CLDTask(Task):
         self.class_query_slots = class_query_slots  # {class_name: [start, end]}
         # When True: class is determined by slot assignment; class_net only predicts valid/null
         self.use_slot_class = use_slot_class and class_query_slots is not None
+        self.class_valid_hit = class_valid_hit  # maps class_name -> hit type for per-slot valid/null prediction
+        self.mask_unphysical_hits = mask_unphysical_hits and class_query_slots is not None
 
         # Network for particle classification (binary valid/null when slot class is used)
         self.class_net = Dense(dim, 1 if self.use_slot_class else len(self.class_name_to_idx))
@@ -182,7 +190,16 @@ class CLDTask(Task):
 
         if self.use_slot_class:
             B, N_q, _ = x["query_embed"].shape
-            valid_logit = self.class_net(x["query_embed"]).squeeze(-1)  # [B, N_q]
+            if self.class_valid_hit is not None and self.class_query_slots is not None:
+                # Use per-type query embeddings for each slot range to avoid cross-type mixing.
+                # Each class's slot range uses only its associated hit type's query embedding.
+                valid_logit = x["query_embed"].new_empty(B, N_q)
+                for class_name, (s, e) in self.class_query_slots.items():
+                    hit = self.class_valid_hit[class_name]
+                    q = x.get(f"query_embed_{hit}", x["query_embed"])
+                    valid_logit[:, s:e] = self.class_net(q[:, s:e]).squeeze(-1)
+            else:
+                valid_logit = self.class_net(x["query_embed"]).squeeze(-1)  # [B, N_q]
 
             # Build slot→class index mapping (cached after first call)
             if not hasattr(self, "_slot_class_idx") or self._slot_class_idx.shape[0] != N_q:
@@ -218,6 +235,12 @@ class CLDTask(Task):
             flow_hit_logit[~x[f"{hit}_valid"].unsqueeze(-2).expand_as(flow_hit_logit)] = torch.finfo(
                 flow_hit_logit.dtype
             ).min
+
+            # Set logits to -inf for slot ranges where this hit type is physically inactive
+            if self.mask_unphysical_hits:
+                for class_name, (s, e) in self.class_query_slots.items():
+                    if hit not in self.class_active_hits.get(class_name, []):
+                        flow_hit_logit[:, s:e, :] = torch.finfo(flow_hit_logit.dtype).min
 
             outputs[f"flow_{hit}_logit"] = flow_hit_logit
 

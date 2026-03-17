@@ -535,17 +535,28 @@ model:
       decoder:
         num_decoder_layers: 4
         num_queries: *num_particles
-        mask_attention: true
+        mask_attention: false
         use_query_masks: false
-        mask_attention: true
-        use_query_masks: false
-        unmask_all_false: true
+        unmask_all_false: false
+        kmeans_affinity_task: reco
+        # Per-type decoder layers: each hit type has its own decoder layer per macro-layer.
+        # No cross-query SA: per-type query sets never interact inside the decoder.
+        per_input_decoding: true
+        num_input_types: 5  # ecal, hcal, muon, vtxd, trkr
+        split_query_types: [ecal, hcal, muon, vtxd, trkr]
+        cross_query_attn: false
         decoder_layer_config:
           dim: *dim
           norm: CustomLayerNorm
           hybrid_norm: true
           dense_kwargs: {activation: SwiGLU}
           attn_kwargs: {bias: false}
+          cross_attn_mode: kmeans
+          bidirectional_ca: false
+          kmeans_kwargs:
+            update: mean
+            value_proj: false
+            mask_attn: false
 
       matcher:
         class_path: hepattn.models.matcher.Matcher

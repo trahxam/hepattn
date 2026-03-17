@@ -686,12 +686,12 @@ model:
                   ecal: {mask_dice: 1.0, mask_bce: 0.5}
                   hcal: {mask_dice: 1.0, mask_bce: 0.5}
                   muon: {mask_dice: 1.0, mask_bce: 0.5}
-                # Charged particles matched by sihit only; neutrals matched by calo only
-                hit_cost_classes:
-                  sihit: [charged_hadron, electron, muon]
-                  ecal: [neutral_hadron, photon]
-                  hcal: [neutral_hadron]
-                  muon: [muon]
+                particle_cost_hits:
+                  charged_hadron: [sihit, ecal, hcal]
+                  electron: [sihit, ecal]
+                  muon: [sihit, ecal, hcal, muon]
+                  neutral_hadron: [ecal, hcal]
+                  photon: [ecal]
                 hit_cost_weights:
                   sihit: {mask_dice: 1.0}
                   ecal: {mask_recall: 1.0}

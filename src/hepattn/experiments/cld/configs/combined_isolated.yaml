@@ -1,4 +1,4 @@
-name: CLD_Combined_Fixed_v0
+name: Combined_Isolated_ParticleClassQueries_SiCost
 
 matmul_precision: high
 
@@ -9,13 +9,13 @@ data:
   test_dir: /share/rcif2/maxhart/data/cld/prepped/test/
 
   # Number of events to include in each set
-  num_workers: 10
+  num_workers: 24
   num_train: -1
   num_test: 1000
   num_val: 100
 
   # Minibatch size / number of events used per training step
-  batch_size: 10
+  batch_size: 16
 
   # Precision of any float values returned by the dataloader
   input_dtype: float32
@@ -24,7 +24,7 @@ data:
   input_pad_value: 0.0
   target_pad_value: 0.0
 
-  # Minimum pT for a particle to be deemed reconstructable in GeV
+  # Minimum pT for a particle to be deemed reconstructve in GeV
   particle_min_pt: 0.01
   particle_max_abs_eta: 4.0
 
@@ -419,6 +419,9 @@ trainer:
     - class_path: lightning.pytorch.callbacks.TQDMProgressBar
       init_args:
         refresh_rate: 10
+    - class_path: hepattn.callbacks.GradConflictLogger
+      init_args:
+        log_every_n_steps: 100
 
 model:
   optimizer: lion
@@ -445,6 +448,82 @@ model:
         class_path: torch.nn.ModuleList
         init_args:
           modules:
+            - class_path: hepattn.models.InputNet
+              init_args:
+                input_name: vtxd
+                input_dtype: float32
+                fields:
+                  - pos.x_dm
+                  - pos.y_dm
+                  - pos.z_dm
+                  - pos.s_dm
+                  - pos.r_dm
+                  - pos.theta
+                  - pos.phi
+                  - u.a
+                  - u.b
+                  - v.a
+                  - v.b
+                  - du
+                  - dv
+                net:
+                  class_path: hepattn.models.Dense
+                  init_args:
+                    input_size: 13
+                    hidden_layers: [128]
+                    output_size: *dim
+                    activation: SwiGLU
+                posenc:
+                  class_path: hepattn.models.posenc.PositionEncoder
+                  init_args:
+                    input_name: vtxd
+                    dim: *dim
+                    fields:
+                      - pos.x_dm
+                      - pos.y_dm
+                      - pos.z_dm
+                      - pos.r_dm
+                      - pos.theta
+                      - pos.phi
+
+            - class_path: hepattn.models.InputNet
+              init_args:
+                input_name: trkr
+                input_dtype: float32
+                fields:
+                  - pos.x
+                  - pos.y
+                  - pos.z
+                  - pos.s
+                  - pos.r
+                  - pos.theta
+                  - pos.phi
+                  - u.a
+                  - u.b
+                  - v.a
+                  - v.b
+                  - du
+                  - dv
+                net:
+                  class_path: hepattn.models.Dense
+                  init_args:
+                    input_size: 13
+                    hidden_layers: [128]
+                    output_size: *dim
+                    activation: SwiGLU
+                posenc:
+                  class_path: hepattn.models.posenc.PositionEncoder
+                  init_args:
+                    input_name: trkr
+                    dim: *dim
+                    fields:
+                      - pos.x
+                      - pos.y
+                      - pos.z
+                      - pos.r
+                      - pos.theta
+                      - pos.phi
+
             - class_path: hepattn.models.InputNet
               init_args:
                 input_name: ecal
@@ -543,83 +622,8 @@ model:
                       - pos.theta
                       - pos.phi
 
-            - class_path: hepattn.models.InputNet
-              init_args:
-                input_name: vtxd
-                input_dtype: float32
-                fields:
-                  - pos.x_dm
-                  - pos.y_dm
-                  - pos.z_dm
-                  - pos.s_dm
-                  - pos.r_dm
-                  - pos.theta
-                  - pos.phi
-                  - u.a
-                  - u.b
-                  - v.a
-                  - v.b
-                  - du
-                  - dv
-                net:
-                  class_path: hepattn.models.Dense
-                  init_args:
-                    input_size: 13
-                    hidden_layers: [128]
-                    output_size: *dim
-                    activation: SwiGLU
-                posenc:
-                  class_path: hepattn.models.posenc.PositionEncoder
-                  init_args:
-                    input_name: vtxd
-                    dim: *dim
-                    fields:
-                      - pos.x_dm
-                      - pos.y_dm
-                      - pos.z_dm
-                      - pos.r_dm
-                      - pos.theta
-                      - pos.phi
-
-            - class_path: hepattn.models.InputNet
-              init_args:
-                input_name: trkr
-                input_dtype: float32
-                fields:
-                  - pos.x
-                  - pos.y
-                  - pos.z
-                  - pos.s
-                  - pos.r
-                  - pos.theta
-                  - pos.phi
-                  - u.a
-                  - u.b
-                  - v.a
-                  - v.b
-                  - du
-                  - dv
-                net:
-                  class_path: hepattn.models.Dense
-                  init_args:
-                    input_size: 13
-                    hidden_layers: [128]
-                    output_size: *dim
-                    activation: SwiGLU
-                posenc:
-                  class_path: hepattn.models.posenc.PositionEncoder
-                  init_args:
-                    input_name: trkr
-                    dim: *dim
-                    fields:
-                      - pos.x
-                      - pos.y
-                      - pos.z
-                      - pos.r
-                      - pos.theta
-                      - pos.phi
-
-      # Separate encoder per hit type (order matches input_nets: ecal, hcal, muon, vtxd, trkr)
+      # Separate encoder per hit type (order matches input_nets: vtxd, trkr, ecal, hcal, muon)
+      # Each encoder only processes its own hit type - no cross-type information mixing.
       input_encoders:
         class_path: torch.nn.ModuleList
         init_args:
@@ -670,58 +674,35 @@ model:
                 dense_kwargs: {activation: SwiGLU}
                 attn_kwargs: {bias: false}
 
-      # No unified merged encoder; per-type encoding is done above by input_encoders
+      # No shared encoder: hit embeddings remain completely isolated per type.
       encoder: null
 
-      # Cross-attention between adjacent subsystems, run after per-type encoders
-      # All output projections are zero-initialised so these layers start as identity
-      cross_type_encoder:
-        class_path: hepattn.models.CrossTypeEncoder
-        init_args:
-          dim: *dim
-          norm: CustomLayerNorm
-          hybrid_norm: true
-          attn_kwargs: {bias: false}
-          dense_kwargs: {activation: SwiGLU}
-          pairs:
-            - {src: vtxd, tgt: trkr, bidirectional: true}
-            - {src: trkr, tgt: ecal, bidirectional: true}
-            - {src: ecal, tgt: hcal, bidirectional: true}
-            - {src: hcal, tgt: muon, bidirectional: true}
+      # No cross-type encoder: information from different hit types never mixes.
+      cross_type_encoder: null
 
+      # Per-type decoder: each hit type has its own decoder layers and query slots.
+      # Queries for each type only cross-attend to that type's encoded hits.
       decoder:
         num_decoder_layers: 4
         num_queries: *num_particles
-
-        # kMaX works best without boolean mask attention
         mask_attention: false
         use_query_masks: false
         unmask_all_false: false
-
-        # Use the reco task's current mask logits as kMaX affinity
         kmeans_affinity_task: reco
-
-        # Per-type query parameters: separate gradient-isolated initial queries per hit type
         per_input_decoding: true
-        num_input_types: 5  # ecal, hcal, muon, vtxd, trkr
-        split_query_types: [ecal, hcal, muon, vtxd, trkr]
-
-        # Cross-query SA: allows per-type query sets to align with each other after each
-        # macro-layer, fixing the kMaX fragmentation problem where different hit types
-        # for the same particle can end up assigned to different query slots.
-        cross_query_attn: true
-
+        num_input_types: 5  # vtxd, trkr, ecal, hcal, muon
+        split_query_types: [vtxd, trkr, ecal, hcal, muon]
+        cross_query_attn: false
         decoder_layer_config:
           dim: *dim
           norm: CustomLayerNorm
           hybrid_norm: true
           dense_kwargs: {activation: SwiGLU}
           attn_kwargs: {bias: false}
-          # kMaX hard-assignment cross-attention instead of softmax
           cross_attn_mode: kmeans
           bidirectional_ca: false
           kmeans_kwargs:
-            update: mean      # "mean" is more stable than "sum"
+            update: mean
             value_proj: false
             mask_attn: false
 
@@ -754,35 +735,41 @@ model:
                 calo_line_fit: false
                 calo_score_method: sigmoid
                 loss_object_mask: valid
-
-                # Fix: no sihit gating of calo cost — class-conditional cost already
-                # separates charged (sihit only) from neutral (calo only) matching.
                 sihit_gated_calo_cost: false
-
-                # Fix: only compute mask loss for particles whose class activates each
-                # hit type, preventing e.g. photon queries being trained to suppress
-                # silicon hits.
                 per_hit_class_loss_mask: true
-
+                mask_unphysical_hits: true
                 hit_loss_weights:
-                  vtxd: {mask_dice: 1.0, mask_bce: 0.5}
-                  trkr: {mask_dice: 1.0, mask_bce: 0.5}
-                  ecal: {mask_dice: 1.0, mask_bce: 0.5}
-                  hcal: {mask_dice: 1.0, mask_bce: 0.5}
-                  muon: {mask_dice: 1.0, mask_bce: 0.5}
-
+                  vtxd: {mask_dice: 1.0, mask_bce: 0.5, mask_focal: 0.5}
+                  trkr: {mask_dice: 1.0, mask_bce: 0.5, mask_focal: 0.5}
+                  ecal: {mask_dice: 1.0, mask_bce: 0.5, mask_focal: 0.5}
+                  hcal: {mask_dice: 1.0, mask_bce: 0.5, mask_focal: 0.5}
+                  muon: {mask_dice: 1.0, mask_bce: 0.5, mask_focal: 0.5}
                 # Charged particles matched by sihit only; neutrals matched by calo only
-                hit_cost_classes:
-                  sihit: [charged_hadron, electron, muon]
-                  ecal: [neutral_hadron, photon]
-                  hcal: [neutral_hadron]
-                  muon: [muon]
-
-                # Fix: use mask_dice for all types so the matching cost geometry is
-                # symmetric and consistent — previously ecal/hcal/muon used mask_recall
-                # (asymmetric) while sihit used mask_dice (symmetric).
+                particle_cost_hits:
+                  charged_hadron: [sihit]
+                  electron: [sihit]
+                  muon: [sihit]
+                  neutral_hadron: [ecal, hcal]
+                  photon: [ecal]
                 hit_cost_weights:
                   sihit: {mask_dice: 1.0}
-                  ecal:  {mask_dice: 1.0}
-                  hcal:  {mask_dice: 1.0}
-                  muon:  {mask_dice: 1.0}
+                  ecal: {mask_recall: 1.0}
+                  hcal: {mask_recall: 1.0}
+                  muon: {mask_recall: 1.0}
+                # Class determined by slot position: no cross-type mixing in the class head.
+                # Slot counts are based on typical per-class multiplicities.
+                use_slot_class: true
+                class_query_slots:
+                  charged_hadron: [0, 128]
+                  photon: [128, 256]
+                  neutral_hadron: [256, 304]
+                  electron: [304, 352]
+                  muon: [352, 384]
+                # Valid/null prediction for each slot range uses only the relevant hit type's
+                # query embedding, completing the isolation of the class head.
+                class_valid_hit:
+                  charged_hadron: trkr
+                  electron: trkr
+                  muon: trkr
+                  neutral_hadron: ecal
+                  photon: ecal
