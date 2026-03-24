@@ -1,4 +1,4 @@
-name: Combined_Unified_XL
+name: Tracking_Unified
 
 matmul_precision: high
 
@@ -30,14 +30,12 @@ data:
 
   # Which particle classes to include as targets (null means include all)
   include_classes:
-    - neutral_hadron
     - charged_hadron
-    - photon
     - electron
     - muon
 
   # Events with more particles than this are skipped
-  event_max_num_particles: &num_particles 384
+  event_max_num_particles: &num_particles 256
 
   # Number of query slots / particles to generate per event
   force_pad_sizes:
@@ -524,108 +522,10 @@ model:
                       - pos.theta
                       - pos.phi
 
-            - class_path: hepattn.models.InputNet
-              init_args:
-                input_name: ecal
-                input_dtype: float32
-                fields:
-                  - pos.x
-                  - pos.y
-                  - pos.z
-                  - pos.s
-                  - pos.r
-                  - pos.theta
-                  - pos.phi
-                  - log_energy
-                net:
-                  class_path: hepattn.models.Dense
-                  init_args:
-                    input_size: 8
-                    hidden_layers: [128]
-                    output_size: *dim
-                    activation: SwiGLU
-                posenc:
-                  class_path: hepattn.models.posenc.PositionEncoder
-                  init_args:
-                    input_name: ecal
-                    dim: *dim
-                    fields:
-                      - pos.x
-                      - pos.y
-                      - pos.z
-                      - pos.r
-                      - pos.theta
-                      - pos.phi
-
-            - class_path: hepattn.models.InputNet
-              init_args:
-                input_name: hcal
-                input_dtype: float32
-                fields:
-                  - pos.x
-                  - pos.y
-                  - pos.z
-                  - pos.s
-                  - pos.r
-                  - pos.theta
-                  - pos.phi
-                  - log_energy
-                net:
-                  class_path: hepattn.models.Dense
-                  init_args:
-                    input_size: 8
-                    hidden_layers: [128]
-                    output_size: *dim
-                    activation: SwiGLU
-                posenc:
-                  class_path: hepattn.models.posenc.PositionEncoder
-                  init_args:
-                    input_name: hcal
-                    dim: *dim
-                    fields:
-                      - pos.x
-                      - pos.y
-                      - pos.z
-                      - pos.r
-                      - pos.theta
-                      - pos.phi
-
-            - class_path: hepattn.models.InputNet
-              init_args:
-                input_name: muon
-                input_dtype: float32
-                fields:
-                  - pos.x
-                  - pos.y
-                  - pos.z
-                  - pos.s
-                  - pos.r
-                  - pos.theta
-                  - pos.phi
-                net:
-                  class_path: hepattn.models.Dense
-                  init_args:
-                    input_size: 7
-                    hidden_layers: [128]
-                    output_size: *dim
-                    activation: SwiGLU
-                posenc:
-                  class_path: hepattn.models.posenc.PositionEncoder
-                  init_args:
-                    input_name: muon
-                    dim: *dim
-                    fields:
-                      - pos.x
-                      - pos.y
-                      - pos.z
-                      - pos.r
-                      - pos.theta
-                      - pos.phi
-
       encoder:
         class_path: hepattn.models.Encoder
         init_args:
-          num_layers: 12
+          num_layers: 8
           dim: *dim
           attn_type: flash-varlen
           window_size: 2048
@@ -636,7 +536,7 @@ model:
           attn_kwargs: {bias: false}
 
       decoder:
-        num_decoder_layers: 8
+        num_decoder_layers: 4
         num_queries: *num_particles
         mask_attention: false
         use_query_masks: false
@@ -676,9 +576,6 @@ model:
                 hits_included:
                   - trkr
                   - vtxd
-                  - ecal
-                  - hcal
-                  - muon
                 hit_mask_attn_thresholds: null
                 tracker_helix_fit: false
                 helix_fit_warmup_steps: 10000
@@ -689,18 +586,10 @@ model:
                 hit_loss_weights:
                   vtxd: {mask_dice: 1.0, mask_bce: 0.5, mask_focal: 0.5}
                   trkr: {mask_dice: 1.0, mask_bce: 0.5, mask_focal: 0.5}
-                  ecal: {mask_dice: 1.0, mask_bce: 0.5, mask_focal: 0.5}
-                  hcal: {mask_dice: 1.0, mask_bce: 0.5, mask_focal: 0.5}
-                  muon: {mask_dice: 1.0, mask_bce: 0.5, mask_focal: 0.5}
                 # Charged particles matched by sihit only; neutrals matched by calo only
                 particle_cost_hits:
-                  charged_hadron: [sihit, ecal, hcal]
-                  electron: [sihit, ecal]
-                  muon: [sihit, ecal, hcal, muon]
-                  neutral_hadron: [ecal, hcal]
-                  photon: [ecal]
+                  charged_hadron: [sihit]
+                  electron: [sihit]
+                  muon: [sihit]
                 hit_cost_weights:
                   sihit: {mask_dice: 1.0}
-                  ecal: {mask_recall: 1.0}
-                  hcal: {mask_recall: 1.0}
-                  muon: {mask_recall: 1.0}
