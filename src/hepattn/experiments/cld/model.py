@@ -12,8 +12,9 @@ class CLDReconstructor(ModelWrapper):
         lrs_config: dict,
         optimizer: str = "AdamW",
         mtl: bool = False,
+        pretrained_ckpt_path: str | None = None,
     ):
-        super().__init__(name, model, lrs_config, optimizer, mtl)
+        super().__init__(name, model, lrs_config, optimizer, mtl, pretrained_ckpt_path)
 
     def log_custom_metrics(self, inputs, preds, targets, stage):
         # Just log predictions from the final layer

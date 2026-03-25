@@ -21,6 +21,7 @@ class ModelWrapper(LightningModule):
         lrs_config: dict,
         optimizer: Literal["AdamW", "Lion"] = "AdamW",
         mtl: bool = False,
+        pretrained_ckpt_path: str | None = None,
     ):
         super().__init__()
 
@@ -31,6 +32,25 @@ class ModelWrapper(LightningModule):
         self.optimizer = optimizer
         self.lrs_config = lrs_config
         self.mtl = mtl
+
+        if pretrained_ckpt_path is not None:
+            ckpt = torch.load(pretrained_ckpt_path, map_location="cpu", weights_only=False)
+            pretrained_state = ckpt["state_dict"]
+            current_state = self.state_dict()
+            compatible, skipped_shape = {}, []
+            for k, pretrained_v in pretrained_state.items():
+                if k not in current_state:
+                    continue
+                if pretrained_v.shape == current_state[k].shape:
+                    compatible[k] = pretrained_v
+                else:
+                    skipped_shape.append(k)
+            missing, unexpected = self.load_state_dict(compatible, strict=False)
+            print(f"Loaded pretrained weights from {pretrained_ckpt_path}")
+            print(f"  Compatible (loaded):        {len(compatible)}")
+            print(f"  Skipped (shape mismatch):   {len(skipped_shape)}")
+            print(f"  Missing (new, random init): {len(missing)}")
+            print(f"  Unexpected (not in model):  {len(unexpected)}")
 
         if mtl:
             # Donated buffers can cause issues with graph retention needed for MTL

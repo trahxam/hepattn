@@ -31,6 +31,8 @@ class CLDTask(Task):
         particle_cost_hits: dict[str, list[str]] | None = None,
         per_hit_class_loss_mask: bool = False,
         return_embeddings: bool = False,
+        hit_loss_warmup_steps: int | dict | None = None,
+        hit_loss_warmup_delay: int | dict | None = None,
         task_stage: int = 0,
         charged_query_slots: list[int] | None = None,
         neutral_query_slots: list[int] | None = None,
@@ -49,6 +51,8 @@ class CLDTask(Task):
         self.return_embeddings = return_embeddings
         self.hit_loss_weights = hit_loss_weights or {}
         self.hit_cost_weights = hit_cost_weights or {}
+        self.hit_loss_warmup_steps = hit_loss_warmup_steps or {}
+        self.hit_loss_warmup_delay = hit_loss_warmup_delay or {}
         self.mask_dice_cost_logit_scale = float(mask_dice_cost_logit_scale)
         self.sihit_gated_calo_cost = sihit_gated_calo_cost
         self.class_conditional_cost = class_conditional_cost
@@ -184,6 +188,20 @@ class CLDTask(Task):
             return True
         step = int(getattr(self, "global_step", 0))
         return step >= self.helix_fit_warmup_steps
+
+    def _hit_loss_scale(self, hit: str) -> float:
+        warmup = self.hit_loss_warmup_steps
+        warmup_steps = warmup if isinstance(warmup, int) else warmup.get(hit, 0)
+        delay = self.hit_loss_warmup_delay
+        delay_steps = delay if isinstance(delay, int) else delay.get(hit, 0)
+        if warmup_steps <= 0 and delay_steps <= 0:
+            return 1.0
+        step = int(getattr(self, "global_step", 0))
+        if step < delay_steps:
+            return 0.0
+        if warmup_steps <= 0:
+            return 1.0
+        return min(1.0, (step - delay_steps) / warmup_steps)
 
     def forward(self, x: dict[str, Tensor]) -> dict[str, Tensor]:
         outputs: dict[str, Tensor] = {}
@@ -529,8 +547,9 @@ class CLDTask(Task):
             else:
                 effective_mask = object_mask
 
+            scale = self._hit_loss_scale(hit)
             for loss_name, loss_weight in hit_loss_terms.items():
-                losses[f"{hit}_{loss_name}"] = float(loss_weight) * loss_fns[loss_name](
+                losses[f"{hit}_{loss_name}"] = scale * float(loss_weight) * loss_fns[loss_name](
                     loss_logits,
                     loss_targets,
                     object_valid_mask=effective_mask,
