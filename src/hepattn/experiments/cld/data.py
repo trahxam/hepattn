@@ -771,6 +771,7 @@ class CLDDataModule(LightningDataModule):
             sampler=None,
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
+            persistent_workers=self.num_workers > 0,
         )
 
     def train_dataloader(self):
