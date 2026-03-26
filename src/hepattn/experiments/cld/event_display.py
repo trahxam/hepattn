@@ -1,8 +1,73 @@
 import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
 import torch
+import numpy as np
 
 plt.rcParams["figure.dpi"] = 300
+
+
+def _build_helix_path(
+    phi: torch.Tensor,
+    eta: torch.Tensor,
+    pt: torch.Tensor,
+    charge_sign: torch.Tensor,
+    d0: torch.Tensor,
+    z0: torch.Tensor,
+    magnetic_field_t: float,
+    helix_radius_m: float,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Trace a helix arc from track parameters.
+
+    Args:
+        phi:            azimuthal momentum angle at DCA [rad]
+        eta:            pseudorapidity
+        pt:             transverse momentum [GeV]
+        charge_sign:    sign(charge), ±1
+        d0:             transverse impact parameter [m]
+        z0:             longitudinal impact parameter [m]
+        magnetic_field_t: solenoid field strength [T]
+        helix_radius_m: clip the path at this transverse radius [m]
+
+    Returns:
+        (x, y, z, y_linear) tensors, each shape (N_steps,), coordinates in metres.
+    """
+    b_field = float(magnetic_field_t)
+    b_abs   = abs(b_field)
+
+    if b_abs < 1e-6:
+        omega = torch.zeros_like(pt)
+        max_transverse_len = 2.0 * helix_radius_m
+    else:
+        # Angular velocity: omega = -(q * 0.3 * B) / pT
+        omega = -charge_sign * ((0.3 * b_field) / pt.clamp_min(1e-6))
+        curvature_radius = pt / (0.3 * b_abs)
+        max_transverse_len = min(
+            2.0 * helix_radius_m,
+            float((4.0 * torch.pi * curvature_radius).item()),
+        )
+    max_transverse_len = max(max_transverse_len, 0.05)
+    path_s = torch.linspace(0.0, max_transverse_len, 256, dtype=torch.float32, device=phi.device)
+
+    x0 = -d0 * torch.sin(phi)
+    y0 =  d0 * torch.cos(phi)
+    y_linear = y0 + path_s * torch.sin(phi)
+
+    if abs(float(omega.item())) < 1e-6:
+        x = x0 + path_s * torch.cos(phi)
+        y = y0 + path_s * torch.sin(phi)
+    else:
+        x = x0 + (torch.sin(phi + omega * path_s) - torch.sin(phi)) / omega
+        y = y0 - (torch.cos(phi + omega * path_s) - torch.cos(phi)) / omega
+    z = z0 + path_s * torch.sinh(eta)
+
+    # Clip at the requested transverse radius
+    radius_xy = torch.sqrt(x ** 2 + y ** 2)
+    outside   = torch.nonzero(radius_xy >= helix_radius_m, as_tuple=False)
+    if outside.numel() > 0:
+        end_idx = max(int(outside[0].item()), 1)
+        x, y, z, y_linear = x[:end_idx], y[:end_idx], z[:end_idx], y_linear[:end_idx]
+
+    return x, y, z, y_linear
 
 
 def plot_cld_event(

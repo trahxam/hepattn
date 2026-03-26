@@ -296,7 +296,7 @@ class CLDTask(Task):
 
             if helix_fit_enabled:
                 # Perform the fit
-                radius, phi0, eta, d0, z0, flow_fitted = fit_helices(
+                radius, phi0, eta, d0, z0, flow_fitted, _charge_sign = fit_helices(
                     sihit_x,
                     sihit_y,
                     sihit_z,
