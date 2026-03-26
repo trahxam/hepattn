@@ -46,7 +46,7 @@ plt.rcParams["text.usetex"] = True
 # ── constants ──────────────────────────────────────────────────────────────
 B_FIELD_T = 2.0          # CLD solenoid field [T] — matches task.py
 IOI_MATCH_THRESH = 0.5   # minimum hit-IoU to accept a Pandora↔truth match
-N_EVENTS = 100           # events to process
+N_EVENTS = 1000           # events to process
 
 
 # ── helpers ────────────────────────────────────────────────────────────────

@@ -43,14 +43,15 @@ TRUTH_BINS = {
     "eta": (np.linspace(-3.0, 3.0, 24),     r"Truth $\eta$",        "linear"),
     "phi": (np.linspace(-np.pi, np.pi, 24), r"Truth $\phi$ [rad]",  "linear"),
 }
-BIAS_YLABEL = {
-    "eta": r"Median$[\eta^\mathrm{pred} - \eta^\mathrm{true}]$",
-    "phi": r"Median$[\phi^\mathrm{pred} - \phi^\mathrm{true}]$ [rad]",
+RESIDUAL_YLABEL = {
+    "eta": r"$\eta^\mathrm{pred} - \eta^\mathrm{true}$",
+    "phi": r"$\phi^\mathrm{pred} - \phi^\mathrm{true}$ [rad]",
 }
-SPREAD_YLABEL = {
-    "eta": r"IQR$[\eta^\mathrm{pred} - \eta^\mathrm{true}]$",
-    "phi": r"IQR$[\phi^\mathrm{pred} - \phi^\mathrm{true}]$ [rad]",
-}
+
+# ── energy residual constants ───────────────────────────────────────────────
+ENERGY_TRUTH_BINS_E    = np.logspace(-1, 2, 24)              # GeV, log scale
+ENERGY_TRUTH_BINS_ETA  = np.linspace(-3.0, 3.0, 24)
+ENERGY_RESIDUAL_YLABEL = r"$(E^\mathrm{calo} - E^\mathrm{truth}) / E^\mathrm{truth}$"
 
 
 # ── helpers ────────────────────────────────────────────────────────────────
@@ -103,13 +104,15 @@ def _match_pandora(
 
 # ── data collection ────────────────────────────────────────────────────────
 
-def collect_residuals(cfg: dict, n_events: int = N_EVENTS) -> dict:
+def collect_residuals(cfg: dict, n_events: int = N_EVENTS) -> tuple[dict, dict]:
     """Iterate the dataset and accumulate calo residuals.
 
-    Returns a nested dict:
-      data[calo][charge_type]["fit_res"|"pan_res"|"fit_truth"|"pan_truth"][field]
-    where calo ∈ {"ecal", "hcal"}, charge_type ∈ {"charged", "neutral"},
-    field ∈ FIELDS, and each value is a list of floats.
+    Returns:
+      data  — nested dict for η/φ residuals:
+                data[calo][charge_type]["fit_res"|"pan_res"|"fit_truth"|"pan_truth"][field]
+      edata — nested dict for energy residuals:
+                edata[charge_type]["truth_res"|"pan_res"|"truth_truth_e"|"truth_truth_eta"|
+                                   "pan_truth_e"|"pan_truth_eta"]  (lists of floats)
     """
     dataset = CLDDataset(
         dirpath=cfg["test_dir"],
@@ -121,7 +124,7 @@ def collect_residuals(cfg: dict, n_events: int = N_EVENTS) -> dict:
         merge_inputs=cfg.get("merge_inputs", {}),
         particle_min_pt=cfg.get("particle_min_pt", 0.01),
         particle_max_abs_eta=cfg.get("particle_max_abs_eta", 4.0),
-        include_classes=cfg.get("include_classes"),
+        include_classes=None,  # include all classes; neutrals filtered by calo hit count
         charged_particle_min_num_hits=cfg.get("charged_particle_min_num_hits", {}),
         charged_particle_max_num_hits=cfg.get("charged_particle_max_num_hits", {}),
         particle_cut_veto_min_num_hits=cfg.get("particle_cut_veto_min_num_hits", {}),
@@ -143,10 +146,20 @@ def collect_residuals(cfg: dict, n_events: int = N_EVENTS) -> dict:
                 }
                 for ct in ("charged", "neutral")
             }
-            for calo in ("ecal", "hcal")
+            for calo in ("ecal", "hcal", "calo")
         }
 
     data = _empty()
+
+    edata: dict = {
+        ct: {key: [] for key in (
+            "truth_res",          "pan_res",          "pan_reported_res",
+            "truth_truth_e",      "truth_truth_eta",
+            "pan_truth_e",        "pan_truth_eta",
+            "pan_rep_truth_e",    "pan_rep_truth_eta",
+        )}
+        for ct in ("charged", "neutral")
+    }
 
     n_total = n_no_match = n_ecal_fit_fail = n_hcal_fit_fail = 0
 
@@ -163,11 +176,13 @@ def collect_residuals(cfg: dict, n_events: int = N_EVENTS) -> dict:
         eta_pan = _np(targets["pandora_mom.eta"][0])
         phi_pan = _np(targets["pandora_mom.phi"][0])
 
-        # Calo hit positions (shared across all particles in the event)
+        # Calo hit positions and energies (shared across all particles in the event)
         ecal_eta_all = _np(inputs["ecal_pos.eta"][0])
         ecal_phi_all = _np(inputs["ecal_pos.phi"][0])
         hcal_eta_all = _np(inputs["hcal_pos.eta"][0])
         hcal_phi_all = _np(inputs["hcal_pos.phi"][0])
+        ecal_e_all   = _np(inputs["ecal_energy"][0])   # calibrated hit energies
+        hcal_e_all   = _np(inputs["hcal_energy"][0])
 
         for p_idx in range(int(part_valid.shape[0])):
             if not part_valid[p_idx]:
@@ -176,8 +191,10 @@ def collect_residuals(cfg: dict, n_events: int = N_EVENTS) -> dict:
             is_charged  = bool(part_charged[p_idx].item())
             charge_type = "charged" if is_charged else "neutral"
 
-            truth_eta = float(eta_t[p_idx])
-            truth_phi = float(phi_t[p_idx])
+            truth_eta    = float(eta_t[p_idx])
+            truth_phi    = float(phi_t[p_idx])
+            truth_e      = float(_np(targets["particle_energy"][0])[p_idx])
+            truth_calo_e = float(_np(targets["particle_calib_energy_calo"][0])[p_idx])
 
             # ── ECAL hit energies and positions for this particle ──────────
             ecal_mask   = _np(targets["particle_ecal_valid"][0][p_idx]).astype(bool)
@@ -205,6 +222,26 @@ def collect_residuals(cfg: dict, n_events: int = N_EVENTS) -> dict:
             )
             if pan_idx < 0:
                 n_no_match += 1
+
+            # ── energy residuals ───────────────────────────────────────────
+            if truth_e > 1e-6:
+                ed = edata[charge_type]
+                ed["truth_res"].append((truth_calo_e - truth_e) / truth_e)
+                ed["truth_truth_e"].append(truth_e)
+                ed["truth_truth_eta"].append(truth_eta)
+
+                if pan_idx >= 0:
+                    pan_ecal_m = _np(targets["pandora_ecal_valid"][0][pan_idx]).astype(bool)
+                    pan_hcal_m = _np(targets["pandora_hcal_valid"][0][pan_idx]).astype(bool)
+                    pan_calo_e = float(ecal_e_all[pan_ecal_m].sum()) + float(hcal_e_all[pan_hcal_m].sum())
+                    ed["pan_res"].append((pan_calo_e - truth_e) / truth_e)
+                    ed["pan_truth_e"].append(truth_e)
+                    ed["pan_truth_eta"].append(truth_eta)
+
+                    pan_reported_e = float(_np(targets["pandora_energy"][0])[pan_idx])
+                    ed["pan_reported_res"].append((pan_reported_e - truth_e) / truth_e)
+                    ed["pan_rep_truth_e"].append(truth_e)
+                    ed["pan_rep_truth_eta"].append(truth_eta)
 
             # ── ECAL residuals ─────────────────────────────────────────────
             if n_ecal > 0:
@@ -252,20 +289,42 @@ def collect_residuals(cfg: dict, n_events: int = N_EVENTS) -> dict:
                     d["pan_truth"]["eta"].append(truth_eta)
                     d["pan_truth"]["phi"].append(truth_phi)
 
+            # ── Combined ECAL+HCAL fit ─────────────────────────────────────
+            if n_ecal + n_hcal > 0:
+                comb_eta = np.concatenate([ecal_eta_all[ecal_mask], hcal_eta_all[hcal_mask]])
+                comb_phi = np.concatenate([ecal_phi_all[ecal_mask], hcal_phi_all[hcal_mask]])
+                comb_e   = np.concatenate([ecal_energy[ecal_mask],  hcal_energy[hcal_mask]])
+                comb_fit = _calo_fit_np(comb_eta, comb_phi, comb_e)
+                if comb_fit is not None:
+                    d = data["calo"][charge_type]
+                    d["fit_res"]["eta"].append(comb_fit[0] - truth_eta)
+                    d["fit_res"]["phi"].append(_dphi(comb_fit[1], truth_phi))
+                    d["fit_truth"]["eta"].append(truth_eta)
+                    d["fit_truth"]["phi"].append(truth_phi)
+                if pan_idx >= 0:
+                    d = data["calo"][charge_type]
+                    d["pan_res"]["eta"].append(float(eta_pan[pan_idx]) - truth_eta)
+                    d["pan_res"]["phi"].append(_dphi(float(phi_pan[pan_idx]), truth_phi))
+                    d["pan_truth"]["eta"].append(truth_eta)
+                    d["pan_truth"]["phi"].append(truth_phi)
+
     print(f"\nProcessed {n_total} calo particles across {n_events} events.")
     print(f"  Pandora match rate : {100*(n_total-n_no_match)/max(n_total,1):.1f}%")
     print(f"  ECAL fit failures  : {n_ecal_fit_fail}")
     print(f"  HCAL fit failures  : {n_hcal_fit_fail}")
 
     # Convert lists to arrays
-    for calo in ("ecal", "hcal"):
+    for calo in ("ecal", "hcal", "calo"):
         for ct in ("charged", "neutral"):
             for key in ("fit_res", "pan_res", "fit_truth", "pan_truth"):
                 for f in FIELDS:
                     data[calo][ct][key][f] = np.array(
                         data[calo][ct][key][f], dtype=np.float32
                     )
-    return data
+    for ct in ("charged", "neutral"):
+        for key in edata[ct]:
+            edata[ct][key] = np.array(edata[ct][key], dtype=np.float32)
+    return data, edata
 
 
 # ── plotting ────────────────────────────────────────────────────────────────
@@ -346,31 +405,38 @@ def make_calo_fig(
     title: str,
     min_bin_count: int = 20,
 ) -> plt.Figure:
-    """2 rows × 2 cols figure: (bias, spread) × (η, φ) vs truth.
+    """1 row × 2 cols figure: bias (median ± IQR) vs truth η and φ."""
+    fig, axes = plt.subplots(1, 2, figsize=(8, 3.5))
 
-    series format::
+    for col, field in enumerate(FIELDS):
+        bins, xlabel, xscale = TRUTH_BINS[field]
+        _plot_vs_truth(axes[col], series, col, bins, xlabel, xscale,
+                       f"Bias (median $\\pm$ IQR)\n{RESIDUAL_YLABEL[field]}",
+                       "bias", min_bin_count)
+        axes[col].set_title(f"Calo {field}", fontsize=8)
 
-        {
-            "Pandora":  {"color": ..., "data": [eta_res, phi_res],
-                         "truth": [truth_eta, truth_phi]},
-            "Calo fit": {...},
-        }
+    fig.suptitle(title, fontsize=10)
+    fig.tight_layout()
+    return fig
+
+
+def make_energy_fig(series: dict, title: str, min_bin_count: int = 20) -> plt.Figure:
+    """1 row × 2 cols figure: bias (median ± IQR) vs truth E and truth η.
+
+    ``data[0]`` and ``data[1]`` are the same energy residual array; ``truth[0]``
+    is truth energy (log-scale x) and ``truth[1]`` is truth η (linear x).
     """
-    fig, axes = plt.subplots(2, 2, figsize=(8, 7))
+    fig, axes = plt.subplots(1, 2, figsize=(8, 3.5))
 
-    row_labels = ["Bias (median ± IQR)", "Spread (IQR)"]
-    stats      = ["bias", "spread"]
+    col_specs = [
+        (0, ENERGY_TRUTH_BINS_E,   r"Truth $E$ [GeV]", "log"),
+        (1, ENERGY_TRUTH_BINS_ETA, r"Truth $\eta$",    "linear"),
+    ]
+    ylabel = f"Bias (median $\\pm$ IQR)\n{ENERGY_RESIDUAL_YLABEL}"
 
-    for row, (stat, row_label) in enumerate(zip(stats, row_labels)):
-        for col, field in enumerate(FIELDS):
-            ax = axes[row, col]
-            bins, xlabel, xscale = TRUTH_BINS[field]
-            ylabel = BIAS_YLABEL[field] if stat == "bias" else SPREAD_YLABEL[field]
-            _plot_vs_truth(ax, series, col, bins, xlabel, xscale, ylabel,
-                           stat, min_bin_count)
-            if row == 0:
-                ax.set_title(f"Track {field}", fontsize=8)
-        axes[row, 0].set_ylabel(f"{row_label}\n{axes[row, 0].get_ylabel()}", fontsize=7)
+    for col, (field_idx, bins, xlabel, xscale) in enumerate(col_specs):
+        _plot_vs_truth(axes[col], series, field_idx, bins,
+                       xlabel, xscale, ylabel, "bias", min_bin_count)
 
     fig.suptitle(title, fontsize=10)
     fig.tight_layout()
@@ -380,18 +446,20 @@ def make_calo_fig(
 # ── main ────────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    cfg  = _cfg()
-    data = collect_residuals(cfg, n_events=N_EVENTS)
+    cfg         = _cfg()
+    data, edata = collect_residuals(cfg, n_events=N_EVENTS)
 
     out_dir = Path(__file__).resolve().parents[1] / "plots" / "calo"
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    # ── η/φ residual figures ───────────────────────────────────────────────
     for calo in ("ecal", "hcal"):
         calo_color = "mediumseagreen" if calo == "ecal" else "teal"
         calo_label = "ECAL fit" if calo == "ecal" else "HCAL fit"
 
         for charge_type in ("charged", "neutral"):
-            d = data[calo][charge_type]
+            d      = data[calo][charge_type]
+            d_comb = data["calo"][charge_type]
 
             series: dict = {}
             if d["pan_res"]["eta"].size > 0:
@@ -405,6 +473,12 @@ def main() -> None:
                     "color": calo_color, "ls": ":",
                     "data":  [d["fit_res"][f]   for f in FIELDS],
                     "truth": [d["fit_truth"][f] for f in FIELDS],
+                }
+            if d_comb["fit_res"]["eta"].size > 0:
+                series["ECAL+HCAL fit"] = {
+                    "color": "darkorange", "ls": "--",
+                    "data":  [d_comb["fit_res"][f]   for f in FIELDS],
+                    "truth": [d_comb["fit_truth"][f] for f in FIELDS],
                 }
 
             if not series:
@@ -421,6 +495,44 @@ def main() -> None:
             fig.savefig(path, bbox_inches="tight")
             plt.close(fig)
             print(f"Saved → {path}")
+
+    # ── energy residual figures ────────────────────────────────────────────
+    for charge_type in ("charged", "neutral"):
+        ed = edata[charge_type]
+
+        series_e: dict = {}
+        if ed["truth_res"].size > 0:
+            series_e["Truth calo hits"] = {
+                "color": "mediumseagreen",
+                "data":  [ed["truth_res"],       ed["truth_res"]],
+                "truth": [ed["truth_truth_e"],   ed["truth_truth_eta"]],
+            }
+        if ed["pan_res"].size > 0:
+            series_e["Pandora (calo sum)"] = {
+                "color": "cornflowerblue",
+                "data":  [ed["pan_res"],       ed["pan_res"]],
+                "truth": [ed["pan_truth_e"],   ed["pan_truth_eta"]],
+            }
+        if ed["pan_reported_res"].size > 0:
+            series_e["Pandora (reported)"] = {
+                "color": "darkorange",
+                "data":  [ed["pan_reported_res"],    ed["pan_reported_res"]],
+                "truth": [ed["pan_rep_truth_e"],     ed["pan_rep_truth_eta"]],
+            }
+
+        if not series_e:
+            print(f"No energy data for {charge_type} — skipping.")
+            continue
+
+        charge_str = charge_type.capitalize()
+        title_e = f"CLD Calo Energy {charge_str} — Pandora vs truth calo hits vs truth"
+        fig_e   = make_energy_fig(series_e, title=title_e)
+
+        fname_e = f"calo_energy_{charge_type}.png"
+        path_e  = out_dir / fname_e
+        fig_e.savefig(path_e, bbox_inches="tight")
+        plt.close(fig_e)
+        print(f"Saved → {path_e}")
 
 
 if __name__ == "__main__":

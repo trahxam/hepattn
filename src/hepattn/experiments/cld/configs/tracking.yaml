@@ -350,6 +350,7 @@ data:
     pandora:
       - PDG
       - charge
+      - energy
       - ref.x
       - ref.y
       - ref.z
