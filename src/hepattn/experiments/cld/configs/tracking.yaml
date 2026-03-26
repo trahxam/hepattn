@@ -298,6 +298,9 @@ data:
       - is_primary
       - is_secondary
       - class_idx
+      # Perigee impact parameters [mm]
+      - perigee.d0
+      - perigee.z0
 
 
     particle_vtxd:
@@ -355,10 +358,14 @@ data:
       - mom.y
       - mom.z
       - mom.r
+      - mom.phi
       - mom.eta
       - mom.abs_eta
       - is_charged
       - is_neutral
+      # Perigee impact parameters [mm]
+      - perigee.d0
+      - perigee.z0
 
     pandora_vtxd: []
 

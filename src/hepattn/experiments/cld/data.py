@@ -320,6 +320,38 @@ class CLDDataset(LRSMDataset):
         event["particle.mom.qopt"] = event["particle.charge"] / event["particle.mom.r"]
         event["pandora.mom.qopt"] = event["pandora.charge"] / event["pandora.mom.r"]
 
+        # Perigee impact parameters [mm] from circle geometry.
+        # Exact for all particles regardless of production vertex position.
+        # Convention: z0 = z at r=0 from linear helix model.
+        _B_T = 2.0   # CLD solenoid field [T]
+        _p2r = 0.3 * _B_T  # pt [GeV] / _p2r = radius [m]
+
+        _q = np.sign(event["particle.mom.qopt"])
+        _R = np.abs(event["particle.mom.r"]) / _p2r
+        _xm = event["particle.vtx.x"] * 1e-3   # mm → m
+        _ym = event["particle.vtx.y"] * 1e-3
+        _zm = event["particle.vtx.z"] * 1e-3
+        _phi = event["particle.mom.phi"]
+        _xc = _xm + _q * _R * np.sin(_phi)
+        _yc = _ym - _q * _R * np.cos(_phi)
+        _c = np.sqrt(_xc ** 2 + _yc ** 2)
+        _den = np.where((_c + _R) > 1e-12, _c + _R, np.ones_like(_c))
+        event["particle.perigee.d0"] = -_q * (_c ** 2 - _R ** 2) / _den * 1e3  # [mm]
+        event["particle.perigee.z0"] = (_zm - np.sinh(event["particle.mom.eta"]) * event["particle.vtx.r"] * 1e-3) * 1e3  # [mm]
+
+        _q = np.sign(event["pandora.mom.qopt"])
+        _R = np.abs(event["pandora.mom.r"]) / _p2r
+        _xm = event["pandora.ref.x"] * 1e-3   # mm → m
+        _ym = event["pandora.ref.y"] * 1e-3
+        _zm = event["pandora.ref.z"] * 1e-3
+        _phi = event["pandora.mom.phi"]
+        _xc = _xm + _q * _R * np.sin(_phi)
+        _yc = _ym - _q * _R * np.cos(_phi)
+        _c = np.sqrt(_xc ** 2 + _yc ** 2)
+        _den = np.where((_c + _R) > 1e-12, _c + _R, np.ones_like(_c))
+        event["pandora.perigee.d0"] = -_q * (_c ** 2 - _R ** 2) / _den * 1e3  # [mm]
+        event["pandora.perigee.z0"] = (_zm - np.sinh(event["pandora.mom.eta"]) * event["pandora.ref.r"] * 1e-3) * 1e3  # [mm]
+
         event["particle.energy"] = np.sqrt(event["particle.mass"] ** 2 + (np.cosh(event["particle.mom.eta"]) * event["particle.mom.r"]) ** 2)
 
         # Merge inputs, first check all requested merged inputs have the same

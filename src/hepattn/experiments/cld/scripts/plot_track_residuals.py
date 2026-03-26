@@ -46,7 +46,7 @@ plt.rcParams["text.usetex"] = True
 # ── constants ──────────────────────────────────────────────────────────────
 B_FIELD_T = 2.0          # CLD solenoid field [T] — matches task.py
 IOI_MATCH_THRESH = 0.5   # minimum hit-IoU to accept a Pandora↔truth match
-N_EVENTS = 1000           # events to process
+N_EVENTS = 100           # events to process
 
 
 # ── helpers ────────────────────────────────────────────────────────────────
@@ -58,52 +58,6 @@ def _cfg() -> dict:
 
 def _np(t: torch.Tensor) -> np.ndarray:
     return t.detach().cpu().float().numpy()
-
-
-def _d0_from_vtx(vx: np.ndarray, vy: np.ndarray, phi: np.ndarray) -> np.ndarray:
-    """Approximate signed transverse impact parameter from production vertex [m].
-
-    Uses the ACTS perigee convention: d0 = vx·sin(φ) - vy·cos(φ).
-    Accurate for primary particles (vtx ≈ origin); approximate for secondaries.
-    """
-    return vx * np.sin(phi) - vy * np.cos(phi)
-
-
-def _perigee_d0_z0(
-    vtx_x: np.ndarray,
-    vtx_y: np.ndarray,
-    vtx_z: np.ndarray,
-    phi: np.ndarray,
-    eta: np.ndarray,
-    pt: np.ndarray,
-    qopt: np.ndarray,
-    B: float,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Exact perigee d0 [m] and z0 [m] from truth kinematics.
-
-    Works for all particles regardless of production vertex (primaries and
-    secondaries alike).  d0 is computed from the circle-centre geometry;
-    z0 uses the linear z(r) model that the helix fit also assumes.
-    """
-    q_sign = np.sign(qopt)                    # +1 positive, -1 negative charge
-    R = np.abs(pt) / (0.3 * B)               # helix radius [m]
-
-    # Circle centre displaced 90° from the momentum direction.
-    # CCW (q<0): centre is left  of momentum → (vx - R·sin φ, vy + R·cos φ)
-    # CW  (q>0): centre is right of momentum → (vx + R·sin φ, vy - R·cos φ)
-    xc = vtx_x + q_sign * R * np.sin(phi)
-    yc = vtx_y - q_sign * R * np.cos(phi)
-    c  = np.sqrt(xc ** 2 + yc ** 2)
-
-    # Numerically stable d0 (avoids cancellation when c ≈ R)
-    denom = np.where((c + R) > 1e-12, c + R, np.ones_like(c))
-    d0 = -q_sign * (c ** 2 - R ** 2) / denom
-
-    # z0: intercept of z = slope·r + z0 at r = 0 (same model as helix fit)
-    vtx_r = np.sqrt(vtx_x ** 2 + vtx_y ** 2)
-    z0 = vtx_z - np.sinh(eta) * vtx_r
-
-    return d0, z0
 
 
 def _helix_fit_on_hits(
@@ -245,43 +199,19 @@ def collect_residuals(cfg: dict, n_events: int = N_EVENTS) -> dict[str, dict[str
         eta_t  = _np(targets["particle_mom.eta"][0])
         phi_t  = _np(targets["particle_mom.phi"][0])
         qopt_t = _np(targets["particle_mom.qopt"][0]) # q/pT [GeV⁻¹]
-        vtx_x  = _np(targets["particle_vtx.x"][0]) * 1e-3   # mm → m
-        vtx_y  = _np(targets["particle_vtx.y"][0]) * 1e-3
-        vtx_z  = _np(targets["particle_vtx.z"][0]) * 1e-3
-
-        # Exact perigee impact parameters from truth kinematics.
-        # Valid for all particles (primaries and secondaries).
-        d0_t_m, z0_t_m = _perigee_d0_z0(
-            vtx_x, vtx_y, vtx_z, phi_t, eta_t, pt_t, qopt_t, B_FIELD_T
-        )
-        d0_t_mm = d0_t_m * 1e3   # [mm]
-        z0_t_mm = z0_t_m * 1e3   # [mm]
+        d0_t_mm  = _np(targets["particle_perigee.d0"][0])  # [mm]
+        z0_t_mm  = _np(targets["particle_perigee.z0"][0])  # [mm]
 
         # ── pandora fields ─────────────────────────────────────────────────
         pan_valid   = targets["pandora_valid"][0].bool()
         pan_charged = targets["pandora_is_charged"][0].bool()
-        pt_pan   = _np(targets["pandora_mom.r"][0])
-        eta_pan  = _np(targets["pandora_mom.eta"][0])
-        mom_x_pan = _np(targets["pandora_mom.x"][0])
-        mom_y_pan = _np(targets["pandora_mom.y"][0])
-        phi_pan  = np.arctan2(mom_y_pan, mom_x_pan)
+        pt_pan     = _np(targets["pandora_mom.r"][0])
+        eta_pan    = _np(targets["pandora_mom.eta"][0])
+        phi_pan    = _np(targets["pandora_mom.phi"][0])
         charge_pan = _np(targets["pandora_charge"][0])
-        qopt_pan = np.where(np.abs(pt_pan) > 1e-6, charge_pan / pt_pan, 0.0)
-        ref_x    = _np(targets["pandora_ref.x"][0]) * 1e-3   # mm → m
-        ref_y    = _np(targets["pandora_ref.y"][0]) * 1e-3
-        ref_z    = _np(targets["pandora_ref.z"][0]) * 1e-3
-        ref_r    = np.sqrt(ref_x ** 2 + ref_y ** 2)
-        # d0: use circle geometry from the reference point (works for any ref on the helix,
-        # not just the perigee — the formula ref·sin/cos only works at the DCA itself)
-        q_sign_pan = np.sign(charge_pan)
-        R_pan = np.abs(pt_pan) / (0.3 * B_FIELD_T)
-        xc_pan = ref_x + q_sign_pan * R_pan * np.sin(phi_pan)
-        yc_pan = ref_y - q_sign_pan * R_pan * np.cos(phi_pan)
-        c_pan  = np.sqrt(xc_pan ** 2 + yc_pan ** 2)
-        denom_pan = np.where((c_pan + R_pan) > 1e-12, c_pan + R_pan, np.ones_like(c_pan))
-        d0_pan_mm = -q_sign_pan * (c_pan ** 2 - R_pan ** 2) / denom_pan * 1e3  # [mm]
-        # z0: linear extrapolation to r=0 (valid for any point on the helix)
-        z0_pan_mm = (ref_z - np.sinh(eta_pan) * ref_r) * 1e3   # [mm]
+        qopt_pan   = np.where(np.abs(pt_pan) > 1e-6, charge_pan / pt_pan, 0.0)
+        d0_pan_mm  = _np(targets["pandora_perigee.d0"][0])  # [mm]
+        z0_pan_mm  = _np(targets["pandora_perigee.z0"][0])  # [mm]
 
         # ── hit masks and positions ─────────────────────────────────────────
         p_vtxd_all  = targets["particle_vtxd_valid"][0]   # (N_par, N_vtxd) bool
