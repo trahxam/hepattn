@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=2G
 #SBATCH --output=/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/slurm_logs/slurm-%j.%x.out
-#SBATCH --array 0-32
+#SBATCH --array 0-16
 
 # Used for preprocessing raw CLD samples into binary parquet files used for training
 
@@ -24,14 +24,14 @@ echo "Running preprocessing script..."
 # Change these to wherever your data is, or get access to them
 #IN_DIR="/share/rcifdata/maxhart/data/cld/raw/val/"
 IN_DIR="/share/lustre/maxhart/data/cld/raw"
-OUT_DIR="/share/lustre/maxhart/data/prepped_new"
+OUT_DIR="/share/rcif2/maxhart/data/cld/prepped/temp/"
 
 # Python command that will be run
 # Note we specify a minimum pT cut, particles below this will be removed
 PYTORCH_CMD="python src/hepattn/experiments/cld/prep.py --in_dir $IN_DIR --out_dir $OUT_DIR --min_pt 10 --parallel"
 
 # Pixi commnand that runs the python command inside the pixi env
-PIXI_CMD="pixi run $PYTORCH_CMD"
+PIXI_CMD="pixi run --frozen $PYTORCH_CMD"
 
 # Apptainer command that runs the pixi command inside the pixi apptainer image
 APPTAINER_CMD="apptainer run --bind /share/rcifdata/maxhart,/share/lustre/maxhart,/share/rcif2/maxhart /share/rcifdata/maxhart/hepattn/pixi.sif $PIXI_CMD"
