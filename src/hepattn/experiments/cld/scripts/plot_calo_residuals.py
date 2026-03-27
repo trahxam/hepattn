@@ -135,7 +135,7 @@ def collect_residuals(cfg: dict, n_events: int = N_EVENTS) -> tuple[dict, dict]:
         fast_file_discovery=True,
         force_pad_sizes=None,
     )
-    loader = DataLoader(dataset, batch_size=1, collate_fn=dataset.collate_fn)
+    loader = DataLoader(dataset, batch_size=1, collate_fn=dataset.collate_fn, num_workers=16)
 
     def _empty():
         return {
@@ -153,10 +153,11 @@ def collect_residuals(cfg: dict, n_events: int = N_EVENTS) -> tuple[dict, dict]:
 
     edata: dict = {
         ct: {key: [] for key in (
-            "truth_res",          "pan_res",          "pan_reported_res",
+            "truth_res",          "pan_res",          "pan_reported_res",   "truth_full_res",
             "truth_truth_e",      "truth_truth_eta",
             "pan_truth_e",        "pan_truth_eta",
             "pan_rep_truth_e",    "pan_rep_truth_eta",
+            "truth_full_truth_e", "truth_full_truth_eta",
         )}
         for ct in ("charged", "neutral")
     }
@@ -242,6 +243,11 @@ def collect_residuals(cfg: dict, n_events: int = N_EVENTS) -> tuple[dict, dict]:
                     ed["pan_reported_res"].append((pan_reported_e - truth_e) / truth_e)
                     ed["pan_rep_truth_e"].append(truth_e)
                     ed["pan_rep_truth_eta"].append(truth_eta)
+
+                truth_full_e = float(_np(targets["particle_calib_full_energy_calo"][0])[p_idx])
+                ed["truth_full_res"].append((truth_full_e - truth_e) / truth_e)
+                ed["truth_full_truth_e"].append(truth_e)
+                ed["truth_full_truth_eta"].append(truth_eta)
 
             # ── ECAL residuals ─────────────────────────────────────────────
             if n_ecal > 0:
@@ -518,6 +524,12 @@ def main() -> None:
                 "color": "darkorange",
                 "data":  [ed["pan_reported_res"],    ed["pan_reported_res"]],
                 "truth": [ed["pan_rep_truth_e"],     ed["pan_rep_truth_eta"]],
+            }
+        if ed["truth_full_res"].size > 0:
+            series_e["Truth (full hit)"] = {
+                "color": "tab:purple",
+                "data":  [ed["truth_full_res"],       ed["truth_full_res"]],
+                "truth": [ed["truth_full_truth_e"],   ed["truth_full_truth_eta"]],
             }
 
         if not series_e:

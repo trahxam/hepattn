@@ -86,7 +86,7 @@ TRUTH_BINS: dict[str, tuple] = {
     "qopt": (np.linspace(-10.0, 10.0, 24),   r"Truth $q/p_T$ [GeV$^{-1}$]",    "linear"),
     "eta":  (np.linspace(-3.0, 3.0, 24),     r"Truth $\eta$",                   "linear"),
     "phi":  (np.linspace(-np.pi, np.pi, 24), r"Truth $\phi$ [rad]",             "linear"),
-    "d0":   (np.geomspace(5e-2, 100.0, 24),  r"Truth $|d_0|$ [mm]",             "log"),
+    "d0":   (np.geomspace(1e-3, 1e2, 24),     r"Truth $|d_0|$ [mm]",             "log"),
     "z0":   (np.linspace(-30.0, 30.0, 24), r"Truth $z_0$ [mm]",               "linear"),
 }
 
@@ -108,8 +108,10 @@ RESOLUTION_VS_TRUTH_YLIM: dict[str, tuple | None] = {
     "eta":  None,
     "phi":  None,
     "d0":   (-1.0, 1.0),
-    "z0":   (-0.3, 0.3),
+    "z0":   None,
 }
+
+RESOLUTION_VS_TRUTH_YSCALE: dict[str, str] = {}
 
 RESIDUAL_YLABEL: dict[str, str] = {
     "pt":   r"Median$[p_T^\mathrm{pred} - p_T^\mathrm{true}]$ [GeV]",
@@ -126,7 +128,7 @@ RESOLUTION_YLABEL: dict[str, str] = {
     "eta":  r"$\sigma[\eta^\mathrm{pred} - \eta^\mathrm{true}]$",
     "phi":  r"$\sigma[\phi^\mathrm{pred} - \phi^\mathrm{true}]$ [rad]",
     "d0":   r"$\sigma[(d_0^\mathrm{pred} - d_0^\mathrm{true})\,/\,|d_0^\mathrm{true}|]$",
-    "z0":   r"$\sigma[(z_0^\mathrm{pred} - z_0^\mathrm{true})\,/\,|z_0^\mathrm{true}|]$",
+    "z0":   r"$\sigma[z_0^\mathrm{pred} - z_0^\mathrm{true}]$ [mm]",
 }
 
 # Per-field resolution normalisation: abs_residual / RESOLUTION_DIVIDER[field](truth).
@@ -137,7 +139,7 @@ RESOLUTION_DIVIDER: dict[str, object] = {
     "eta":  None,
     "phi":  None,
     "d0":   lambda truth: np.clip(np.abs(truth), 1e-4, None),
-    "z0":   lambda truth: np.clip(np.abs(truth), 0.1, None),
+    "z0":   None,
 }
 
 # X-axis labels for arcsinh(residual / EMA-MAD) plots
@@ -400,6 +402,7 @@ def make_residual_vs_truth_fig(
     suptitle: str = "Track Residuals vs Truth",
     min_bin_count: int = 5,
     ylim_map: dict[str, tuple | None] | None = None,
+    yscale_map: dict[str, str] | None = None,
 ) -> plt.Figure:
     """Median residual ± IQR bars vs binned truth quantity, using TRUTH_BINS.
 
@@ -495,7 +498,10 @@ def make_residual_vs_truth_fig(
                 margin  = max((p98 - p2) * 0.15, 1e-9)
                 ax.set_ylim(p2 - margin, p98 + margin)
 
-        ax.axhline(0, color="grey", lw=0.5, ls=":", zorder=0)
+        y_scale = (yscale_map or {}).get(track_field, "linear")
+        ax.set_yscale(y_scale)
+        if y_scale != "log":
+            ax.axhline(0, color="grey", lw=0.5, ls=":", zorder=0)
         if x_scale == "log":
             ax.set_xscale("log")
         ax.set_xlim(truth_bin_edges[0], truth_bin_edges[-1])

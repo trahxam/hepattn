@@ -32,6 +32,7 @@ from hepattn.experiments.cld.plotting import (
     RESOLUTION_DIVIDER,
     RESOLUTION_YLABEL,
     RESOLUTION_VS_TRUTH_YLIM,
+    RESOLUTION_VS_TRUTH_YSCALE,
     TRUTH_BINS,
     make_arcsinh_fig,
     make_residual_fig,
@@ -174,7 +175,7 @@ def collect_residuals(cfg: dict, n_events: int = N_EVENTS) -> dict[str, dict[str
         # Do not force-pad to 384; avoids wasting memory in an offline script
         force_pad_sizes=None,
     )
-    loader = DataLoader(dataset, batch_size=1, collate_fn=dataset.collate_fn)
+    loader = DataLoader(dataset, batch_size=1, collate_fn=dataset.collate_fn, num_workers=16)
 
     FIELDS = ["pt", "qopt", "eta", "phi", "d0", "z0"]
 
@@ -455,6 +456,7 @@ def main() -> None:
         (make_residual_vs_truth_fig(res_series, RESOLUTION_YLABEL,
                                     suptitle="CLD track resolution vs truth",
                                     ylim_map=RESOLUTION_VS_TRUTH_YLIM,
+                                    yscale_map=RESOLUTION_VS_TRUTH_YSCALE,
                                     min_bin_count=20),
          "cld_track_resolution_vs_truth.png"),
     ]

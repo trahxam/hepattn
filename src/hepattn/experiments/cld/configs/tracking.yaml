@@ -284,6 +284,7 @@ data:
       - calib_energy_ecal
       - calib_energy_hcal
       - calib_energy_calo
+      - calib_full_energy_calo
       # Binary particle class info
       - is_charged
       - is_neutral
