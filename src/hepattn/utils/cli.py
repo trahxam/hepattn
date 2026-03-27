@@ -36,7 +36,7 @@ def get_best_epoch(config_path: Path) -> Path:
     """
     ckpt_dir = Path(config_path.parent / "ckpts")
     print(f"No --ckpt_path specified, looking for best checkpoint in {ckpt_dir.resolve()!r}")
-    ckpts = list(ckpt_dir.glob("*.ckpt"))
+    ckpts = list(ckpt_dir.rglob("*.ckpt"))
     if len(ckpts) == 0:
         raise FileNotFoundError(f"No checkpoints found in {ckpt_dir.resolve()!r}")
     exp = r"(?<=loss=)(?:(?:\d+(?:\.\d*)?|\.\d+))"
