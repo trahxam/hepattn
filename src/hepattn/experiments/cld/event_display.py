@@ -1,11 +1,15 @@
 import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 import torch
 import numpy as np
 from matplotlib.markers import MarkerStyle
 from matplotlib.transforms import Affine2D
+from matplotlib.path import Path
+from matplotlib.patches import PathPatch, Patch
 
 plt.rcParams["figure.dpi"] = 300
+plt.rcParams["text.usetex"] = True
 
 _B_FIELD_T = 2.0     # CLD solenoid field [T]
 _HELIX_CLIP_M = 1.5  # clip helix paths at tracker radius [m]
@@ -94,6 +98,117 @@ def _clip_helix_at_z(hx_t, hy_t, hz_t, z_max: float):
     return hx_t, hy_t, hz_t
 
 
+# ── CLD detector geometry (all dimensions in metres) ──────────────────────────
+_CLD_GEOM = {
+    "beampipe_r": 0.015,
+    "vtxd_r_in":  0.0175, "vtxd_r_out": 0.060, "vtxd_z": 0.125,
+    "trkr_r_in":  0.075,  "trkr_r_out": 2.10,  "trkr_z": 2.20,
+    "ecal_r_in":  2.15,   "ecal_r_out": 2.352, "ecal_z": 2.31,
+    "ecal_ez_in": 2.31,   "ecal_ez_out": 2.512, "ecal_er_in": 0.20, "ecal_er_out": 2.09,
+    "hcal_r_in":  2.40,   "hcal_r_out": 3.566, "hcal_z": 2.54,
+    "hcal_ez_in": 2.54,   "hcal_ez_out": 3.71,  "hcal_er_in": 0.34, "hcal_er_out": 3.57,
+    "coil_r_in":  3.60,   "coil_r_out": 3.90,  "coil_z": 4.00,
+    "yoke_r_in":  3.90,   "yoke_r_out": 6.00,  "yoke_z": 5.30,
+}
+
+_AXIS_LABEL_MAP = {
+    "pos.x": r"$x$ [m]",
+    "pos.y": r"$y$ [m]",
+    "pos.z": r"$z$ [m]",
+    "pos.r": r"$r$ [m]",
+    "mom.x": r"$p_x$ [GeV]",
+    "mom.y": r"$p_y$ [GeV]",
+    "mom.z": r"$p_z$ [GeV]",
+}
+
+_GEO_COLORS = {
+    "yoke": "#b2dfdb",  # pale teal
+    "coil": "#b0c4de",  # light steel blue
+    "hcal": "#ffe0b2",  # pale orange
+    "ecal": "#c8e6c9",  # pale green
+    "trkr": "#fce4ec",  # pale pink
+    "vtxd": "#fff9c4",  # pale yellow
+    "pipe": "#e0e0e0",  # light grey
+}
+
+
+def _annular_polygon_path(r_inscribed_in, r_inscribed_out, n=12):
+    """Compound Path for an annular regular n-gon specified by inscribed (apothem) radii."""
+    R_in  = r_inscribed_in  / np.cos(np.pi / n)
+    R_out = r_inscribed_out / np.cos(np.pi / n)
+    a0 = np.pi / n  # rotate so a flat face sits at the top
+    angles = a0 + np.linspace(0, 2 * np.pi, n, endpoint=False)
+    outer = np.column_stack([R_out * np.cos(angles),        R_out * np.sin(angles)])
+    inner = np.column_stack([R_in  * np.cos(angles[::-1]),  R_in  * np.sin(angles[::-1])])
+    oc = np.vstack([outer, outer[0]])
+    ic = np.vstack([inner, inner[0]])
+    codes = [Path.MOVETO] + [Path.LINETO] * (n - 1) + [Path.CLOSEPOLY]
+    return Path(np.vstack([oc, ic]), codes + codes)
+
+
+def _annular_circle_path(r_in, r_out, n=64):
+    """Compound Path for an annular circle (approximated by an n-gon)."""
+    angles = np.linspace(0, 2 * np.pi, n, endpoint=False)
+    outer = np.column_stack([r_out * np.cos(angles),        r_out * np.sin(angles)])
+    inner = np.column_stack([r_in  * np.cos(angles[::-1]),  r_in  * np.sin(angles[::-1])])
+    oc = np.vstack([outer, outer[0]])
+    ic = np.vstack([inner, inner[0]])
+    codes = [Path.MOVETO] + [Path.LINETO] * (n - 1) + [Path.CLOSEPOLY]
+    return Path(np.vstack([oc, ic]), codes + codes)
+
+
+def _rect_path(x0, x1, y0, y1):
+    verts = [(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)]
+    codes = [Path.MOVETO, Path.LINETO, Path.LINETO, Path.LINETO, Path.CLOSEPOLY]
+    return Path(verts, codes)
+
+
+def _draw_cld_geometry(ax, view_x, view_y, zorder=-10):
+    """Overlay a rough CLD detector geometry on ax as a pastel background."""
+    g = _CLD_GEOM
+    C = _GEO_COLORS
+
+    def _patch(path, color, fa=0.4, ea=0.8, lw=0.7):
+        ax.add_patch(PathPatch(
+            path,
+            facecolor=mcolors.to_rgba(color, fa),
+            edgecolor=mcolors.to_rgba(color, ea),
+            linewidth=lw,
+            zorder=zorder,
+        ))
+
+    if view_x == "pos.x" and view_y == "pos.y":
+        # Transverse (XY) view — calorimeters are dodecagonal, tracker/vtxd circular
+        _patch(_annular_polygon_path(g["yoke_r_in"],  g["yoke_r_out"],  12), C["yoke"])
+        _patch(_annular_polygon_path(g["coil_r_in"],  g["coil_r_out"],  12), C["coil"])
+        _patch(_annular_polygon_path(g["hcal_r_in"],  g["hcal_r_out"],  12), C["hcal"])
+        _patch(_annular_polygon_path(g["ecal_r_in"],  g["ecal_r_out"],  12), C["ecal"])
+        _patch(_annular_circle_path( g["trkr_r_in"],  g["trkr_r_out"]),      C["trkr"])
+        _patch(_annular_circle_path( g["vtxd_r_in"],  g["vtxd_r_out"]),      C["vtxd"])
+        _patch(_annular_circle_path( 0.001,           g["beampipe_r"]),       C["pipe"], fa=0.4)
+
+    elif view_x == "pos.z" and view_y == "pos.y":
+        # Longitudinal (ZY) view — draw annular bands (±y) for each barrel/endcap
+        layers = [
+            (-g["yoke_z"],      g["yoke_z"],      g["yoke_r_in"],  g["yoke_r_out"],  C["yoke"]),
+            (-g["coil_z"],      g["coil_z"],      g["coil_r_in"],  g["coil_r_out"],  C["coil"]),
+            (-g["hcal_z"],      g["hcal_z"],      g["hcal_r_in"],  g["hcal_r_out"],  C["hcal"]),
+            ( g["hcal_ez_in"],  g["hcal_ez_out"], g["hcal_er_in"], g["hcal_er_out"], C["hcal"]),
+            (-g["hcal_ez_out"], -g["hcal_ez_in"], g["hcal_er_in"], g["hcal_er_out"], C["hcal"]),
+            (-g["ecal_z"],      g["ecal_z"],      g["ecal_r_in"],  g["ecal_r_out"],  C["ecal"]),
+            ( g["ecal_ez_in"],  g["ecal_ez_out"], g["ecal_er_in"], g["ecal_er_out"], C["ecal"]),
+            (-g["ecal_ez_out"], -g["ecal_ez_in"], g["ecal_er_in"], g["ecal_er_out"], C["ecal"]),
+            (-g["trkr_z"],      g["trkr_z"],      g["trkr_r_in"],  g["trkr_r_out"],  C["trkr"]),
+            (-g["vtxd_z"],      g["vtxd_z"],      g["vtxd_r_in"],  g["vtxd_r_out"],  C["vtxd"]),
+        ]
+        for z0, z1, r_in, r_out, color in layers:
+            _patch(_rect_path(z0, z1,  r_in,  r_out), color)
+            _patch(_rect_path(z0, z1, -r_out, -r_in), color)
+        # Beam pipe: thin horizontal band
+        _patch(_rect_path(-g["yoke_z"], g["yoke_z"], -g["beampipe_r"], g["beampipe_r"]),
+               C["pipe"], fa=0.4)
+
+
 def plot_cld_event(
     data,
     axes_spec,
@@ -107,6 +222,8 @@ def plot_cld_event(
     high_contrast=False,
     draw_helices=True,
     vtxd_inset=True,
+    draw_geometry=True,
+    draw_legend=True,
 ):
     # Setup the axes
     num_axes = len(axes_spec)
@@ -150,6 +267,9 @@ def plot_cld_event(
     _helix_drawn: set[tuple[int, int]] = set()
 
     for ax_idx, ax_spec in enumerate(axes_spec):
+        if draw_geometry:
+            _draw_cld_geometry(ax[ax_idx], ax_spec["x"], ax_spec["y"])
+
         # Plot only the hits / subsystems specified for these axes
         for input_name in ax_spec["input_names"]:
             x = data[f"{input_name}_{ax_spec['x']}"][batch_idx]
@@ -181,8 +301,11 @@ def plot_cld_event(
                             # Scatter individual hits without connecting lines
                             if mask.any():
                                 ax[ax_idx].scatter(x[mask][idx], y[mask][idx],
+                                                   color="black", marker="+", alpha=alpha, s=14.0,
+                                                   linewidths=0.9, zorder=3)
+                                ax[ax_idx].scatter(x[mask][idx], y[mask][idx],
                                                    color=color, marker="+", alpha=alpha, s=8.0,
-                                                   edgecolors="black", linewidths=0.5, zorder=3)
+                                                   linewidths=0.5, zorder=4)
 
                             # Draw helix + production vertex once per (particle, axis)
                             if (ax_idx, object_idx) not in _helix_drawn:
@@ -275,8 +398,8 @@ def plot_cld_event(
                             },
                         )
 
-            ax[ax_idx].set_xlabel(ax_spec.get("xlabel", ax_spec["x"]))
-            ax[ax_idx].set_ylabel(ax_spec.get("ylabel", ax_spec["y"]))
+            ax[ax_idx].set_xlabel(ax_spec.get("xlabel", _AXIS_LABEL_MAP.get(ax_spec["x"], ax_spec["x"])))
+            ax[ax_idx].set_ylabel(ax_spec.get("ylabel", _AXIS_LABEL_MAP.get(ax_spec["y"], ax_spec["y"])))
             # ax[ax_idx].set_aspect("equal", "box")
 
     if vtxd_inset:
@@ -372,9 +495,49 @@ def plot_cld_event(
             axins.set_xlim(*xlim)
             axins.set_ylim(*ylim)
             axins.set_aspect("equal")
+            axins.xaxis.tick_top()
+            axins.yaxis.tick_right()
+            axins.xaxis.set_major_locator(plt.MaxNLocator(3))
+            axins.yaxis.set_major_locator(plt.MaxNLocator(3))
             axins.tick_params(labelsize=5)
             axins.set_title("VTXD", fontsize=6, pad=2)
             ax[ax_idx].indicate_inset_zoom(axins, edgecolor="gray", alpha=0.7, linewidth=0.8)
+
+    if draw_legend:
+        _g = "dimgray"
+        leg_handles = [
+            mlines.Line2D([0], [0], color=_g, linewidth=1.2,
+                          label=r"Track helix"),
+            mlines.Line2D([0], [0], color=_g, linewidth=0, marker="+",
+                          markersize=6, markeredgewidth=0.7,
+                          label=r"Si hit"),
+            mlines.Line2D([0], [0], color=_g, linewidth=0, marker="*",
+                          markersize=8, markeredgewidth=0.5, markeredgecolor="black",
+                          label=r"Production vertex"),
+            mlines.Line2D([0], [0], color=_g, linewidth=0, marker="o",
+                          markersize=4, alpha=0.5, markeredgecolor="black", markeredgewidth=0.3,
+                          label=r"ECAL hit"),
+            mlines.Line2D([0], [0], color=_g, linewidth=0, marker="s",
+                          markersize=4, alpha=0.5, markeredgecolor="black", markeredgewidth=0.3,
+                          label=r"HCAL hit"),
+            mlines.Line2D([0], [0], color=_g, linewidth=0, marker="x",
+                          markersize=5, markeredgewidth=0.7,
+                          label=r"Muon hit"),
+        ]
+        ax[0].legend(handles=leg_handles, fontsize=7, loc="upper right",
+                     framealpha=0.85, frameon=True)
+
+        C = _GEO_COLORS
+        geo_handles = [
+            Patch(facecolor=mcolors.to_rgba(C["vtxd"], 0.6), edgecolor=mcolors.to_rgba(C["vtxd"], 0.9), label=r"VTXD"),
+            Patch(facecolor=mcolors.to_rgba(C["trkr"], 0.6), edgecolor=mcolors.to_rgba(C["trkr"], 0.9), label=r"Tracker"),
+            Patch(facecolor=mcolors.to_rgba(C["ecal"], 0.6), edgecolor=mcolors.to_rgba(C["ecal"], 0.9), label=r"ECAL"),
+            Patch(facecolor=mcolors.to_rgba(C["hcal"], 0.6), edgecolor=mcolors.to_rgba(C["hcal"], 0.9), label=r"HCAL"),
+            Patch(facecolor=mcolors.to_rgba(C["coil"], 0.6), edgecolor=mcolors.to_rgba(C["coil"], 0.9), label=r"Coil"),
+            Patch(facecolor=mcolors.to_rgba(C["yoke"], 0.6), edgecolor=mcolors.to_rgba(C["yoke"], 0.9), label=r"Yoke"),
+        ]
+        ax[-1].legend(handles=geo_handles, fontsize=7, loc="upper right",
+                      framealpha=0.85, frameon=True)
 
     return fig
 

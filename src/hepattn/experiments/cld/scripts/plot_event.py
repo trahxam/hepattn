@@ -48,12 +48,15 @@ with PdfPages(pdf_path) as pdf:
         inputs, targets = test_dataloader.dataset.prep_sample(sample)
         data = inputs | targets
 
-        fig = plot_cld_event(data, axes_spec, "particle")
-        fig.axes[0].set_xlim(-3.5, 3.5)
-        fig.axes[0].set_ylim(-3.5, 3.5)
+        fig = plot_cld_event(data, axes_spec, "particle", gridspec_kw={"width_ratios": [9, 10]})
+        fig.set_size_inches(17, 8)
+        fig.axes[0].set_xlim(-4.5, 4.5)
+        fig.axes[0].set_ylim(-4.5, 4.5)
+        fig.axes[0].set_aspect("equal")
         fig.axes[1].set_xlim(-5.0, 5.0)
-        fig.axes[1].set_ylim(-3.5, 3.5)
-        fig.suptitle(f"CLD Event {sample_id} ({filename})")
+        fig.axes[1].set_ylim(-4.5, 4.5)
+        fig.axes[1].set_aspect("equal")
+        fig.suptitle(r"CLD Event " + str(sample_id) + r" (" + filename.replace("_", r"\_") + r")")
 
         pdf.savefig(fig)
         plt.close(fig)

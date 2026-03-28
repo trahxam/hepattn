@@ -74,6 +74,7 @@ def get_test_dataloader(config_path: Path, num_workers=10, batch_size=10, num_te
         "num_workers": num_workers,
         "batch_size": batch_size,
         "num_test": num_test,
+        "test_dir": "/share/rcif2/maxhart/data/cld/prepped/temp/reco_p8_ee_Zuds_ecm91_11112463_6_condor/",
     })
     dm = CLDDataModule(**config)
     dm.setup(stage="test")
