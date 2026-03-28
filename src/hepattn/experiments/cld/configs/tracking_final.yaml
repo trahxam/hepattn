@@ -265,10 +265,6 @@ data:
       - mom.cosphi
       - mom.rinv
       - mom.qopt
-      # Spin coordinates
-      - spin.x
-      - spin.y
-      - spin.z
       # Constituent count info
       - num_vtxd
       - num_trkr
