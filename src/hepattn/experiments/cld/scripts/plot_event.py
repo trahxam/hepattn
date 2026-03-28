@@ -8,25 +8,18 @@ import yaml
 import matplotlib.pyplot as plt
 
 
-config_path = Path("configs/base.yaml")
+config_path = Path(__file__).parent.parent / "configs" / "combined_unified.yaml"
 config = yaml.safe_load(config_path.read_text())["data"]
 config["num_workers"] = 0
+config["test_dir"] = "/share/rcif2/maxhart/data/cld/prepped/temp/reco_p8_ee_Zuds_ecm91_11112463_6_condor/"
 
 datamodule = CLDDataModule(**config)
 datamodule.setup(stage="test")
 
 test_dataloader = datamodule.test_dataloader()
 
-out_dir = Path("cld/plots")
+out_dir = Path(__file__).parent.parent / "plots"
 out_dir.mkdir(parents=True, exist_ok=True)
-
-sample_ids = [
-    1226276301630779,
-    1226276301640779,
-    1226276301250779,
-    1226276301210779,
-    1226276301410779,
-]
 
 sample_ids = test_dataloader.dataset.sample_ids[:10]
 
@@ -36,14 +29,14 @@ axes_spec = [
         "y": "pos.y",
         "px": "mom.x",
         "py": "mom.y",
-        "input_names": ["trkr", "ecal", "hcal", "muon"],
+        "input_names": ["vtxd", "trkr", "ecal", "hcal", "muon"],
     },
     {
         "x": "pos.z",
         "y": "pos.y",
         "px": "mom.z",
         "py": "mom.y",
-        "input_names": ["trkr", "ecal", "hcal", "muon"],
+        "input_names": ["vtxd", "trkr", "ecal", "hcal", "muon"],
     },
 ]
 

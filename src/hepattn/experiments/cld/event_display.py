@@ -2,8 +2,13 @@ import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
 import torch
 import numpy as np
+from matplotlib.markers import MarkerStyle
+from matplotlib.transforms import Affine2D
 
 plt.rcParams["figure.dpi"] = 300
+
+_B_FIELD_T = 2.0     # CLD solenoid field [T]
+_HELIX_CLIP_M = 1.5  # clip helix paths at tracker radius [m]
 
 
 def _build_helix_path(
@@ -70,6 +75,25 @@ def _build_helix_path(
     return x, y, z, y_linear
 
 
+def _estimate_tracker_boundary(data: dict, batch_idx: int = 0) -> tuple[float, float]:
+    """Return (R_max, Z_max) in metres from trkr hits, falling back to module defaults."""
+    valid = data["trkr_valid"][batch_idx]
+    if not valid.any():
+        return _HELIX_CLIP_M, 2.5
+    r_vals = data["trkr_pos.r"][batch_idx][valid]
+    z_vals = data["trkr_pos.z"][batch_idx][valid].abs()
+    return float(r_vals.max().item()), float(z_vals.max().item())
+
+
+def _clip_helix_at_z(hx_t, hy_t, hz_t, z_max: float):
+    """Trim helix tensors at the first point where |z| >= z_max."""
+    outside = torch.nonzero(hz_t.abs() >= z_max, as_tuple=False)
+    if outside.numel() > 0:
+        end = max(int(outside[0].item()), 1)
+        return hx_t[:end], hy_t[:end], hz_t[:end]
+    return hx_t, hy_t, hz_t
+
+
 def plot_cld_event(
     data,
     axes_spec,
@@ -81,6 +105,8 @@ def plot_cld_event(
     gridspec_kw=None,
     particle_color=None,
     high_contrast=False,
+    draw_helices=True,
+    vtxd_inset=True,
 ):
     # Setup the axes
     num_axes = len(axes_spec)
@@ -114,6 +140,15 @@ def plot_cld_event(
     ecal_names = ["ecb", "ece", "ecal"]
     hcal_names = ["hcb", "hce", "hcal"]
 
+    # Per-event tracker cylinder boundary for helix clipping
+    if draw_helices and "trkr_pos.r" in data:
+        R_tracker, Z_tracker = _estimate_tracker_boundary(data, batch_idx)
+    else:
+        R_tracker, Z_tracker = _HELIX_CLIP_M, 2.5
+
+    # Tracks which (ax_idx, object_idx) pairs have had their helix drawn
+    _helix_drawn: set[tuple[int, int]] = set()
+
     for ax_idx, ax_spec in enumerate(axes_spec):
         # Plot only the hits / subsystems specified for these axes
         for input_name in ax_spec["input_names"]:
@@ -140,22 +175,82 @@ def plot_cld_event(
 
                     # Tracker hit
                     if input_name in sihit_names:
-                        # Used for sorting the hits in time when we want to plot them in order in the tracker
                         idx = torch.argsort(data[f"{input_name}_time"][batch_idx][mask], dim=-1)
 
-                        ax[ax_idx].plot(x[mask][idx], y[mask][idx], color=color, marker="o", alpha=alpha, linewidth=1.0, ms=2.0, linestyle=linestyle)
+                        if draw_helices:
+                            # Scatter individual hits without connecting lines
+                            if mask.any():
+                                ax[ax_idx].scatter(x[mask][idx], y[mask][idx],
+                                                   color=color, marker="+", alpha=alpha, s=8.0,
+                                                   edgecolors="black", linewidths=0.5, zorder=3)
+
+                            # Draw helix + production vertex once per (particle, axis)
+                            if (ax_idx, object_idx) not in _helix_drawn:
+                                _helix_drawn.add((ax_idx, object_idx))
+                                qopt = data[f"{object_name}_mom.qopt"][batch_idx][object_idx].item()
+                                q_sign = float(np.sign(qopt))
+                                if abs(q_sign) > 0.5:  # charged particle only
+                                    phi_val = data[f"{object_name}_mom.phi"][batch_idx][object_idx].item()
+                                    eta_val = data[f"{object_name}_mom.eta"][batch_idx][object_idx].item()
+                                    pt_val = max(abs(data[f"{object_name}_mom.r"][batch_idx][object_idx].item()), 1e-6)
+                                    vtx_x_m = data[f"{object_name}_vtx.x"][batch_idx][object_idx].item() * 1e-3
+                                    vtx_y_m = data[f"{object_name}_vtx.y"][batch_idx][object_idx].item() * 1e-3
+                                    vtx_z_m = data[f"{object_name}_vtx.z"][batch_idx][object_idx].item() * 1e-3
+
+                                    # Compute d0/z0 at DCA from production vertex
+                                    R = pt_val / (0.3 * _B_FIELD_T)
+                                    xc = vtx_x_m + q_sign * R * np.sin(phi_val)
+                                    yc = vtx_y_m - q_sign * R * np.cos(phi_val)
+                                    c = np.sqrt(xc**2 + yc**2)
+                                    d0 = -q_sign * (c**2 - R**2) / (c + R) if (c + R) > 1e-12 else 0.0
+                                    vtx_r = np.sqrt(vtx_x_m**2 + vtx_y_m**2)
+                                    z0 = vtx_z_m - np.sinh(eta_val) * vtx_r
+
+                                    hx_t, hy_t, hz_t, _ = _build_helix_path(
+                                        torch.tensor(phi_val, dtype=torch.float32),
+                                        torch.tensor(eta_val, dtype=torch.float32),
+                                        torch.tensor(pt_val, dtype=torch.float32),
+                                        torch.tensor(q_sign, dtype=torch.float32),
+                                        torch.tensor(d0, dtype=torch.float32),
+                                        torch.tensor(z0, dtype=torch.float32),
+                                        _B_FIELD_T, R_tracker,
+                                    )
+                                    hx_t, hy_t, hz_t = _clip_helix_at_z(hx_t, hy_t, hz_t, Z_tracker)
+
+                                    helix_coord = {"pos.x": hx_t, "pos.y": hy_t, "pos.z": hz_t}
+                                    vtx_coord = {"pos.x": vtx_x_m, "pos.y": vtx_y_m, "pos.z": vtx_z_m}
+
+                                    hx_plot = helix_coord.get(ax_spec["x"], hx_t).numpy()
+                                    hy_plot = helix_coord.get(ax_spec["y"], hy_t).numpy()
+                                    ax[ax_idx].plot(hx_plot, hy_plot, color="black",
+                                                    linewidth=2.0, alpha=alpha,
+                                                    linestyle=linestyle, zorder=1)
+                                    ax[ax_idx].plot(hx_plot, hy_plot, color=color,
+                                                    linewidth=1.0, alpha=alpha,
+                                                    linestyle=linestyle, zorder=2)
+
+                                    vtx_x_plot = vtx_coord.get(ax_spec["x"], vtx_x_m)
+                                    vtx_y_plot = vtx_coord.get(ax_spec["y"], vtx_y_m)
+                                    _star = MarkerStyle("*", transform=Affine2D().rotate_deg((object_idx * 137.508) % 72))
+                                    ax[ax_idx].scatter([vtx_x_plot], [vtx_y_plot],
+                                                       color=color, marker=_star, s=64,
+                                                       linewidths=0.5, alpha=alpha, zorder=4,
+                                                       edgecolors="black")
+                        else:
+                            ax[ax_idx].plot(x[mask][idx], y[mask][idx], color=color, marker="o", alpha=alpha, linewidth=1.0, ms=2.0, linestyle=linestyle, markeredgecolor="black", markeredgewidth=0.3)
 
                     # ECAL hit
                     elif input_name in ecal_names:
-                        ax[ax_idx].scatter(x[mask], y[mask], color=color, marker=".", alpha=alpha, s=1.0)
+                        ax[ax_idx].scatter(x[mask], y[mask], color=color, marker="o", alpha=min(alpha, 0.5), s=3.0, edgecolors="black", linewidths=0.3)
 
                     # HCAL hit
                     elif input_name in hcal_names:
-                        ax[ax_idx].scatter(x[mask], y[mask], color=color, marker="s", alpha=alpha, s=4.0)
+                        ax[ax_idx].scatter(x[mask], y[mask], color=color, marker="s", alpha=min(alpha, 0.5), s=4.0, edgecolors="black", linewidths=0.3)
 
                     # Muon hit
                     elif input_name == "muon":
-                        ax[ax_idx].scatter(x[mask], y[mask], color=color, marker="x", alpha=alpha, s=4.0)
+                        ax[ax_idx].scatter(x[mask], y[mask], color="black", marker="x", alpha=alpha, s=10.0, linewidths=1.2, zorder=3)
+                        ax[ax_idx].scatter(x[mask], y[mask], color=color, marker="x", alpha=alpha, s=4.0, linewidths=0.7, zorder=4)
 
                     # Uncomment to leave a box denoting particle index for trkr hit
                     if label_objects and input_name in {"trkr", "hcal"} and mask.any():
@@ -183,6 +278,103 @@ def plot_cld_event(
             ax[ax_idx].set_xlabel(ax_spec.get("xlabel", ax_spec["x"]))
             ax[ax_idx].set_ylabel(ax_spec.get("ylabel", ax_spec["y"]))
             # ax[ax_idx].set_aspect("equal", "box")
+
+    if vtxd_inset:
+        vtxd_lim_xy = 0.08   # ±m for transverse directions
+        vtxd_lim_z  = 0.20   # ±m for z
+
+        coord_lims = {
+            "pos.x": (-vtxd_lim_xy, vtxd_lim_xy),
+            "pos.y": (-vtxd_lim_xy, vtxd_lim_xy),
+            "pos.z": (-vtxd_lim_z,  vtxd_lim_z),
+        }
+
+        for ax_idx, ax_spec in enumerate(axes_spec):
+            if "vtxd" not in ax_spec.get("input_names", []):
+                continue
+
+            axins = ax[ax_idx].inset_axes([0.02, 0.02, 0.38, 0.38])
+
+            # Background: all vtxd hits
+            vx_all = data[f"vtxd_{ax_spec['x']}"][batch_idx]
+            vy_all = data[f"vtxd_{ax_spec['y']}"][batch_idx]
+            axins.scatter(vx_all, vy_all, alpha=0.25, s=2.0, color="black", zorder=1)
+
+            num_slots = data[f"{object_name}_vtxd_valid"][batch_idx].shape[-2]
+            for object_idx in range(num_slots):
+                if data[f"{object_name}_valid"][batch_idx][object_idx].item() != valid:
+                    continue
+
+                color = cycler[object_idx % len(cycler)]
+                alpha = 1.0
+                if mark_transparent is not None:
+                    if not data[f"{object_name}_{mark_transparent}"][batch_idx][object_idx].item():
+                        alpha = 0.5
+
+                mask = data[f"{object_name}_vtxd_valid"][batch_idx][object_idx]
+                if mask.any():
+                    axins.scatter(vx_all[mask], vy_all[mask],
+                                  color=color, marker="o", alpha=alpha, s=6.0,
+                                  edgecolors="black", linewidths=0.3, zorder=3)
+
+                if draw_helices:
+                    qopt = data[f"{object_name}_mom.qopt"][batch_idx][object_idx].item()
+                    q_sign = float(np.sign(qopt))
+                    if abs(q_sign) > 0.5:
+                        phi_val = data[f"{object_name}_mom.phi"][batch_idx][object_idx].item()
+                        eta_val = data[f"{object_name}_mom.eta"][batch_idx][object_idx].item()
+                        pt_val  = max(abs(data[f"{object_name}_mom.r"][batch_idx][object_idx].item()), 1e-6)
+                        vtx_x_m = data[f"{object_name}_vtx.x"][batch_idx][object_idx].item() * 1e-3
+                        vtx_y_m = data[f"{object_name}_vtx.y"][batch_idx][object_idx].item() * 1e-3
+                        vtx_z_m = data[f"{object_name}_vtx.z"][batch_idx][object_idx].item() * 1e-3
+
+                        R  = pt_val / (0.3 * _B_FIELD_T)
+                        xc = vtx_x_m + q_sign * R * np.sin(phi_val)
+                        yc = vtx_y_m - q_sign * R * np.cos(phi_val)
+                        c  = np.sqrt(xc**2 + yc**2)
+                        d0 = -q_sign * (c**2 - R**2) / (c + R) if (c + R) > 1e-12 else 0.0
+                        z0 = vtx_z_m - np.sinh(eta_val) * np.sqrt(vtx_x_m**2 + vtx_y_m**2)
+
+                        hx_t, hy_t, hz_t, _ = _build_helix_path(
+                            torch.tensor(phi_val, dtype=torch.float32),
+                            torch.tensor(eta_val, dtype=torch.float32),
+                            torch.tensor(pt_val,  dtype=torch.float32),
+                            torch.tensor(q_sign,  dtype=torch.float32),
+                            torch.tensor(d0,      dtype=torch.float32),
+                            torch.tensor(z0,      dtype=torch.float32),
+                            _B_FIELD_T, R_tracker,
+                        )
+                        hx_t, hy_t, hz_t = _clip_helix_at_z(hx_t, hy_t, hz_t, Z_tracker)
+
+                        helix_coord = {"pos.x": hx_t, "pos.y": hy_t, "pos.z": hz_t}
+                        vtx_coord   = {"pos.x": vtx_x_m, "pos.y": vtx_y_m, "pos.z": vtx_z_m}
+
+                        axins.plot(
+                            helix_coord.get(ax_spec["x"], hx_t).numpy(),
+                            helix_coord.get(ax_spec["y"], hy_t).numpy(),
+                            color="black", linewidth=1.6, alpha=alpha, zorder=1,
+                        )
+                        axins.plot(
+                            helix_coord.get(ax_spec["x"], hx_t).numpy(),
+                            helix_coord.get(ax_spec["y"], hy_t).numpy(),
+                            color=color, linewidth=0.8, alpha=alpha, zorder=2,
+                        )
+                        _star = MarkerStyle("*", transform=Affine2D().rotate_deg((object_idx * 137.508) % 72))
+                        axins.scatter(
+                            [vtx_coord.get(ax_spec["x"], vtx_x_m)],
+                            [vtx_coord.get(ax_spec["y"], vtx_y_m)],
+                            color=color, marker=_star, s=48, linewidths=0.5, alpha=alpha, zorder=4,
+                            edgecolors="black",
+                        )
+
+            xlim = coord_lims.get(ax_spec["x"], (-vtxd_lim_xy, vtxd_lim_xy))
+            ylim = coord_lims.get(ax_spec["y"], (-vtxd_lim_xy, vtxd_lim_xy))
+            axins.set_xlim(*xlim)
+            axins.set_ylim(*ylim)
+            axins.set_aspect("equal")
+            axins.tick_params(labelsize=5)
+            axins.set_title("VTXD", fontsize=6, pad=2)
+            ax[ax_idx].indicate_inset_zoom(axins, edgecolor="gray", alpha=0.7, linewidth=0.8)
 
     return fig
 

@@ -817,3 +817,25 @@ class CLDDataModule(LightningDataModule):
 
     def test_dataloader(self):
         return self.get_dataloader(dataset=self.test_dset)
+
+
+def estimate_tracker_boundary(data: dict, batch_idx: int = 0) -> tuple[float, float]:
+    """Estimate the cylindrical tracker boundary from trkr hit positions.
+
+    Looks at the outer radius and longitudinal extent of all valid tracker hits
+    to infer where the tracker ends and the calorimeter begins, assuming a
+    simple cylinder geometry.
+
+    Args:
+        data:       data dict (inputs | targets) with trkr hit tensors.
+        batch_idx:  which batch element to use.
+
+    Returns:
+        (R_max, Z_max): outer transverse radius and half-length [m].
+    """
+    valid = data["trkr_valid"][batch_idx]
+    if not valid.any():
+        return 1.5, 2.5  # CLD fallback
+    r_vals = data["trkr_pos.r"][batch_idx][valid]
+    z_vals = data["trkr_pos.z"][batch_idx][valid].abs()
+    return float(r_vals.max().item()), float(z_vals.max().item())
