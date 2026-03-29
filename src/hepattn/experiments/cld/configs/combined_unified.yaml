@@ -1,4 +1,4 @@
-name: Combined_Unified_XL
+name: Combined_Unified
 
 matmul_precision: high
 
@@ -621,7 +621,7 @@ model:
       encoder:
         class_path: hepattn.models.Encoder
         init_args:
-          num_layers: 12
+          num_layers: 8
           dim: *dim
           attn_type: flash-varlen
           window_size: 2048
@@ -632,7 +632,7 @@ model:
           attn_kwargs: {bias: false}
 
       decoder:
-        num_decoder_layers: 8
+        num_decoder_layers: 4
         num_queries: *num_particles
         mask_attention: false
         use_query_masks: false

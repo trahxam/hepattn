@@ -9,7 +9,6 @@ from matplotlib.path import Path
 from matplotlib.patches import PathPatch, Patch
 
 plt.rcParams["figure.dpi"] = 300
-plt.rcParams["text.usetex"] = True
 
 _B_FIELD_T = 2.0     # CLD solenoid field [T]
 _HELIX_CLIP_M = 1.5  # clip helix paths at tracker radius [m]
@@ -24,6 +23,7 @@ def _build_helix_path(
     z0: torch.Tensor,
     magnetic_field_t: float,
     helix_radius_m: float,
+    s_start: float = 0.0,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Trace a helix arc from track parameters.
 
@@ -55,7 +55,7 @@ def _build_helix_path(
             float((4.0 * torch.pi * curvature_radius).item()),
         )
     max_transverse_len = max(max_transverse_len, 0.05)
-    path_s = torch.linspace(0.0, max_transverse_len, 256, dtype=torch.float32, device=phi.device)
+    path_s = torch.linspace(s_start, max_transverse_len, 256, dtype=torch.float32, device=phi.device)
 
     x0 = -d0 * torch.sin(phi)
     y0 =  d0 * torch.cos(phi)
@@ -109,6 +109,13 @@ _CLD_GEOM = {
     "hcal_ez_in": 2.54,   "hcal_ez_out": 3.71,  "hcal_er_in": 0.34, "hcal_er_out": 3.57,
     "coil_r_in":  3.60,   "coil_r_out": 3.90,  "coil_z": 4.00,
     "yoke_r_in":  3.90,   "yoke_r_out": 6.00,  "yoke_z": 5.30,
+}
+
+# Default axis limits and equal-aspect for known CLD views.
+# Any axes_spec entry whose (x, y) pair matches gets these limits applied automatically.
+_VIEW_AXIS_DEFAULTS: dict[tuple[str, str], dict] = {
+    ("pos.x", "pos.y"): {"xlim": (-4.5,  4.5), "ylim": (-4.5, 4.5)},
+    ("pos.z", "pos.y"): {"xlim": (-5.0,  5.0), "ylim": (-4.5, 4.5)},
 }
 
 _AXIS_LABEL_MAP = {
@@ -224,12 +231,39 @@ def plot_cld_event(
     vtxd_inset=True,
     draw_geometry=True,
     draw_legend=True,
+    usetex=False,
 ):
+    plt.rcParams["text.usetex"] = usetex
+
+    # Helices require momentum fields; support particle-style (mom.qopt/vtx) and pandora-style (charge/ref)
+    _has_helix_fields = (
+        f"{object_name}_mom.qopt" in data
+        or (
+            f"{object_name}_charge" in data
+            and f"{object_name}_mom.x" in data
+            and f"{object_name}_ref.x" in data
+        )
+    )
+    if draw_helices and not _has_helix_fields:
+        draw_helices = False
+
     # Setup the axes
     num_axes = len(axes_spec)
 
+    # Per-axis view defaults (xlim/ylim for known CLD views)
+    _axis_defaults = [_VIEW_AXIS_DEFAULTS.get((s["x"], s["y"]), {}) for s in axes_spec]
+
+    # Auto-compute gridspec width ratios and figure width from xlim spans when not provided
+    if gridspec_kw is None and all("xlim" in d for d in _axis_defaults):
+        xlim_spans = [d["xlim"][1] - d["xlim"][0] for d in _axis_defaults]
+        ylim_span  = _axis_defaults[0]["ylim"][1] - _axis_defaults[0]["ylim"][0]
+        gridspec_kw = {"width_ratios": xlim_spans}
+        fig_width = sum(xlim_spans) * 8.0 / ylim_span
+    else:
+        fig_width = 8.0 * num_axes
+
     fig, ax = plt.subplots(1, num_axes, gridspec_kw=gridspec_kw)
-    fig.set_size_inches(8 * num_axes, 8)
+    fig.set_size_inches(fig_width, 8)
 
     ax = [ax] if num_axes == 1 else ax.flatten()
 
@@ -310,15 +344,29 @@ def plot_cld_event(
                             # Draw helix + production vertex once per (particle, axis)
                             if (ax_idx, object_idx) not in _helix_drawn:
                                 _helix_drawn.add((ax_idx, object_idx))
-                                qopt = data[f"{object_name}_mom.qopt"][batch_idx][object_idx].item()
-                                q_sign = float(np.sign(qopt))
+                                if f"{object_name}_mom.qopt" in data:
+                                    qopt = data[f"{object_name}_mom.qopt"][batch_idx][object_idx].item()
+                                    q_sign = float(np.sign(qopt))
+                                else:
+                                    q_sign = float(np.sign(data[f"{object_name}_charge"][batch_idx][object_idx].item()))
                                 if abs(q_sign) > 0.5:  # charged particle only
-                                    phi_val = data[f"{object_name}_mom.phi"][batch_idx][object_idx].item()
+                                    if f"{object_name}_mom.phi" in data:
+                                        phi_val = data[f"{object_name}_mom.phi"][batch_idx][object_idx].item()
+                                    else:
+                                        phi_val = float(np.arctan2(
+                                            data[f"{object_name}_mom.y"][batch_idx][object_idx].item(),
+                                            data[f"{object_name}_mom.x"][batch_idx][object_idx].item(),
+                                        ))
                                     eta_val = data[f"{object_name}_mom.eta"][batch_idx][object_idx].item()
                                     pt_val = max(abs(data[f"{object_name}_mom.r"][batch_idx][object_idx].item()), 1e-6)
-                                    vtx_x_m = data[f"{object_name}_vtx.x"][batch_idx][object_idx].item() * 1e-3
-                                    vtx_y_m = data[f"{object_name}_vtx.y"][batch_idx][object_idx].item() * 1e-3
-                                    vtx_z_m = data[f"{object_name}_vtx.z"][batch_idx][object_idx].item() * 1e-3
+                                    if f"{object_name}_vtx.x" in data:
+                                        vtx_x_m = data[f"{object_name}_vtx.x"][batch_idx][object_idx].item() * 1e-3
+                                        vtx_y_m = data[f"{object_name}_vtx.y"][batch_idx][object_idx].item() * 1e-3
+                                        vtx_z_m = data[f"{object_name}_vtx.z"][batch_idx][object_idx].item() * 1e-3
+                                    else:
+                                        vtx_x_m = data[f"{object_name}_ref.x"][batch_idx][object_idx].item() * 1e-3
+                                        vtx_y_m = data[f"{object_name}_ref.y"][batch_idx][object_idx].item() * 1e-3
+                                        vtx_z_m = data[f"{object_name}_ref.z"][batch_idx][object_idx].item() * 1e-3
 
                                     # Compute d0/z0 at DCA from production vertex
                                     R = pt_val / (0.3 * _B_FIELD_T)
@@ -337,6 +385,7 @@ def plot_cld_event(
                                         torch.tensor(d0, dtype=torch.float32),
                                         torch.tensor(z0, dtype=torch.float32),
                                         _B_FIELD_T, R_tracker,
+                                        s_start=vtx_r,
                                     )
                                     hx_t, hy_t, hz_t = _clip_helix_at_z(hx_t, hy_t, hz_t, Z_tracker)
 
@@ -441,22 +490,37 @@ def plot_cld_event(
                                   edgecolors="black", linewidths=0.3, zorder=3)
 
                 if draw_helices:
-                    qopt = data[f"{object_name}_mom.qopt"][batch_idx][object_idx].item()
-                    q_sign = float(np.sign(qopt))
+                    if f"{object_name}_mom.qopt" in data:
+                        qopt = data[f"{object_name}_mom.qopt"][batch_idx][object_idx].item()
+                        q_sign = float(np.sign(qopt))
+                    else:
+                        q_sign = float(np.sign(data[f"{object_name}_charge"][batch_idx][object_idx].item()))
                     if abs(q_sign) > 0.5:
-                        phi_val = data[f"{object_name}_mom.phi"][batch_idx][object_idx].item()
+                        if f"{object_name}_mom.phi" in data:
+                            phi_val = data[f"{object_name}_mom.phi"][batch_idx][object_idx].item()
+                        else:
+                            phi_val = float(np.arctan2(
+                                data[f"{object_name}_mom.y"][batch_idx][object_idx].item(),
+                                data[f"{object_name}_mom.x"][batch_idx][object_idx].item(),
+                            ))
                         eta_val = data[f"{object_name}_mom.eta"][batch_idx][object_idx].item()
                         pt_val  = max(abs(data[f"{object_name}_mom.r"][batch_idx][object_idx].item()), 1e-6)
-                        vtx_x_m = data[f"{object_name}_vtx.x"][batch_idx][object_idx].item() * 1e-3
-                        vtx_y_m = data[f"{object_name}_vtx.y"][batch_idx][object_idx].item() * 1e-3
-                        vtx_z_m = data[f"{object_name}_vtx.z"][batch_idx][object_idx].item() * 1e-3
+                        if f"{object_name}_vtx.x" in data:
+                            vtx_x_m = data[f"{object_name}_vtx.x"][batch_idx][object_idx].item() * 1e-3
+                            vtx_y_m = data[f"{object_name}_vtx.y"][batch_idx][object_idx].item() * 1e-3
+                            vtx_z_m = data[f"{object_name}_vtx.z"][batch_idx][object_idx].item() * 1e-3
+                        else:
+                            vtx_x_m = data[f"{object_name}_ref.x"][batch_idx][object_idx].item() * 1e-3
+                            vtx_y_m = data[f"{object_name}_ref.y"][batch_idx][object_idx].item() * 1e-3
+                            vtx_z_m = data[f"{object_name}_ref.z"][batch_idx][object_idx].item() * 1e-3
 
-                        R  = pt_val / (0.3 * _B_FIELD_T)
-                        xc = vtx_x_m + q_sign * R * np.sin(phi_val)
-                        yc = vtx_y_m - q_sign * R * np.cos(phi_val)
-                        c  = np.sqrt(xc**2 + yc**2)
-                        d0 = -q_sign * (c**2 - R**2) / (c + R) if (c + R) > 1e-12 else 0.0
-                        z0 = vtx_z_m - np.sinh(eta_val) * np.sqrt(vtx_x_m**2 + vtx_y_m**2)
+                        R      = pt_val / (0.3 * _B_FIELD_T)
+                        xc     = vtx_x_m + q_sign * R * np.sin(phi_val)
+                        yc     = vtx_y_m - q_sign * R * np.cos(phi_val)
+                        c      = np.sqrt(xc**2 + yc**2)
+                        d0     = -q_sign * (c**2 - R**2) / (c + R) if (c + R) > 1e-12 else 0.0
+                        vtx_r  = np.sqrt(vtx_x_m**2 + vtx_y_m**2)
+                        z0     = vtx_z_m - np.sinh(eta_val) * vtx_r
 
                         hx_t, hy_t, hz_t, _ = _build_helix_path(
                             torch.tensor(phi_val, dtype=torch.float32),
@@ -466,6 +530,7 @@ def plot_cld_event(
                             torch.tensor(d0,      dtype=torch.float32),
                             torch.tensor(z0,      dtype=torch.float32),
                             _B_FIELD_T, R_tracker,
+                            s_start=vtx_r,
                         )
                         hx_t, hy_t, hz_t = _clip_helix_at_z(hx_t, hy_t, hz_t, Z_tracker)
 
@@ -538,6 +603,14 @@ def plot_cld_event(
         ]
         ax[-1].legend(handles=geo_handles, fontsize=7, loc="upper right",
                       framealpha=0.85, frameon=True)
+
+    for ax_i, defaults in zip(ax, _axis_defaults):
+        if "xlim" in defaults:
+            ax_i.set_xlim(*defaults["xlim"])
+        if "ylim" in defaults:
+            ax_i.set_ylim(*defaults["ylim"])
+        if defaults:
+            ax_i.set_aspect("equal")
 
     return fig
 

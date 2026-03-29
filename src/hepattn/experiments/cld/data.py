@@ -317,6 +317,10 @@ class CLDDataset(LRSMDataset):
         add_cylindrical_coords("pandora", "mom")
         add_cylindrical_coords("pandora", "ref")
 
+        # Alias pandora ref point as vtx so event display code can treat it uniformly
+        for coord in ["x", "y", "z"]:
+            event[f"pandora.vtx.{coord}"] = event[f"pandora.ref.{coord}"]
+
         event["particle.mom.qopt"] = event["particle.charge"] / event["particle.mom.r"]
         event["pandora.mom.qopt"] = event["pandora.charge"] / event["pandora.mom.r"]
 

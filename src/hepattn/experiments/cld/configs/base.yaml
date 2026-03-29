@@ -349,8 +349,13 @@ data:
       - mom.y
       - mom.z
       - mom.r
+      - mom.phi
       - mom.eta
       - mom.abs_eta
+      - mom.qopt
+      - vtx.x
+      - vtx.y
+      - vtx.z
       - is_charged
       - is_neutral
 

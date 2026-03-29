@@ -12,6 +12,7 @@ config_path = Path(__file__).parent.parent / "configs" / "combined_unified.yaml"
 config = yaml.safe_load(config_path.read_text())["data"]
 config["num_workers"] = 0
 config["test_dir"] = "/share/rcif2/maxhart/data/cld/prepped/temp/reco_p8_ee_Zuds_ecm91_11112463_6_condor/"
+config["test_dir"] = "/share/rcif2/maxhart/data/cld/prepped/test/reco_p8_ee_tt_ecm365_7979928_559_condor/"
 
 datamodule = CLDDataModule(**config)
 datamodule.setup(stage="test")
@@ -40,25 +41,24 @@ axes_spec = [
     },
 ]
 
-pdf_path = out_dir / "cld_events.pdf"
-with PdfPages(pdf_path) as pdf:
-    for sample_id in sample_ids:
-        sample = test_dataloader.dataset.load_sample(sample_id)
-        filename = Path(test_dataloader.dataset.event_ids_to_event_filenames[sample_id]).stem
-        inputs, targets = test_dataloader.dataset.prep_sample(sample)
-        data = inputs | targets
+for sample_id in sample_ids:
+    sample = test_dataloader.dataset.load_sample(sample_id)
+    filename = Path(test_dataloader.dataset.event_ids_to_event_filenames[sample_id]).stem
+    inputs, targets = test_dataloader.dataset.prep_sample(sample)
+    data = inputs | targets
 
-        fig = plot_cld_event(data, axes_spec, "particle", gridspec_kw={"width_ratios": [9, 10]})
-        fig.set_size_inches(17, 8)
-        fig.axes[0].set_xlim(-4.5, 4.5)
-        fig.axes[0].set_ylim(-4.5, 4.5)
-        fig.axes[0].set_aspect("equal")
-        fig.axes[1].set_xlim(-5.0, 5.0)
-        fig.axes[1].set_ylim(-4.5, 4.5)
-        fig.axes[1].set_aspect("equal")
-        fig.suptitle(r"CLD Event " + str(sample_id) + r" (" + filename.replace("_", r"\_") + r")")
+    title_base = r"CLD Event " + str(sample_id) + r" (" + filename.replace("_", r"\_") + r")"
 
+    pdf_path = out_dir / f"cld_event_{sample_id}.pdf"
+    with PdfPages(pdf_path) as pdf:
+        fig = plot_cld_event(data, axes_spec, "particle", usetex=True)
+        fig.suptitle(title_base + r" — Truth")
         pdf.savefig(fig)
         plt.close(fig)
 
-print(f"Saved all events to {pdf_path}")
+        fig_pan = plot_cld_event(data, axes_spec, "pandora", usetex=True)
+        fig_pan.suptitle(title_base + r" — Pandora")
+        pdf.savefig(fig_pan)
+        plt.close(fig_pan)
+
+    print(f"Saved event {sample_id} to {pdf_path}")

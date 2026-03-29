@@ -25,6 +25,7 @@ class CLDTask(Task):
         loss_object_mask: str = "selective",
         hit_loss_weights: dict[str, dict[str, float]] | None = None,
         hit_cost_weights: dict[str, dict[str, float]] | None = None,
+        hit_min_num_cost: dict[str, int] | None = None,
         mask_dice_cost_logit_scale: float = 1.0,
         sihit_gated_calo_cost: bool = False,
         class_conditional_cost: bool = True,
@@ -51,6 +52,7 @@ class CLDTask(Task):
         self.return_embeddings = return_embeddings
         self.hit_loss_weights = hit_loss_weights or {}
         self.hit_cost_weights = hit_cost_weights or {}
+        self.hit_min_num_cost = hit_min_num_cost or {}
         self.hit_loss_warmup_steps = hit_loss_warmup_steps or {}
         self.hit_loss_warmup_delay = hit_loss_warmup_delay or {}
         self.mask_dice_cost_logit_scale = float(mask_dice_cost_logit_scale)
@@ -474,6 +476,12 @@ class CLDTask(Task):
                     for idx in active_idxs:
                         class_mask = class_mask + (part_class == idx).to(c.dtype)
                     c = c * class_mask.unsqueeze(1)  # (B, 1, N_particles)
+
+                # Zero out cost for particles with fewer hits than the minimum threshold
+                if hit in self.hit_min_num_cost:
+                    min_hits = self.hit_min_num_cost[hit]
+                    num_hits = cost_targets.sum(dim=-1)  # (B, N_particles)
+                    c = c * (num_hits >= min_hits).to(c.dtype).unsqueeze(1)
 
                 costs[f"{hit}_{cost_name}"] = c
 

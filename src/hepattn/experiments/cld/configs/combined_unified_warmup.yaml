@@ -420,6 +420,8 @@ trainer:
         log_every_n_steps: 100
 
 model:
+  pretrained_ckpt_path: /share/rcifdata/maxhart/hepattn/src/hepattn/experiments/cld/logs/Tracking_Unified_20260326-T113902/ckpts/epoch=002-val_loss=2.26497.ckpt
+
   optimizer: lion
 
   lrs_config:
@@ -621,7 +623,7 @@ model:
       encoder:
         class_path: hepattn.models.Encoder
         init_args:
-          num_layers: 12
+          num_layers: 8
           dim: *dim
           attn_type: flash-varlen
           window_size: 2048
@@ -632,7 +634,7 @@ model:
           attn_kwargs: {bias: false}
 
       decoder:
-        num_decoder_layers: 8
+        num_decoder_layers: 4
         num_queries: *num_particles
         mask_attention: false
         use_query_masks: false
@@ -711,3 +713,9 @@ model:
                   ecal: {mask_recall: 1.0}
                   hcal: {mask_recall: 1.0}
                   muon: {mask_recall: 1.0}
+                hit_min_num_cost:
+                  vtxd: 2
+                  trkr: 2
+                  ecal: 2
+                  hcal: 2
+                  muon: 2
