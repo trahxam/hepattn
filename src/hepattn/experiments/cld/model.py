@@ -131,7 +131,7 @@ class CLDReconstructor(ModelWrapper):
                 {k: v[event_idx : event_idx + 1].cpu() for k, v in targets.items()},
             ))
 
-        return {"loss": total_loss} | outputs
+        return {"loss": total_loss}
 
     def _flatten_preds_for_display(self, preds, event_idx):
         """Extract final-layer flow predictions into a flat dict for plot_cld_event."""

@@ -168,7 +168,7 @@ class ModelWrapper(LightningModule):
         preds = self.model.predict(outputs)
         self.log_metrics(inputs, preds, targets, "val")
 
-        return {"loss": total_loss} | outputs
+        return {"loss": total_loss}
 
     def test_step(self, batch: tuple[DictTensor, DictTensor]) -> tuple[DoubleNestedDictTensor, ...]:
         inputs, targets = batch
