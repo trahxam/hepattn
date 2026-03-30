@@ -107,6 +107,7 @@ class CLDReconstructor(ModelWrapper):
                 self.log(f"{stage}/num_{hit}_per_flow", torch.mean(num_hits_per_pred.float()))
                 self.log(f"{stage}/num_{hit}_per_part", torch.mean(num_hits_per_true.float()))
 
+
     _N_VAL_DISPLAY = 5
 
     def on_validation_epoch_start(self):
@@ -148,6 +149,13 @@ class CLDReconstructor(ModelWrapper):
         return result
 
     def on_validation_epoch_end(self):
+        # Close any figures from the previous epoch that were not saved by a checkpoint
+        if self._val_display_figs:
+            for event_figs in self._val_display_figs:
+                for fig in event_figs.values():
+                    plt.close(fig)
+            self._val_display_figs = None
+
         if not self.trainer.is_global_zero or not self._val_display_data:
             return
 

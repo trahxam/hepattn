@@ -52,13 +52,17 @@ for sample_id in sample_ids:
     pdf_path = out_dir / f"cld_event_{sample_id}.pdf"
     with PdfPages(pdf_path) as pdf:
         fig = plot_cld_event(data, axes_spec, "particle", usetex=True)
-        fig.suptitle(title_base + r" — Truth")
-        pdf.savefig(fig)
-        plt.close(fig)
+        try:
+            fig.suptitle(title_base + r" — Truth")
+            pdf.savefig(fig)
+        finally:
+            plt.close(fig)
 
         fig_pan = plot_cld_event(data, axes_spec, "pandora", usetex=True)
-        fig_pan.suptitle(title_base + r" — Pandora")
-        pdf.savefig(fig_pan)
-        plt.close(fig_pan)
+        try:
+            fig_pan.suptitle(title_base + r" — Pandora")
+            pdf.savefig(fig_pan)
+        finally:
+            plt.close(fig_pan)
 
     print(f"Saved event {sample_id} to {pdf_path}")

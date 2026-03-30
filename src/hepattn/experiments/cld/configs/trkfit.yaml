@@ -1,0 +1,348 @@
+name: CLD_TrkFit_v0
+
+matmul_precision: high
+
+data:
+  train_dir: /share/rcif2/maxhart/data/cld/prepped/train/
+  val_dir: /share/rcif2/maxhart/data/cld/prepped/val/
+  test_dir: /share/rcif2/maxhart/data/cld/prepped/test/
+
+  num_workers: 6
+  num_train: -1
+  num_test: 1000
+  num_val: 100
+
+  # Tracks from all events in the batch are concatenated into one flat list.
+  # Larger batches give better EMA estimates and improve GPU utilisation.
+  batch_size: 4
+
+  input_dtype: float32
+  target_dtype: float32
+  input_pad_value: 0.0
+  target_pad_value: 0.0
+
+  sampling_seed: 42
+
+  # Particle selection (only used for building truth-matching targets, not filtering tracks)
+  particle_min_pt: 0.1
+  particle_max_abs_eta: 4.0
+
+  include_classes:
+    - charged_hadron
+    - electron
+    - muon
+
+  event_max_num_particles: 384
+
+  charged_particle_min_num_hits:
+    vtxd: 0
+    trkr: 0
+    sihit: 4
+
+  charged_particle_max_num_hits:
+    vtxd: 12
+    trkr: 12
+    sihit: 24
+
+  particle_cut_veto_min_num_hits:
+    ecal: 32
+    hcal: 16
+
+  particle_hit_min_p_ratio:
+    vtxd: 0.01
+    trkr: 0.01
+
+  particle_hit_deflection_cuts:
+    vtxd:
+      max_angle: 0.25
+      max_angle_xy: -1
+      max_angle_rz: -1
+      num_passes: 8
+    trkr:
+      max_angle: 1.0
+      max_angle_xy: -1
+      max_angle_rz: -1
+      num_passes: 12
+
+  particle_hit_separation_cuts:
+    vtxd:
+      max_dist: 0.25
+      num_passes: 8
+    trkr:
+      max_dist: 1.5
+      num_passes: 12
+
+  truth_filter_hits: []
+
+  merge_inputs:
+    vtxd:
+      - vtb
+      - vte
+    trkr:
+      - itb
+      - ite
+      - otb
+      - ote
+    sihit:
+      - vtb
+      - vte
+      - itb
+      - ite
+      - otb
+      - ote
+    ecal:
+      - ecb
+      - ece
+    hcal:
+      - hcb
+      - hce
+      - hco
+
+  inputs:
+    vtxd:
+      - pos.x
+      - pos.y
+      - pos.z
+      - pos.r
+      - pos.s
+      - pos.eta
+      - pos.phi
+      - type
+      - time
+    trkr:
+      - pos.x
+      - pos.y
+      - pos.z
+      - pos.r
+      - pos.s
+      - pos.eta
+      - pos.phi
+      - type
+      - time
+    sihit:
+      - type
+    ecal:
+      - type
+      - energy
+    hcal:
+      - type
+      - energy
+
+  targets:
+    pandora:
+      - mom.eta
+      - mom.phi
+      - mom.qopt
+      - perigee.d0
+      - perigee.z0
+      - charge
+      - is_charged
+    pandora_vtxd: []
+    pandora_trkr: []
+    pandora_ecal: []
+    pandora_hcal: []
+
+    particle:
+      - mom.eta
+      - mom.phi
+      - mom.qopt
+      - perigee.d0
+      - perigee.z0
+    particle_vtxd:
+      - mom.x
+      - mom.y
+      - mom.z
+    particle_trkr:
+      - mom.x
+      - mom.y
+      - mom.z
+    particle_ecal:
+      - energy
+    particle_hcal:
+      - energy
+
+trainer:
+  max_epochs: 25
+  accelerator: gpu
+  devices: 1
+  precision: bf16-mixed
+  log_every_n_steps: 100
+  default_root_dir: logs
+  val_check_interval: 2000
+  gradient_clip_val: 0.1
+  gradient_clip_algorithm: norm
+  enable_progress_bar: true
+
+  logger:
+    class_path: hepattn.utils.loggers.MyCometLogger
+    init_args:
+      project: cld
+
+  callbacks:
+    - class_path: hepattn.callbacks.InferenceTimer
+    - class_path: hepattn.callbacks.SaveConfig
+    - class_path: hepattn.experiments.cld.trkfit.callback.TrackResidualPlotCallback
+      init_args:
+        max_events: 100
+    - class_path: hepattn.callbacks.Checkpoint
+      init_args:
+        monitor: val/loss
+        every_n_train_steps: 5000
+    - class_path: hepattn.callbacks.PredictionWriter
+      init_args:
+        write_inputs: false
+        write_outputs: true
+        write_preds: true
+        write_targets: false
+        write_losses: false
+    - class_path: lightning.pytorch.callbacks.ModelSummary
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+    - class_path: lightning.pytorch.callbacks.TQDMProgressBar
+      init_args:
+        refresh_rate: 10
+
+model:
+  optimizer: lion
+
+  lrs_config:
+    initial: 1e-5
+    max: 1e-4
+    end: 1e-5
+    pct_start: 0.01
+    skip_scheduler: false
+    weight_decay: 1e-2
+
+  mtl: false
+
+  model:
+    class_path: hepattn.models.BoostedTrackFitter
+    init_args:
+      dim: &dim 128
+      B_field: 2.0          # CLD solenoid [T]
+      fields: &fields
+        - eta
+        - phi_perigee
+        - qopt
+        - d0_perigee_m
+        - z0_perigee_m
+      angular_fields:
+        - phi_perigee
+
+      n_stages: 1
+      n_cross_heads: 4
+      n_stage_layers: 4
+      norm: FastLayerNorm
+
+      inject_params: true
+      detach_stages: false
+
+      normalize_loss: true
+      ema_momentum: 0.99
+      ema_init:
+        eta:          0.05   # rough helix-vs-truth MAD [rad/~]
+        phi_perigee:  0.01   # [rad]
+        qopt:         0.2    # [GeV^-1]
+        d0_perigee_m: 0.001  # [m] = 1 mm
+        z0_perigee_m: 0.005  # [m] = 5 mm
+
+      stage_loss_weight: 2.0
+      trim_fraction: 0.1
+
+      loss_type: barron
+      barron_learn_scale: false
+      welsch_c: 1.0
+
+      use_relative_coords: false
+      use_sagitta: false
+
+      field_loss_weights:
+        eta:          10.0
+        phi_perigee:  1.0
+        qopt:         25.0
+        d0_perigee_m: 1.0
+        z0_perigee_m: 10.0
+
+      input_nets:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: hepattn.models.InputNet  # vtxd (pixel) hits
+              init_args:
+                input_name: sihit
+                input_dtype: float32
+                fields:
+                  - x
+                  - y
+                  - z
+                  - r
+                  - s
+                  - eta
+                  - phi
+                net:
+                  class_path: hepattn.models.Dense
+                  init_args:
+                    input_size: 7
+                    hidden_layers: [128]
+                    output_size: *dim
+                    activation: SwiGLU
+                posenc:
+                  class_path: hepattn.models.posenc.PositionEncoder
+                  init_args:
+                    input_name: sihit
+                    dim: *dim
+                    fields:
+                      - r
+                      - eta
+                      - phi
+            - class_path: hepattn.models.InputNet  # trkr (strip) hits
+              init_args:
+                input_name: sihit
+                input_dtype: float32
+                fields:
+                  - x
+                  - y
+                  - z
+                  - r
+                  - s
+                  - eta
+                  - phi
+                net:
+                  class_path: hepattn.models.Dense
+                  init_args:
+                    input_size: 7
+                    hidden_layers: [128]
+                    output_size: *dim
+                    activation: SwiGLU
+                posenc:
+                  class_path: hepattn.models.posenc.PositionEncoder
+                  init_args:
+                    input_name: sihit
+                    dim: *dim
+                    fields:
+                      - r
+                      - eta
+                      - phi
+
+      encoder:
+        class_path: hepattn.models.Encoder
+        init_args:
+          num_layers: 4
+          dim: *dim
+          attn_type: torch
+          norm: FastLayerNorm
+          hybrid_norm: true
+          dense_kwargs: {activation: SwiGLU}
+          attn_kwargs: {bias: false}
+
+      tasks:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: hepattn.experiments.cld.trkfit.task.CLDTrackTask
+              init_args:
+                name: track_params
+                output_object: track
+                target_object: track_matched_particle
+                fields: *fields
+                angular_fields:
+                  - phi_perigee

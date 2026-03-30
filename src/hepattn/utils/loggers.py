@@ -4,6 +4,21 @@ from lightning.pytorch.loggers import CometLogger
 class MyCometLogger(CometLogger):
     """Wrap CometLogger to fix issues with CLI arguments."""
 
-    def __init__(self, name: str, offline_directory: str | None = None, log_env_details: bool = True, **kwargs):
+    def __init__(
+        self,
+        name: str,
+        offline_directory: str | None = None,
+        log_env_details: bool = True,
+        log_git_metadata: bool = True,
+        log_git_patch: bool = True,
+        **kwargs,
+    ):
         assert offline_directory is not None, "offline_directory must be specified for MyCometLogger"
-        super().__init__(name=name, offline_directory=offline_directory, log_env_details=log_env_details, **kwargs)
+        super().__init__(
+            name=name,
+            offline_directory=offline_directory,
+            log_env_details=log_env_details,
+            log_git_metadata=log_git_metadata,
+            log_git_patch=log_git_patch,
+            **kwargs,
+        )
