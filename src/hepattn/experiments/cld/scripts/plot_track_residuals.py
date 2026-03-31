@@ -31,6 +31,7 @@ from hepattn.experiments.cld.plotting import (
     RESIDUAL_YLABEL,
     RESOLUTION_DIVIDER,
     RESOLUTION_YLABEL,
+    RESOLUTION_VS_PT_YLIM,
     RESOLUTION_VS_TRUTH_YLIM,
     RESOLUTION_VS_TRUTH_YSCALE,
     TRUTH_BINS,
@@ -47,7 +48,7 @@ plt.rcParams["text.usetex"] = True
 # ── constants ──────────────────────────────────────────────────────────────
 B_FIELD_T = 2.0          # CLD solenoid field [T] — matches task.py
 IOI_MATCH_THRESH = 0.5   # minimum hit-IoU to accept a Pandora↔truth match
-N_EVENTS = 1000           # events to process
+N_EVENTS = 250           # events to process
 
 
 # ── helpers ────────────────────────────────────────────────────────────────
@@ -175,7 +176,7 @@ def collect_residuals(cfg: dict, n_events: int = N_EVENTS) -> dict[str, dict[str
         # Do not force-pad to 384; avoids wasting memory in an offline script
         force_pad_sizes=None,
     )
-    loader = DataLoader(dataset, batch_size=1, collate_fn=dataset.collate_fn, num_workers=16)
+    loader = DataLoader(dataset, batch_size=1, collate_fn=dataset.collate_fn, num_workers=6)
 
     FIELDS = ["pt", "qopt", "eta", "phi", "d0", "z0"]
 
@@ -459,6 +460,13 @@ def main() -> None:
                                     yscale_map=RESOLUTION_VS_TRUTH_YSCALE,
                                     min_bin_count=20),
          "cld_track_resolution_vs_truth.png"),
+        (make_residual_vs_truth_fig(res_series, RESOLUTION_YLABEL,
+                                    suptitle=r"CLD track resolution vs truth $p_T$",
+                                    ylim_map=RESOLUTION_VS_PT_YLIM,
+                                    yscale_map=RESOLUTION_VS_TRUTH_YSCALE,
+                                    x_truth_override="pt",
+                                    min_bin_count=20),
+         "cld_track_resolution_vs_pt.png"),
     ]
 
     for fig, fname in plots:

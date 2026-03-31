@@ -155,10 +155,13 @@ class CLDDataset(LRSMDataset):
 
         def event_filenames_to_event_id(event_filename):
             id_parts = str(event_filename.stem.replace("_condor", "")).split("_")
-            job_id = id_parts[-3]
-            proc_id = id_parts[-2]
-            event_id = id_parts[-1]
-            return int(job_id + proc_id.zfill(4) + event_id.zfill(4))
+            try:
+                job_id = id_parts[-3]
+                proc_id = id_parts[-2]
+                event_id = id_parts[-1]
+                return int(job_id + proc_id.zfill(4) + event_id.zfill(4))
+            except ValueError:
+                return int(id_parts[-1])
 
         # Define the sample identifiers unique to each sample, uses the file name
         # Example: reco_p8_ee_tt_ecm365_12012864_7_329 -> 1201286470329

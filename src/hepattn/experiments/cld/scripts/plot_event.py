@@ -11,8 +11,7 @@ import matplotlib.pyplot as plt
 config_path = Path(__file__).parent.parent / "configs" / "combined_unified.yaml"
 config = yaml.safe_load(config_path.read_text())["data"]
 config["num_workers"] = 0
-config["test_dir"] = "/share/rcif2/maxhart/data/cld/prepped/temp/reco_p8_ee_Zuds_ecm91_11112463_6_condor/"
-config["test_dir"] = "/share/rcif2/maxhart/data/cld/prepped/test/reco_p8_ee_tt_ecm365_7979928_559_condor/"
+config["test_dir"] = "/share/lustre/maxhart/data/cld/test_fix_prepped/reco_p8_ee_Zuds_ecm91_1"
 
 datamodule = CLDDataModule(**config)
 datamodule.setup(stage="test")

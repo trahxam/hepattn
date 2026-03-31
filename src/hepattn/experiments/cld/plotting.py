@@ -113,6 +113,16 @@ RESOLUTION_VS_TRUTH_YLIM: dict[str, tuple | None] = {
 
 RESOLUTION_VS_TRUTH_YSCALE: dict[str, str] = {}
 
+# Y-limits for resolution-vs-pt plots (all fields plotted against truth pT).
+RESOLUTION_VS_PT_YLIM: dict[str, tuple | None] = {
+    "pt":   None,
+    "qopt": None,
+    "eta":  None,
+    "phi":  None,
+    "d0":   (-1.0, 1.0),
+    "z0":   None,
+}
+
 RESIDUAL_YLABEL: dict[str, str] = {
     "pt":   r"Median$[p_T^\mathrm{pred} - p_T^\mathrm{true}]$ [GeV]",
     "qopt": r"Median$[q/p_T^\mathrm{pred} - q/p_T^\mathrm{true}]$ [GeV$^{-1}$]",
@@ -403,6 +413,7 @@ def make_residual_vs_truth_fig(
     min_bin_count: int = 5,
     ylim_map: dict[str, tuple | None] | None = None,
     yscale_map: dict[str, str] | None = None,
+    x_truth_override: str | None = None,
 ) -> plt.Figure:
     """Median residual ± IQR bars vs binned truth quantity, using TRUTH_BINS.
 
@@ -419,19 +430,45 @@ def make_residual_vs_truth_fig(
         Maps track_field → y-axis label (use RESIDUAL_YLABEL or RESOLUTION_YLABEL).
     min_bin_count:
         Minimum entries in a truth bin to plot a point.
+    x_truth_override:
+        If set (e.g. ``"pt"``), all panels use this truth field as the x-axis
+        instead of each panel's own truth quantity.  The corresponding truth
+        array (``truth[j]`` where ``j`` is the index of ``x_truth_override`` in
+        RESIDUALS) must be aligned to ``data[i]`` in every series — which is
+        always the case when all fields are collected in the same per-particle
+        loop iteration.
     """
     n_fields = len(RESIDUALS)
     fig, axes = _figure_grid(n_fields)
+
+    # Resolve the x-axis truth field index once (used when x_truth_override is set)
+    if x_truth_override is not None:
+        x_override_idx = next(
+            (j for j, r in enumerate(RESIDUALS) if r[0] == x_truth_override), None
+        )
+        if x_override_idx is None or x_truth_override not in TRUTH_BINS:
+            x_truth_override = None  # fall back to per-field behaviour
+            x_override_idx = None
+    else:
+        x_override_idx = None
 
     for i, (_tf, particle_field, *_) in enumerate(RESIDUALS):
         track_field = RESIDUALS[i][0]
         ax = axes[i]
 
-        if particle_field not in TRUTH_BINS:
+        # Choose x-axis truth field
+        if x_truth_override is not None:
+            x_field = x_truth_override
+            x_truth_idx = x_override_idx
+        else:
+            x_field = particle_field
+            x_truth_idx = i
+
+        if x_field not in TRUTH_BINS:
             ax.set_visible(False)
             continue
 
-        truth_bin_edges, x_label, x_scale = TRUTH_BINS[particle_field]
+        truth_bin_edges, x_label, x_scale = TRUTH_BINS[x_field]
         n_bins = len(truth_bin_edges) - 1
         bin_centres = (
             np.sqrt(truth_bin_edges[:-1] * truth_bin_edges[1:])
@@ -443,12 +480,12 @@ def make_residual_vs_truth_fig(
         all_ys: list[float] = []
 
         for label, props in series.items():
-            truth_arr = (props.get("truth") or [None] * n_fields)[i]
-            data_arr  = (props.get("data")  or [None] * n_fields)[i]
-            if truth_arr is None or data_arr is None or truth_arr.size < min_bin_count:
+            x_truth_arr = (props.get("truth") or [None] * n_fields)[x_truth_idx]
+            data_arr    = (props.get("data")  or [None] * n_fields)[i]
+            if x_truth_arr is None or data_arr is None or x_truth_arr.size < min_bin_count:
                 continue
 
-            bin_vals = np.abs(truth_arr) if particle_field == "d0" else truth_arr
+            bin_vals = np.abs(x_truth_arr) if x_field == "d0" else x_truth_arr
             bin_idx  = np.clip(np.digitize(bin_vals, truth_bin_edges) - 1, 0, n_bins - 1)
 
             bs, meds, lqs, uqs = [], [], [], []

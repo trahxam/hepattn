@@ -768,7 +768,8 @@ def preprocess_file(
     events = file[events_key]
     event_numbers = ak.to_numpy(ak.flatten(events["EventHeader/EventHeader.eventNumber"].array()))
 
-    assert len(event_numbers) == 1000, f"Found less than 1000 events in {in_file_path}"
+    if len(event_numbers) != 1000:
+        print(f"Warning: found {len(event_numbers)} events (expected 1000) in {in_file_path}")
 
     # Make the directory to store events from this file in
     out_folder = Path(out_dir / Path(filename))

@@ -88,19 +88,21 @@ class CLDTrackDataset(CLDDataset):
         N_sihit_per_event = N_vtxd_padded + N_trkr_padded
 
         # ── Merge hit features across all events ─────────────────────────────
-        # For event b, its sihit hits occupy the slice
+        # Combined sihit array: for event b its hits occupy
         #   [b*N_sihit_per_event : (b+1)*N_sihit_per_event]
-        # in the global (1, B*N_sihit_per_event) array.
-        # torch.cat([vtxd, trkr], dim=1) gives (B, N_sihit_per_event);
-        # reshape(1, -1) flattens to (1, B*N_sihit_per_event) in event order.
+        # Separate vtxd/trkr arrays: event b's vtxd hits are at
+        #   [b*N_vtxd_padded : (b+1)*N_vtxd_padded]
+        # and trkr hits at [b*N_trkr_padded : (b+1)*N_trkr_padded].
         track_inputs: dict[str, Tensor] = {}
         for field, short in zip(hit_fields, sihit_short):
             track_inputs[f"sihit_{short}"] = torch.cat(
                 [inputs[f"vtxd_{field}"], inputs[f"trkr_{field}"]], dim=1
             ).reshape(1, -1)   # (1, B * N_sihit_per_event)
+            track_inputs[f"vtxd_{short}"] = inputs[f"vtxd_{field}"].reshape(1, -1)  # (1, B*N_vtxd_padded)
+            track_inputs[f"trkr_{short}"] = inputs[f"trkr_{field}"].reshape(1, -1)  # (1, B*N_trkr_padded)
 
-        # Binary detector-type flag: 1.0 for vtxd hits, 0.0 for trkr hits.
-        # Allows the InputNet to learn vtxd/trkr-specific feature transforms.
+        # Binary detector-type flag in combined sihit: 1.0 for vtxd, 0.0 for trkr.
+        # Used by the helix fit for vtxd-only z(r) weighting.
         vtxd_flag = inputs[f"vtxd_{hit_fields[0]}"].new_ones( inputs[f"vtxd_{hit_fields[0]}"].shape)
         trkr_flag = inputs[f"trkr_{hit_fields[0]}"].new_zeros(inputs[f"trkr_{hit_fields[0]}"].shape)
         track_inputs["sihit_is_vtxd"] = torch.cat([vtxd_flag, trkr_flag], dim=1).reshape(1, -1)
@@ -109,6 +111,14 @@ class CLDTrackDataset(CLDDataset):
         indptr_parts: list[Tensor] = []
         indices_parts: list[Tensor] = []
         cumulative_assignments = 0
+
+        vtxd_indptr_parts: list[Tensor] = []
+        vtxd_indices_parts: list[Tensor] = []
+        cumulative_vtxd = 0
+
+        trkr_indptr_parts: list[Tensor] = []
+        trkr_indices_parts: list[Tensor] = []
+        cumulative_trkr = 0
 
         pan_eta_list:  list[Tensor] = []
         pan_phi_list:  list[Tensor] = []
@@ -155,6 +165,23 @@ class CLDTrackDataset(CLDDataset):
             indices_parts.append(indices_b + b * N_sihit_per_event)
             cumulative_assignments += int(indptr_b[-1].item())
 
+            # ── Separate vtxd / trkr CSRs (for per-type embedding) ───────
+            indptr_vtxd_b, indices_vtxd_b = _dense_mask_to_csr(pan_vtxd)
+            if not vtxd_indptr_parts:
+                vtxd_indptr_parts.append(indptr_vtxd_b)
+            else:
+                vtxd_indptr_parts.append(indptr_vtxd_b[1:] + cumulative_vtxd)
+            vtxd_indices_parts.append(indices_vtxd_b + b * N_vtxd_padded)
+            cumulative_vtxd += int(indptr_vtxd_b[-1].item())
+
+            indptr_trkr_b, indices_trkr_b = _dense_mask_to_csr(pan_trkr)
+            if not trkr_indptr_parts:
+                trkr_indptr_parts.append(indptr_trkr_b)
+            else:
+                trkr_indptr_parts.append(indptr_trkr_b[1:] + cumulative_trkr)
+            trkr_indices_parts.append(indices_trkr_b + b * N_trkr_padded)
+            cumulative_trkr += int(indptr_trkr_b[-1].item())
+
             # ── Pandora → particle IoU matching ──────────────────────────
             par_valid = targets["particle_valid"][b].bool()
             par_vtxd  = targets["particle_vtxd_valid"][b].bool()
@@ -196,6 +223,12 @@ class CLDTrackDataset(CLDDataset):
         # ── Combine CSR across events ─────────────────────────────────────────
         track_inputs["track_sihit_indptr"]  = torch.cat(indptr_parts).unsqueeze(0)
         track_inputs["track_sihit_indices"] = torch.cat(indices_parts).unsqueeze(0) if indices_parts else torch.zeros(1, 0, dtype=torch.long)
+
+        track_inputs["track_vtxd_indptr"]  = torch.cat(vtxd_indptr_parts).unsqueeze(0)
+        track_inputs["track_vtxd_indices"] = torch.cat(vtxd_indices_parts).unsqueeze(0) if vtxd_indices_parts else torch.zeros(1, 0, dtype=torch.long)
+
+        track_inputs["track_trkr_indptr"]  = torch.cat(trkr_indptr_parts).unsqueeze(0)
+        track_inputs["track_trkr_indices"] = torch.cat(trkr_indices_parts).unsqueeze(0) if trkr_indices_parts else torch.zeros(1, 0, dtype=torch.long)
 
         # ── Combine track-level targets across events ─────────────────────────
         track_targets: dict[str, Tensor] = {
