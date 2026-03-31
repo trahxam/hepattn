@@ -8,7 +8,7 @@ data:
   test_dir: /share/rcif2/maxhart/data/cld/prepped/test/
 
   num_workers: 6
-  num_train: -1
+  num_train: 100000
   num_test: 1000
   num_val: 100
 
@@ -165,11 +165,11 @@ trainer:
   max_epochs: 25
   accelerator: gpu
   devices: 1
-  precision: bf16-mixed
+  precision: 64-true
   log_every_n_steps: 100
   default_root_dir: logs
   val_check_interval: 2000
-  gradient_clip_val: 0.1
+  gradient_clip_val: 1.0
   gradient_clip_algorithm: norm
   enable_progress_bar: true
 
@@ -237,30 +237,50 @@ model:
       detach_stages: false
 
       normalize_loss: true
-      ema_momentum: 0.99
+      ema_momentum: 0.95
+      # ema_init sets BOTH the EMA loss scale AND field_unit_scales (delta output scale).
+      # Must equal the actual helix-vs-truth residual MAD so that:
+      #   - loss starts at arcsinh(1.48) ≈ 1.23 immediately (no warm-up lag)
+      #   - delta * field_unit_scales gives physical corrections at the right scale
       ema_init:
-        eta:          0.05   # rough helix-vs-truth MAD [rad/~]
-        phi_perigee:  0.01   # [rad]
-        qopt:         0.2    # [GeV^-1]
-        d0_perigee_m: 0.001  # [m] = 1 mm
-        z0_perigee_m: 0.005  # [m] = 5 mm
+        eta:          0.003    # helix eta MAD [rad]
+        phi_perigee:  0.002    # helix phi MAD [rad]
+        qopt:         0.02     # helix q/pT MAD [GeV^-1]
+        d0_perigee_m: 0.0003   # helix d0 MAD [m] = 0.3 mm
+        z0_perigee_m: 0.001    # helix z0 MAD [m] = 1 mm
+
+      # Scale of the delta_head final-layer init.  Larger values give stronger
+      # gradient signal to the encoder early in training (faster convergence).
+      # 0.01 gives initial corrections ~20% of Pandora MAD at step 0.
+      delta_head_init_std: 0.01
+
+      # Separate scales for normalising helix params into param_proj/param_inject.
+      # Must reflect TYPICAL PARAMETER MAGNITUDES (not residual MADs) so that
+      # the MLP receives O(1) inputs.
+      param_proj_scales:
+        eta:          1.0      # |eta| ~ 0-4
+        phi_perigee:  1.0      # |phi| ~ 0-π
+        qopt:         1.0      # |qopt| ~ 0-10 for pT > 0.1 GeV
+        d0_perigee_m: 0.001    # |d0| ~ 0-5 mm
+        z0_perigee_m: 0.01     # |z0| ~ 0-50 mm (helix fit can be noisy)
 
       stage_loss_weight: 2.0
       trim_fraction: 0.1
 
-      loss_type: barron
+      loss_type: arcsinh_mad
+      field_combination: geometric
       barron_learn_scale: false
       welsch_c: 1.0
 
-      use_relative_coords: false
+      use_relative_coords: true
       use_sagitta: false
 
       field_loss_weights:
-        eta:          10.0
-        phi_perigee:  1.0
-        qopt:         25.0
+        eta:          5.0
+        phi_perigee:  10.0
+        qopt:         5.0
         d0_perigee_m: 1.0
-        z0_perigee_m: 10.0
+        z0_perigee_m: 15.0
 
       input_nets:
         class_path: torch.nn.ModuleList
@@ -268,7 +288,7 @@ model:
           modules:
             - class_path: hepattn.models.InputNet  # vtxd (pixel) hits
               init_args:
-                input_name: sihit
+                input_name: vtxd
                 input_dtype: float32
                 fields:
                   - x
@@ -278,17 +298,19 @@ model:
                   - s
                   - eta
                   - phi
+                  - deta
+                  - dphi
                 net:
                   class_path: hepattn.models.Dense
                   init_args:
-                    input_size: 7
+                    input_size: 9
                     hidden_layers: [128]
                     output_size: *dim
                     activation: SwiGLU
                 posenc:
                   class_path: hepattn.models.posenc.PositionEncoder
                   init_args:
-                    input_name: sihit
+                    input_name: vtxd
                     dim: *dim
                     fields:
                       - r
@@ -296,7 +318,7 @@ model:
                       - phi
             - class_path: hepattn.models.InputNet  # trkr (strip) hits
               init_args:
-                input_name: sihit
+                input_name: trkr
                 input_dtype: float32
                 fields:
                   - x
@@ -306,17 +328,19 @@ model:
                   - s
                   - eta
                   - phi
+                  - deta
+                  - dphi
                 net:
                   class_path: hepattn.models.Dense
                   init_args:
-                    input_size: 7
+                    input_size: 9
                     hidden_layers: [128]
                     output_size: *dim
                     activation: SwiGLU
                 posenc:
                   class_path: hepattn.models.posenc.PositionEncoder
                   init_args:
-                    input_name: sihit
+                    input_name: trkr
                     dim: *dim
                     fields:
                       - r

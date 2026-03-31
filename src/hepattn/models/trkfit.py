@@ -36,6 +36,7 @@ from hepattn.utils.helix import _fit_helices_flat
 _RELATIVE_HIT_FIELDS: frozenset[str] = frozenset({
     "x_rel", "y_rel", "z_rel", "r_rel", "phi_rel", "eta_rel",
     "dz_helix", "dxy_helix", "sagitta",
+    "deta", "dphi",
 })
 
 
@@ -151,6 +152,7 @@ class BoostStage(nn.Module):
         gate_min: float = 0.0,
         use_gates: bool = True,
         n_layers: int = 1,
+        delta_head_init_std: float = 1e-3,
     ):
         super().__init__()
         norm_cls = NORM_TYPES[norm]
@@ -172,11 +174,11 @@ class BoostStage(nn.Module):
         mid = dim // 2
 
         # Single MLP predicting corrections for all fields: dim → dim//2 → n_fields.
-        # Final layer initialised near-zero so early training stays close to
-        # the helix estimate.
+        # delta_head_init_std controls the scale of initial corrections:
+        # larger values give stronger gradient signal to the encoder early in training.
         self.delta_head = nn.Sequential(nn.Linear(dim, mid), nn.SiLU(), nn.Linear(mid, n_fields))
         nn.init.zeros_(self.delta_head[-1].bias)
-        nn.init.normal_(self.delta_head[-1].weight, std=1e-3)
+        nn.init.normal_(self.delta_head[-1].weight, std=delta_head_init_std)
 
         # Single gate MLP: dim → dim//2 → n_fields, then sigmoid.
         # Bias=0 → gate ≈ 0.5 at init.
@@ -313,16 +315,20 @@ class BoostedTrackFitter(nn.Module):
         arcsinh_fixed_scale: dict[str, float] | None = None,
         use_relative_coords: bool = False,
         field_loss_weights: dict[str, float] | None = None,
+        param_proj_scales: dict[str, float] | None = None,
         gate_min: float = 0.0,
         use_gates: bool = False,
+        delta_head_init_std: float = 1e-3,
         barron_learn_scale: bool = False,
         use_sagitta: bool = False,
+        field_combination: str = "mean",
         debug: bool = False,
     ):
         super().__init__()
 
         self.debug           = debug
-        self.use_sagitta     = use_sagitta
+        self.use_sagitta        = use_sagitta
+        self.field_combination  = field_combination
 
         # Accept either a single input_net (backward compat) or a ModuleList.
         # When two nets are provided: nets[0] embeds vtxd hits (sihit_is_vtxd=1),
@@ -369,7 +375,7 @@ class BoostedTrackFitter(nn.Module):
 
         # One BoostStage per refinement iteration.
         self.stages = nn.ModuleList([
-            BoostStage(dim, n_fields, n_cross_heads, norm, gate_min=gate_min, use_gates=use_gates, n_layers=n_stage_layers)
+            BoostStage(dim, n_fields, n_cross_heads, norm, gate_min=gate_min, use_gates=use_gates, n_layers=n_stage_layers, delta_head_init_std=delta_head_init_std)
             for _ in range(n_stages)
         ])
 
@@ -408,6 +414,17 @@ class BoostedTrackFitter(nn.Module):
         else:
             unit_scales = torch.ones(n_fields)
         self.register_buffer("field_unit_scales", unit_scales, persistent=False)
+
+        # Per-field scales for normalising helix parameters before param_proj /
+        # param_inject.  These should be set to the *typical parameter magnitude*
+        # (so the MLP receives O(1) inputs), which is very different from the
+        # residual-MAD scale used for delta scaling.  Defaults to field_unit_scales
+        # for backward compatibility, but should always be set explicitly.
+        if param_proj_scales is not None:
+            proj_scales = torch.tensor([param_proj_scales.get(f, 1.0) for f in fields])
+        else:
+            proj_scales = unit_scales.clone()
+        self.register_buffer("param_proj_scales", proj_scales, persistent=False)
 
         # Optional fixed per-field scale for the arcsinh_mad loss.  When set,
         # replaces the EMA MAD with a constant scale (EMA is still updated for
@@ -601,6 +618,7 @@ class BoostedTrackFitter(nn.Module):
         self,
         track_inputs: dict[str, Tensor],
         helix_params: Tensor,  # (n_tracks, n_fields)
+        input_name: str = "sihit",
     ) -> dict[str, Tensor]:
         """Inject hit coordinates relative to the helix perigee into track_inputs.
 
@@ -610,12 +628,17 @@ class BoostedTrackFitter(nn.Module):
             z_vtx =  z0
         where d0, z0 are in metres (model-native units) and phi0 is in radians.
 
-        For each hit the following fields are added to track_inputs:
-            sihit_x_rel, sihit_y_rel, sihit_z_rel : Cartesian offsets [m]
-            sihit_r_rel   : transverse distance from perigee [m]
-            sihit_phi_rel : azimuthal direction from perigee [rad]
-            sihit_eta_rel : pseudorapidity as seen from perigee
+        For each hit the following fields are added (prefixed by input_name):
+            {n}_x_rel, {n}_y_rel, {n}_z_rel : Cartesian offsets from perigee [m]
+            {n}_r_rel   : transverse distance from perigee [m]
+            {n}_phi_rel : azimuthal direction from perigee to hit [rad]
+            {n}_eta_rel : pseudorapidity from perigee to hit
+            {n}_dz_helix  : z residual from helix z(r) prediction [m]
+            {n}_dxy_helix : signed transverse residual from helix circle [m]
+            {n}_deta : hit global eta minus track eta (no wrapping) [dimensionless]
+            {n}_dphi : hit global phi minus track phi0, wrapped to (-π, π) [rad]
         """
+        n = input_name
         n_tracks = helix_params.shape[0]
         device   = helix_params.device
         dtype    = helix_params.dtype
@@ -636,41 +659,47 @@ class BoostedTrackFitter(nn.Module):
         y_vtx = ( d0 * torch.cos(phi0)).unsqueeze(1)
         z_vtx = z0.unsqueeze(1)
 
-        x_rel = track_inputs["sihit_x"] - x_vtx  # (n_tracks, max_hits)
-        y_rel = track_inputs["sihit_y"] - y_vtx
-        z_rel = track_inputs["sihit_z"] - z_vtx
+        x_rel = track_inputs[f"{n}_x"] - x_vtx  # (n_tracks, max_hits)
+        y_rel = track_inputs[f"{n}_y"] - y_vtx
+        z_rel = track_inputs[f"{n}_z"] - z_vtx
         r_rel = torch.sqrt(x_rel.pow(2) + y_rel.pow(2)).clamp(min=1e-6)
 
         out = dict(track_inputs)
-        out["sihit_x_rel"]   = x_rel
-        out["sihit_y_rel"]   = y_rel
-        out["sihit_z_rel"]   = z_rel
-        out["sihit_r_rel"]   = r_rel
-        out["sihit_phi_rel"] = torch.atan2(y_rel, x_rel)
-        out["sihit_eta_rel"] = torch.asinh(z_rel / r_rel)
+        out[f"{n}_x_rel"]   = x_rel
+        out[f"{n}_y_rel"]   = y_rel
+        out[f"{n}_z_rel"]   = z_rel
+        out[f"{n}_r_rel"]   = r_rel
+        out[f"{n}_phi_rel"] = torch.atan2(y_rel, x_rel)
+        out[f"{n}_eta_rel"] = torch.asinh(z_rel / r_rel)
 
         # dz_helix: per-hit z residual from helix prediction z(r_xy) = z0 + r_xy*sinh(eta).
         # Uses r_rel (2D transverse distance from helix perigee) as the arc-length proxy —
-        # correct for low-curvature tracks. sihit_s = sqrt(r²+z²) is the 3D distance from
-        # the origin, which is wrong for this formula (especially at high eta).
+        # correct for low-curvature tracks.
         eta_trk = _get("eta").unsqueeze(1)  # (n_tracks, 1)
-        out["sihit_dz_helix"] = z_rel - r_rel * torch.sinh(eta_trk)
+        out[f"{n}_dz_helix"] = z_rel - r_rel * torch.sinh(eta_trk)
 
         # dxy_helix: per-hit signed transverse residual from the helix circle.
         # Positive = hit lies outside the circle, negative = inside.
-        # Requires qopt (signed curvature) to locate the circle centre.
-        # Informative for d0 and pt/qopt corrections.
         qopt_trk    = _get("qopt")                                              # (n_tracks,)
-        R_helix     = (1.0 / (qopt_trk.abs().clamp(min=1e-6) * 0.3 * self.B_field)).unsqueeze(1)  # (n_tracks, 1)
-        charge_sign = torch.sign(qopt_trk).unsqueeze(1)                         # (n_tracks, 1)
-        # Circle centre: perpendicular to the track direction at the perigee.
+        R_helix     = (1.0 / (qopt_trk.abs().clamp(min=1e-6) * 0.3 * self.B_field)).unsqueeze(1)
+        charge_sign = torch.sign(qopt_trk).unsqueeze(1)
         x_c = x_vtx + charge_sign * R_helix * torch.sin(phi0).unsqueeze(1)
         y_c = y_vtx - charge_sign * R_helix * torch.cos(phi0).unsqueeze(1)
         dist_xy = torch.sqrt(
-            (track_inputs["sihit_x"] - x_c).pow(2) +
-            (track_inputs["sihit_y"] - y_c).pow(2)
+            (track_inputs[f"{n}_x"] - x_c).pow(2) +
+            (track_inputs[f"{n}_y"] - y_c).pow(2)
         ).clamp(min=1e-6)
-        out["sihit_dxy_helix"] = dist_xy - R_helix
+        out[f"{n}_dxy_helix"] = dist_xy - R_helix
+
+        # deta / dphi: difference between the hit's global (eta, phi) position
+        # and the track's (eta, phi0) direction from the helix fit.
+        # dphi is wrapped to (-π, π) via atan2 to handle the ±π boundary.
+        out[f"{n}_deta"] = track_inputs[f"{n}_eta"] - eta_trk
+        hit_phi = track_inputs[f"{n}_phi"]
+        out[f"{n}_dphi"] = torch.atan2(
+            torch.sin(hit_phi - phi0.unsqueeze(1)),
+            torch.cos(hit_phi - phi0.unsqueeze(1)),
+        )
 
         return out
 
@@ -689,9 +718,27 @@ class BoostedTrackFitter(nn.Module):
                 f"max={t[torch.isfinite(t)].max().item() if torch.isfinite(t).any() else 'N/A'}"
             )
 
-    def _weighted_mean(self, per_track_field: Tensor) -> Tensor:
-        """Mean over tracks, weighted sum over fields by field_loss_weights."""
+    def _combine_fields(self, per_track_field: Tensor) -> Tensor:
+        """Combine (n_valid, n_fields) per-track losses into a scalar stage loss.
+
+        Two modes controlled by ``self.field_combination``:
+
+        ``"mean"`` (default):
+            Weighted arithmetic mean over fields of the per-track-mean losses.
+            Equivalent to a weighted sum over fields of MADs/means.
+
+        ``"geometric"``:
+            Weighted geometric mean over fields of the per-field mean loss:
+                exp( sum(w_f * log(mean_tracks L_f)) / sum(w_f) )
+            Equivalent to minimising the product (times exponent weights) of
+            per-field losses.  Fields with very poor loss cannot dominate the
+            gradient signal — all fields are forced to improve simultaneously.
+        """
         w = self.field_loss_weights  # (n_fields,)
+        if self.field_combination == "geometric":
+            per_field = per_track_field.mean(dim=0)  # (n_fields,)
+            return torch.exp((w * torch.log(per_field.clamp(min=1e-10))).sum() / w.sum())
+        # Default: weighted arithmetic mean over fields, mean over tracks.
         return (per_track_field * w).sum() / (w.sum() * per_track_field.shape[0])
 
     def _wrapped_residual(self, output: Tensor, target: Tensor) -> Tensor:
@@ -713,21 +760,22 @@ class BoostedTrackFitter(nn.Module):
     # ------------------------------------------------------------------
 
     def forward(self, inputs: dict[str, Tensor]) -> dict[str, dict[str, Tensor]]:
-        # Only gather fields that actually exist in the data; relative-coord
-        # fields are computed later from the helix fit and must not be fetched.
-        data_fields = [f for f in self.input_nets[0].fields if f not in _RELATIVE_HIT_FIELDS]
-        # When using separate vtxd/trkr nets the is_vtxd flag is not a net
-        # input feature, but it is still needed for the z(r)-fit and for
-        # blending the two embeddings — always gather it in multi-net mode.
-        if len(self.input_nets) > 1 and "is_vtxd" not in data_fields:
-            data_fields = data_fields + ["is_vtxd"]
-        track_inputs, track_hit_valid = _gather_track_hits(
-            inputs, data_fields, "sihit"
-        )
+        # ── 0. Gather hits ────────────────────────────────────────────────────
+        # Always gather the combined sihit sequence for the helix fit and
+        # pair_bias (needs x,y,z,r,s,phi,eta + is_vtxd for vtxd-only z-fit).
+        sihit_geom = ["x", "y", "z", "r", "s", "eta", "phi", "is_vtxd"]
+        track_inputs, track_hit_valid = _gather_track_hits(inputs, sihit_geom, "sihit")
 
-        # 1. Classical helix fit — initial parameter estimate.
-        # Gather detector codes if available to use pixel-only z-weights and
-        # exclude long-strip hits, matching the plot_track_residuals behaviour.
+        if len(self.input_nets) == 2:
+            # Separate per-type gather for embedding.
+            # nets[0] = vtxd (pixel), nets[1] = trkr (strip).
+            vtxd_fields = [f for f in self.input_nets[0].fields if f not in _RELATIVE_HIT_FIELDS]
+            trkr_fields = [f for f in self.input_nets[1].fields if f not in _RELATIVE_HIT_FIELDS]
+            vtxd_inputs, vtxd_valid = _gather_track_hits(inputs, vtxd_fields, "vtxd")
+            trkr_inputs, trkr_valid = _gather_track_hits(inputs, trkr_fields, "trkr")
+
+        # 1. Classical helix fit on the combined sihit sequence.
+        # Gather detector codes if available (non-CLD detectors with detector_int).
         sihit_det: Tensor | None = None
         if "sihit_detector_int" in inputs:
             det_gathered, _ = _gather_track_hits(inputs, ["detector_int"], "sihit")
@@ -736,40 +784,50 @@ class BoostedTrackFitter(nn.Module):
         if self.debug:
             self._assert_finite(helix_params, "helix_params")
 
-        # Optionally add per-hit signed three-point sagitta — a direct,
-        # helix-independent measure of local curvature in the transverse plane.
+        # Optionally add per-hit signed three-point sagitta.
         if self.use_sagitta:
             track_inputs["sihit_sagitta"] = self._compute_sagitta(track_inputs, track_hit_valid)
 
-        # Optionally augment hit features with coordinates relative to the
-        # helix perigee — gives the input_net a view of each hit's position in
-        # the estimated production-vertex frame alongside the global coords.
-        if self.use_relative_coords:
-            track_inputs = self._compute_relative_coords(track_inputs, helix_params)
-
-        # 2. Embed and encode hits (encoder is shared across all stages).
-        pair_bias = self._pair_bias(track_inputs)
-        if self.debug:
-            self._assert_finite(pair_bias, "pair_bias")
+        # 2. Embed and encode hits.
         if len(self.input_nets) == 1:
-            hit_embeds = self.input_nets[0](track_inputs)
+            # Single shared net: compute relative coords on the combined sihit
+            # sequence (if requested) then embed directly.
+            if self.use_relative_coords:
+                track_inputs = self._compute_relative_coords(track_inputs, helix_params, input_name="sihit")
+            pair_bias      = self._pair_bias(track_inputs)
+            hit_embeds     = self.input_nets[0](track_inputs)
+            combined_valid = track_hit_valid
         else:
-            # Blend vtxd (nets[0]) and trkr (nets[1]) embeddings.
-            # sihit_is_vtxd is 1.0 for vtxd hits, 0.0 for trkr hits.
-            is_vtxd = track_inputs["sihit_is_vtxd"].unsqueeze(-1)  # (n_tracks, max_hits, 1)
-            hit_embeds = is_vtxd * self.input_nets[0](track_inputs) + (1.0 - is_vtxd) * self.input_nets[1](track_inputs)
+            # Two nets: compute relative coords on vtxd and trkr separately,
+            # embed separately, then concatenate for the encoder.
+            if self.use_relative_coords:
+                vtxd_inputs = self._compute_relative_coords(vtxd_inputs, helix_params, input_name="vtxd")
+                trkr_inputs = self._compute_relative_coords(trkr_inputs, helix_params, input_name="trkr")
+            # Pair bias on the vtxd-first concat sequence (sequence length must
+            # match hit_embeds; pairwise geometric features are order-independent).
+            vtxd_trkr_inputs = {
+                "sihit_r":   torch.cat([vtxd_inputs["vtxd_r"],   trkr_inputs["trkr_r"]],   dim=1),
+                "sihit_z":   torch.cat([vtxd_inputs["vtxd_z"],   trkr_inputs["trkr_z"]],   dim=1),
+                "sihit_phi": torch.cat([vtxd_inputs["vtxd_phi"], trkr_inputs["trkr_phi"]], dim=1),
+                "sihit_s":   torch.cat([vtxd_inputs["vtxd_s"],   trkr_inputs["trkr_s"]],   dim=1),
+            }
+            pair_bias      = self._pair_bias(vtxd_trkr_inputs)
+            hit_embeds     = torch.cat([self.input_nets[0](vtxd_inputs),
+                                        self.input_nets[1](trkr_inputs)], dim=1)
+            combined_valid = torch.cat([vtxd_valid, trkr_valid], dim=1)
+
         if self.debug:
             self._assert_finite(hit_embeds, "hit_embeds")
 
-        encoded_hits = self.encoder(hit_embeds, kv_mask=track_hit_valid, attn_bias=pair_bias)
+        encoded_hits = self.encoder(hit_embeds, kv_mask=combined_valid, attn_bias=pair_bias)
         if self.debug:
             self._assert_finite(encoded_hits, "encoded_hits")
 
         # 3. Initialise track embedding from helix parameters.
-        # Normalise by field_unit_scales so param_proj sees O(1) inputs across
-        # all fields regardless of their native scale (metres, GeV⁻¹, etc.).
-        current_params = helix_params                                                     # (n_tracks, n_fields)
-        track_embed    = self.param_proj(helix_params / self.field_unit_scales).unsqueeze(1)  # (n_tracks, 1, dim)
+        # Normalise by param_proj_scales (typical parameter magnitudes) so
+        # param_proj sees O(1) inputs regardless of natural scale.
+        current_params = helix_params                                                      # (n_tracks, n_fields)
+        track_embed    = self.param_proj(helix_params / self.param_proj_scales).unsqueeze(1)  # (n_tracks, 1, dim)
         if self.debug:
             self._assert_finite(track_embed, "track_embed (after param_proj)")
 
@@ -784,7 +842,7 @@ class BoostedTrackFitter(nn.Module):
 
         for stage_idx, stage in enumerate(self.stages):
             # Cross-attend track embedding against encoded hits.
-            track_embed, delta, gates, log_sigma = stage(track_embed, encoded_hits, track_hit_valid)
+            track_embed, delta, gates, log_sigma = stage(track_embed, encoded_hits, combined_valid)
             if self.debug:
                 self._assert_finite(track_embed, f"track_embed (stage {stage_idx + 1})")
                 self._assert_finite(delta, f"delta (stage {stage_idx + 1})")
@@ -814,7 +872,7 @@ class BoostedTrackFitter(nn.Module):
             # stage k+1 should not flow back through the injection into stage
             # k's delta head (it already does so via the main accumulation).
             if self.inject_params and stage_idx < self.n_stages - 1:
-                track_embed = track_embed + self.param_inject(current_params.detach() / self.field_unit_scales).unsqueeze(1)
+                track_embed = track_embed + self.param_inject(current_params.detach() / self.param_proj_scales).unsqueeze(1)
 
         # "final" is an alias for the last stage — used by the ModelWrapper.
         stage_outputs["final"] = stage_outputs[f"stage_{self.n_stages}"]
@@ -893,9 +951,9 @@ class BoostedTrackFitter(nn.Module):
                         keep = loss_input.abs().mean(dim=-1).topk(k, largest=False).indices
                         loss_input = loss_input[keep]
                     if self.loss_type == "arcsinh_l1":
-                        stage_loss = self._weighted_mean(loss_input.abs())
+                        stage_loss = self._combine_fields(loss_input.abs())
                     else:
-                        stage_loss = self._weighted_mean(loss_input.pow(2))
+                        stage_loss = self._combine_fields(loss_input.pow(2))
                 elif self.loss_type == "barron":
                     # Barron (CVPR 2019) adaptive robust loss.
                     # α = 2 - softplus(alpha_raw) ≤ 2; scale = EMA MAD (× exp(log_c_raw)
@@ -913,7 +971,7 @@ class BoostedTrackFitter(nn.Module):
                         k = max(1, int(loss_per.shape[0] * (1.0 - self.trim_fraction)))
                         keep = loss_per.mean(dim=-1).topk(k, largest=False).indices
                         loss_per = loss_per[keep]
-                    stage_loss = self._weighted_mean(loss_per)
+                    stage_loss = self._combine_fields(loss_per)
                     outputs[stage_name]["barron_alpha"] = alpha.detach()    # (n_fields,)
                     if self.barron_learn_scale:
                         outputs[stage_name]["barron_c"] = c.detach()        # (n_fields,)
@@ -928,7 +986,7 @@ class BoostedTrackFitter(nn.Module):
                     unit_scales = self.field_unit_scales.clamp(min=1e-10)
                     r_norm = residual / unit_scales  # (n_valid, n_fields)
                     log_sigma_valid = outputs[stage_name]["log_sigma"][valid[0]]  # (n_valid, n_fields)
-                    stage_loss = self._weighted_mean(
+                    stage_loss = self._combine_fields(
                         0.5 * (r_norm / log_sigma_valid.exp()).pow(2) + log_sigma_valid
                     )
                 else:
@@ -956,13 +1014,13 @@ class BoostedTrackFitter(nn.Module):
                     # "l1": mean absolute error — targets the median.
                     if self.loss_type == "welsch":
                         c2 = self.welsch_c ** 2
-                        stage_loss = self._weighted_mean(1.0 - torch.exp(-norm_res.pow(2) / (2.0 * c2)))
+                        stage_loss = self._combine_fields(1.0 - torch.exp(-norm_res.pow(2) / (2.0 * c2)))
                     elif self.loss_type == "cauchy":
-                        stage_loss = self._weighted_mean(torch.log1p(norm_res.pow(2)))
+                        stage_loss = self._combine_fields(torch.log1p(norm_res.pow(2)))
                     elif self.loss_type == "mse":
-                        stage_loss = self._weighted_mean(norm_res.pow(2))
+                        stage_loss = self._combine_fields(norm_res.pow(2))
                     elif self.loss_type == "l1":
-                        stage_loss = self._weighted_mean(norm_res.abs())
+                        stage_loss = self._combine_fields(norm_res.abs())
                     else:
                         raise ValueError(f"Unknown loss_type: {self.loss_type!r}")
             else:
