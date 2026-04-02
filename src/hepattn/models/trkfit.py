@@ -37,6 +37,7 @@ _RELATIVE_HIT_FIELDS: frozenset[str] = frozenset({
     "x_rel", "y_rel", "z_rel", "r_rel", "phi_rel", "eta_rel",
     "dz_helix", "dxy_helix", "sagitta",
     "deta", "dphi",
+    "x_prime", "y_prime", "dz_signed",
 })
 
 
@@ -672,11 +673,22 @@ class BoostedTrackFitter(nn.Module):
         out[f"{n}_phi_rel"] = torch.atan2(y_rel, x_rel)
         out[f"{n}_eta_rel"] = torch.asinh(z_rel / r_rel)
 
+        # x_prime / y_prime: hit position rotated into perigee frame (phi0 → 0).
+        # x_prime points along the track direction at perigee; y_prime is transverse to it.
+        cp = torch.cos(phi0).unsqueeze(1)  # (n_tracks, 1)
+        sp = torch.sin(phi0).unsqueeze(1)
+        out[f"{n}_x_prime"] =  x_rel * cp + y_rel * sp
+        out[f"{n}_y_prime"] = -x_rel * sp + y_rel * cp
+
         # dz_helix: per-hit z residual from helix prediction z(r_xy) = z0 + r_xy*sinh(eta).
         # Uses r_rel (2D transverse distance from helix perigee) as the arc-length proxy —
         # correct for low-curvature tracks.
         eta_trk = _get("eta").unsqueeze(1)  # (n_tracks, 1)
         out[f"{n}_dz_helix"] = z_rel - r_rel * torch.sinh(eta_trk)
+
+        # dz_signed: z_rel flipped so it always points in the +z direction for the track.
+        # Mirrors the sign(eta) flip used in the perigee z-r display.
+        out[f"{n}_dz_signed"] = z_rel * torch.sign(eta_trk)
 
         # dxy_helix: per-hit signed transverse residual from the helix circle.
         # Positive = hit lies outside the circle, negative = inside.

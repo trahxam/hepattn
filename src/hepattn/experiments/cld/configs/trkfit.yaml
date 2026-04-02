@@ -300,10 +300,13 @@ model:
                   - phi
                   - deta
                   - dphi
+                  - x_prime
+                  - y_prime
+                  - dz_signed
                 net:
                   class_path: hepattn.models.Dense
                   init_args:
-                    input_size: 9
+                    input_size: 12
                     hidden_layers: [128]
                     output_size: *dim
                     activation: SwiGLU
@@ -330,10 +333,13 @@ model:
                   - phi
                   - deta
                   - dphi
+                  - x_prime
+                  - y_prime
+                  - dz_signed
                 net:
                   class_path: hepattn.models.Dense
                   init_args:
-                    input_size: 9
+                    input_size: 12
                     hidden_layers: [128]
                     output_size: *dim
                     activation: SwiGLU
