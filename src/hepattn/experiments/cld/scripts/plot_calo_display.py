@@ -253,7 +253,7 @@ def _draw_panel(
                         markeredgewidth=0.5, markeredgecolor="white")
     if hcal_fit is not None:
         ax_scatter.plot(float(_unwrap_phi(hcal_fit[1], phi_center)), hcal_fit[0],
-                        marker="P", color="teal",
+                        marker="P", color="mediumvioletred",
                         ms=9, zorder=6, ls="none",
                         markeredgewidth=0.5, markeredgecolor="white")
 
@@ -360,7 +360,7 @@ def main() -> None:
         Line2D([0], [0], marker="*",  color="tab:red",       ms=8,  ls="none", label="Truth direction"),
         Line2D([0], [0], marker="D",  color="cornflowerblue", ms=6,  ls="none", label="Pandora"),
         Line2D([0], [0], marker="P",  color="mediumseagreen", ms=6,  ls="none", label="ECAL fit"),
-        Line2D([0], [0], marker="P",  color="teal",           ms=6,  ls="none", label="HCAL fit"),
+        Line2D([0], [0], marker="P",  color="mediumvioletred", ms=6,  ls="none", label="HCAL fit"),
         Line2D([0], [0], marker="o",  color="tab:orange",     ms=6,  ls="none", label="ECAL hit"),
         Line2D([0], [0], marker="s",  color="tab:red",        ms=6,  ls="none", label="HCAL hit"),
     ]

@@ -417,7 +417,7 @@ def make_calo_fig(
     for col, field in enumerate(FIELDS):
         bins, xlabel, xscale = TRUTH_BINS[field]
         _plot_vs_truth(axes[col], series, col, bins, xlabel, xscale,
-                       f"Bias (median $\\pm$ IQR)\n{RESIDUAL_YLABEL[field]}",
+                       f"Resolution (median $\\pm$ IQR)\n{RESIDUAL_YLABEL[field]}",
                        "bias", min_bin_count)
         axes[col].set_title(f"Calo {field}", fontsize=8)
 
@@ -438,7 +438,7 @@ def make_energy_fig(series: dict, title: str, min_bin_count: int = 20) -> plt.Fi
         (0, ENERGY_TRUTH_BINS_E,   r"Truth $E$ [GeV]", "log"),
         (1, ENERGY_TRUTH_BINS_ETA, r"Truth $\eta$",    "linear"),
     ]
-    ylabel = f"Bias (median $\\pm$ IQR)\n{ENERGY_RESIDUAL_YLABEL}"
+    ylabel = f"Resolution (median $\\pm$ IQR)\n{ENERGY_RESIDUAL_YLABEL}"
 
     for col, (field_idx, bins, xlabel, xscale) in enumerate(col_specs):
         _plot_vs_truth(axes[col], series, field_idx, bins,
@@ -460,7 +460,7 @@ def main() -> None:
 
     # ── η/φ residual figures ───────────────────────────────────────────────
     for calo in ("ecal", "hcal"):
-        calo_color = "mediumseagreen" if calo == "ecal" else "teal"
+        calo_color = "mediumseagreen" if calo == "ecal" else "mediumvioletred"
         calo_label = "ECAL fit" if calo == "ecal" else "HCAL fit"
 
         for charge_type in ("charged", "neutral"):
