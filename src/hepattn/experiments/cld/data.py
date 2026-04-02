@@ -482,8 +482,9 @@ class CLDDataset(LRSMDataset):
             # Sum over the hits
             event[f"particle.energy_{calo_hit}"] = event[f"particle_{calo_hit}.energy"].sum(-1)
             event[f"particle.calib_energy_{calo_hit}"] = calo_hit_calibrations[calo_hit] * event[f"particle.energy_{calo_hit}"]
-            # Full readout energy: sum full hit energies for hits assigned to this particle (not truth fraction)
-            event[f"particle.calib_full_energy_{calo_hit}"] = calo_hit_calibrations[calo_hit] * (event[f"particle_{calo_hit}_valid"] @ event[f"{calo_hit}.energy"])
+            # Full readout energy: sum full hit energies for hits assigned to this particle (not truth fraction).
+            # ecal/hcal.energy are already calibrated reconstructed hit energies, so no calibration factor needed.
+            event[f"particle.calib_full_energy_{calo_hit}"] = event[f"particle_{calo_hit}_valid"] @ event[f"{calo_hit}.energy"]
 
         # Add extra labels for particles
         for object_name in ["particle", "pandora"]:
