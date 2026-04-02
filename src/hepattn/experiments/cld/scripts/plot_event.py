@@ -1,17 +1,17 @@
 from pathlib import Path
 from matplotlib.backends.backend_pdf import PdfPages
 
-from hepattn.experiments.cld.data import CLDDataModule
-from hepattn.experiments.cld.event_display import plot_cld_event
-
 import yaml
 import matplotlib.pyplot as plt
+
+from hepattn.experiments.cld.data import CLDDataModule
+from hepattn.experiments.cld.event_display import plot_cld_event
 
 
 config_path = Path(__file__).parent.parent / "configs" / "combined_unified.yaml"
 config = yaml.safe_load(config_path.read_text())["data"]
 config["num_workers"] = 0
-config["test_dir"] = "/share/lustre/maxhart/data/cld/test_fix_prepped/reco_p8_ee_Zuds_ecm91_1"
+config["test_dir"] = "/share/lustre/maxhart/data/cld/test_fix_prepped/reco_p8_ee_Zuds_ecm91_looseTrk_1/"
 
 datamodule = CLDDataModule(**config)
 datamodule.setup(stage="test")

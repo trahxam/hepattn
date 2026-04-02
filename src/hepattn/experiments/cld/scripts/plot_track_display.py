@@ -38,6 +38,7 @@ plt.rcParams["text.usetex"] = True
 # ── constants ──────────────────────────────────────────────────────────────
 B_FIELD_T     = 2.0   # CLD solenoid [T]
 HELIX_CLIP_M  = 1.5   # clip helix paths at this transverse radius [m]
+HELIX_N_STEPS = 1024  # path points per helix curve
 N_TRACKS      = 8     # track panels per figure
 IOI_MATCH_THRESH = 0.5
 MIN_PT_GEV    = 0.5   # only show particles above this pT for readability
@@ -155,7 +156,7 @@ def _scan_tracks(cfg: dict, n_tracks: int, n_events: int) -> list[TrackRecord]:
                 continue
             p_vtxd = targets["particle_vtxd_valid"][0][p_idx]
             p_trkr = targets["particle_trkr_valid"][0][p_idx]
-            if int(p_vtxd.sum()) + int(p_trkr.sum()) < 3:
+            if int(p_vtxd.sum()) < 3 or int(p_trkr.sum()) < 3:
                 continue
             candidates.append({"inputs": inputs, "targets": targets, "p_idx": p_idx, "pt": pt})
 
@@ -248,7 +249,7 @@ def _draw_panel(
         torch.tensor(phi_t), torch.tensor(eta_t),
         torch.tensor(max(abs(pt_t), 1e-6)), cs_t,
         torch.tensor(d0_t_m), torch.tensor(z0_t_m),
-        B_FIELD_T, HELIX_CLIP_M,
+        B_FIELD_T, HELIX_CLIP_M, n_steps=HELIX_N_STEPS,
     )
     ax_xy.plot(_np(xt), _np(yt), color="tab:red", lw=1.5, ls="--", zorder=4)
     ax_zr.plot(_np(zt), np.sqrt(_np(xt)**2 + _np(yt)**2),
@@ -405,6 +406,241 @@ def _draw_panel(
     ax_zr.grid(True, alpha=0.2, lw=0.4)
 
 
+def _draw_perigee_panel(
+    ax: plt.Axes,
+    rec: TrackRecord,
+    col: int,
+) -> None:
+    """x-y view rotated/shifted so the fit perigee is the origin and fit phi=0."""
+    inputs  = rec["inputs"]
+    targets = rec["targets"]
+    p_idx   = rec["p_idx"]
+
+    pt_t   = float(_np(targets["particle_mom.r"][0])[p_idx])
+    eta_t  = float(_np(targets["particle_mom.eta"][0])[p_idx])
+    phi_t  = float(_np(targets["particle_mom.phi"][0])[p_idx])
+    qopt_t = float(_np(targets["particle_mom.qopt"][0])[p_idx])
+    vtx_x  = float(_np(targets["particle_vtx.x"][0])[p_idx]) * 1e-3
+    vtx_y  = float(_np(targets["particle_vtx.y"][0])[p_idx]) * 1e-3
+    vtx_z  = float(_np(targets["particle_vtx.z"][0])[p_idx]) * 1e-3
+    q_sign_t = np.sign(qopt_t)
+
+    p_vtxd   = targets["particle_vtxd_valid"][0][p_idx]
+    p_trkr   = targets["particle_trkr_valid"][0][p_idx]
+    vtxd_x   = _np(inputs["vtxd_pos.x"][0]); vtxd_y = _np(inputs["vtxd_pos.y"][0]); vtxd_z = _np(inputs["vtxd_pos.z"][0])
+    trkr_x   = _np(inputs["trkr_pos.x"][0]); trkr_y = _np(inputs["trkr_pos.y"][0]); trkr_z = _np(inputs["trkr_pos.z"][0])
+    vtxd_sel = _np(p_vtxd).astype(bool)
+    trkr_sel = _np(p_trkr).astype(bool)
+    hx = np.concatenate([vtxd_x[vtxd_sel], trkr_x[trkr_sel]])
+    hy = np.concatenate([vtxd_y[vtxd_sel], trkr_y[trkr_sel]])
+    hz = np.concatenate([vtxd_z[vtxd_sel], trkr_z[trkr_sel]])
+    n_vtxd = int(p_vtxd.sum().item())
+
+    hfit = _helix_fit_on_hits(hx, hy, hz, n_vtxd)
+    if hfit is not None:
+        ref_phi  = hfit["phi"]
+        ref_eta  = hfit["eta"]
+        ref_pt   = max(abs(hfit["pt"]), 1e-6)
+        ref_d0_m = hfit["d0_mm"] * 1e-3
+        ref_z0_m = hfit["z0_mm"] * 1e-3
+        ref_cs   = float(hfit["charge_sign"])
+        frame_label = "Helix fit"
+    else:
+        R_t = abs(pt_t) / (0.3 * B_FIELD_T)
+        xc_t = vtx_x + q_sign_t * R_t * np.sin(phi_t)
+        yc_t = vtx_y - q_sign_t * R_t * np.cos(phi_t)
+        c_t  = np.sqrt(xc_t**2 + yc_t**2)
+        ref_d0_m = -q_sign_t * (c_t**2 - R_t**2) / (c_t + R_t) if (c_t + R_t) > 1e-12 else 0.0
+        vtx_r_t  = np.sqrt(vtx_x**2 + vtx_y**2)
+        ref_z0_m = vtx_z - np.sinh(eta_t) * vtx_r_t
+        ref_phi, ref_eta = phi_t, eta_t
+        ref_pt   = max(abs(pt_t), 1e-6)
+        ref_cs   = float(q_sign_t)
+        frame_label = "Truth (fit failed)"
+
+    peri_x = -ref_d0_m * np.sin(ref_phi)
+    peri_y =  ref_d0_m * np.cos(ref_phi)
+
+    def _tr2d(x, y):
+        dx = np.asarray(x, float) - peri_x
+        dy = np.asarray(y, float) - peri_y
+        cp, sp = np.cos(ref_phi), np.sin(ref_phi)
+        return dx * cp + dy * sp, -dx * sp + dy * cp
+
+    # Particle hits
+    if vtxd_sel.any():
+        rx, ry = _tr2d(vtxd_x[vtxd_sel], vtxd_y[vtxd_sel])
+        ax.scatter(rx, ry, marker="x", color="black", s=18, linewidths=0.8, zorder=5)
+    if trkr_sel.any():
+        rx, ry = _tr2d(trkr_x[trkr_sel], trkr_y[trkr_sel])
+        ax.scatter(rx, ry, marker="+", color="black", s=28, linewidths=0.8, zorder=5)
+
+    # Helix fit
+    cs_ref = torch.tensor(ref_cs, dtype=torch.float32)
+    xref, yref, zref, _ = _build_helix_path(
+        torch.tensor(ref_phi, dtype=torch.float32),
+        torch.tensor(ref_eta,  dtype=torch.float32),
+        torch.tensor(ref_pt,   dtype=torch.float32),
+        cs_ref,
+        torch.tensor(ref_d0_m, dtype=torch.float32),
+        torch.tensor(ref_z0_m, dtype=torch.float32),
+        B_FIELD_T, HELIX_CLIP_M, n_steps=HELIX_N_STEPS,
+    )
+    rx, ry = _tr2d(_np(xref), _np(yref))
+    ax.plot(rx, ry, color="tab:green", lw=1.5, ls=":", zorder=3, label=frame_label)
+
+    # Truth helix
+    R_t  = abs(pt_t) / (0.3 * B_FIELD_T)
+    xc_t = vtx_x + q_sign_t * R_t * np.sin(phi_t)
+    yc_t = vtx_y - q_sign_t * R_t * np.cos(phi_t)
+    c_t  = np.sqrt(xc_t**2 + yc_t**2)
+    d0_t_m  = -q_sign_t * (c_t**2 - R_t**2) / (c_t + R_t) if (c_t + R_t) > 1e-12 else 0.0
+    vtx_r_t = np.sqrt(vtx_x**2 + vtx_y**2)
+    z0_t_m  = vtx_z - np.sinh(eta_t) * vtx_r_t
+    cs_t = torch.tensor(float(q_sign_t) if q_sign_t != 0 else 1.0, dtype=torch.float32)
+    xt, yt, zt, _ = _build_helix_path(
+        torch.tensor(phi_t, dtype=torch.float32),
+        torch.tensor(eta_t,  dtype=torch.float32),
+        torch.tensor(max(abs(pt_t), 1e-6), dtype=torch.float32),
+        cs_t,
+        torch.tensor(d0_t_m, dtype=torch.float32),
+        torch.tensor(z0_t_m, dtype=torch.float32),
+        B_FIELD_T, HELIX_CLIP_M, n_steps=HELIX_N_STEPS,
+    )
+    rx, ry = _tr2d(_np(xt), _np(yt))
+    ax.plot(rx, ry, color="tab:red", lw=1.5, ls="--", zorder=4, label="Truth")
+
+    ax.scatter([0], [0], color="tab:green", marker="*", s=60,
+               edgecolors="black", linewidths=0.5, zorder=6)
+    ax.axhline(0, color="dimgray", lw=0.5, ls=":", zorder=0)
+    ax.axvline(0, color="dimgray", lw=0.5, ls=":", zorder=0)
+    ax.set_aspect("equal")
+    ax.legend(fontsize=5, framealpha=0.8, loc="upper left")
+    ax.set_xlabel(r"$x'$ (along fit, transverse) [m]", fontsize=7)
+    ax.set_ylabel(r"$y'$ ($d_0$ dir.) [m]", fontsize=7)
+    ax.tick_params(labelsize=6)
+    ax.grid(True, alpha=0.2, lw=0.4)
+
+
+def _draw_perigee_zr_panel(
+    ax: plt.Axes,
+    rec: TrackRecord,
+    col: int,
+) -> None:
+    """z-r view in perigee frame: origin shifted to (z0_fit, |d0_fit|).
+
+    At the perigee dr/ds = 0 by definition (minimum transverse radius),
+    so the track naturally starts moving along Δz — no rotation needed.
+    """
+    inputs  = rec["inputs"]
+    targets = rec["targets"]
+    p_idx   = rec["p_idx"]
+
+    pt_t   = float(_np(targets["particle_mom.r"][0])[p_idx])
+    eta_t  = float(_np(targets["particle_mom.eta"][0])[p_idx])
+    phi_t  = float(_np(targets["particle_mom.phi"][0])[p_idx])
+    qopt_t = float(_np(targets["particle_mom.qopt"][0])[p_idx])
+    vtx_x  = float(_np(targets["particle_vtx.x"][0])[p_idx]) * 1e-3
+    vtx_y  = float(_np(targets["particle_vtx.y"][0])[p_idx]) * 1e-3
+    vtx_z  = float(_np(targets["particle_vtx.z"][0])[p_idx]) * 1e-3
+    q_sign_t = np.sign(qopt_t)
+
+    p_vtxd   = targets["particle_vtxd_valid"][0][p_idx]
+    p_trkr   = targets["particle_trkr_valid"][0][p_idx]
+    vtxd_x   = _np(inputs["vtxd_pos.x"][0]); vtxd_y = _np(inputs["vtxd_pos.y"][0]); vtxd_z = _np(inputs["vtxd_pos.z"][0])
+    trkr_x   = _np(inputs["trkr_pos.x"][0]); trkr_y = _np(inputs["trkr_pos.y"][0]); trkr_z = _np(inputs["trkr_pos.z"][0])
+    vtxd_sel = _np(p_vtxd).astype(bool)
+    trkr_sel = _np(p_trkr).astype(bool)
+    hx = np.concatenate([vtxd_x[vtxd_sel], trkr_x[trkr_sel]])
+    hy = np.concatenate([vtxd_y[vtxd_sel], trkr_y[trkr_sel]])
+    hz = np.concatenate([vtxd_z[vtxd_sel], trkr_z[trkr_sel]])
+    n_vtxd = int(p_vtxd.sum().item())
+
+    hfit = _helix_fit_on_hits(hx, hy, hz, n_vtxd)
+    if hfit is not None:
+        ref_phi  = hfit["phi"]
+        ref_eta  = hfit["eta"]
+        ref_pt   = max(abs(hfit["pt"]), 1e-6)
+        ref_d0_m = hfit["d0_mm"] * 1e-3
+        ref_z0_m = hfit["z0_mm"] * 1e-3
+        ref_cs   = float(hfit["charge_sign"])
+        frame_label = "Helix fit"
+    else:
+        R_t = abs(pt_t) / (0.3 * B_FIELD_T)
+        xc_t = vtx_x + q_sign_t * R_t * np.sin(phi_t)
+        yc_t = vtx_y - q_sign_t * R_t * np.cos(phi_t)
+        c_t  = np.sqrt(xc_t**2 + yc_t**2)
+        ref_d0_m = -q_sign_t * (c_t**2 - R_t**2) / (c_t + R_t) if (c_t + R_t) > 1e-12 else 0.0
+        vtx_r_t  = np.sqrt(vtx_x**2 + vtx_y**2)
+        ref_z0_m = vtx_z - np.sinh(eta_t) * vtx_r_t
+        ref_phi, ref_eta = phi_t, eta_t
+        ref_pt   = max(abs(pt_t), 1e-6)
+        ref_cs   = float(q_sign_t)
+        frame_label = "Truth (fit failed)"
+
+    peri_r = abs(ref_d0_m)
+    peri_z = ref_z0_m
+
+    eta_sign = 1.0 if ref_eta >= 0.0 else -1.0
+
+    def _tr_zr(x, y, z):
+        r = np.sqrt(np.asarray(x, float)**2 + np.asarray(y, float)**2)
+        return (np.asarray(z, float) - peri_z) * eta_sign, r - peri_r
+
+    # Particle hits
+    if vtxd_sel.any():
+        dz, dr = _tr_zr(vtxd_x[vtxd_sel], vtxd_y[vtxd_sel], vtxd_z[vtxd_sel])
+        ax.scatter(dz, dr, marker="x", color="black", s=18, linewidths=0.8, zorder=5)
+    if trkr_sel.any():
+        dz, dr = _tr_zr(trkr_x[trkr_sel], trkr_y[trkr_sel], trkr_z[trkr_sel])
+        ax.scatter(dz, dr, marker="+", color="black", s=28, linewidths=0.8, zorder=5)
+
+    # Helix fit path
+    cs_ref = torch.tensor(ref_cs, dtype=torch.float32)
+    xref, yref, zref, _ = _build_helix_path(
+        torch.tensor(ref_phi, dtype=torch.float32),
+        torch.tensor(ref_eta,  dtype=torch.float32),
+        torch.tensor(ref_pt,   dtype=torch.float32),
+        cs_ref,
+        torch.tensor(ref_d0_m, dtype=torch.float32),
+        torch.tensor(ref_z0_m, dtype=torch.float32),
+        B_FIELD_T, HELIX_CLIP_M, n_steps=HELIX_N_STEPS,
+    )
+    dz, dr = _tr_zr(_np(xref), _np(yref), _np(zref))
+    ax.plot(dz, dr, color="tab:green", lw=1.5, ls=":", zorder=3, label=frame_label)
+
+    # Truth helix path
+    R_t  = abs(pt_t) / (0.3 * B_FIELD_T)
+    xc_t = vtx_x + q_sign_t * R_t * np.sin(phi_t)
+    yc_t = vtx_y - q_sign_t * R_t * np.cos(phi_t)
+    c_t  = np.sqrt(xc_t**2 + yc_t**2)
+    d0_t_m  = -q_sign_t * (c_t**2 - R_t**2) / (c_t + R_t) if (c_t + R_t) > 1e-12 else 0.0
+    vtx_r_t = np.sqrt(vtx_x**2 + vtx_y**2)
+    z0_t_m  = vtx_z - np.sinh(eta_t) * vtx_r_t
+    cs_t = torch.tensor(float(q_sign_t) if q_sign_t != 0 else 1.0, dtype=torch.float32)
+    xt, yt, zt, _ = _build_helix_path(
+        torch.tensor(phi_t, dtype=torch.float32),
+        torch.tensor(eta_t,  dtype=torch.float32),
+        torch.tensor(max(abs(pt_t), 1e-6), dtype=torch.float32),
+        cs_t,
+        torch.tensor(d0_t_m, dtype=torch.float32),
+        torch.tensor(z0_t_m, dtype=torch.float32),
+        B_FIELD_T, HELIX_CLIP_M, n_steps=HELIX_N_STEPS,
+    )
+    dz, dr = _tr_zr(_np(xt), _np(yt), _np(zt))
+    ax.plot(dz, dr, color="tab:red", lw=1.5, ls="--", zorder=4, label="Truth")
+
+    ax.scatter([0], [0], color="tab:green", marker="*", s=60,
+               edgecolors="black", linewidths=0.5, zorder=6)
+    ax.axhline(0, color="dimgray", lw=0.5, ls=":", zorder=0)
+    ax.axvline(0, color="dimgray", lw=0.5, ls=":", zorder=0)
+    ax.legend(fontsize=5, framealpha=0.8, loc="upper left")
+    ax.set_xlabel(r"$\Delta z \cdot \mathrm{sign}(\eta)$ [m]", fontsize=7)
+    ax.set_ylabel(r"$\Delta r$ [m]", fontsize=7)
+    ax.tick_params(labelsize=6)
+    ax.grid(True, alpha=0.2, lw=0.4)
+
+
 # ── main ────────────────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -417,11 +653,11 @@ def main() -> None:
 
     n_cols   = len(tracks)
     col_w    = 3.0          # inches per column
-    h_ratios = [3, 2, 1.6]
+    h_ratios = [3, 2, 2, 2, 1.6]
     fig_h    = col_w * sum(h_ratios) / h_ratios[0]
 
     fig, axes = plt.subplots(
-        3, n_cols,
+        5, n_cols,
         figsize=(col_w * n_cols, fig_h),
         gridspec_kw={"height_ratios": h_ratios},
     )
@@ -429,13 +665,18 @@ def main() -> None:
         axes = axes[:, None]
 
     for col, rec in enumerate(tracks):
-        _draw_panel(axes[0, col], axes[1, col], axes[2, col], rec, col)
+        _draw_panel(axes[0, col], axes[1, col], axes[4, col], rec, col)
+        _draw_perigee_panel(axes[2, col], rec, col)
+        _draw_perigee_zr_panel(axes[3, col], rec, col)
 
     axes[0, 0].set_ylabel(r"$y$ [m]   (transverse, $x$–$y$)", fontsize=7)
     axes[1, 0].set_ylabel(r"$r$ [m]   (longitudinal, $z$–$r$)", fontsize=7)
+    axes[2, 0].set_ylabel(r"$y'$ [m]   (perigee frame, $x'$–$y'$)", fontsize=7)
+    axes[3, 0].set_ylabel(r"$\Delta r$ [m]   (perigee $z$–$r$)", fontsize=7)
 
     fig.suptitle(
-        "CLD track display — truth (red --), Pandora (blue —), helix fit (green ···)",
+        r"CLD track display — truth (red --), Pandora (blue —), helix fit (green $\cdots$)"
+        r" | rows 3–4: perigee $x'$–$y'$, perigee $\Delta z \cdot \mathrm{sign}(\eta)$–$\Delta r$",
         fontsize=8,
     )
     fig.tight_layout()

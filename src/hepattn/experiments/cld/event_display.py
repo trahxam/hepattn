@@ -24,6 +24,7 @@ def _build_helix_path(
     magnetic_field_t: float,
     helix_radius_m: float,
     s_start: float = 0.0,
+    n_steps: int = 256,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Trace a helix arc from track parameters.
 
@@ -55,7 +56,7 @@ def _build_helix_path(
             float((4.0 * torch.pi * curvature_radius).item()),
         )
     max_transverse_len = max(max_transverse_len, 0.05)
-    path_s = torch.linspace(s_start, max_transverse_len, 256, dtype=torch.float32, device=phi.device)
+    path_s = torch.linspace(s_start, max_transverse_len, n_steps, dtype=torch.float32, device=phi.device)
 
     x0 = -d0 * torch.sin(phi)
     y0 =  d0 * torch.cos(phi)
@@ -612,6 +613,199 @@ def plot_cld_event(
         if defaults:
             ax_i.set_aspect("equal")
 
+    return fig
+
+
+def _transform_to_particle_frame(
+    x: np.ndarray,
+    y: np.ndarray,
+    z: np.ndarray,
+    phi_0: float,
+    eta_0: float,
+    vtx_x: float = 0.0,
+    vtx_y: float = 0.0,
+    vtx_z: float = 0.0,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Shift origin to vertex, rotate so particle momentum aligns with x''.
+
+    Step 1 – translate to production vertex.
+    Step 2 – rotate around z by phi_0  (φ → 0).
+    Step 3 – rotate around new y' by (π/2 − θ₀)  (η → 0),
+             where sin θ₀ = 1/cosh η₀, cos θ₀ = tanh η₀.
+    """
+    dx = np.asarray(x, dtype=float) - vtx_x
+    dy = np.asarray(y, dtype=float) - vtx_y
+    dz = np.asarray(z, dtype=float) - vtx_z
+
+    # Azimuthal rotation around z by phi_0
+    cp, sp = np.cos(phi_0), np.sin(phi_0)
+    xp =  dx * cp + dy * sp
+    yp = -dx * sp + dy * cp
+    # zp = dz  (phi rotation leaves z unchanged)
+
+    # Polar rotation around y' by (90° − θ₀)
+    sth = 1.0 / np.cosh(eta_0)  # sin θ₀
+    cth = np.tanh(eta_0)         # cos θ₀ (handles negative η correctly)
+    xpp =  sth * xp + cth * dz
+    ypp = yp
+    zpp = -cth * xp + sth * dz
+
+    return xpp, ypp, zpp
+
+
+def plot_cld_particle_relative_frame(
+    data: dict,
+    object_name: str,
+    object_idx: int,
+    batch_idx: int = 0,
+    usetex: bool = False,
+) -> plt.Figure:
+    """Event display in the reference frame of a single particle.
+
+    Origin is at the production vertex; x'' points along particle momentum (φ=0, η=0).
+    Two panels: (x'', y'') bending view and (x'', z'') polar view.
+    All hits are shown (background in grey), particle hits highlighted.
+    """
+    plt.rcParams["text.usetex"] = usetex
+
+    sihit_names = ["vtb", "vte", "itb", "ite", "otb", "ote", "sihit", "vtxd", "trkr"]
+    ecal_names  = ["ecb", "ece", "ecal"]
+    hcal_names  = ["hcb", "hce", "hcal"]
+    all_inputs  = ["vtxd", "trkr", "ecal", "hcal", "muon"]
+
+    # --- particle kinematics ---
+    if f"{object_name}_mom.phi" in data:
+        phi_0 = float(data[f"{object_name}_mom.phi"][batch_idx][object_idx].item())
+    else:
+        phi_0 = float(np.arctan2(
+            data[f"{object_name}_mom.y"][batch_idx][object_idx].item(),
+            data[f"{object_name}_mom.x"][batch_idx][object_idx].item(),
+        ))
+    eta_0 = float(data[f"{object_name}_mom.eta"][batch_idx][object_idx].item())
+    pt_0  = float(max(abs(data[f"{object_name}_mom.r"][batch_idx][object_idx].item()), 1e-6))
+
+    if f"{object_name}_vtx.x" in data:
+        vtx_x = float(data[f"{object_name}_vtx.x"][batch_idx][object_idx].item()) * 1e-3
+        vtx_y = float(data[f"{object_name}_vtx.y"][batch_idx][object_idx].item()) * 1e-3
+        vtx_z = float(data[f"{object_name}_vtx.z"][batch_idx][object_idx].item()) * 1e-3
+    else:
+        vtx_x = float(data[f"{object_name}_ref.x"][batch_idx][object_idx].item()) * 1e-3
+        vtx_y = float(data[f"{object_name}_ref.y"][batch_idx][object_idx].item()) * 1e-3
+        vtx_z = float(data[f"{object_name}_ref.z"][batch_idx][object_idx].item()) * 1e-3
+
+    if f"{object_name}_mom.qopt" in data:
+        q_sign = float(np.sign(data[f"{object_name}_mom.qopt"][batch_idx][object_idx].item()))
+    elif f"{object_name}_charge" in data:
+        q_sign = float(np.sign(data[f"{object_name}_charge"][batch_idx][object_idx].item()))
+    else:
+        q_sign = 0.0
+
+    # --- helix in lab frame → transform to particle frame ---
+    R_tracker, Z_tracker = _HELIX_CLIP_M, 2.5
+    if "trkr_pos.r" in data:
+        R_tracker, Z_tracker = _estimate_tracker_boundary(data, batch_idx)
+
+    hxpp = hypp = hzpp = None
+    if abs(q_sign) > 0.5:
+        R_helix = pt_0 / (0.3 * _B_FIELD_T)
+        xc = vtx_x + q_sign * R_helix * np.sin(phi_0)
+        yc = vtx_y - q_sign * R_helix * np.cos(phi_0)
+        c  = np.sqrt(xc**2 + yc**2)
+        d0 = -q_sign * (c**2 - R_helix**2) / (c + R_helix) if (c + R_helix) > 1e-12 else 0.0
+        vtx_r = np.sqrt(vtx_x**2 + vtx_y**2)
+        z0    = vtx_z - np.sinh(eta_0) * vtx_r
+
+        hx_t, hy_t, hz_t, _ = _build_helix_path(
+            torch.tensor(phi_0,  dtype=torch.float32),
+            torch.tensor(eta_0,  dtype=torch.float32),
+            torch.tensor(pt_0,   dtype=torch.float32),
+            torch.tensor(q_sign, dtype=torch.float32),
+            torch.tensor(d0,     dtype=torch.float32),
+            torch.tensor(z0,     dtype=torch.float32),
+            _B_FIELD_T, R_tracker, s_start=vtx_r,
+        )
+        hx_t, hy_t, hz_t = _clip_helix_at_z(hx_t, hy_t, hz_t, Z_tracker)
+        hxpp, hypp, hzpp = _transform_to_particle_frame(
+            hx_t.numpy().astype(float),
+            hy_t.numpy().astype(float),
+            hz_t.numpy().astype(float),
+            phi_0, eta_0, vtx_x, vtx_y, vtx_z,
+        )
+
+    colormap = plt.cm.tab20
+    color = colormap(object_idx % colormap.N)
+
+    fig, (ax_xy, ax_xz) = plt.subplots(1, 2, figsize=(14, 5))
+
+    for input_name in all_inputs:
+        xk = f"{input_name}_pos.x"
+        yk = f"{input_name}_pos.y"
+        zk = f"{input_name}_pos.z"
+        if xk not in data or yk not in data or zk not in data:
+            continue
+
+        x_all = data[xk][batch_idx].numpy().astype(float)
+        y_all = data[yk][batch_idx].numpy().astype(float)
+        z_all = data[zk][batch_idx].numpy().astype(float)
+
+        xpp_all, ypp_all, zpp_all = _transform_to_particle_frame(
+            x_all, y_all, z_all, phi_0, eta_0, vtx_x, vtx_y, vtx_z,
+        )
+        ax_xy.scatter(xpp_all, ypp_all, s=1.0, alpha=0.12, color="gray", linewidths=0, rasterized=True)
+        ax_xz.scatter(xpp_all, zpp_all, s=1.0, alpha=0.12, color="gray", linewidths=0, rasterized=True)
+
+        vk = f"{object_name}_{input_name}_valid"
+        if vk not in data:
+            continue
+        mask = data[vk][batch_idx][object_idx].numpy()
+        if not mask.any():
+            continue
+
+        xpp, ypp, zpp = _transform_to_particle_frame(
+            x_all[mask], y_all[mask], z_all[mask], phi_0, eta_0, vtx_x, vtx_y, vtx_z,
+        )
+
+        if input_name in sihit_names:
+            ax_xy.scatter(xpp, ypp, s=14, marker="+", linewidths=0.9, color="black", zorder=3)
+            ax_xy.scatter(xpp, ypp, s=8,  marker="+", linewidths=0.5, color=color, zorder=4)
+            ax_xz.scatter(xpp, zpp, s=14, marker="+", linewidths=0.9, color="black", zorder=3)
+            ax_xz.scatter(xpp, zpp, s=8,  marker="+", linewidths=0.5, color=color, zorder=4)
+        elif input_name in ecal_names:
+            ax_xy.scatter(xpp, ypp, s=5, marker="o", alpha=0.5, color=color,
+                          edgecolors="black", linewidths=0.3, zorder=3)
+            ax_xz.scatter(xpp, zpp, s=5, marker="o", alpha=0.5, color=color,
+                          edgecolors="black", linewidths=0.3, zorder=3)
+        elif input_name in hcal_names:
+            ax_xy.scatter(xpp, ypp, s=6, marker="s", alpha=0.5, color=color,
+                          edgecolors="black", linewidths=0.3, zorder=3)
+            ax_xz.scatter(xpp, zpp, s=6, marker="s", alpha=0.5, color=color,
+                          edgecolors="black", linewidths=0.3, zorder=3)
+        elif input_name == "muon":
+            ax_xy.scatter(xpp, ypp, s=10, marker="x", linewidths=1.2, color="black", zorder=3)
+            ax_xy.scatter(xpp, ypp, s=4,  marker="x", linewidths=0.7, color=color, zorder=4)
+            ax_xz.scatter(xpp, zpp, s=10, marker="x", linewidths=1.2, color="black", zorder=3)
+            ax_xz.scatter(xpp, zpp, s=4,  marker="x", linewidths=0.7, color=color, zorder=4)
+
+    if hxpp is not None:
+        ax_xy.plot(hxpp, hypp, color="black", linewidth=2.0, zorder=1)
+        ax_xy.plot(hxpp, hypp, color=color,   linewidth=1.0, zorder=2)
+        ax_xz.plot(hxpp, hzpp, color="black", linewidth=2.0, zorder=1)
+        ax_xz.plot(hxpp, hzpp, color=color,   linewidth=1.0, zorder=2)
+
+    # Mark origin = production vertex
+    _star = MarkerStyle("*", transform=Affine2D().rotate_deg((object_idx * 137.508) % 72))
+    for axx in (ax_xy, ax_xz):
+        axx.scatter([0], [0], color=color, marker=_star, s=64,
+                    edgecolors="black", linewidths=0.5, zorder=5)
+        axx.axhline(0, color="dimgray", linewidth=0.5, linestyle=":", zorder=0)
+        axx.axvline(0, color="dimgray", linewidth=0.5, linestyle=":", zorder=0)
+
+    ax_xy.set_xlabel(r"$x''$ (along momentum) [m]")
+    ax_xy.set_ylabel(r"$y''$ ($\phi$ direction) [m]")
+    ax_xz.set_xlabel(r"$x''$ (along momentum) [m]")
+    ax_xz.set_ylabel(r"$z''$ ($\theta$ direction) [m]")
+
+    fig.tight_layout()
     return fig
 
 
