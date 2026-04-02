@@ -42,10 +42,10 @@ class CLDTrackDataset(CLDDataset):
     Expected config fields (inputs / targets):
         inputs.vtxd:  [pos.x, pos.y, pos.z, pos.r, pos.s, pos.eta, pos.phi, ...]
         inputs.trkr:  [pos.x, pos.y, pos.z, pos.r, pos.s, pos.eta, pos.phi, ...]
-        targets.pandora:      [mom.eta, mom.phi, mom.qopt, perigee.d0, perigee.z0, charge, is_charged]
+        targets.pandora:      [mom.theta, mom.phi, mom.qopt, perigee.d0, perigee.z0, charge, is_charged]
         targets.pandora_vtxd: []  (only the valid mask is used)
         targets.pandora_trkr: []
-        targets.particle:     [mom.eta, mom.phi, mom.qopt, perigee.d0, perigee.z0]
+        targets.particle:     [mom.theta, mom.phi, mom.qopt, perigee.d0, perigee.z0]
         targets.particle_vtxd: []
         targets.particle_trkr: []
 
@@ -55,13 +55,13 @@ class CLDTrackDataset(CLDDataset):
             track_sihit_indptr:            (1, N_tracks+1)
             track_sihit_indices:           (1, N_assignments)
         targets:
-            track_matched_particle_eta:          (1, N_tracks)
+            track_matched_particle_theta:        (1, N_tracks)
             track_matched_particle_phi_perigee:  (1, N_tracks)
             track_matched_particle_qopt:         (1, N_tracks)
             track_matched_particle_d0_perigee_m: (1, N_tracks)  [metres]
             track_matched_particle_z0_perigee_m: (1, N_tracks)  [metres]
             track_matched_particle_valid:        (1, N_tracks)  bool
-            track_eta:   (1, N_tracks)  Pandora eta   (baseline)
+            track_theta: (1, N_tracks)  Pandora theta (baseline)
             track_phi:   (1, N_tracks)  Pandora phi   (baseline)
             track_qopt:  (1, N_tracks)  Pandora q/pT  (baseline)
             track_d0:    (1, N_tracks)  Pandora d0 [m] (baseline)
@@ -78,8 +78,8 @@ class CLDTrackDataset(CLDDataset):
 
         B = next(iter(inputs.values())).shape[0]
 
-        hit_fields  = ["pos.x", "pos.y", "pos.z", "pos.r", "pos.s", "pos.eta", "pos.phi"]
-        sihit_short = ["x",     "y",     "z",     "r",     "s",     "eta",     "phi"]
+        hit_fields  = ["pos.x", "pos.y", "pos.z", "pos.r", "pos.s", "pos.theta", "pos.phi"]
+        sihit_short = ["x",     "y",     "z",     "r",     "s",     "theta",    "phi"]
 
         # Each event in the batch is padded to the same size.
         # N_sihit_per_event = N_vtxd_padded + N_trkr_padded (constant across batch).
@@ -120,18 +120,18 @@ class CLDTrackDataset(CLDDataset):
         trkr_indices_parts: list[Tensor] = []
         cumulative_trkr = 0
 
-        pan_eta_list:  list[Tensor] = []
-        pan_phi_list:  list[Tensor] = []
-        pan_qopt_list: list[Tensor] = []
-        pan_d0_list:   list[Tensor] = []
-        pan_z0_list:   list[Tensor] = []
+        pan_theta_list: list[Tensor] = []
+        pan_phi_list:   list[Tensor] = []
+        pan_qopt_list:  list[Tensor] = []
+        pan_d0_list:    list[Tensor] = []
+        pan_z0_list:    list[Tensor] = []
 
-        truth_eta_list:  list[Tensor] = []
-        truth_phi_list:  list[Tensor] = []
-        truth_qopt_list: list[Tensor] = []
-        truth_d0_list:   list[Tensor] = []
-        truth_z0_list:   list[Tensor] = []
-        matched_list:    list[Tensor] = []
+        truth_theta_list: list[Tensor] = []
+        truth_phi_list:   list[Tensor] = []
+        truth_qopt_list:  list[Tensor] = []
+        truth_d0_list:    list[Tensor] = []
+        truth_z0_list:    list[Tensor] = []
+        matched_list:     list[Tensor] = []
 
         for b in range(B):
             # ── Charged, valid Pandora PFOs ───────────────────────────────
@@ -141,7 +141,7 @@ class CLDTrackDataset(CLDDataset):
             charged_idx     = charged_mask.nonzero(as_tuple=True)[0]  # (N_charged,)
 
             # ── Pandora baseline params ───────────────────────────────────
-            pan_eta_list.append( targets["pandora_mom.eta"][b][charged_idx])
+            pan_theta_list.append(targets["pandora_mom.theta"][b][charged_idx])
             pan_phi_list.append( targets["pandora_mom.phi"][b][charged_idx])
             pan_qopt_list.append(targets["pandora_mom.qopt"][b][charged_idx])
             pan_d0_list.append(  targets["pandora_perigee.d0"][b][charged_idx] * 1e-3)  # mm → m
@@ -201,19 +201,19 @@ class CLDTrackDataset(CLDDataset):
 
             # ── Truth fields for matched particles ────────────────────────
             safe_idx   = best_par_idx.clamp(min=0)
-            truth_eta  = targets["particle_mom.eta"][b][safe_idx]
-            truth_phi  = targets["particle_mom.phi"][b][safe_idx]
-            truth_qopt = targets["particle_mom.qopt"][b][safe_idx]
-            truth_d0_m = targets["particle_perigee.d0"][b][safe_idx] * 1e-3   # mm → m
-            truth_z0_m = targets["particle_perigee.z0"][b][safe_idx] * 1e-3
+            truth_theta = targets["particle_mom.theta"][b][safe_idx]
+            truth_phi   = targets["particle_mom.phi"][b][safe_idx]
+            truth_qopt  = targets["particle_mom.qopt"][b][safe_idx]
+            truth_d0_m  = targets["particle_perigee.d0"][b][safe_idx] * 1e-3   # mm → m
+            truth_z0_m  = targets["particle_perigee.z0"][b][safe_idx] * 1e-3
 
-            truth_eta[~matched]  = 0.0
-            truth_phi[~matched]  = 0.0
-            truth_qopt[~matched] = 0.0
-            truth_d0_m[~matched] = 0.0
-            truth_z0_m[~matched] = 0.0
+            truth_theta[~matched] = 0.0
+            truth_phi[~matched]   = 0.0
+            truth_qopt[~matched]  = 0.0
+            truth_d0_m[~matched]  = 0.0
+            truth_z0_m[~matched]  = 0.0
 
-            truth_eta_list.append(truth_eta)
+            truth_theta_list.append(truth_theta)
             truth_phi_list.append(truth_phi)
             truth_qopt_list.append(truth_qopt)
             truth_d0_list.append(truth_d0_m)
@@ -232,17 +232,17 @@ class CLDTrackDataset(CLDDataset):
 
         # ── Combine track-level targets across events ─────────────────────────
         track_targets: dict[str, Tensor] = {
-            "track_matched_particle_eta":          torch.cat(truth_eta_list).unsqueeze(0),
+            "track_matched_particle_theta":        torch.cat(truth_theta_list).unsqueeze(0),
             "track_matched_particle_phi_perigee":  torch.cat(truth_phi_list).unsqueeze(0),
             "track_matched_particle_qopt":         torch.cat(truth_qopt_list).unsqueeze(0),
             "track_matched_particle_d0_perigee_m": torch.cat(truth_d0_list).unsqueeze(0),
             "track_matched_particle_z0_perigee_m": torch.cat(truth_z0_list).unsqueeze(0),
             "track_matched_particle_valid":        torch.cat(matched_list).unsqueeze(0),
-            "track_eta":  torch.cat(pan_eta_list).unsqueeze(0),
-            "track_phi":  torch.cat(pan_phi_list).unsqueeze(0),
-            "track_qopt": torch.cat(pan_qopt_list).unsqueeze(0),
-            "track_d0":   torch.cat(pan_d0_list).unsqueeze(0),   # [m]
-            "track_z0":   torch.cat(pan_z0_list).unsqueeze(0),   # [m]
+            "track_theta": torch.cat(pan_theta_list).unsqueeze(0),
+            "track_phi":   torch.cat(pan_phi_list).unsqueeze(0),
+            "track_qopt":  torch.cat(pan_qopt_list).unsqueeze(0),
+            "track_d0":    torch.cat(pan_d0_list).unsqueeze(0),   # [m]
+            "track_z0":    torch.cat(pan_z0_list).unsqueeze(0),   # [m]
         }
 
         return track_inputs, track_targets

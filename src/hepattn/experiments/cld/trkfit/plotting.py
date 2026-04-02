@@ -22,9 +22,9 @@ plt.rcParams["figure.dpi"] = 150
 # All inputs to transform are in display units (mm for d0/z0).
 RESIDUALS: list[tuple] = [
     (
-        "eta", "eta",
+        "theta", "theta",
         lambda t, p: t - p,
-        r"$\eta^\mathrm{pred} - \eta^\mathrm{true}$",
+        r"$\theta^\mathrm{pred} - \theta^\mathrm{true}$ [rad]",
         np.linspace(-0.05, 0.05, 101),
         False,
     ),
@@ -59,7 +59,7 @@ RESIDUALS: list[tuple] = [
 ]
 
 TRUTH_BINS: dict[str, tuple] = {
-    "eta":         (np.linspace(-4.0, 4.0, 24),          r"Truth $\eta$",                   "linear"),
+    "theta":       (np.linspace(0.036, 3.106, 24),        r"Truth $\theta$ [rad]",           "linear"),
     "phi_perigee": (np.linspace(-np.pi, np.pi, 24),       r"Truth $\phi$ perigee [rad]",     "linear"),
     "qopt":        (np.linspace(-1.0, 1.0, 24),           r"Truth $q/p_T$ [GeV$^{-1}$]",    "linear"),
     "d0_perigee_m":(np.geomspace(0.001, 10.0, 24),        r"Truth $|d_0|$ perigee [mm]",     "log"),
@@ -67,33 +67,33 @@ TRUTH_BINS: dict[str, tuple] = {
 }
 
 RESIDUAL_YLABEL: dict[str, str] = {
-    "eta":  r"Median$[\eta^\mathrm{pred} - \eta^\mathrm{true}]$",
-    "phi":  r"Median$[\phi^\mathrm{pred} - \phi^\mathrm{true}]$ [rad]",
-    "qopt": r"Median$[(q/p_T)^\mathrm{pred} - (q/p_T)^\mathrm{true}]$ [GeV$^{-1}$]",
-    "d0":   r"Median$[d_0^\mathrm{pred} - d_0^\mathrm{true}]$ [mm]",
-    "z0":   r"Median$[z_0^\mathrm{pred} - z_0^\mathrm{true}]$ [mm]",
+    "theta": r"Median$[\theta^\mathrm{pred} - \theta^\mathrm{true}]$ [rad]",
+    "phi":   r"Median$[\phi^\mathrm{pred} - \phi^\mathrm{true}]$ [rad]",
+    "qopt":  r"Median$[(q/p_T)^\mathrm{pred} - (q/p_T)^\mathrm{true}]$ [GeV$^{-1}$]",
+    "d0":    r"Median$[d_0^\mathrm{pred} - d_0^\mathrm{true}]$ [mm]",
+    "z0":    r"Median$[z_0^\mathrm{pred} - z_0^\mathrm{true}]$ [mm]",
 }
 
 RESOLUTION_YLABEL: dict[str, str] = {
-    "eta":  r"$\sigma[\eta^\mathrm{pred} - \eta^\mathrm{true}]$",
-    "phi":  r"$\sigma[\phi^\mathrm{pred} - \phi^\mathrm{true}]$ [rad]",
-    "qopt": r"$\sigma[(q/p_T)^\mathrm{pred} - (q/p_T)^\mathrm{true}]$ [GeV$^{-1}$]",
-    "d0":   r"$\sigma[(d_0^\mathrm{pred} - d_0^\mathrm{true})\,/\,|d_0^\mathrm{true}|]$",
-    "z0":   r"$\sigma[(z_0^\mathrm{pred} - z_0^\mathrm{true})\,/\,|z_0^\mathrm{true}|]$",
+    "theta": r"$\sigma[\theta^\mathrm{pred} - \theta^\mathrm{true}]$ [rad]",
+    "phi":   r"$\sigma[\phi^\mathrm{pred} - \phi^\mathrm{true}]$ [rad]",
+    "qopt":  r"$\sigma[(q/p_T)^\mathrm{pred} - (q/p_T)^\mathrm{true}]$ [GeV$^{-1}$]",
+    "d0":    r"$\sigma[(d_0^\mathrm{pred} - d_0^\mathrm{true})\,/\,|d_0^\mathrm{true}|]$",
+    "z0":    r"$\sigma[(z_0^\mathrm{pred} - z_0^\mathrm{true})\,/\,|z_0^\mathrm{true}|]$",
 }
 
 ARCSINH_XLABEL: dict[str, str] = {
-    "eta":  r"$\mathrm{arcsinh}[(\eta^\mathrm{pred}-\eta^\mathrm{true})/\mathrm{MAD}]$",
-    "phi":  r"$\mathrm{arcsinh}[(\phi^\mathrm{pred}-\phi^\mathrm{true})/\mathrm{MAD}]$",
-    "qopt": r"$\mathrm{arcsinh}[((q/p_T)^\mathrm{pred}-(q/p_T)^\mathrm{true})/\mathrm{MAD}]$",
-    "d0":   r"$\mathrm{arcsinh}[(d_0^\mathrm{pred}-d_0^\mathrm{true})/\mathrm{MAD}]$",
-    "z0":   r"$\mathrm{arcsinh}[(z_0^\mathrm{pred}-z_0^\mathrm{true})/\mathrm{MAD}]$",
+    "theta": r"$\mathrm{arcsinh}[(\theta^\mathrm{pred}-\theta^\mathrm{true})/\mathrm{MAD}]$",
+    "phi":   r"$\mathrm{arcsinh}[(\phi^\mathrm{pred}-\phi^\mathrm{true})/\mathrm{MAD}]$",
+    "qopt":  r"$\mathrm{arcsinh}[((q/p_T)^\mathrm{pred}-(q/p_T)^\mathrm{true})/\mathrm{MAD}]$",
+    "d0":    r"$\mathrm{arcsinh}[(d_0^\mathrm{pred}-d_0^\mathrm{true})/\mathrm{MAD}]$",
+    "z0":    r"$\mathrm{arcsinh}[(z_0^\mathrm{pred}-z_0^\mathrm{true})/\mathrm{MAD}]$",
 }
 
 # Resolution normalisation: None → no normalisation (show absolute residual).
 RESOLUTION_DIVIDER: dict[str, object] = {
-    "eta":  None,
-    "phi":  None,
+    "theta": None,
+    "phi":   None,
     "qopt": None,
     "d0":   lambda truth: np.clip(np.abs(truth), 1e-4, None),
     "z0":   lambda truth: np.clip(np.abs(truth), 0.1, None),

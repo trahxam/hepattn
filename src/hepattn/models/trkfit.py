@@ -36,7 +36,7 @@ from hepattn.utils.helix import _fit_helices_flat
 _RELATIVE_HIT_FIELDS: frozenset[str] = frozenset({
     "x_rel", "y_rel", "z_rel", "r_rel", "phi_rel", "eta_rel",
     "dz_helix", "dxy_helix", "sagitta",
-    "deta", "dphi",
+    "deta", "dtheta", "dphi",
     "x_prime", "y_prime", "dz_signed",
 })
 
@@ -544,8 +544,11 @@ class BoostedTrackFitter(nn.Module):
         inv_pt_h = 1.0 / pt_h.clamp(min=1e-6)
         inv_pt_h = torch.where(helix_ok, inv_pt_h, torch.zeros_like(inv_pt_h))
 
+        theta_h = 2.0 * torch.atan(torch.exp(-eta_h))
+
         helix_map: dict[str, Tensor] = {
             "eta":          eta_h,
+            "theta":        theta_h,
             "phi_perigee":  phi0_h,
             "pt":           pt_h,
             "qopt":         qopt_h,
@@ -680,15 +683,20 @@ class BoostedTrackFitter(nn.Module):
         out[f"{n}_x_prime"] =  x_rel * cp + y_rel * sp
         out[f"{n}_y_prime"] = -x_rel * sp + y_rel * cp
 
-        # dz_helix: per-hit z residual from helix prediction z(r_xy) = z0 + r_xy*sinh(eta).
+        # dz_helix: per-hit z residual from helix prediction z(r_xy) = z0 + r_xy*cot(theta).
         # Uses r_rel (2D transverse distance from helix perigee) as the arc-length proxy —
         # correct for low-curvature tracks.
-        eta_trk = _get("eta").unsqueeze(1)  # (n_tracks, 1)
-        out[f"{n}_dz_helix"] = z_rel - r_rel * torch.sinh(eta_trk)
-
-        # dz_signed: z_rel flipped so it always points in the +z direction for the track.
-        # Mirrors the sign(eta) flip used in the perigee z-r display.
-        out[f"{n}_dz_signed"] = z_rel * torch.sign(eta_trk)
+        if "theta" in self.fields:
+            theta_trk = _get("theta").unsqueeze(1)  # (n_tracks, 1)
+            cot_theta = torch.cos(theta_trk) / torch.sin(theta_trk).clamp(min=1e-6)
+            out[f"{n}_dz_helix"] = z_rel - r_rel * cot_theta
+            # dz_signed: z_rel flipped so it always points in the forward hemisphere.
+            # sign(pi/2 - theta) == sign(eta): positive for forward, negative for backward.
+            out[f"{n}_dz_signed"] = z_rel * torch.sign(torch.pi / 2 - theta_trk)
+        else:
+            eta_trk = _get("eta").unsqueeze(1)  # (n_tracks, 1)
+            out[f"{n}_dz_helix"] = z_rel - r_rel * torch.sinh(eta_trk)
+            out[f"{n}_dz_signed"] = z_rel * torch.sign(eta_trk)
 
         # dxy_helix: per-hit signed transverse residual from the helix circle.
         # Positive = hit lies outside the circle, negative = inside.
@@ -703,10 +711,13 @@ class BoostedTrackFitter(nn.Module):
         ).clamp(min=1e-6)
         out[f"{n}_dxy_helix"] = dist_xy - R_helix
 
-        # deta / dphi: difference between the hit's global (eta, phi) position
-        # and the track's (eta, phi0) direction from the helix fit.
+        # deta / dtheta / dphi: angular difference between the hit's global position
+        # and the track's direction from the helix fit.
         # dphi is wrapped to (-π, π) via atan2 to handle the ±π boundary.
-        out[f"{n}_deta"] = track_inputs[f"{n}_eta"] - eta_trk
+        if "theta" in self.fields:
+            out[f"{n}_dtheta"] = track_inputs[f"{n}_theta"] - theta_trk
+        if "eta" in self.fields:
+            out[f"{n}_deta"] = track_inputs[f"{n}_eta"] - _get("eta").unsqueeze(1)
         hit_phi = track_inputs[f"{n}_phi"]
         out[f"{n}_dphi"] = torch.atan2(
             torch.sin(hit_phi - phi0.unsqueeze(1)),
@@ -775,7 +786,7 @@ class BoostedTrackFitter(nn.Module):
         # ── 0. Gather hits ────────────────────────────────────────────────────
         # Always gather the combined sihit sequence for the helix fit and
         # pair_bias (needs x,y,z,r,s,phi,eta + is_vtxd for vtxd-only z-fit).
-        sihit_geom = ["x", "y", "z", "r", "s", "eta", "phi", "is_vtxd"]
+        sihit_geom = ["x", "y", "z", "r", "s", "theta", "phi", "is_vtxd"]
         track_inputs, track_hit_valid = _gather_track_hits(inputs, sihit_geom, "sihit")
 
         if len(self.input_nets) == 2:

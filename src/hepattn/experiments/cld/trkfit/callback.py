@@ -38,7 +38,7 @@ log = logging.getLogger(__name__)
 # Map model field → (RESIDUALS index, display scale factor)
 # d0/z0: model outputs metres, plots use mm
 _MODEL_FIELD_TO_RESIDUAL: dict[str, tuple[int, float]] = {
-    "eta":          (0, 1.0),
+    "theta":        (0, 1.0),
     "phi_perigee":  (1, 1.0),
     "qopt":         (2, 1.0),
     "d0_perigee_m": (3, 1e3),   # metres → mm
@@ -47,16 +47,16 @@ _MODEL_FIELD_TO_RESIDUAL: dict[str, tuple[int, float]] = {
 
 # Pandora baseline keys in targets dict (all in metres for d0/z0)
 _PANDORA_TARGET_KEY: dict[str, str] = {
-    "eta":  "track_eta",
-    "phi":  "track_phi",
-    "qopt": "track_qopt",
-    "d0":   "track_d0",    # metres
-    "z0":   "track_z0",    # metres
+    "theta": "track_theta",
+    "phi":   "track_phi",
+    "qopt":  "track_qopt",
+    "d0":    "track_d0",    # metres
+    "z0":    "track_z0",    # metres
 }
 
 # Truth target keys (all in metres for d0/z0)
 _TRUTH_TARGET_KEY: dict[str, str] = {
-    "eta":          "track_matched_particle_eta",
+    "theta":        "track_matched_particle_theta",
     "phi_perigee":  "track_matched_particle_phi_perigee",
     "qopt":         "track_matched_particle_qopt",
     "d0_perigee_m": "track_matched_particle_d0_perigee_m",   # metres

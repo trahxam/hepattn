@@ -39,10 +39,10 @@ plt.rcParams["text.usetex"] = True
 B_FIELD_T     = 2.0   # CLD solenoid [T]
 HELIX_CLIP_M  = 1.5   # clip helix paths at this transverse radius [m]
 HELIX_N_STEPS = 1024  # path points per helix curve
-N_TRACKS      = 8     # track panels per figure
+N_TRACKS      = 24    # separate figures to produce
 IOI_MATCH_THRESH = 0.5
 MIN_PT_GEV    = 0.5   # only show particles above this pT for readability
-N_EVENTS_SCAN = 10   # events to scan when picking example tracks
+N_EVENTS_SCAN = 30    # events to scan when picking example tracks
 
 
 # ── helpers ────────────────────────────────────────────────────────────────
@@ -179,9 +179,7 @@ def _scan_tracks(cfg: dict, n_tracks: int, n_events: int) -> list[TrackRecord]:
 def _draw_panel(
     ax_xy: plt.Axes,
     ax_zr: plt.Axes,
-    ax_table: plt.Axes,
     rec: TrackRecord,
-    col: int,
 ) -> None:
     inputs  = rec["inputs"]
     targets = rec["targets"]
@@ -264,7 +262,9 @@ def _draw_panel(
         pan_valid, pan_charged,
     )[1]
 
-    pt_pan = eta_pan = phi_pan = d0_pan_mm = z0_pan_mm = qopt_pan = None
+    theta_t = 2.0 * np.arctan(np.exp(-eta_t))
+
+    pt_pan = eta_pan = theta_pan = phi_pan = d0_pan_mm = z0_pan_mm = qopt_pan = None
     if pan_idx >= 0:
         pt_pan  = float(_np(targets["pandora_mom.r"][0])[pan_idx])
         eta_pan = float(_np(targets["pandora_mom.eta"][0])[pan_idx])
@@ -289,6 +289,7 @@ def _draw_panel(
         z0_pan_m = ref_z - np.sinh(eta_pan) * ref_r_pan
         d0_pan_mm = d0_pan_m * 1e3
         z0_pan_mm = z0_pan_m * 1e3
+        theta_pan = 2.0 * np.arctan(np.exp(-eta_pan))
 
         cs_pan = torch.tensor(np.sign(ch_pan) if ch_pan != 0 else 1.0, dtype=torch.float32)
         xp, yp, zp, _ = _build_helix_path(
@@ -303,10 +304,11 @@ def _draw_panel(
 
     # ── helix fit ─────────────────────────────────────────────────────────
     hfit = _helix_fit_on_hits(hx, hy, hz, n_vtxd)
-    pt_hf = eta_hf = phi_hf = d0_hf_mm = z0_hf_mm = qopt_hf = None
+    pt_hf = eta_hf = theta_hf = phi_hf = d0_hf_mm = z0_hf_mm = qopt_hf = None
     if hfit is not None:
         pt_hf   = hfit["pt"]
         eta_hf  = hfit["eta"]
+        theta_hf = 2.0 * np.arctan(np.exp(-eta_hf))
         phi_hf  = hfit["phi"]
         d0_hf_mm = hfit["d0_mm"]
         z0_hf_mm = hfit["z0_mm"]
@@ -322,57 +324,35 @@ def _draw_panel(
         ax_zr.plot(_np(zh), np.sqrt(_np(xh)**2 + _np(yh)**2),
                    color="tab:green", lw=1.5, ls=":", zorder=3)
 
-    # ── parameter table ───────────────────────────────────────────────────
+    # ── compact parameter annotations ─────────────────────────────────────
     def _f(v, fmt=".3f"):
         return format(v, fmt) if v is not None else "---"
 
     d0_t_mm = d0_t_m * 1e3
     z0_t_mm = z0_t_m * 1e3
 
-    rows = [
-        [r"$p_T$ [GeV]", _f(pt_t), _f(pt_pan), _f(pt_hf)],
-        [r"$\eta$",       _f(eta_t, "+.3f"), _f(eta_pan, "+.3f"), _f(eta_hf, "+.3f")],
-        [r"$\phi$ [rad]", _f(phi_t, "+.3f"), _f(phi_pan, "+.3f"), _f(phi_hf, "+.3f")],
-        [r"$q/p_T$",      _f(qopt_t, "+.3f"), _f(qopt_pan, "+.3f"), _f(qopt_hf, "+.3f")],
-        [r"$d_0$ [mm]",   _f(d0_t_mm, "+.3f"), _f(d0_pan_mm, "+.3f"), _f(d0_hf_mm, "+.3f")],
-        [r"$z_0$ [mm]",   _f(z0_t_mm, "+.2f"), _f(z0_pan_mm, "+.2f"), _f(z0_hf_mm, "+.2f")],
-        [r"$N_\mathrm{si}$", str(n_vtxd + n_trkr), "---", "---"],
-    ]
-    col_labels  = ["Param", "Truth",   "Pandora",   "Helix fit"]
-    col_colors  = ["#444",  "tab:red", "tab:blue",  "tab:green"]
-
-    ax_table.axis("off")
-    ax_table.set_xlim(0, 1)
-    ax_table.set_ylim(0, 1)
-
-    n_r = len(rows) + 1
-    rh  = 1.0 / n_r
-    param_w = 0.30
-    n_c = len(col_labels)
-    val_w = (1.0 - param_w) / (n_c - 1)
-    col_xs = [0.0] + [param_w + val_w * i for i in range(n_c - 1)] + [1.0]
-
-    def cx(j):
-        return (col_xs[j] + col_xs[j + 1]) / 2
-
-    fs = 4.8
-    kw = dict(transform=ax_table.transAxes, clip_on=False)
-    for yy, lw in [(1.0, 0.7), (1.0 - rh, 0.35), (0.0, 0.7)]:
-        ax_table.plot([0, 1], [yy, yy], color="black", lw=lw, **kw)
-    for j, (lab, clr) in enumerate(zip(col_labels, col_colors)):
-        ax_table.text(cx(j), 1.0 - rh * 0.5, lab,
-                      ha="center", va="center", fontsize=fs, fontweight="bold",
-                      color=clr, **kw)
-    for i, row in enumerate(rows):
-        yc = 1.0 - rh * (i + 1.5)
-        for j, val in enumerate(row):
-            if j == 0:
-                ax_table.text(col_xs[0] + 0.01, yc, val,
-                              ha="left", va="center", fontsize=fs, color="#444", **kw)
-            else:
-                ax_table.text(col_xs[j + 1] - 0.01, yc, val,
-                              ha="right", va="center", fontsize=fs,
-                              color=col_colors[j], **kw)
+    _hdr = r"\textbf{T / P / H}"
+    ax_xy.text(
+        0.03, 0.04,
+        _hdr + "\n"
+        + rf"$p_T$ [GeV]: {_f(pt_t)} / {_f(pt_pan)} / {_f(pt_hf)}" + "\n"
+        + rf"$\phi$ [rad]: {_f(phi_t,'+.3f')} / {_f(phi_pan,'+.3f')} / {_f(phi_hf,'+.3f')}" + "\n"
+        + rf"$d_0$ [mm]: {_f(d0_t_mm,'+.2f')} / {_f(d0_pan_mm,'+.2f')} / {_f(d0_hf_mm,'+.2f')}",
+        transform=ax_xy.transAxes, fontsize=5,
+        va="bottom", ha="left",
+        bbox=dict(boxstyle="round,pad=0.25", fc="white", alpha=0.8, lw=0.4),
+    )
+    ax_zr.text(
+        0.97, 0.04,
+        _hdr + "\n"
+        + rf"$\theta$ [rad]: {_f(theta_t,'.3f')} / {_f(theta_pan,'.3f')} / {_f(theta_hf,'.3f')}" + "\n"
+        + rf"$q/p_T$: {_f(qopt_t,'+.3f')} / {_f(qopt_pan,'+.3f')} / {_f(qopt_hf,'+.3f')}" + "\n"
+        + rf"$z_0$ [mm]: {_f(z0_t_mm,'+.2f')} / {_f(z0_pan_mm,'+.2f')} / {_f(z0_hf_mm,'+.2f')}" + "\n"
+        + rf"$N_\mathrm{{si}}$: {n_vtxd + n_trkr}",
+        transform=ax_zr.transAxes, fontsize=5,
+        va="bottom", ha="right",
+        bbox=dict(boxstyle="round,pad=0.25", fc="white", alpha=0.8, lw=0.4),
+    )
 
     # ── cosmetics ─────────────────────────────────────────────────────────
     legend_handles = [
@@ -393,7 +373,6 @@ def _draw_panel(
                color="gray", lw=0.5, ls=":", zorder=0)
     ax_xy.set_aspect("equal")
 
-    ax_xy.set_title(rf"Track {col+1}  ($p_T^\mathrm{{true}}={pt_t:.2f}$ GeV)", fontsize=7)
     ax_xy.set_xlabel("$x$ [m]", fontsize=7)
     ax_xy.set_ylabel("$y$ [m]", fontsize=7)
     ax_xy.tick_params(labelsize=6)
@@ -635,7 +614,7 @@ def _draw_perigee_zr_panel(
     ax.axhline(0, color="dimgray", lw=0.5, ls=":", zorder=0)
     ax.axvline(0, color="dimgray", lw=0.5, ls=":", zorder=0)
     ax.legend(fontsize=5, framealpha=0.8, loc="upper left")
-    ax.set_xlabel(r"$\Delta z \cdot \mathrm{sign}(\eta)$ [m]", fontsize=7)
+    ax.set_xlabel(r"$\Delta z \cdot \mathrm{sign}(\pi/2 - \theta)$ [m]", fontsize=7)
     ax.set_ylabel(r"$\Delta r$ [m]", fontsize=7)
     ax.tick_params(labelsize=6)
     ax.grid(True, alpha=0.2, lw=0.4)
@@ -651,42 +630,34 @@ def main() -> None:
         print("No candidate tracks found — check data path and config.")
         return
 
-    n_cols   = len(tracks)
-    col_w    = 3.0          # inches per column
-    h_ratios = [3, 2, 2, 2, 1.6]
-    fig_h    = col_w * sum(h_ratios) / h_ratios[0]
-
-    fig, axes = plt.subplots(
-        5, n_cols,
-        figsize=(col_w * n_cols, fig_h),
-        gridspec_kw={"height_ratios": h_ratios},
-    )
-    if n_cols == 1:
-        axes = axes[:, None]
-
-    for col, rec in enumerate(tracks):
-        _draw_panel(axes[0, col], axes[1, col], axes[4, col], rec, col)
-        _draw_perigee_panel(axes[2, col], rec, col)
-        _draw_perigee_zr_panel(axes[3, col], rec, col)
-
-    axes[0, 0].set_ylabel(r"$y$ [m]   (transverse, $x$–$y$)", fontsize=7)
-    axes[1, 0].set_ylabel(r"$r$ [m]   (longitudinal, $z$–$r$)", fontsize=7)
-    axes[2, 0].set_ylabel(r"$y'$ [m]   (perigee frame, $x'$–$y'$)", fontsize=7)
-    axes[3, 0].set_ylabel(r"$\Delta r$ [m]   (perigee $z$–$r$)", fontsize=7)
-
-    fig.suptitle(
-        r"CLD track display — truth (red --), Pandora (blue —), helix fit (green $\cdots$)"
-        r" | rows 3–4: perigee $x'$–$y'$, perigee $\Delta z \cdot \mathrm{sign}(\eta)$–$\Delta r$",
-        fontsize=8,
-    )
-    fig.tight_layout()
-
     out_dir = Path(__file__).resolve().parents[1] / "plots" / "tracks"
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "cld_track_display.png"
-    fig.savefig(out_path, bbox_inches="tight")
-    plt.close(fig)
-    print(f"Saved → {out_path}")
+
+    for i, rec in enumerate(tracks):
+        pt = rec["pt"]
+
+        fig, axes = plt.subplots(
+            2, 2,
+            figsize=(9, 8),
+            gridspec_kw={"height_ratios": [1.2, 1]},
+        )
+        _draw_panel(axes[0, 0], axes[0, 1], rec)
+        _draw_perigee_panel(axes[1, 0], rec, 0)
+        _draw_perigee_zr_panel(axes[1, 1], rec, 0)
+
+        fig.suptitle(
+            rf"CLD track {i+1:02d}  ($p_T^\mathrm{{true}} = {pt:.3f}$ GeV)"
+            r" | truth (red --), Pandora (blue —), helix fit (green $\cdots$)",
+            fontsize=8,
+        )
+        fig.tight_layout()
+
+        out_path = out_dir / f"track_{i+1:02d}_pt{pt:.3f}GeV.png"
+        fig.savefig(out_path, bbox_inches="tight")
+        plt.close(fig)
+        print(f"  [{i+1:02d}/{N_TRACKS}] Saved → {out_path}")
+
+    print(f"\nAll {len(tracks)} plots saved in {out_dir}")
 
 
 if __name__ == "__main__":

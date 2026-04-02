@@ -14,11 +14,11 @@ _DISPLAY_SCALE: dict[str, float] = {
 # Pandora d0/z0 are stored in metres (same as model output); truth also in metres.
 # _DISPLAY_SCALE will convert the logged residual from metres to mm.
 _PANDORA_FIELD_MAP: dict[str, tuple[str, str, float]] = {
-    "eta":          ("eta",   "eta",          1.0),
-    "phi_perigee":  ("phi",   "phi_perigee",  1.0),
-    "qopt":         ("qopt",  "qopt",         1.0),
-    "d0_perigee_m": ("d0",    "d0_perigee_m", 1.0),   # both in metres
-    "z0_perigee_m": ("z0",    "z0_perigee_m", 1.0),
+    "theta":        ("theta", "theta",         1.0),
+    "phi_perigee":  ("phi",   "phi_perigee",   1.0),
+    "qopt":         ("qopt",  "qopt",          1.0),
+    "d0_perigee_m": ("d0",    "d0_perigee_m",  1.0),   # both in metres
+    "z0_perigee_m": ("z0",    "z0_perigee_m",  1.0),
 }
 
 
