@@ -11,7 +11,6 @@ model:
 
           # kMaX / k-means CA works best without Mask2Former-style boolean attention masking
           mask_attention: false
-          use_query_masks: false
           unmask_all_false: false
 
           decoder_layer_config:

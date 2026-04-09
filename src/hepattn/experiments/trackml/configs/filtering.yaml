@@ -113,7 +113,10 @@ model:
     model:
       class_path: hepattn.models.HitFilter
       init_args:
-        input_sort_field: phi
+        sorter:
+          class_path: hepattn.components.Sorter
+          init_args:
+            input_sort_field: phi
         input_nets:
           class_path: torch.nn.ModuleList
           init_args:

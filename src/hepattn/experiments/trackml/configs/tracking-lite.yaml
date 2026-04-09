@@ -125,8 +125,10 @@ model:
     model:
       class_path: hepattn.models.MaskFormer
       init_args:
-        dim: &dim 256
-        encoder_input_sort_field: phi
+        sorter:
+          class_path: hepattn.components.Sorter
+          init_args:
+            input_sort_field: phi
         input_nets:
           class_path: torch.nn.ModuleList
           init_args:
@@ -156,7 +158,7 @@ model:
                     class_path: hepattn.components.Dense
                     init_args:
                       input_size: 16
-                      output_size: *dim
+                      output_size: 256
                   posenc:
                     class_path: hepattn.models.FourierPositionEncoder
                     init_args:
@@ -165,14 +167,14 @@ model:
                         - r
                         - eta
                         - phi
-                      dim: *dim
+                      dim: 256
                       scale: 0.1
 
         encoder:
           class_path: hepattn.components.Encoder
           init_args:
             num_layers: 10
-            dim: *dim
+            dim: 256
             attn_type: flash
             window_size: 512
             window_wrap: true
@@ -183,44 +185,43 @@ model:
           num_decoder_layers: 4
           num_queries: *num_objects
           mask_attention: true
-          use_query_masks: false
           decoder_layer_config:
-            dim: *dim
+            dim: 256
             norm: RMSNorm
 
-        tasks:
-          class_path: torch.nn.ModuleList
-          init_args:
-            modules:
-              - class_path: hepattn.tasks.ObjectClassificationTask
-                init_args:
-                  name: track_valid
-                  input_object: query
-                  output_object: track
-                  target_object: particle
-                  losses:
-                    object_bce: 1.0
-                  costs:
-                    object_bce: 1.0
-                  dim: *dim
-                  null_weight: 1.0
-              - class_path: hepattn.tasks.ObjectHitMaskTask
-                init_args:
-                  name: track_hit_valid
-                  input_constituent: hit
-                  input_object: query
-                  output_object: track
-                  target_object: particle
-                  losses:
-                    mask_bce: 100.0
-                    #mask_dice: 2.0
-                    mask_focal: 50.0
-                  costs:
-                    mask_bce: 100.0
-                    #mask_dice: 2.0
-                    mask_focal: 50.0
-                  dim: *dim
-                  null_weight: 1.0
+          tasks:
+            class_path: torch.nn.ModuleList
+            init_args:
+              modules:
+                - class_path: hepattn.tasks.ObjectClassificationTask
+                  init_args:
+                    name: track_valid
+                    input_object: query
+                    output_object: track
+                    target_object: particle
+                    losses:
+                      object_bce: 1.0
+                    costs:
+                      object_bce: 1.0
+                    dim: 256
+                    null_weight: 1.0
+                - class_path: hepattn.tasks.ObjectHitMaskTask
+                  init_args:
+                    name: track_hit_valid
+                    input_constituent: hit
+                    input_object: query
+                    output_object: track
+                    target_object: particle
+                    losses:
+                      mask_bce: 100.0
+                      #mask_dice: 2.0
+                      mask_focal: 50.0
+                    costs:
+                      mask_bce: 100.0
+                      #mask_dice: 2.0
+                      mask_focal: 50.0
+                    dim: 256
+                    null_weight: 1.0
 
         matcher:
           class_path: hepattn.models.Matcher

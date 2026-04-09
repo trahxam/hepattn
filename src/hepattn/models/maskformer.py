@@ -13,57 +13,31 @@ class MaskFormer(nn.Module):
         input_nets: nn.ModuleList,
         encoder: nn.Module,
         decoder: MaskFormerDecoder,
-        tasks: nn.ModuleList,
-        dim: int,
         target_object: str = "particle",
         pooling: nn.Module | None = None,
         matcher: nn.Module | None = None,
-        input_sort_field: str | None = None,
         sorter: nn.Module | None = None,
-        unified_decoding: bool = False,
-        dynamic_query_source: str = "hit",
-        encoder_tasks: nn.ModuleList | None = None,
     ):
-        """Initializes the MaskFormer model, which is a modular transformer-style architecture designed
-        for multi-task object reconstruction with attention-based decoding and optional encoder blocks.
+        """MaskFormer: a modular transformer architecture for multi-task object reconstruction.
 
         Args:
             input_nets: A list of input modules, each responsible for embedding a specific constituent type.
-            encoder: An optional encoder module that processes merged constituent embeddings with optional sorting.
-            decoder: The decoder module that handles multi-layer decoding and task integration.
-            tasks: A list of task modules, each responsible for producing and processing predictions from decoder outputs.
-            dim: The dimensionality of the query and key embeddings.
-            target_object: The target object name which is used to mark valid/invalid objects during matching.
-            pooling: An optional pooling module used to aggregate features from the input constituents.
-            matcher: A module used to match predictions to targets (e.g., using the Hungarian algorithm) for loss computation.
-            input_sort_field: An optional key used to sort the input constituents (e.g., for windowed attention).
-            sorter: An optional sorter module used to reorder input constituents before processing.
-            unified_decoding: If True, inputs remain merged for task processing instead of being unmerged after encoding.
-            dynamic_query_source: Name of the input type to use as the source for dynamic query initialization (default: "hit").
-            encoder_tasks: Optional list of tasks to run after the encoder (before decoder). These tasks operate on post-encoder features.
+            encoder: Encoder module that processes merged constituent embeddings.
+            decoder: Decoder module containing decoder layers, tasks, and query initialization.
+            target_object: The target object name used to mark valid/invalid objects during matching.
+            pooling: Optional pooling module for aggregating features from the input constituents.
+            matcher: Module for matching predictions to targets (e.g., Hungarian algorithm).
+            sorter: Optional sorter module for reordering inputs before processing.
         """
         super().__init__()
 
         self.input_nets = input_nets
         self.encoder = encoder
         self.decoder = decoder
-        self.decoder.tasks = tasks
-        self.encoder_tasks = encoder_tasks or nn.ModuleList()
-        self.decoder.encoder_tasks = self.encoder_tasks
         self.pooling = pooling
-        self.tasks = tasks
         self.target_object = target_object
         self.matcher = matcher
-        self.unified_decoding = unified_decoding
-        self.decoder.unified_decoding = unified_decoding
-        self.dynamic_query_source = dynamic_query_source
-        self.decoder.dynamic_query_source = dynamic_query_source
-
-        assert not (input_sort_field and sorter), "Cannot specify both input_sort_field and sorter."
-        self.input_sort_field = input_sort_field
         self.sorter = sorter
-        if self.sorter is not None:
-            self.sorter.input_names = self.input_names
 
         assert "key" not in self.input_names, "'key' input name is reserved."
         assert "query" not in self.input_names, "'query' input name is reserved."
@@ -78,7 +52,7 @@ class MaskFormer(nn.Module):
         x = {"inputs": inputs}
 
         # Track per-input slices into the merged key tensor.
-        # This is only used to keep dynamic_queries compatible with unified_decoding.
+        # Used to keep dynamic_queries compatible with unified_decoding.
         key_slices: dict[str, slice] = {}
         key_start = 0
 
@@ -94,8 +68,7 @@ class MaskFormer(nn.Module):
 
             # These slices can be used to pick out specific
             # objects after we have merged them all together
-            # Only needed when not doing unified decoding
-            if not self.unified_decoding:
+            if not self.decoder.unified_decoding:
                 device = inputs[input_name + "_valid"].device
                 mask = torch.cat([torch.full((inputs[i + "_valid"].shape[-1],), i == input_name, device=device) for i in self.input_names], dim=-1)
                 x[f"key_is_{input_name}"] = mask.unsqueeze(0).expand(batch_size, -1)
@@ -111,13 +84,7 @@ class MaskFormer(nn.Module):
         if batch_size == 1 and x["key_valid"].all() and self.encoder.attn_type != "flash-varlen":
             x["key_valid"] = None
 
-        # LEGACY. TODO: remove
-        if self.input_sort_field and not self.sorter:
-            x[f"key_{self.input_sort_field}"] = torch.concatenate(
-                [inputs[input_name + "_" + self.input_sort_field] for input_name in self.input_names], dim=-1
-            )
-
-        # Dedicated sorting step before encoder
+        # Sort inputs if a sorter is provided
         if self.sorter is not None:
             x[f"key_{self.sorter.input_sort_field}"] = torch.concatenate(
                 [inputs[input_name + "_" + self.sorter.input_sort_field] for input_name in self.input_names], dim=-1
@@ -125,30 +92,30 @@ class MaskFormer(nn.Module):
             for input_name in self.input_names:
                 field = f"{input_name}_{self.sorter.input_sort_field}"
                 x[field] = inputs[field]
-            x = self.sorter.sort_inputs(x)
+            x = self.sorter.sort_inputs(x, self.input_names)
 
         # Pass merged input constituents through the encoder
-        x_sort_value = x.get(f"key_{self.input_sort_field}") if self.sorter is None else None
-        x["key_embed"] = self.encoder(x["key_embed"], x_sort_value=x_sort_value, kv_mask=x.get("key_valid"))
+        x["key_embed"] = self.encoder(x["key_embed"], kv_mask=x.get("key_valid"))
 
         # Keep dynamic query initialization compatible with unified decoding by ensuring
         # source_embed/source_valid refer to *post-encoder* features.
-        if self.decoder.dynamic_queries and self.unified_decoding:
+        if self.decoder.dynamic_queries and self.decoder.unified_decoding:
             if self.sorter is not None:
                 raise ValueError("dynamic_queries with unified_decoding is not supported when sorter is enabled")
-            if self.dynamic_query_source not in key_slices:
-                raise ValueError(f"dynamic_queries=True requires an input named '{self.dynamic_query_source}'")
-            source_slice = key_slices[self.dynamic_query_source]
-            x[f"{self.dynamic_query_source}_embed"] = x["key_embed"][:, source_slice, :]
-            x[f"{self.dynamic_query_source}_valid"] = x["key_valid_full"][:, source_slice]
+            dqs = self.decoder.dynamic_query_source
+            if dqs not in key_slices:
+                raise ValueError(f"dynamic_queries=True requires an input named '{dqs}'")
+            source_slice = key_slices[dqs]
+            x[f"{dqs}_embed"] = x["key_embed"][:, source_slice, :]
+            x[f"{dqs}_valid"] = x["key_valid_full"][:, source_slice]
 
         # Unmerge the updated features back into the separate input types only if not doing unified decoding
-        if not self.unified_decoding:
+        if not self.decoder.unified_decoding:
             x = unmerge_inputs(x, self.input_names)
 
         # Run encoder tasks
         outputs = {"encoder": {}}
-        for task in self.encoder_tasks:
+        for task in self.decoder.encoder_tasks:
             outputs["encoder"][task.name] = task(x)
 
         # Pass through decoder layers
@@ -163,8 +130,7 @@ class MaskFormer(nn.Module):
 
         # Get the final outputs
         outputs["final"] = {}
-        for task in self.tasks:
-            # Pass outputs dict so tasks can read from previously executed tasks
+        for task in self.decoder.tasks:
             outputs["final"][task.name] = task(x, outputs=outputs["final"])
 
         # store info about the input sort field for each input type
@@ -176,37 +142,25 @@ class MaskFormer(nn.Module):
         return outputs
 
     def predict(self, outputs: dict) -> dict:
-        """Takes the raw model outputs and produces a set of actual inferences / predictions.
-        For example will take output probabilies and apply threshold cuts to prduce boolean predictions.
-
-        Args:
-            outputs: The outputs produced by the forward pass of the model.
-
-        Returns:
-            preds: A dictionary containing the predicted values for each task.
-        """
+        """Takes the raw model outputs and produces predictions."""
         preds: dict[str, dict[str, Any]] = {}
 
         # Get query_mask from encoder outputs for masking padded queries in predictions
         query_mask = outputs.get("encoder", {}).get("query_mask")
 
-        # Compute predictions for each task in each block
         for layer_name, layer_outputs in outputs.items():
             if layer_name.startswith("_"):
                 continue
 
             preds[layer_name] = {}
 
-            # Handle encoder tasks
             if layer_name == "encoder":
-                for task in self.encoder_tasks:
+                for task in self.decoder.encoder_tasks:
                     if task.name not in layer_outputs:
                         continue
                     preds[layer_name][task.name] = task.predict(layer_outputs[task.name])
-
-            # Handle decoder tasks
             else:
-                for task in self.tasks:
+                for task in self.decoder.tasks:
                     if task.name not in layer_outputs:
                         continue
                     preds[layer_name][task.name] = task.predict(layer_outputs[task.name], query_mask=query_mask)
@@ -214,86 +168,50 @@ class MaskFormer(nn.Module):
         return preds
 
     def _prepare_targets_and_outputs(self, outputs: dict, targets: dict) -> tuple[dict, dict, dict]:
-        """Prepare targets and separate encoder/decoder outputs.
-
-        Args:
-            outputs: The outputs produced by the forward pass of the model.
-            targets: The data containing the targets.
-
-        Returns:
-            Tuple of (targets, encoder_outputs, decoder_outputs) where:
-            - targets: Targets dict with query_mask added if present
-            - encoder_outputs: Separated encoder outputs
-            - decoder_outputs: Separated decoder layer outputs
-        """
-        # Separate encoder and decoder outputs for cleaner logic
+        """Prepare targets and separate encoder/decoder outputs."""
         encoder_outputs = {"encoder": outputs["encoder"]} if "encoder" in outputs else {}
         decoder_outputs = {k: v for k, v in outputs.items() if k != "encoder"}
 
-        # Include query_mask in targets if present (for masking padded query losses)
         if "encoder" in outputs and "query_mask" in outputs["encoder"] and "query_mask" not in targets:
             targets = targets.copy()
             targets["query_mask"] = outputs["encoder"]["query_mask"]
 
         # Sort targets if using a sorter
         if self.sorter is not None:
-            targets = self.sorter.sort_targets(targets, decoder_outputs["final"][self.sorter.input_sort_field])
+            targets = self.sorter.sort_targets(targets, decoder_outputs["final"][self.sorter.input_sort_field], self.input_names)
 
         return targets, encoder_outputs, decoder_outputs
 
     def _compute_encoder_losses(self, encoder_outputs: dict, targets: dict) -> dict[str, dict[str, Tensor]]:
-        """Compute losses for encoder tasks (no matching required).
-
-        Args:
-            encoder_outputs: Dictionary of encoder layer outputs.
-            targets: The data containing the targets.
-
-        Returns:
-            Dictionary of encoder losses keyed by layer name and task name.
-        """
+        """Compute losses for encoder tasks (no matching required)."""
         losses: dict[str, dict[str, Tensor]] = {}
         for layer_name, layer_outputs in encoder_outputs.items():
             losses[layer_name] = {}
-            for task in self.encoder_tasks:
+            for task in self.decoder.encoder_tasks:
                 if task.name not in layer_outputs:
                     continue
                 losses[layer_name][task.name] = task.loss(layer_outputs[task.name], targets, layer_outputs=layer_outputs)
         return losses
 
     def _compute_decoder_costs(self, decoder_outputs: dict, targets: dict) -> dict[str, Tensor]:
-        """Compute costs for decoder layers by aggregating task costs.
-
-        Args:
-            decoder_outputs: Dictionary of decoder layer outputs.
-            targets: The data containing the targets.
-
-        Returns:
-            Dictionary of costs keyed by layer name. Cost axes are (batch, pred, true).
-        """
+        """Compute costs for decoder layers by aggregating task costs."""
         costs = {}
 
-        # Compute costs for decoder layers
         for layer_name, layer_outputs in decoder_outputs.items():
             layer_costs = None
 
-            # Get the cost contribution from each of the decoder tasks
-            for task in self.tasks:
-                # Skip tasks that do not contribute intermediate losses
+            for task in self.decoder.tasks:
                 if task.name not in layer_outputs:
                     continue
 
-                # Compute costs
                 task_costs = task.cost(layer_outputs[task.name], targets)
 
-                # Add the cost on to our running cost total, otherwise initialise a running cost matrix
                 for cost in task_costs.values():
                     if layer_costs is None:
                         layer_costs = cost
                     else:
                         layer_costs += cost
 
-            # Added to allow completely turning off inter layer loss
-            # Possibly redundant as completely switching them off performs worse
             if layer_costs is not None:
                 layer_costs = layer_costs.detach()
 
@@ -302,55 +220,35 @@ class MaskFormer(nn.Module):
         return costs
 
     def _match_and_permute_outputs(self, decoder_outputs: dict, costs: dict[str, Tensor], targets: dict) -> None:
-        """Perform optimal matching and permute decoder outputs accordingly.
-
-        After permutation, outputs are aligned with target order, so the original
-        particle_valid mask can be used directly by all tasks for loss computation.
-
-        Args:
-            decoder_outputs: Dictionary of decoder layer outputs (will be modified in-place).
-            costs: Dictionary of costs keyed by layer name.
-            targets: The data containing the targets.
-        """
-        # Stack all layer costs into a single 4D tensor for parallel matching
+        """Perform optimal matching and permute decoder outputs accordingly."""
         layer_names = list(costs.keys())
         num_layers = len(layer_names)
 
         if num_layers > 0:
-            # Stack costs: [num_layers, batch, num_pred, num_target]
             stacked_costs = torch.stack([costs[name] for name in layer_names], dim=0)
             batch_size = stacked_costs.shape[1]
             num_pred = stacked_costs.shape[2]
             num_target = stacked_costs.shape[3]
 
-            # Reshape to [num_layers * batch, num_pred, num_target] to use layers as additional batch dim
             stacked_costs = stacked_costs.reshape(num_layers * batch_size, num_pred, num_target)
 
-            # Expand validity mask to match stacked batch dimension: [num_layers * batch, num_target]
             target_valid = targets[f"{self.target_object}_valid"]
             stacked_target_valid = target_valid.unsqueeze(0).expand(num_layers, -1, -1).reshape(num_layers * batch_size, -1)
 
-            # Get query_mask if present (for masking padded queries in matching)
             query_mask = targets.get("query_mask")
             stacked_query_valid = None
             if query_mask is not None:
                 stacked_query_valid = query_mask.unsqueeze(0).expand(num_layers, -1, -1).reshape(num_layers * batch_size, -1)
 
-            # Get the indices that can permute the predictions to yield their optimal matching
-            # Output shape: [num_layers * batch, num_pred]
             stacked_pred_idxs = self.matcher(stacked_costs, stacked_target_valid, stacked_query_valid)
-
-            # Reshape back to [num_layers, batch, num_pred]
             stacked_pred_idxs = stacked_pred_idxs.view(num_layers, batch_size, num_pred)
 
-            # Create batch indices for indexing
             batch_idxs_expanded = torch.arange(batch_size, device=stacked_pred_idxs.device).unsqueeze(1)
 
-            # Apply layer-specific permutations
             for layer_idx, layer_name in enumerate(layer_names):
                 pred_idxs = stacked_pred_idxs[layer_idx]
 
-                for task in self.tasks:
+                for task in self.decoder.tasks:
                     if not task.should_permute_outputs(layer_name, decoder_outputs[layer_name]):
                         continue
 
@@ -359,21 +257,13 @@ class MaskFormer(nn.Module):
                         decoder_outputs[layer_name][task.name][output_name] = output_tensor[batch_idxs_expanded, pred_idxs]
 
     def _compute_decoder_losses(self, decoder_outputs: dict, targets: dict) -> dict[str, dict[str, Tensor]]:
-        """Compute final losses for decoder tasks using permuted outputs.
-
-        Args:
-            decoder_outputs: Dictionary of decoder layer outputs (already permuted).
-            targets: The targets dict to use for loss computation.
-
-        Returns:
-            Dictionary of decoder losses keyed by layer name and task name.
-        """
+        """Compute final losses for decoder tasks using permuted outputs."""
         losses: dict[str, dict[str, Tensor]] = {}
 
         for layer_name, layer_outputs in decoder_outputs.items():
             losses[layer_name] = {}
 
-            for task in self.tasks:
+            for task in self.decoder.tasks:
                 if task.name not in layer_outputs:
                     continue
 
@@ -383,47 +273,11 @@ class MaskFormer(nn.Module):
         return losses
 
     def loss(self, outputs: dict, targets: dict) -> tuple[dict, dict, dict]:
-        """Computes the loss between the forward pass of the model and the data / targets.
-
-        This method performs Hungarian matching to align predictions with targets before computing
-        losses. The matching works as follows:
-
-        1. **Cost Matrix**: A cost matrix of shape [batch, num_pred, num_target] is computed by summing
-           task-specific costs (e.g., BCE for classification, L1 for regression).
-
-        2. **Hungarian Matching**: The matcher solves the linear assignment problem on the transposed
-           cost matrix [batch, num_target, num_pred] and returns `pred_idxs` of shape [batch, num_pred]
-           where `pred_idxs[i]` = which prediction slot should be placed at target position `i`.
-
-        3. **Output Permutation**: Outputs are gathered using `output[batch_idxs, pred_idxs]`, which
-           reorders predictions so that `output[i]` corresponds to `target[i]`. After this permutation,
-           the original `particle_valid` mask can be used directly to filter matched pairs.
-
-        Args:
-            outputs: The outputs produced by the forward pass of the model.
-            targets: The data containing the targets.
-
-        Returns:
-            Tuple of (outputs, targets, losses) where:
-            - outputs: The outputs dict.
-            - targets: The targets dict.
-            - losses: A dictionary containing the computed losses for each task.
-        """
-        # Prepare targets and separate encoder/decoder outputs
+        """Computes the loss using Hungarian matching to align predictions with targets."""
         targets, encoder_outputs, decoder_outputs = self._prepare_targets_and_outputs(outputs, targets)
-
-        # Compute encoder losses (no matching required)
         losses = self._compute_encoder_losses(encoder_outputs, targets)
-
-        # Compute costs for decoder layers
         costs = self._compute_decoder_costs(decoder_outputs, targets)
-
-        # Perform matching and permute decoder outputs to align with target order
-        # After this, output[i] corresponds to target[i] for all i
         self._match_and_permute_outputs(decoder_outputs, costs, targets)
-
-        # Compute final decoder losses using permuted outputs
         decoder_losses = self._compute_decoder_losses(decoder_outputs, targets)
         losses.update(decoder_losses)
-
         return outputs, targets, losses

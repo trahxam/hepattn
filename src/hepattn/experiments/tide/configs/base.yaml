@@ -285,8 +285,10 @@ model:
     model:
       class_path: hepattn.models.MaskFormer
       init_args:
-        dim: &dim 256
-        input_sort_field: phi
+        sorter:
+          class_path: hepattn.components.Sorter
+          init_args:
+            input_sort_field: phi
         target_object: sudo
 
         input_nets:
@@ -334,12 +336,12 @@ model:
                     class_path: hepattn.components.Dense
                     init_args:
                       input_size: 81
-                      output_size: *dim
+                      output_size: 256
                   posenc:
                     class_path: hepattn.components.FourierPositionEncoder
                     init_args:
                       input_name: pix
-                      dim: *dim
+                      dim: 256
                       fields:
                         - x
                         - y
@@ -387,12 +389,12 @@ model:
                     class_path: hepattn.components.Dense
                     init_args:
                       input_size: 25
-                      output_size: *dim
+                      output_size: 256
                   posenc:
                     class_path: hepattn.components.FourierPositionEncoder
                     init_args:
                       input_name: sct
-                      dim: *dim
+                      dim: 256
                       fields:
                         - x
                         - y
@@ -405,16 +407,61 @@ model:
           class_path: hepattn.components.Encoder
           init_args:
             num_layers: 4
-            dim: *dim
+            dim: 256
             attn_type: torch
 
         decoder:
           num_decoder_layers: 4
           num_queries: *num_tracks
           mask_attention: true
-          use_query_masks: false
           decoder_layer_config:
-            dim: *dim
+            dim: 256
+
+          tasks:
+            class_path: torch.nn.ModuleList
+            init_args:
+              modules:
+                - class_path: hepattn.tasks.ObjectClassificationTask
+                  init_args:
+                    name: pred_valid
+                    input_object: query
+                    output_object: pred
+                    target_object: sudo
+                    losses:
+                      object_bce: 1.0
+                    costs:
+                      object_bce: 10.0
+                    dim: 256
+                    null_weight: 1.0
+                    mask_queries: false
+
+                - class_path: hepattn.tasks.ObjectHitMaskTask
+                  init_args:
+                    name: pred_pix_assignment
+                    input_constituent: pix
+                    input_object: query
+                    output_object: pred
+                    target_object: sudo
+                    losses:
+                      mask_bce: 10.0
+                    costs:
+                      mask_bce: 10.0
+                    dim: 256
+                    null_weight: 1.0
+
+                - class_path: hepattn.tasks.ObjectHitMaskTask
+                  init_args:
+                    name: pred_sct_assignment
+                    input_constituent: sct
+                    input_object: query
+                    output_object: pred
+                    target_object: sudo
+                    losses:
+                      mask_bce: 5.0
+                    costs:
+                      mask_bce: 5.0
+                    dim: 256
+                    null_weight: 1.0
 
         matcher:
           class_path: hepattn.models.Matcher
@@ -422,49 +469,3 @@ model:
             default_solver: scipy
             adaptive_solver: false
             adaptive_check_interval: 1000
-
-        tasks:
-          class_path: torch.nn.ModuleList
-          init_args:
-            modules:
-              - class_path: hepattn.tasks.ObjectClassificationTask
-                init_args:
-                  name: pred_valid
-                  input_object: query
-                  output_object: pred
-                  target_object: sudo
-                  losses:
-                    object_bce: 1.0
-                  costs:
-                    object_bce: 10.0
-                  dim: *dim
-                  null_weight: 1.0
-                  mask_queries: false
-
-              - class_path: hepattn.tasks.ObjectHitMaskTask
-                init_args:
-                  name: pred_pix_assignment
-                  input_constituent: pix
-                  input_object: query
-                  output_object: pred
-                  target_object: sudo
-                  losses:
-                    mask_bce: 10.0
-                  costs:
-                    mask_bce: 10.0
-                  dim: *dim
-                  null_weight: 1.0
-
-              - class_path: hepattn.tasks.ObjectHitMaskTask
-                init_args:
-                  name: pred_sct_assignment
-                  input_constituent: sct
-                  input_object: query
-                  output_object: pred
-                  target_object: sudo
-                  losses:
-                    mask_bce: 5.0
-                  costs:
-                    mask_bce: 5.0
-                  dim: *dim
-                  null_weight: 1.0

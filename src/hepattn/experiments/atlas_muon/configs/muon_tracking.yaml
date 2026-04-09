@@ -16,7 +16,6 @@ data:
     num_val: -1
     batch_size: 200
 
-
     # ATLAS muon data parameters
     event_max_num_particles: &num_objects 2  # Typically fewer particles per event in muon data
 
@@ -110,15 +109,16 @@ model:
       skip_scheduler: false
       weight_decay: 1e-5
 
-
     # Whether to use multi task learning or not
     mtl: false
 
     model:
       class_path: hepattn.models.MaskFormer
       init_args:
-        dim: &dim 32
-        input_sort_field: phi
+        sorter:
+          class_path: hepattn.components.Sorter
+          init_args:
+            input_sort_field: phi
         input_nets:
           class_path: torch.nn.ModuleList
           init_args:
@@ -152,17 +152,17 @@ model:
                     class_path: hepattn.components.Dense
                     init_args:
                       input_size: 18
-                      output_size: *dim
+                      output_size: 32
                   posenc:
                     class_path: hepattn.components.PositionEncoder
                     init_args:
                       input_name: hit
-                      dim: *dim
+                      dim: 32
                       fields:
                         - r
                         - theta
                         - phi
-                      dim: *dim
+                      dim: 32
                       sym_fields:
                         - phi
 
@@ -170,7 +170,7 @@ model:
           class_path: hepattn.components.Encoder
           init_args:
             num_layers: 2
-            dim: *dim
+            dim: 32
             attn_type: flash
             hybrid_norm: true
             value_residual: true
@@ -181,11 +181,57 @@ model:
           num_decoder_layers: 2
           num_queries: *num_objects
           mask_attention: true
-          use_query_masks: false
           decoder_layer_config:
-            dim: *dim
+            dim: 32
             norm: RMSNorm
             attn_kwargs: {bias: false, num_heads: 8}
+
+          tasks:
+            class_path: torch.nn.ModuleList
+            init_args:
+              modules:
+                - class_path: hepattn.tasks.ObjectClassificationTask
+                  init_args:
+                    name: track_valid
+                    input_object: query
+                    output_object: track
+                    target_object: particle
+                    losses:
+                      object_bce: 1.0
+                    costs:
+                      object_bce: 10.0
+                    dim: 32
+                    null_weight: 1.0
+                    mask_queries: false
+                - class_path: hepattn.tasks.ObjectHitMaskTask
+                  init_args:
+                    name: track_hit_valid
+                    input_constituent: hit
+                    input_object: query
+                    output_object: track
+                    target_object: particle
+                    losses:
+                      mask_bce: 1.0
+                    costs:
+                      mask_bce: 1.0
+                    dim: 32
+                    null_weight: 1.0
+                    mask_attn: true
+
+                - class_path: hepattn.tasks.ObjectRegressionTask
+                  init_args:
+                    name: parameter_regression
+                    input_object: query
+                    output_object: track
+                    target_object: particle
+                    fields:
+                    - truthMuon_eta
+                    - truthMuon_phi
+                    - truthMuon_pt
+                    - truthMuon_q
+                    loss_weight: 1.0
+                    cost_weight: 1.0
+                    dim: 32
 
         matcher:
           class_path: hepattn.models.Matcher
@@ -195,50 +241,3 @@ model:
             adaptive_check_interval: 1000
             parallel_solver: true
             n_jobs: 16
-
-        tasks:
-          class_path: torch.nn.ModuleList
-          init_args:
-            modules:
-              - class_path: hepattn.tasks.ObjectClassificationTask
-                init_args:
-                  name: track_valid
-                  input_object: query
-                  output_object: track
-                  target_object: particle
-                  losses:
-                    object_bce: 1.0
-                  costs:
-                    object_bce: 10.0
-                  dim: *dim
-                  null_weight: 1.0
-                  mask_queries: false
-              - class_path: hepattn.tasks.ObjectHitMaskTask
-                init_args:
-                  name: track_hit_valid
-                  input_constituent: hit
-                  input_object: query
-                  output_object: track
-                  target_object: particle
-                  losses:
-                    mask_bce: 1.0
-                  costs:
-                    mask_bce: 1.0
-                  dim: *dim
-                  null_weight: 1.0
-                  mask_attn: true
-
-              - class_path: hepattn.tasks.ObjectRegressionTask
-                init_args:
-                  name: parameter_regression
-                  input_object: query
-                  output_object: track
-                  target_object: particle
-                  fields:
-                  - truthMuon_eta
-                  - truthMuon_phi
-                  - truthMuon_pt
-                  - truthMuon_q
-                  loss_weight: 1.0
-                  cost_weight: 1.0
-                  dim: *dim

@@ -105,8 +105,10 @@ model:
     model:
       class_path: hepattn.models.MaskFormer
       init_args:
-        dim: &dim 256
-        input_sort_field: phi
+        sorter:
+          class_path: hepattn.components.Sorter
+          init_args:
+            input_sort_field: phi
 
         input_nets:
           class_path: torch.nn.ModuleList
@@ -130,13 +132,13 @@ model:
                     init_args:
                       input_size: 8
                       hidden_layers: [128]
-                      output_size: *dim
+                      output_size: 256
                       activation: SwiGLU
                   posenc:
                     class_path: hepattn.components.PositionEncoder
                     init_args:
                       input_name: sihit
-                      dim: *dim
+                      dim: 256
                       fields:
                         - r
                         - eta
@@ -146,7 +148,7 @@ model:
           class_path: hepattn.components.Encoder
           init_args:
             num_layers: 4
-            dim: *dim
+            dim: 256
             attn_type: flash
             window_size: 512
             window_wrap: true
@@ -159,13 +161,49 @@ model:
           num_decoder_layers: 4
           num_queries: 1024
           mask_attention: true
-          use_query_masks: false
           decoder_layer_config:
-            dim: *dim
+            dim: 256
             norm: FastLayerNorm
             hybrid_norm: true
             dense_kwargs: {activation: SwiGLU}
             attn_kwargs: {bias: false}
+
+          tasks:
+            class_path: torch.nn.ModuleList
+            init_args:
+              modules:
+                - class_path: hepattn.tasks.ObjectClassificationTask
+                  init_args:
+                    name: flow_valid
+                    input_object: query
+                    output_object: flow
+                    target_object: particle
+                    losses:
+                      object_bce: 0.1
+                    costs:
+                      object_bce: 0.1
+                    dim: 256
+                    null_weight: 1.0
+                    mask_queries: false
+                    has_intermediate_loss: true
+                    has_first_layer_loss: false
+
+                - class_path: hepattn.tasks.ObjectHitMaskTask
+                  init_args:
+                    name: flow_sihit_assignment
+                    input_constituent: sihit
+                    input_object: query
+                    output_object: flow
+                    target_object: particle
+                    predict_iou: true
+                    losses:
+                      mask_dice: 2.0
+                      mask_focal: 100.0
+                    costs:
+                      mask_dice: 2.0
+                      mask_focal: 100.0
+                    null_weight: 1.0
+                    dim: 256
 
         matcher:
           class_path: hepattn.models.Matcher
@@ -173,40 +211,3 @@ model:
             default_solver: scipy
             adaptive_solver: false
             parallel_solver: true
-
-        tasks:
-          class_path: torch.nn.ModuleList
-          init_args:
-            modules:
-              - class_path: hepattn.tasks.ObjectClassificationTask
-                init_args:
-                  name: flow_valid
-                  input_object: query
-                  output_object: flow
-                  target_object: particle
-                  losses:
-                    object_bce: 0.1
-                  costs:
-                    object_bce: 0.1
-                  dim: *dim
-                  null_weight: 1.0
-                  mask_queries: false
-                  has_intermediate_loss: true
-                  has_first_layer_loss: false
-
-              - class_path: hepattn.tasks.ObjectHitMaskTask
-                init_args:
-                  name: flow_sihit_assignment
-                  input_constituent: sihit
-                  input_object: query
-                  output_object: flow
-                  target_object: particle
-                  predict_iou: true
-                  losses:
-                    mask_dice: 2.0
-                    mask_focal: 100.0
-                  costs:
-                    mask_dice: 2.0
-                    mask_focal: 100.0
-                  null_weight: 1.0
-                  dim: *dim

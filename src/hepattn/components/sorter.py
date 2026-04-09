@@ -6,13 +6,12 @@ class Sorter(nn.Module):
     def __init__(self, input_sort_field: str) -> None:
         super().__init__()
         self.input_sort_field = input_sort_field
-        self.input_names = None  # set by MaskFormer
 
-    def sort_inputs(self, inputs: dict[str, Tensor]) -> dict[str, Tensor]:
-        input_names = [*self.input_names, "key"]
+    def sort_inputs(self, inputs: dict[str, Tensor], input_names: list[str]) -> dict[str, Tensor]:
+        all_names = [*input_names, "key"]
         sort_idxs = {}
 
-        for input_name in input_names:
+        for input_name in all_names:
             sort_idx = torch.argsort(inputs[f"{input_name}_{self.input_sort_field}"], dim=-1)
             sort_idxs[input_name] = sort_idx
 
@@ -46,8 +45,8 @@ class Sorter(nn.Module):
 
         return inputs
 
-    def sort_targets(self, targets: dict, sort_fields: dict[str, Tensor]) -> dict:
-        for input_name in self.input_names:
+    def sort_targets(self, targets: dict, sort_fields: dict[str, Tensor], input_names: list[str]) -> dict:
+        for input_name in input_names:
             sort_idx = torch.argsort(sort_fields[f"{input_name}_{self.input_sort_field}"], dim=-1)
 
             for key, x in targets.items():

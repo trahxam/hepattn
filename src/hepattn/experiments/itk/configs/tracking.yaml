@@ -97,8 +97,10 @@ model:
     model:
       class_path: hepattn.models.MaskFormer
       init_args:
-        dim: &dim 256
-        input_sort_field: phi
+        sorter:
+          class_path: hepattn.components.Sorter
+          init_args:
+            input_sort_field: phi
 
         input_nets:
           class_path: torch.nn.ModuleList
@@ -119,7 +121,7 @@ model:
                     class_path: hepattn.components.Dense
                     init_args:
                       input_size: 6
-                      output_size: *dim
+                      output_size: 256
                   posenc:
                     class_path: hepattn.models.PositionEncoder
                     init_args:
@@ -130,7 +132,7 @@ model:
                         - phi
                       sym_fields:
                         - phi
-                      dim: *dim
+                      dim: 256
 
               - class_path: hepattn.components.InputNet
                 init_args:
@@ -147,7 +149,7 @@ model:
                     class_path: hepattn.components.Dense
                     init_args:
                       input_size: 6
-                      output_size: *dim
+                      output_size: 256
                   posenc:
                     class_path: hepattn.models.PositionEncoder
                     init_args:
@@ -158,13 +160,13 @@ model:
                         - phi
                       sym_fields:
                         - phi
-                      dim: *dim
+                      dim: 256
 
         encoder:
           class_path: hepattn.components.Encoder
           init_args:
             num_layers: 8
-            dim: *dim
+            dim: 256
             attn_type: flash
             window_size: 512
             window_wrap: true
@@ -173,9 +175,61 @@ model:
           num_decoder_layers: 8
           num_queries: 1600
           mask_attention: true
-          use_query_masks: false
           decoder_layer_config:
-            dim: *dim
+            dim: 256
+
+          tasks:
+            class_path: torch.nn.ModuleList
+            init_args:
+              modules:
+                - class_path: hepattn.tasks.ObjectClassificationTask
+                  init_args:
+                    name: track_valid
+                    input_object: query
+                    output_object: track
+                    target_object: particle
+                    losses:
+                      object_bce: 1.0
+                    costs:
+                      object_bce: 1.0
+                    dim: 256
+                    null_weight: 1.0
+
+                - class_path: hepattn.tasks.ObjectHitMaskTask
+                  init_args:
+                    name: track_pixel_assignment
+                    input_constituent: pixel
+                    input_object: query
+                    output_object: track
+                    target_object: particle
+                    losses:
+                      mask_bce: 100.0
+                      #mask_dice: 2.0
+                      #mask_focal: 50.0
+                    costs:
+                      mask_bce: 100.0
+                      #mask_dice: 2.0
+                      #mask_focal: 50.0
+                    dim: 256
+                    null_weight: 1.0
+
+                - class_path: hepattn.tasks.ObjectHitMaskTask
+                  init_args:
+                    name: track_strip_assignment
+                    input_constituent: strip
+                    input_object: query
+                    output_object: track
+                    target_object: particle
+                    losses:
+                      mask_bce: 100.0
+                      #mask_dice: 2.0
+                      #mask_focal: 50.0
+                    costs:
+                      mask_bce: 100.0
+                      #mask_dice: 2.0
+                      #mask_focal: 50.0
+                    dim: 256
+                    null_weight: 1.0
 
         matcher:
           class_path: hepattn.models.Matcher
@@ -183,56 +237,3 @@ model:
             default_solver: scipy
             adaptive_solver: false
             adaptive_check_interval: 1000
-
-        tasks:
-          class_path: torch.nn.ModuleList
-          init_args:
-            modules:
-              - class_path: hepattn.tasks.ObjectClassificationTask
-                init_args:
-                  name: track_valid
-                  input_object: query
-                  output_object: track
-                  target_object: particle
-                  losses:
-                    object_bce: 1.0
-                  costs:
-                    object_bce: 1.0
-                  dim: *dim
-                  null_weight: 1.0
-
-              - class_path: hepattn.tasks.ObjectHitMaskTask
-                init_args:
-                  name: track_pixel_assignment
-                  input_constituent: pixel
-                  input_object: query
-                  output_object: track
-                  target_object: particle
-                  losses:
-                    mask_bce: 100.0
-                    #mask_dice: 2.0
-                    #mask_focal: 50.0
-                  costs:
-                    mask_bce: 100.0
-                    #mask_dice: 2.0
-                    #mask_focal: 50.0
-                  dim: *dim
-                  null_weight: 1.0
-
-              - class_path: hepattn.tasks.ObjectHitMaskTask
-                init_args:
-                  name: track_strip_assignment
-                  input_constituent: strip
-                  input_object: query
-                  output_object: track
-                  target_object: particle
-                  losses:
-                    mask_bce: 100.0
-                    #mask_dice: 2.0
-                    #mask_focal: 50.0
-                  costs:
-                    mask_bce: 100.0
-                    #mask_dice: 2.0
-                    #mask_focal: 50.0
-                  dim: *dim
-                  null_weight: 1.0

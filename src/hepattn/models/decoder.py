@@ -8,7 +8,6 @@ from torch import Tensor, nn
 
 from hepattn.components.decoder import DecoderLayer
 from hepattn.components.posenc import pos_enc_symmetric
-from hepattn.flex.fast_local_ca import build_strided_sliding_window_blockmask
 from hepattn.flex.local_ca import sliding_window_mask_strided, sliding_window_mask_strided_wrapped, transpose_blockmask
 from hepattn.utils.local_ca import auto_local_ca_mask
 from hepattn.utils.model_utils import unmerge_inputs
@@ -17,19 +16,17 @@ from hepattn.utils.model_utils import unmerge_inputs
 class MaskFormerDecoder(nn.Module):
     def __init__(
         self,
+        tasks: nn.ModuleList,
         num_queries: int,
         decoder_layer_config: dict,
         num_decoder_layers: int,
+        encoder_tasks: nn.ModuleList | None = None,
         mask_attention: bool = True,
-        use_query_masks: bool = False,
         posenc: dict[str, float] | None = None,
         local_strided_attn: bool = False,
         window_size: int = 512,
         window_wrap: bool = True,
-        fast_local_ca: bool = False,
-        block_size: int = 128,
         unified_decoding: bool = False,
-        phi_shift: float = 0.0,
         unmask_all_false: bool = True,
         dynamic_queries: bool = False,
         dynamic_query_source: str | None = None,
@@ -37,19 +34,17 @@ class MaskFormerDecoder(nn.Module):
         """MaskFormer decoder that handles multiple decoder layers and task integration.
 
         Args:
+            tasks: List of task modules for producing predictions from decoder outputs.
             num_queries: The number of object-level queries.
             decoder_layer_config: Configuration dictionary used to initialize each DecoderLayer.
             num_decoder_layers: The number of decoder layers to stack.
+            encoder_tasks: Optional list of tasks to run after the encoder (before decoder).
             mask_attention: If True, attention masks will be used to control which input constituents are attended to.
-            use_query_masks: If True, predicted query masks will be used to control which queries are valid.
-            posenc: Optional module for positional encoding.
+            posenc: Optional positional encoding config with alpha and base parameters.
             local_strided_attn: If True, uses local strided window attention.
             window_size: The size of the window for local strided window attention.
             window_wrap: If True, wraps the window for local strided window attention.
-            fast_local_ca: If True, uses fast local CA.
-            block_size: The size of the block for fast local CA.
             unified_decoding: If True, inputs remain merged for task processing instead of being unmerged after each layer.
-            phi_shift: The shift in the phi angle for positional encoding.
             unmask_all_false: If True, queries with all-false attention masks will be unmasked to attend everywhere.
             dynamic_queries: If True, queries are initialized dynamically.
             dynamic_query_source: Name of the input type to use as the source for dynamic query initialization.
@@ -58,11 +53,10 @@ class MaskFormerDecoder(nn.Module):
 
         self.decoder_layers = nn.ModuleList([DecoderLayer(depth=i, **decoder_layer_config) for i in range(num_decoder_layers)])
         self.dim = decoder_layer_config["dim"]
-        self.tasks: list | None = None  # Will be set by MaskFormer
-        self.encoder_tasks: list | None = None  # Will be set by MaskFormer
+        self.tasks = tasks
+        self.encoder_tasks = encoder_tasks or nn.ModuleList()
         self._num_queries = num_queries
         self.mask_attention = mask_attention
-        self.use_query_masks = use_query_masks
         self.posenc = posenc
         self.local_strided_attn = local_strided_attn
         self.attn_type = decoder_layer_config.get("attn_kwargs", {}).get("attn_type", "torch")
@@ -71,15 +65,11 @@ class MaskFormerDecoder(nn.Module):
         self.unified_decoding = unified_decoding
         self.dynamic_queries = dynamic_queries
         self.dynamic_query_source = dynamic_query_source
+        self.unmask_all_false = unmask_all_false
 
         # Only initialize learned queries if not using dynamic queries
         if not dynamic_queries:
             self.initial_queries = nn.Parameter(torch.randn(self._num_queries, decoder_layer_config["dim"]))
-
-        self.fast_local_ca = fast_local_ca
-        self.block_size = block_size
-        self.phi_shift = phi_shift
-        self.unmask_all_false = unmask_all_false
 
         if self.local_strided_attn:
             assert self.attn_type in {"torch", "flex"}, (
@@ -111,26 +101,9 @@ class MaskFormerDecoder(nn.Module):
         This selects hit embeddings whose predicted first-hit probability passes the task threshold,
         then keeps the top-k by probability where k is `self._num_queries`.
 
-        Notes:
-            - Only supports batch_size == 1.
-            - Expects `x` to contain `source_embed` and `source_valid`.
-
         Returns:
-            Tuple of:
-                - query_embed: (1, N_queries, dim) query embeddings
-                - query_valid: (1, N_queries) validity mask (always created for torch.compile compatibility)
-
-        Raises:
-            ValueError: If `decoder.dynamic_queries` is False, decoder tasks are unset, the `query_init` task
-                is missing, required source tensors are missing, or batch size is not 1.
+            Tuple of (query_embed, query_valid).
         """
-        if not self.dynamic_queries:
-            raise ValueError("initialize_dynamic_queries called but decoder.dynamic_queries is False")
-
-        if self.encoder_tasks is None:
-            raise ValueError("dynamic_queries=True requires decoder.encoder_tasks to be set")
-
-        # Find query_init task (must be in encoder_tasks)
         query_init_task = next((t for t in self.encoder_tasks if t.name == "query_init"), None)
         if query_init_task is None:
             raise ValueError("dynamic_queries=True requires a task named 'query_init' in encoder_tasks.")
@@ -144,9 +117,6 @@ class MaskFormerDecoder(nn.Module):
         outputs = query_init_task.forward(x)
         preds = query_init_task.predict(outputs)
 
-        # For the source field, tasks typically return predictions with keys matching task.predict_outputs
-        # We look for the "prob" prediction for the query source.
-        # TODO: This still makes some assumptions about the task output structure.
         prob_key = next((k for k in preds if k.endswith("_prob")), None)
         if prob_key is None:
             raise ValueError(f"query_init task '{query_init_task.name}' did not return a probability prediction.")
@@ -179,17 +149,14 @@ class MaskFormerDecoder(nn.Module):
         # Pad to fixed num_queries size if fewer were selected to match the full target set
         if num_selected < self._num_queries:
             num_padding = self._num_queries - num_selected
-            # Pad with zero embeddings
             null_padding = torch.zeros(num_padding, self.dim, device=device, dtype=selected_constituent_embeds.dtype)
-            query_embed = torch.cat([selected_constituent_embeds, null_padding], dim=0).unsqueeze(0)  # (1, num_queries, dim)
-            # Validity: selected queries are valid, padding is not
+            query_embed = torch.cat([selected_constituent_embeds, null_padding], dim=0).unsqueeze(0)
             query_valid = torch.cat([
                 torch.ones(num_selected, dtype=torch.bool, device=device),
                 torch.zeros(num_padding, dtype=torch.bool, device=device),
-            ]).unsqueeze(0)  # (1, num_queries)
+            ]).unsqueeze(0)
         else:
-            query_embed = selected_constituent_embeds.unsqueeze(0)  # (1, N_selected, dim)
-            # All queries are valid - still create mask for consistent control flow with torch.compile
+            query_embed = selected_constituent_embeds.unsqueeze(0)
             query_valid = torch.ones(1, num_selected, dtype=torch.bool, device=device)
 
         return query_embed, query_valid
@@ -202,12 +169,7 @@ class MaskFormerDecoder(nn.Module):
             input_names: List of input names for constructing attention masks.
 
         Returns:
-            Tuple containing:
-                - x: Updated embedding dictionary.
-                - outputs: Layer-wise task outputs, including an "encoder" key with metadata.
-
-        Raises:
-            ValueError: If in merged input mode and multiple attention masks are provided.
+            Tuple of (x, outputs) where outputs contains layer-wise task outputs.
         """
         batch_size = x["key_embed"].shape[0]
         num_constituents = x["key_embed"].shape[-2]
@@ -215,12 +177,9 @@ class MaskFormerDecoder(nn.Module):
         # Generate or use pre-initialized queries
         outputs: dict[str, dict] = {"encoder": {}}
         if not self.dynamic_queries:
-            # Static learned queries (backward compatible)
             x["query_embed"] = self.initial_queries.expand(batch_size, -1, -1)
         else:
-            # Initialize dynamic queries
             x["query_embed"], query_valid = self.initialize_dynamic_queries(x)
-            # Always set query_mask for consistent control flow with torch.compile
             x["query_mask"] = query_valid
             outputs["encoder"]["query_mask"] = query_valid
 
@@ -251,15 +210,11 @@ class MaskFormerDecoder(nn.Module):
 
             attn_masks: dict[str, torch.Tensor] = {}
 
-            assert self.tasks is not None
             for task in self.tasks:
                 if not task.should_run_at_layer(layer_index):
                     continue
 
-                # Get the outputs of the task given the current embeddings
-                # Pass current layer's outputs so tasks can read from previously executed tasks
                 task_outputs = task(x, outputs=outputs[f"layer_{layer_index}"])
-
                 outputs[f"layer_{layer_index}"][task.name] = task_outputs
 
                 # Collect attention masks from different tasks
@@ -276,7 +231,7 @@ class MaskFormerDecoder(nn.Module):
                     if len(attn_masks) > 1:
                         raise ValueError(f"In merged input mode, expected only one attention mask, got {len(attn_masks)}")
                     attn_mask = next(iter(attn_masks.values()))
-                    if attn_mask.dim() == 2:  # (batch, num_queries) -> (batch, num_queries, num_constituents)
+                    if attn_mask.dim() == 2:
                         attn_mask = attn_mask.unsqueeze(-1).expand(-1, -1, num_constituents)
                 else:
                     attn_mask = torch.full((batch_size, self.num_queries(x), num_constituents), False, device=x["key_embed"].device)
@@ -284,7 +239,6 @@ class MaskFormerDecoder(nn.Module):
                         attn_mask[x[f"key_is_{input_name}"].unsqueeze(1).expand_as(attn_mask)] = task_attn_mask.flatten()
 
                 attn_mask = attn_mask.detach()
-                # If the attn mask is completely invalid for a given query, allow it to attend everywhere
                 if self.unmask_all_false:
                     attn_mask = torch.where(torch.all(~attn_mask, dim=-1, keepdim=True), True, attn_mask)
 
@@ -316,23 +270,12 @@ class MaskFormerDecoder(nn.Module):
 
     def flex_local_ca_mask(self, q_len: int, kv_len: int, device, dtype_float):
         stride = kv_len / q_len
-        if self.fast_local_ca:
-            return build_strided_sliding_window_blockmask(
-                window_size=self.window_size,
-                block_size=self.block_size,
-                stride=kv_len / q_len,
-                q_len=q_len,
-                kv_len=kv_len,
-                device=device,
-                wrap=self.window_wrap,
-                dtype_float=dtype_float,
-            )
         window_mask_func = sliding_window_mask_strided_wrapped if self.window_wrap else sliding_window_mask_strided
         return window_mask_func(self.window_size, stride=stride, q_len=q_len, kv_len=kv_len, device=str(device))
 
     def generate_positional_encodings(self, x: dict):
         idx = torch.arange(self.num_queries(x), device=x["query_embed"].device, dtype=x["query_embed"].dtype)
-        x["query_phi"] = 2 * torch.pi * (idx / self.num_queries(x) - self.phi_shift)
+        x["query_phi"] = 2 * torch.pi * idx / self.num_queries(x)
         query_posenc = pos_enc_symmetric(x["query_phi"], self.dim, self.posenc["alpha"], self.posenc["base"])
         key_posenc = pos_enc_symmetric(x["key_phi"], self.dim, self.posenc["alpha"], self.posenc["base"])
         return query_posenc, key_posenc

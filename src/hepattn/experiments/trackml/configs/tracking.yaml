@@ -140,8 +140,10 @@ model:
     model:
       class_path: hepattn.models.MaskFormer
       init_args:
-        dim: &dim 256
-        input_sort_field: phi
+        sorter:
+          class_path: hepattn.components.Sorter
+          init_args:
+            input_sort_field: phi
         input_nets:
           class_path: torch.nn.ModuleList
           init_args:
@@ -172,7 +174,7 @@ model:
                     init_args:
                       input_size: 17
                       hidden_layers: [128]
-                      output_size: *dim
+                      output_size: 256
                       activation: SwiGLU
                   posenc:
                     class_path: hepattn.models.PositionEncoder
@@ -182,13 +184,13 @@ model:
                         - r
                         - eta
                         - phi
-                      dim: *dim
+                      dim: 256
 
         encoder:
           class_path: hepattn.components.Encoder
           init_args:
             num_layers: 8
-            dim: *dim
+            dim: 256
             attn_type: flash
             window_size: 512
             window_wrap: true
@@ -202,79 +204,78 @@ model:
           num_decoder_layers: &num_dec_layers 3
           num_queries: *num_objects
           mask_attention: true
-          use_query_masks: false
           unmask_all_false: false
           decoder_layer_config:
-            dim: *dim
+            dim: 256
             norm: CustomLayerNorm
             hybrid_norm: true
             dense_kwargs: {activation: SwiGLU}
             attn_kwargs: {bias: false}
             bidirectional_ca: false
 
-        encoder_tasks:
-          class_path: torch.nn.ModuleList
-          init_args:
-            modules:
-              - class_path: hepattn.tasks.ClassificationTask
-                init_args:
-                  name: query_init
-                  input_object: hit
-                  classes: ["is_first"]
-                  loss_weight: 1.0
-                  threshold: 0.05
-                  permute_loss: false
-                  net:
-                    class_path: hepattn.components.Dense
-                    init_args:
-                      input_size: *dim
-                      hidden_layers: [256]
-                      output_size: 1
+          encoder_tasks:
+            class_path: torch.nn.ModuleList
+            init_args:
+              modules:
+                - class_path: hepattn.tasks.ClassificationTask
+                  init_args:
+                    name: query_init
+                    input_object: hit
+                    classes: ["is_first"]
+                    loss_weight: 1.0
+                    threshold: 0.05
+                    permute_loss: false
+                    net:
+                      class_path: hepattn.components.Dense
+                      init_args:
+                        input_size: 256
+                        hidden_layers: [256]
+                        output_size: 1
 
-        tasks:
-          class_path: torch.nn.ModuleList
-          init_args:
-            modules:
-              - class_path: hepattn.tasks.ObjectClassificationTask
-                init_args:
-                  name: track_valid
-                  input_object: query
-                  output_object: track
-                  target_object: particle
-                  has_intermediate_loss: true
-                  has_first_layer_loss: false
-                  dim: *dim
-                  losses:
-                    object_bce: 0.1
-                  costs:
-                    object_bce: 0.1
-                  null_weight: 1.0
+          tasks:
+            class_path: torch.nn.ModuleList
+            init_args:
+              modules:
+                - class_path: hepattn.tasks.ObjectClassificationTask
+                  init_args:
+                    name: track_valid
+                    input_object: query
+                    output_object: track
+                    target_object: particle
+                    has_intermediate_loss: true
+                    has_first_layer_loss: false
+                    dim: 256
+                    losses:
+                      object_bce: 0.1
+                    costs:
+                      object_bce: 0.1
+                    null_weight: 1.0
 
-              - class_path: hepattn.tasks.ObjectHitMaskTask
-                init_args:
-                  name: track_hit_valid
-                  input_constituent: hit
-                  input_object: query
-                  output_object: track
-                  target_object: particle
-                  dim: *dim
-                  losses:
-                    mask_dice: 2.0
-                    mask_focal: 100.0
-                  costs:
-                    mask_dice: 2.0
-                    mask_focal: 100.0
-                  null_weight: 1.0
+                - class_path: hepattn.tasks.ObjectHitMaskTask
+                  init_args:
+                    name: track_hit_valid
+                    input_constituent: hit
+                    input_object: query
+                    output_object: track
+                    target_object: particle
+                    dim: 256
+                    losses:
+                      mask_dice: 2.0
+                      mask_focal: 100.0
+                    costs:
+                      mask_dice: 2.0
+                      mask_focal: 100.0
+                    null_weight: 1.0
 
-              - class_path: hepattn.tasks.IoUPredictionTask
-                init_args:
-                  name: track_iou
-                  input_object: query
-                  mask_task_name: track_hit_valid
-                  mask_logit_key: track_hit_logit
-                  target_mask_key: particle_hit
-                  dim: *dim
-                  loss_weight: 1.0
+                - class_path: hepattn.tasks.IoUPredictionTask
+                  init_args:
+                    name: track_iou
+                    input_object: query
+                    mask_task_name: track_hit_valid
+                    mask_logit_key: track_hit_logit
+                    target_mask_key: particle_hit
+                    dim: 256
+                    loss_weight: 1.0
 
         matcher:
           class_path: hepattn.models.Matcher

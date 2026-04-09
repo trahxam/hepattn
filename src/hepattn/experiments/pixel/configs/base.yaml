@@ -158,8 +158,10 @@ model:
     model:
       class_path: hepattn.models.MaskFormer
       init_args:
-        dim: &dim 128
-        input_sort_field: x
+        sorter:
+          class_path: hepattn.components.Sorter
+          init_args:
+            input_sort_field: x
 
         input_nets:
           class_path: torch.nn.ModuleList
@@ -182,12 +184,12 @@ model:
                     class_path: hepattn.components.Dense
                     init_args:
                       input_size: 9
-                      output_size: *dim
+                      output_size: 128
                   posenc:
                     class_path: hepattn.components.FourierPositionEncoder
                     init_args:
                       input_name: pixel
-                      dim: *dim
+                      dim: 128
                       fields:
                         - x
                         - y
@@ -196,16 +198,64 @@ model:
           class_path: hepattn.components.Encoder
           init_args:
             num_layers: 2
-            dim: *dim
+            dim: 128
             attn_type: torch
 
         decoder:
           num_decoder_layers: 2
           num_queries: *cluster_max_multiplicity
           mask_attention: false
-          use_query_masks: false
           decoder_layer_config:
-            dim: *dim
+            dim: 128
+
+          tasks:
+            class_path: torch.nn.ModuleList
+            init_args:
+              modules:
+                - class_path: hepattn.tasks.ObjectClassificationTask
+                  init_args:
+                    name: track_valid
+                    input_object: query
+                    output_object: track
+                    target_object: particle
+                    losses:
+                      object_bce: 1.0
+                    costs:
+                      object_bce: 1.0
+                    dim: 128
+                    null_weight: 1.0
+
+                - class_path: hepattn.tasks.ObjectGaussianRegressionTask
+                  init_args:
+                    name: track_regr
+                    input_object: query
+                    output_object: track
+                    target_object: particle
+                    fields:
+                      - x
+                      - y
+                      # - theta
+                      # - phi
+                    loss_weight: 1.0
+                    cost_weight: 1.0
+                    dim: 128
+
+                # - class_path: hepattn.tasks.ClassificationTask
+                #   init_args:
+                #     name: track_class
+                #     input_object: query
+                #     output_object: track
+                #     target_object: particle
+                #     classes:
+                #       - primary
+                #       - secondary
+                #       - notruth
+                #     class_weights:
+                #       primary: 1.00
+                #       secondary: 8.68
+                #       notruth: 2.04
+                #     loss_weight: 0.1
+                #     dim: 128
 
         matcher:
           class_path: hepattn.models.Matcher
@@ -213,52 +263,3 @@ model:
             default_solver: scipy
             adaptive_solver: false
             adaptive_check_interval: 1000
-
-        tasks:
-          class_path: torch.nn.ModuleList
-          init_args:
-            modules:
-              - class_path: hepattn.tasks.ObjectClassificationTask
-                init_args:
-                  name: track_valid
-                  input_object: query
-                  output_object: track
-                  target_object: particle
-                  losses:
-                    object_bce: 1.0
-                  costs:
-                    object_bce: 1.0
-                  dim: *dim
-                  null_weight: 1.0
-
-              - class_path: hepattn.tasks.ObjectGaussianRegressionTask
-                init_args:
-                  name: track_regr
-                  input_object: query
-                  output_object: track
-                  target_object: particle
-                  fields:
-                    - x
-                    - y
-                    # - theta
-                    # - phi
-                  loss_weight: 1.0
-                  cost_weight: 1.0
-                  dim: *dim
-
-              # - class_path: hepattn.tasks.ClassificationTask
-              #   init_args:
-              #     name: track_class
-              #     input_object: query
-              #     output_object: track
-              #     target_object: particle
-              #     classes:
-              #       - primary
-              #       - secondary
-              #       - notruth
-              #     class_weights:
-              #       primary: 1.00
-              #       secondary: 8.68
-              #       notruth: 2.04
-              #     loss_weight: 0.1
-              #     dim: *dim

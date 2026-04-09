@@ -7,6 +7,7 @@ from hepattn.components.input import InputNet
 from hepattn.components.norm import CustomRMSNorm, FastLayerNorm
 from hepattn.components.pooling import Pooling
 from hepattn.components.posenc import FourierPositionEncoder, PositionEncoder
+from hepattn.components.sorter import Sorter
 
 __all__ = [
     "Attention",
@@ -23,5 +24,6 @@ __all__ = [
     "Pooling",
     "PositionEncoder",
     "Residual",
+    "Sorter",
     "SwiGLU",
 ]
