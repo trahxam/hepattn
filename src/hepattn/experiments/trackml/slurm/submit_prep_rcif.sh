@@ -26,7 +26,7 @@ IN_DIR="/share/rcifdata/maxhart/data/trackml/raw/train/"
 OUT_DIR="/share/rcifdata/maxhart/data/trackml/prepped/train/"
 
 # Python command that will be run
-PYTORCH_CMD="python src/hepattn/experiments/trackml/prep.py --in_dir $IN_DIR --out_dir $OUT_DIR"
+PYTORCH_CMD="python src/hepattn/experiments/trackml/prep/prep.py --in_dir $IN_DIR --out_dir $OUT_DIR"
 
 # Pixi commnand that runs the python command inside the pixi env
 PIXI_CMD="pixi run $PYTORCH_CMD"

@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from hepattn.experiments.trackml.data import TrackMLDataset
+from hepattn.experiments.trackml.data.data import TrackMLDataset
 
 plt.rcParams["text.usetex"] = False
 plt.rcParams["figure.dpi"] = 300

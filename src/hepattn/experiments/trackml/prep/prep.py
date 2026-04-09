@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 from tqdm import tqdm
 
-from hepattn.experiments.trackml import cluster_features
+from hepattn.experiments.trackml.prep import cluster_features
 
 # A script for preprocessing TrackML CSV files into parquet binary files
 

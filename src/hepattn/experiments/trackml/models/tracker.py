@@ -1,11 +1,7 @@
-import comet_ml  # noqa: F401
 import torch
-from lightning.pytorch.cli import ArgsType
 from torch import nn
 
-from hepattn.experiments.trackml.data import TrackMLDataModule
 from hepattn.models import ModelWrapper
-from hepattn.utils.cli import CLI
 
 
 class TrackMLTracker(ModelWrapper):
@@ -26,7 +22,6 @@ class TrackMLTracker(ModelWrapper):
 
         # log intermediate layer mask predictions
         for layer_name, layer_preds in preds.items():
-            # Skip layers that don't have track_hit_valid task (e.g., encoder layer)
             if "track_hit_valid" not in layer_preds:
                 continue
             mask = layer_preds["track_hit_valid"]["track_hit_valid"]
@@ -45,32 +40,21 @@ class TrackMLTracker(ModelWrapper):
                     if valid_frac_valid.numel() > 0:
                         self.log(f"{stage}/{layer_name}_avg_frac_valid_hits", valid_frac_valid.mean(), sync_dist=True)
 
-        # Just log predictions from the final layer
         preds = preds["final"]
 
-        # First log metrics that depend on outputs from multiple tasks
-        # TODO: Make the task names configurable or match task names automatically
         pred_valid = preds["track_valid"]["track_valid"]
         true_valid = targets["particle_valid"]
 
         if query_mask is not None:
             pred_valid = pred_valid & query_mask
 
-        # Set the masks of any track slots that are not used as null
         pred_hit_masks = preds["track_hit_valid"]["track_hit_valid"] & pred_valid.unsqueeze(-1)
         true_hit_masks = targets["particle_hit_valid"] & true_valid.unsqueeze(-1)
 
-        # Calculate the true/false positive rates between the predicted and true masks
-        # Number of hits that were correctly assigned to the track
         hit_tp = (pred_hit_masks & true_hit_masks).sum(-1)
-
-        # Number of predicted hits on the track
         hit_p = pred_hit_masks.sum(-1)
-
-        # True number of hits on the track
         hit_t = true_hit_masks.sum(-1)
 
-        # Calculate the efficiency and purity at differnt matching working points
         for wp in [0.5, 0.75, 1.0]:
             both_valid = true_valid & pred_valid
 
@@ -104,16 +88,3 @@ class TrackMLTracker(ModelWrapper):
         self.log(f"{stage}/num_hits", num_hits_total, sync_dist=True)
         self.log(f"{stage}/num_hits_valid", num_hits_valid, sync_dist=True)
         self.log(f"{stage}/num_hits_noise", num_hits_noise, sync_dist=True)
-
-
-def main(args: ArgsType = None) -> None:
-    CLI(
-        model_class=TrackMLTracker,
-        datamodule_class=TrackMLDataModule,
-        args=args,
-        parser_kwargs={"default_env": True},
-    )
-
-
-if __name__ == "__main__":
-    main()
