@@ -6,9 +6,9 @@ from torch.nn.attention.flex_attention import create_block_mask, create_mask
 
 from hepattn.flex import relative_position, relative_position_wrapped
 from hepattn.flex.sliding_window import sliding_window_mask, sliding_window_mask_wrapped
-from hepattn.models.attention import Attention, repad_from_flash_varlen, unpad_for_flash_varlen
-from hepattn.models.dense import Dense
-from hepattn.models.norm import NORM_TYPES, get_hybrid_norm_config
+from hepattn.components.attention import Attention, repad_from_flash_varlen, unpad_for_flash_varlen
+from hepattn.components.dense import Dense
+from hepattn.components.norm import NORM_TYPES, get_hybrid_norm_config
 
 create_block_mask = torch.compile(create_block_mask, dynamic=True)  # ty: ignore[invalid-assignment]
 

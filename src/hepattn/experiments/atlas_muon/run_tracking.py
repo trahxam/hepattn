@@ -12,7 +12,7 @@ from lightning.pytorch.cli import ArgsType
 from torch import nn
 
 from hepattn.experiments.atlas_muon.data import AtlasMuonDataModule
-from hepattn.models.wrapper import ModelWrapper
+from hepattn.models import ModelWrapper
 from hepattn.utils.cli import CLI
 
 

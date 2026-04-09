@@ -1,6 +1,6 @@
 from torch import nn
 
-from hepattn.models.wrapper import ModelWrapper
+from hepattn.models import ModelWrapper
 
 
 class TIDEModel(ModelWrapper):

@@ -95,18 +95,18 @@ model:
         class_path: torch.nn.ModuleList
         init_args:
           modules:
-            - class_path: hepattn.models.InputNet
+            - class_path: hepattn.components.InputNet
               init_args:
                 input_name: node
                 fields:
                   - features
                 net:
-                  class_path: hepattn.models.Dense
+                  class_path: hepattn.components.Dense
                   init_args:
                     input_size: 27
                     output_size: *dim
                 posenc:
-                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  class_path: hepattn.components.FourierPositionEncoder
                   init_args:
                     input_name: node
                     dim: *dim
@@ -114,7 +114,7 @@ model:
                     scale: 0.1
 
       encoder:
-        class_path: hepattn.models.Encoder
+        class_path: hepattn.components.Encoder
         init_args:
           num_layers: 6
           dim: *dim
@@ -137,7 +137,7 @@ model:
             num_heads: 16
 
       matcher:
-        class_path: hepattn.models.matcher.Matcher
+        class_path: hepattn.models.Matcher
         init_args:
           default_solver: scipy
           adaptive_solver: false
@@ -148,7 +148,7 @@ model:
         class_path: torch.nn.ModuleList
         init_args:
           modules:
-            - class_path: hepattn.models.task.ObjectClassificationTask
+            - class_path: hepattn.tasks.ObjectClassificationTask
               init_args:
                 name: classification
                 input_object: query
@@ -160,7 +160,7 @@ model:
                 costs:
                   object_ce: 2
                 net:
-                  class_path: hepattn.models.Dense
+                  class_path: hepattn.components.Dense
                   init_args:
                     input_size: *dim
                     activation: torch.nn.SiLU
@@ -171,7 +171,7 @@ model:
                 mask_queries: false
                 has_intermediate_loss: true
 
-            - class_path: hepattn.models.task.ObjectHitMaskTask
+            - class_path: hepattn.tasks.ObjectHitMaskTask
               init_args:
                 name: mask
                 input_constituent: node
@@ -190,7 +190,7 @@ model:
                 null_weight: 1.0
                 has_intermediate_loss: true
 
-            - class_path: hepattn.models.task.IncidenceRegressionTask
+            - class_path: hepattn.tasks.IncidenceRegressionTask
               init_args:
                 name: incidence
                 input_constituent: node
@@ -202,19 +202,19 @@ model:
                 costs:
                   kl_div: 1.0
                 net:
-                  class_path: hepattn.models.Dense
+                  class_path: hepattn.components.Dense
                   init_args:
                     input_size: *dim
                     activation: torch.nn.SiLU
                     hidden_layers: 2
                 node_net:
-                  class_path: hepattn.models.Dense
+                  class_path: hepattn.components.Dense
                   init_args:
                     input_size: *dim
                     hidden_layers: 1
                 has_intermediate_loss: false
 
-            - class_path: hepattn.models.task.IncidenceBasedRegressionTask
+            - class_path: hepattn.tasks.IncidenceBasedRegressionTask
               init_args:
                 name: regression
                 fields: ["e", "pt", "eta", "sinphi", "cosphi"]
@@ -231,7 +231,7 @@ model:
                 mode: scale
                 scale_dict_path: *scale_dict_path
                 net:
-                  class_path: hepattn.models.Dense
+                  class_path: hepattn.components.Dense
                   init_args:
                     input_size: 518
                     activation: torch.nn.SiLU

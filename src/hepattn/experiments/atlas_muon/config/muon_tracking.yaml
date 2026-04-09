@@ -119,7 +119,7 @@ model:
         class_path: torch.nn.ModuleList
         init_args:
           modules:
-            - class_path: hepattn.models.InputNet
+            - class_path: hepattn.components.InputNet
               init_args:
                 input_name: hit
                 fields:
@@ -145,12 +145,12 @@ model:
                   - phi  # Azimuthal angle
                   - eta # Pseudorapidity
                 net:
-                  class_path: hepattn.models.Dense
+                  class_path: hepattn.components.Dense
                   init_args:
                     input_size: 18
                     output_size: *dim
                 posenc:
-                  class_path: hepattn.models.posenc.PositionEncoder
+                  class_path: hepattn.components.PositionEncoder
                   init_args:
                     input_name: hit
                     dim: *dim
@@ -163,7 +163,7 @@ model:
                       - phi
 
       encoder:
-        class_path: hepattn.models.Encoder
+        class_path: hepattn.components.Encoder
         init_args:
           num_layers: 2
           dim: *dim
@@ -184,7 +184,7 @@ model:
           attn_kwargs: {bias: false, num_heads: 8}
 
       matcher:
-        class_path: hepattn.models.matcher.Matcher
+        class_path: hepattn.models.Matcher
         init_args:
           default_solver: scipy
           adaptive_solver: false
@@ -196,7 +196,7 @@ model:
         class_path: torch.nn.ModuleList
         init_args:
           modules:
-            - class_path: hepattn.models.task.ObjectClassificationTask
+            - class_path: hepattn.tasks.ObjectClassificationTask
               init_args:
                 name: track_valid
                 input_object: query
@@ -209,7 +209,7 @@ model:
                 dim: *dim
                 null_weight: 1.0
                 mask_queries: false
-            - class_path: hepattn.models.task.ObjectHitMaskTask
+            - class_path: hepattn.tasks.ObjectHitMaskTask
               init_args:
                 name: track_hit_valid
                 input_constituent: hit
@@ -224,7 +224,7 @@ model:
                 null_weight: 1.0
                 mask_attn: true
 
-            - class_path: hepattn.models.task.ObjectRegressionTask
+            - class_path: hepattn.tasks.ObjectRegressionTask
               init_args:
                 name: parameter_regression
                 input_object: query

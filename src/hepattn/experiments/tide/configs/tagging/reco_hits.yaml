@@ -134,7 +134,7 @@ model:
         class_path: torch.nn.ModuleList
         init_args:
           modules:
-            - class_path: hepattn.models.InputNet
+            - class_path: hepattn.components.InputNet
               init_args:
                 input_name: pix
                 fields:
@@ -172,12 +172,12 @@ model:
                   - log_charge_matrix
                   - pitches
                 net:
-                  class_path: hepattn.models.Dense
+                  class_path: hepattn.components.Dense
                   init_args:
                     input_size: 81
                     output_size: *dim
                 posenc:
-                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  class_path: hepattn.components.FourierPositionEncoder
                   init_args:
                     input_name: pix
                     dim: *dim
@@ -189,7 +189,7 @@ model:
                       - dtheta
                       - dphi
 
-            - class_path: hepattn.models.InputNet
+            - class_path: hepattn.components.InputNet
               init_args:
                 input_name: sct
                 fields:
@@ -225,12 +225,12 @@ model:
                   - side
                   - width
                 net:
-                  class_path: hepattn.models.Dense
+                  class_path: hepattn.components.Dense
                   init_args:
                     input_size: 25
                     output_size: *dim
                 posenc:
-                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  class_path: hepattn.components.FourierPositionEncoder
                   init_args:
                     input_name: sct
                     dim: *dim
@@ -242,7 +242,7 @@ model:
                       - dtheta
                       - dphi
 
-            - class_path: hepattn.models.InputNet
+            - class_path: hepattn.components.InputNet
               init_args:
                 input_name: reco
                 fields:
@@ -271,12 +271,12 @@ model:
                   - num_shared_layer_0_pix
                   - num_shared_layer_1_pix
                 net:
-                  class_path: hepattn.models.Dense
+                  class_path: hepattn.components.Dense
                   init_args:
                     input_size: 20
                     output_size: *dim
                 posenc:
-                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  class_path: hepattn.components.FourierPositionEncoder
                   init_args:
                     input_name: reco
                     dim: *dim

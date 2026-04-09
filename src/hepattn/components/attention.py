@@ -17,7 +17,7 @@ from torch import Size, Tensor, nn
 from torch.nn.attention.flex_attention import BlockMask, _score_mod_signature, flex_attention
 from torch.nn.functional import scaled_dot_product_attention
 
-from hepattn.models.norm import NORM_TYPES
+from hepattn.components.norm import NORM_TYPES
 from hepattn.utils.bert_padding import pad_input, unpad_input
 
 ATTN_TYPES = {"torch": scaled_dot_product_attention, "flex": flex_attention, "flash": flash_attn_func, "flash-varlen": flash_attn_varlen_func}

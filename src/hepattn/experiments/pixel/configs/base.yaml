@@ -161,7 +161,7 @@ model:
         class_path: torch.nn.ModuleList
         init_args:
           modules:
-            - class_path: hepattn.models.InputNet
+            - class_path: hepattn.components.InputNet
               init_args:
                 input_name: pixel
                 fields:
@@ -175,12 +175,12 @@ model:
                   - cluster_leading_theta
                   - cluster_leading_phi
                 net:
-                  class_path: hepattn.models.Dense
+                  class_path: hepattn.components.Dense
                   init_args:
                     input_size: 9
                     output_size: *dim
                 posenc:
-                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                  class_path: hepattn.components.FourierPositionEncoder
                   init_args:
                     input_name: pixel
                     dim: *dim
@@ -189,7 +189,7 @@ model:
                       - y
 
       encoder:
-        class_path: hepattn.models.Encoder
+        class_path: hepattn.components.Encoder
         init_args:
           num_layers: 2
           dim: *dim
@@ -204,7 +204,7 @@ model:
           dim: *dim
 
       matcher:
-        class_path: hepattn.models.matcher.Matcher
+        class_path: hepattn.models.Matcher
         init_args:
           default_solver: scipy
           adaptive_solver: false
@@ -214,7 +214,7 @@ model:
         class_path: torch.nn.ModuleList
         init_args:
           modules:
-            - class_path: hepattn.models.task.ObjectClassificationTask
+            - class_path: hepattn.tasks.ObjectClassificationTask
               init_args:
                 name: track_valid
                 input_object: query
@@ -227,7 +227,7 @@ model:
                 dim: *dim
                 null_weight: 1.0
 
-            - class_path: hepattn.models.task.ObjectGaussianRegressionTask
+            - class_path: hepattn.tasks.ObjectGaussianRegressionTask
               init_args:
                 name: track_regr
                 input_object: query
@@ -242,7 +242,7 @@ model:
                 cost_weight: 1.0
                 dim: *dim
 
-            # - class_path: hepattn.models.task.ClassificationTask
+            # - class_path: hepattn.tasks.ClassificationTask
             #   init_args:
             #     name: track_class
             #     input_object: query

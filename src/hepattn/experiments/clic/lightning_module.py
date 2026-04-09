@@ -3,7 +3,7 @@ import torchmetrics as tm
 from torch import nn
 
 from hepattn.experiments.clic.metrics import MaskInference
-from hepattn.models.wrapper import ModelWrapper
+from hepattn.models import ModelWrapper
 
 
 class MPflow(ModelWrapper):

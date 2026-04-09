@@ -107,7 +107,7 @@ model:
         class_path: torch.nn.ModuleList
         init_args:
           modules:
-            - class_path: hepattn.models.InputNet
+            - class_path: hepattn.components.InputNet
               init_args:
                 input_name: hit
                 fields:
@@ -133,12 +133,12 @@ model:
                   - phi  # Azimuthal angle
                   - eta  # Pseudorapidity
                 net:
-                  class_path: hepattn.models.Dense
+                  class_path: hepattn.components.Dense
                   init_args:
                     input_size: 18
                     output_size: &dim 128
                 posenc:
-                  class_path: hepattn.models.posenc.PositionEncoder
+                  class_path: hepattn.components.PositionEncoder
                   init_args:
                     input_name: hit
                     dim: *dim
@@ -151,7 +151,7 @@ model:
                       - phi
 
       encoder:
-        class_path: hepattn.models.Encoder
+        class_path: hepattn.components.Encoder
         init_args:
           num_layers: 8
           dim: *dim
@@ -167,7 +167,7 @@ model:
         class_path: torch.nn.ModuleList
         init_args:
           modules:
-            - class_path: hepattn.models.task.HitFilterTaskBatched
+            - class_path: hepattn.tasks.HitFilterTaskBatched
               init_args:
                 name: hit_filter
                 input_object: hit

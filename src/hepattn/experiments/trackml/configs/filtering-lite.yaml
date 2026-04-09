@@ -108,7 +108,7 @@ model:
         class_path: torch.nn.ModuleList
         init_args:
           modules:
-            - class_path: hepattn.models.InputNet
+            - class_path: hepattn.components.InputNet
               init_args:
                 input_name: hit
                 fields:
@@ -129,7 +129,7 @@ model:
                   - geta
                   - gphi
                 net:
-                  class_path: hepattn.models.Dense
+                  class_path: hepattn.components.Dense
                   init_args:
                     input_size: 16
                     output_size: &dim 256
@@ -144,7 +144,7 @@ model:
                     dim: *dim
                     scale: 0.1
       encoder:
-        class_path: hepattn.models.Encoder
+        class_path: hepattn.components.Encoder
         init_args:
           num_layers: 10
           dim: *dim
@@ -158,7 +158,7 @@ model:
         class_path: torch.nn.ModuleList
         init_args:
           modules:
-            - class_path: hepattn.models.task.HitFilterTask
+            - class_path: hepattn.tasks.HitFilterTask
               init_args:
                 name: hit_filter
                 input_object: hit

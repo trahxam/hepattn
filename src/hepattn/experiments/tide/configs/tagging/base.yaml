@@ -239,14 +239,14 @@ model:
     init_args:
       dim: &dim 256
       encoder:
-        class_path: hepattn.models.Encoder
+        class_path: hepattn.components.Encoder
         init_args:
           num_layers: 8
           dim: *dim
           attn_type: torch
 
       pooling:
-        class_path: hepattn.models.pooling.Pooling
+        class_path: hepattn.components.Pooling
         init_args:
           input_object: key
           output_object: pool
@@ -256,7 +256,7 @@ model:
         class_path: torch.nn.ModuleList
         init_args:
           modules:
-            - class_path: hepattn.models.task.ClassificationTask
+            - class_path: hepattn.tasks.ClassificationTask
               init_args:
                 name: roi_tagging
                 input_object: pool

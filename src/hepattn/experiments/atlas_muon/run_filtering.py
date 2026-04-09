@@ -14,7 +14,7 @@ from torch import nn
 from torchmetrics.functional import auroc
 
 from hepattn.experiments.atlas_muon.data import AtlasMuonDataModule
-from hepattn.models.wrapper import ModelWrapper
+from hepattn.models import ModelWrapper
 from hepattn.utils.cli import CLI
 
 

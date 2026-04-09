@@ -1,7 +1,7 @@
 import torch
 from torch import Tensor, nn
 
-from hepattn.models.dense import Dense
+from hepattn.components.dense import Dense
 
 
 class Pooling(nn.Module):

@@ -108,7 +108,7 @@ model:
         class_path: torch.nn.ModuleList
         init_args:
           modules:
-            - class_path: hepattn.models.InputNet
+            - class_path: hepattn.components.InputNet
               init_args:
                 input_name: sihit
                 input_dtype: float32
@@ -122,14 +122,14 @@ model:
                   - phi
                   - layer_id
                 net:
-                  class_path: hepattn.models.Dense
+                  class_path: hepattn.components.Dense
                   init_args:
                     input_size: 8
                     hidden_layers: [128]
                     output_size: *dim
                     activation: SwiGLU
                 posenc:
-                  class_path: hepattn.models.posenc.PositionEncoder
+                  class_path: hepattn.components.PositionEncoder
                   init_args:
                     input_name: sihit
                     dim: *dim
@@ -139,7 +139,7 @@ model:
                       - phi
 
       encoder:
-        class_path: hepattn.models.Encoder
+        class_path: hepattn.components.Encoder
         init_args:
           num_layers: 4
           dim: *dim
@@ -164,7 +164,7 @@ model:
           attn_kwargs: {bias: false}
 
       matcher:
-        class_path: hepattn.models.matcher.Matcher
+        class_path: hepattn.models.Matcher
         init_args:
           default_solver: scipy
           adaptive_solver: false
@@ -174,7 +174,7 @@ model:
         class_path: torch.nn.ModuleList
         init_args:
           modules:
-            - class_path: hepattn.models.task.ObjectClassificationTask
+            - class_path: hepattn.tasks.ObjectClassificationTask
               init_args:
                 name: flow_valid
                 input_object: query
@@ -190,7 +190,7 @@ model:
                 has_intermediate_loss: true
                 has_first_layer_loss: false
 
-            - class_path: hepattn.models.task.ObjectHitMaskTask
+            - class_path: hepattn.tasks.ObjectHitMaskTask
               init_args:
                 name: flow_sihit_assignment
                 input_constituent: sihit

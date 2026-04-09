@@ -2,7 +2,7 @@ from lightning.pytorch.cli import ArgsType
 from torch import nn
 
 from hepattn.experiments.trackml.data import TrackMLDataModule
-from hepattn.models.wrapper import ModelWrapper
+from hepattn.models import ModelWrapper
 from hepattn.utils.cli import CLI
 
 
