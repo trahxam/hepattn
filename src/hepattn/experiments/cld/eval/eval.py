@@ -5,13 +5,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import yaml
-from scipy.stats import binned_statistic
 from tqdm import tqdm
 
-from hepattn.experiments.cld.data import CLDDataset
-from hepattn.experiments.cld.event_display import plot_cld_event
+from hepattn.experiments.cld.data.data import CLDDataset
+from hepattn.experiments.cld.scripts.event_display import plot_cld_event
+from hepattn.utils.histogram import BinomialHistogram
 from hepattn.utils.plotting import plot_hist_to_ax
-from hepattn.utils.stats import bayesian_binomial_error
 
 plt.rcParams["text.usetex"] = False
 plt.rcParams["figure.dpi"] = 300
@@ -106,57 +105,33 @@ def main():
         "num_hcal": ("Number of HCAL Hits", np.geomspace(1, 1000, 32), "linear"),
     }
 
-    particle_total_valid = {hit: {field: np.zeros(len(plot_specs[field][1]) - 1) for field in plot_specs} for hit in hits}
-    particle_total_eff = {hit: {field: np.zeros(len(plot_specs[field][1]) - 1) for field in plot_specs} for hit in hits}
-
-    {hit: {field: np.zeros(len(plot_specs[field][1]) - 1) for field in plot_specs} for hit in hits}
-    {hit: {field: np.zeros(len(plot_specs[field][1]) - 1) for field in plot_specs} for hit in hits}
+    # Create efficiency histograms per hit type and per field
+    eff_hists = {hit: {field: BinomialHistogram(bins) for field, (_, bins, _) in plot_specs.items()} for hit in hits}
 
     for idx in tqdm(range(100)):
-        # Load the data from the event
         sample_id = dataset.sample_ids[idx]
-
         inputs, targets = dataset.load_event(sample_id)
 
         for hit in hits:
             hit_valid = targets[f"{hit}_valid"]
 
-            # Loading a single event from the dataloader does not pad the particles, so we have to apply the
-            # particle / object padding that was used for the model to both the particles and the masks
             particle_pad_size = dataset.event_max_num_particles - len(targets["particle_valid"])
             particle_valid = np.pad(targets["particle_valid"], ((0, particle_pad_size),), constant_values=False)
-
             particle_hit_valid = np.pad(targets[f"particle_{hit}_valid"], ((0, particle_pad_size), (0, 0)), constant_values=False)
 
-            # Load the eval file
             with h5py.File(eval_path, "r") as eval_file:
                 preds = eval_file[f"{sample_id}/preds/final/"]
-
                 flow_valid = preds["flow_valid/flow_valid"][0]
-
-                # The masks will have had the particle padding applied, but also the hit padding (since they are batched)
                 flow_hit_valid = preds[f"flow_{hit}_assignment/flow_{hit}_valid"][0][:, : len(hit_valid)]
 
             particle_valid &= particle_hit_valid.sum(-1) > 0
-
             hit_iou = (particle_hit_valid & flow_hit_valid).sum(-1) / (particle_hit_valid | flow_hit_valid).sum(-1)
-
             matched = particle_valid & flow_valid & (hit_iou >= 0.75)
-
             particle_eff = particle_valid & matched
 
-            # Fill the particle histograms
             for field, (_, bins, _) in plot_specs.items():
                 particle_field = np.pad(targets[f"particle_{field}"], ((0, particle_pad_size),), constant_values=0.0)
-
-                # Do overflow binning
-                particle_field = np.clip(particle_field, bins[0], bins[-1])
-
-                num_valid, _, _ = binned_statistic(particle_field, particle_valid, statistic="sum", bins=bins)
-                num_eff, _, _ = binned_statistic(particle_field, particle_eff, statistic="sum", bins=bins)
-
-                particle_total_valid[hit][field] += num_valid
-                particle_total_eff[hit][field] += num_eff
+                eff_hists[hit][field].fill(particle_field, numerator=particle_eff, denominator=particle_valid)
 
     hit_aliases = {
         "vtxd": "VTXD",
@@ -168,15 +143,8 @@ def main():
     # Now plot everything
     for field, (alias, bins, scale) in plot_specs.items():
         for hit in hits:
-            total_valid = particle_total_valid[hit][field]
-            total_eff = particle_total_eff[hit][field]
+            eff, eff_errors = eff_hists[hit][field].ratio()
 
-            # Total effieicny is the total number of effieint particles /
-            # total number of valid (i.e. reconstructable) particles
-            eff = total_eff / total_valid
-            eff_errors = bayesian_binomial_error(total_eff, total_valid)
-
-            # Plot the efficiency
             fig, ax = plt.subplots()
             fig.set_size_inches(8, 3)
 
@@ -194,7 +162,7 @@ def main():
         fig, ax = plt.subplots()
         fig.set_size_inches(8, 3)
 
-        plot_hist_to_ax(ax, total_valid, bins, vertical_lines=True)
+        plot_hist_to_ax(ax, eff_hists[hits[0]][field].n, bins, vertical_lines=True)
 
         ax.set_xlabel(f"Particle {alias}")
         ax.set_ylabel("Count")

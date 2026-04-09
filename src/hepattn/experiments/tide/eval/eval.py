@@ -4,8 +4,10 @@ import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import linear_sum_assignment
-from scipy.stats import binned_statistic
 from tqdm import tqdm
+
+from hepattn.utils.histogram import BinomialHistogram
+from hepattn.utils.plotting import plot_hist_to_ax
 
 plt.rcParams["text.usetex"] = True
 plt.rcParams["figure.dpi"] = 300
@@ -34,8 +36,7 @@ def main():
         ("sudo_phi", r"Track $\phi$", "linear", np.linspace(-np.pi, np.pi, 24)),
     ]
 
-    trk_all_bins = {pred_name: {qty: np.zeros(len(bins) - 1) for qty, _, _, bins in trk_qtys} for pred_name in pred_names}
-    trk_eff_bins = {pred_name: {qty: np.zeros(len(bins) - 1) for qty, _, _, bins in trk_qtys} for pred_name in pred_names}
+    eff_hists = {pred_name: {qty: BinomialHistogram(bins) for qty, _, _, bins in trk_qtys} for pred_name in pred_names}
 
     with h5py.File(eval_path) as file:
         for i, sample_id in tqdm(enumerate(file.keys())):
@@ -73,16 +74,7 @@ def main():
                 sct_fn = np.einsum("nc,mc->nm", (~true_sct_valid), pred_sct_valid)
 
                 eps = 1e-6
-                metric = "iou"
-                score_threshold = 0.75
-
-                # Using the masks we calculate the desired score - the eps term prevents any division by zero
-                if metric == "tmp":
-                    scores = (2 * pix_tp + sct_tp) / (2 * (pix_tp + pix_fp) + sct_tp + sct_fp + eps)
-                elif metric == "iou":
-                    scores = (2 * pix_tp + sct_tp) / (2 * (pix_tp + pix_fp + pix_fn) + sct_tp + sct_fp + sct_fn + eps)
-                elif metric == "dice":
-                    scores = 2 * (pix_tp + sct_tp) / (2 * pix_tp + pix_fp + pix_fn + 2 * sct_tp + sct_fp + sct_fn + eps)
+                scores = (2 * pix_tp + sct_tp) / (2 * (pix_tp + pix_fp + pix_fn) + sct_tp + sct_fp + sct_fn + eps)
 
                 _true_idx, pred_idx = linear_sum_assignment(scores)
 
@@ -92,38 +84,25 @@ def main():
 
                 scores = scores[:, pred_idx]
 
-                true_is_eff = (scores >= score_threshold).any(-1)[true_valid]
+                true_is_eff = (scores >= 0.75).any(-1)[true_valid]
 
                 for qty_name, _, _, bins in trk_qtys:
                     qty = targets[qty_name][0][true_valid]
-
-                    num_all, _, _ = binned_statistic(qty, true_is_eff, statistic="count", bins=bins)
-                    num_eff, _, _ = binned_statistic(qty, true_is_eff, statistic="sum", bins=bins)
-
-                    trk_all_bins[pred_name][qty_name] += num_all
-                    trk_eff_bins[pred_name][qty_name] += num_eff
+                    eff_hists[pred_name][qty_name].fill(qty, numerator=true_is_eff)
 
     for qty_name, qty_label, scale, bins in trk_qtys:
         fig, ax = plt.subplots()
         fig.set_size_inches(8, 3)
 
         for pred_name in pred_names:
-            freq_e = trk_eff_bins[pred_name][qty_name] / trk_all_bins[pred_name][qty_name]
-
-            for bin_idx in range(len(bins) - 1):
-                px = np.array([bins[bin_idx], bins[bin_idx + 1]])
-                py = np.array([freq_e[bin_idx], freq_e[bin_idx]])
-                # pe = np.array([freq_e_err[bin_idx], freq_e_err[bin_idx]])
-                ax.plot(px, py, color=colors[pred_name], linewidth=1.0)
-                # ax[0,qty_idx].fill_between(px, py - pe, py + pe, color=colors[pred], alpha=0.1, ec="none")
+            eff, eff_errors = eff_hists[pred_name][qty_name].ratio()
+            plot_hist_to_ax(ax, eff, bins, eff_errors, color=colors[pred_name], label=pred_name)
 
         ax.set_xscale(scale)
-
         ax.grid(zorder=0, alpha=0.25, linestyle="--")
-        ax.grid(zorder=0, alpha=0.25, linestyle="--")
-
         ax.set_xlabel(qty_label)
         ax.set_ylabel("Track Efficiency")
+        ax.legend()
 
         fig.tight_layout()
         fig.savefig(f"/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/tide/plots/{qty_name}.png")

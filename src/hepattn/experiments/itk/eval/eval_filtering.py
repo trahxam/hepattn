@@ -7,12 +7,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import yaml
-from scipy.stats import binned_statistic
 from tqdm import tqdm
 
-from hepattn.experiments.itk.data import ITkDataset
+from hepattn.experiments.itk.data.data import ITkDataset
+from hepattn.utils.histogram import BinomialHistogram
 from hepattn.utils.plotting import plot_hist_to_ax
-from hepattn.utils.stats import bayesian_binomial_error
 
 plt.rcParams["figure.dpi"] = 300
 plt.rcParams["font.size"] = 8
@@ -25,7 +24,6 @@ def sigmoid(x):
 
 def main():
     # Arguments for the evaluation
-    # First specify the config which will provide things like input info etc
     config_path = Path("/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/itk/configs/filtering_pixel.yaml")
     recon_max_eta = 4.0
     recon_min_pt = 1.0
@@ -35,7 +33,6 @@ def main():
     config = yaml.safe_load(config_path.read_text())["data"]
     inputs = config["inputs"]
 
-    # Add in extra target fields that will allow us to recompute reconstructability
     targets = config["targets"]
     targets["particle"] = ["pt", "eta", "phi"]
     targets["particle_pixel"] = []
@@ -52,15 +49,13 @@ def main():
         event_max_num_particles=10000,
     )
 
-    # Give the test eval file we are evaluating and setup the file
     hit_eval_path = "/share/rcifdata/maxhart/hepattn/logs/ITk_filtering_pixel_region135_3pix_eta4_900mev_PE_20250629-T133325/ckpts/epoch=099-val_loss=0.43550_test_eval.h5"
 
     dump_path = Path("/share/rcifdata/maxhart/hepattn/src/hepattn/experiments/itk/eval_dump")
 
-    # Define bins for particle retention rate under the nominal working point
+    # Define bins and create BinomialHistograms for particle retention rate
     particle_bins = {"pt": np.linspace(0.5, 10.0, 32), "eta": np.linspace(-4, 4, 32), "phi": np.linspace(-np.pi, np.pi, 32)}
-    particle_pre_counts = {field: np.zeros(len(particle_bins[field]) - 1) for field in particle_bins}
-    particle_post_counts = {field: np.zeros(len(particle_bins[field]) - 1) for field in particle_bins}
+    retention_hists = {field: BinomialHistogram(bins) for field, bins in particle_bins.items()}
 
     num_hits_pre = []
     num_recon_parts_pre = []
@@ -70,16 +65,10 @@ def main():
     wp_num_recon_parts_post = {wp: [] for wp in working_points}
 
     hit = "pixel"
-
-    # Working point that is used for the bulk plots
     nominal_wp = 0.025
 
-    # Iterate over the events
     for idx in tqdm(range(10)):
-        # Load the data from the event
         sample_id = dataset.sample_ids[idx]
-
-        # Note we are using load event, so evenerying is numpy arrays that are unbatched
         inputs, targets = dataset.load_event(sample_id)
 
         with h5py.File(hit_eval_path, "r") as hit_eval_file:
@@ -96,35 +85,24 @@ def main():
         particle_recon_pre = targets["particle_valid"]
         particle_hit_valid_pre = targets["particle_pixel_valid"]
 
-        # Drop any invalid particles that are not reconstructable
-        # The pt and eta cuts should be applied by the dataloader
         particle_hit_valid_pre = particle_hit_valid_pre[particle_recon_pre]
         particle_recon_pre = particle_recon_pre[particle_recon_pre]
 
-        # Record number of reconstructable particles and hits before filtering
         num_hits_pre.append(particle_hit_valid_pre.shape[-1])
         num_recon_parts_pre.append(particle_recon_pre.sum())
 
-        # Mark hits which pass the filter
+        # Mark hits which pass the filter at nominal working point
         hit_filter_pred = sigmoid(hit_logits) >= nominal_wp
-
-        # The post filter mask is just the pre filter mask, but with filtered hits removed
         particle_hit_valid_post = particle_hit_valid_pre & hit_filter_pred[None, :]
         particle_recon_post = particle_hit_valid_post.sum(-1) >= 3
 
-        # Fill the particle histograms
+        # Fill retention histograms
         for field, bins in particle_bins.items():
             particle_field = targets[f"particle_{field}"][targets["particle_valid"]]
+            retention_hists[field].fill(particle_field, numerator=particle_recon_post, denominator=particle_recon_pre)
 
-            post_count, _, _ = binned_statistic(particle_field, particle_recon_post, statistic="sum", bins=bins)
-            pre_count, _, _ = binned_statistic(particle_field, particle_recon_pre, statistic="sum", bins=bins)
-
-            particle_pre_counts[field] += pre_count
-            particle_post_counts[field] += post_count
-
-        # Now calculate metrics for different working points
+        # Calculate metrics for different working points
         for working_point in working_points:
-            # Mark hits which pass the filter under this new working point
             hit_filter_pred = sigmoid(hit_logits) >= working_point
             particle_hit_valid_post = particle_hit_valid_pre & hit_filter_pred[None, :]
             particle_recon_post = particle_hit_valid_post.sum(-1) >= 3
@@ -134,6 +112,7 @@ def main():
 
     plot_save_dir = Path(__file__).resolve().parent / Path("evalplots")
 
+    # Working point scan plot
     fig, ax = plt.subplots()
     fig.set_size_inches(8, 4)
 
@@ -158,64 +137,27 @@ def main():
 
     ax.grid(alpha=0.25, linestyle="--")
     ax.legend()
-
     ax.set_xticks([5e4, 7.5e4, 1e5, 1.25e5, 1.5e5, 2.0e5, 2.5e5])
 
     fig.savefig(plot_save_dir / Path("wp_scan.png"))
 
-    pre_count = particle_pre_counts["pt"]
-    post_count = particle_post_counts["pt"]
+    # Per-field retention plots
+    field_labels = {"pt": "Truth Particle $p_T$ [GeV]", "eta": r"Truth Particle $\eta$", "phi": r"Truth Particle $\phi$"}
 
-    eff = post_count / pre_count
-    eff_errors = bayesian_binomial_error(post_count, pre_count)
+    for field, bins in particle_bins.items():
+        eff, eff_errors = retention_hists[field].ratio()
 
-    fig, ax = plt.subplots()
-    fig.set_size_inches(8, 2)
+        fig, ax = plt.subplots()
+        fig.set_size_inches(8, 2)
 
-    plot_hist_to_ax(ax, eff, particle_bins["pt"], eff_errors)
+        plot_hist_to_ax(ax, eff, bins, eff_errors)
 
-    ax.set_xlabel("Truth Particle $p_T$ [GeV]")
-    ax.set_ylabel("Fraction of Reconstructable \n Particles Retained")
-    ax.set_ylim(0.99, 1.01)
-    ax.grid(zorder=0, alpha=0.25, linestyle="--")
+        ax.set_xlabel(field_labels[field])
+        ax.set_ylabel("Fraction of Reconstructable \n Particles Retained")
+        ax.set_ylim(0.99, 1.01)
+        ax.grid(zorder=0, alpha=0.25, linestyle="--")
 
-    fig.savefig(plot_save_dir / Path("particle_recon_pt.png"))
-
-    pre_count = particle_pre_counts["eta"]
-    post_count = particle_post_counts["eta"]
-
-    eff = post_count / pre_count
-    eff_errors = bayesian_binomial_error(post_count, pre_count)
-
-    fig, ax = plt.subplots()
-    fig.set_size_inches(8, 2)
-
-    plot_hist_to_ax(ax, eff, particle_bins["eta"], eff_errors)
-
-    ax.set_xlabel(r"Truth Particle $\eta$")
-    ax.set_ylabel("Fraction of Reconstructable \n Particles Retained")
-    ax.set_ylim(0.99, 1.0)
-    ax.grid(zorder=0, alpha=0.25, linestyle="--")
-
-    fig.savefig(plot_save_dir / Path("particle_recon_eta.png"))
-
-    pre_count = particle_pre_counts["phi"]
-    post_count = particle_post_counts["phi"]
-
-    eff = post_count / pre_count
-    eff_errors = bayesian_binomial_error(post_count, pre_count)
-
-    fig, ax = plt.subplots()
-    fig.set_size_inches(8, 2)
-
-    plot_hist_to_ax(ax, eff, particle_bins["phi"], eff_errors)
-
-    ax.set_xlabel(r"Truth Particle $\phi$")
-    ax.set_ylabel("Fraction of Reconstructable \n Particles Retained")
-    ax.set_ylim(0.99, 1.0)
-    ax.grid(zorder=0, alpha=0.25, linestyle="--")
-
-    fig.savefig(plot_save_dir / Path("particle_recon_phi.png"))
+        fig.savefig(plot_save_dir / Path(f"particle_recon_{field}.png"))
 
 
 if __name__ == "__main__":
