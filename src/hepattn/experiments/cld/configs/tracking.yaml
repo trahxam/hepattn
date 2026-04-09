@@ -1,289 +1,291 @@
 name: CLD_5_200_10MeV_Tracking
 
 data:
-  # Paths to preprocessed data directories
-  train_dir: /share/rcifdata/maxhart/data/cld/prepped/train/
-  val_dir: /share/rcifdata/maxhart/data/cld/prepped/train/
-  test_dir: /share/rcifdata/maxhart/data/cld/prepped/train/
+  class_path: hepattn.experiments.cld.data.data.CLDDataModule
+  init_args:
+    # Paths to preprocessed data directories
+    train_dir: /share/rcifdata/maxhart/data/cld/prepped/train/
+    val_dir: /share/rcifdata/maxhart/data/cld/prepped/train/
+    test_dir: /share/rcifdata/maxhart/data/cld/prepped/train/
 
-  # Number of events to include in each set
-  num_workers: 4
-  num_train: -1
-  num_test: 1000
-  num_val: 100
+    # Number of events to include in each set
+    num_workers: 4
+    num_train: -1
+    num_test: 1000
+    num_val: 100
 
-  batch_size: 5
+    batch_size: 5
 
-  precision: 16
+    precision: 16
 
-  # Minimum pT for a particle to be deemed reconstructve in GeV
-  particle_min_pt: 0.01
+    # Minimum pT for a particle to be deemed reconstructve in GeV
+    particle_min_pt: 0.01
 
-  # Number of query slots / particles to generate per event
-  event_max_num_particles: &num_particles 200
+    # Number of query slots / particles to generate per event
+    event_max_num_particles: &num_particles 200
 
-  # Charged particle cuts based on hit content
-  charged_particle_min_num_hits:
-    vtxd: 0
-    trkr: 0
-    sihit: 4
+    # Charged particle cuts based on hit content
+    charged_particle_min_num_hits:
+      vtxd: 0
+      trkr: 0
+      sihit: 4
 
-  # Charged particle cuts based on hit content
-  charged_particle_max_num_hits:
-    vtxd: 12
-    trkr: 12
-    sihit: 24
+    # Charged particle cuts based on hit content
+    charged_particle_max_num_hits:
+      vtxd: 12
+      trkr: 12
+      sihit: 24
 
-  # Cuts on minimum fraction of particle pT a hit should have
-  particle_hit_min_p_ratio:
-    vtxd: 0.01
-    trkr: 0.01
+    # Cuts on minimum fraction of particle pT a hit should have
+    particle_hit_min_p_ratio:
+      vtxd: 0.01
+      trkr: 0.01
 
-  # Cuts on maximum deflection between subsequent hits
-  particle_hit_deflection_cuts:
-    vtxd:
-      max_angle: 0.25
-      max_angle_xy: 0.25
-      max_angle_rz: 0.25
-      num_passes: 8
-    trkr:
-      max_angle: 1.0
-      max_angle_xy: 1.0
-      max_angle_rz: 1.0
-      num_passes: 12
+    # Cuts on maximum deflection between subsequent hits
+    particle_hit_deflection_cuts:
+      vtxd:
+        max_angle: 0.25
+        max_angle_xy: 0.25
+        max_angle_rz: 0.25
+        num_passes: 8
+      trkr:
+        max_angle: 1.0
+        max_angle_xy: 1.0
+        max_angle_rz: 1.0
+        num_passes: 12
 
-  # Cuts on maximum distance between subsequent hit
-  particle_hit_separation_cuts:
-    vtxd:
-      max_dist: 0.25
-      num_passes: 8
-    trkr:
-      max_dist: 1.5
-      num_passes: 12
+    # Cuts on maximum distance between subsequent hit
+    particle_hit_separation_cuts:
+      vtxd:
+        max_dist: 0.25
+        num_passes: 8
+      trkr:
+        max_dist: 1.5
+        num_passes: 12
 
-  # Whether to include charged / neutral particles as targets
-  include_charged: true
-  include_neutral: false
+    # Whether to include charged / neutral particles as targets
+    include_charged: true
+    include_neutral: false
 
-  truth_filter_hits: []
-    #- vtxd
-    #- trkr
-    #- ecal
-    #- hcal
-    #- muon
+    truth_filter_hits: []
+      #- vtxd
+      #- trkr
+      #- ecal
+      #- hcal
+      #- muon
 
-  merge_inputs:
-    vtxd:
-      - vtb
-      - vte
+    merge_inputs:
+      vtxd:
+        - vtb
+        - vte
 
-    trkr:
-      - itb
-      - ite
-      - otb
-      - ote
+      trkr:
+        - itb
+        - ite
+        - otb
+        - ote
 
-    sihit:
-      - vtb
-      - vte
-      - itb
-      - ite
-      - otb
-      - ote
+      sihit:
+        - vtb
+        - vte
+        - itb
+        - ite
+        - otb
+        - ote
 
-    ecal:
-      - ecb
-      - ece
+      ecal:
+        - ecb
+        - ece
 
-    hcal:
-      - hcb
-      - hce
-      - hco
+      hcal:
+        - hcb
+        - hce
+        - hco
 
-    muon:
-      - msb
-      - mse
+      muon:
+        - msb
+        - mse
 
-  inputs:
-    vtxd:
-      - type
-      - quality
-      - pos.x
-      - pos.y
-      - pos.z
-      - pos.s
-      - pos.r
-      - pos.theta
-      - pos.eta
-      - pos.phi
-      - pos.u
-      - pos.v
-      - eDep
-      - eDepError
-      - time
-      - u.a
-      - u.b
-      - v.a
-      - v.b
-      - du
-      - dv
+    inputs:
+      vtxd:
+        - type
+        - quality
+        - pos.x
+        - pos.y
+        - pos.z
+        - pos.s
+        - pos.r
+        - pos.theta
+        - pos.eta
+        - pos.phi
+        - pos.u
+        - pos.v
+        - eDep
+        - eDepError
+        - time
+        - u.a
+        - u.b
+        - v.a
+        - v.b
+        - du
+        - dv
 
-    trkr:
-      - type
-      - quality
-      - pos.x
-      - pos.y
-      - pos.z
-      - pos.s
-      - pos.r
-      - pos.theta
-      - pos.eta
-      - pos.phi
-      - pos.u
-      - pos.v
-      - eDep
-      - eDepError
-      - time
-      - u.a
-      - u.b
-      - v.a
-      - v.b
-      - du
-      - dv
+      trkr:
+        - type
+        - quality
+        - pos.x
+        - pos.y
+        - pos.z
+        - pos.s
+        - pos.r
+        - pos.theta
+        - pos.eta
+        - pos.phi
+        - pos.u
+        - pos.v
+        - eDep
+        - eDepError
+        - time
+        - u.a
+        - u.b
+        - v.a
+        - v.b
+        - du
+        - dv
 
-    sihit:
-      - type
+      sihit:
+        - type
 
-    ecal:
-      - type
-      - pos.x
-      - pos.y
-      - pos.z
-      - pos.s
-      - pos.r
-      - pos.theta
-      - pos.eta
-      - pos.phi
-      - pos.u
-      - pos.v
-      - energy
-      - log_energy
-      - energyError
-      - time
+      ecal:
+        - type
+        - pos.x
+        - pos.y
+        - pos.z
+        - pos.s
+        - pos.r
+        - pos.theta
+        - pos.eta
+        - pos.phi
+        - pos.u
+        - pos.v
+        - energy
+        - log_energy
+        - energyError
+        - time
 
-    hcal:
-      - type
-      - pos.x
-      - pos.y
-      - pos.z
-      - pos.s
-      - pos.r
-      - pos.theta
-      - pos.eta
-      - pos.phi
-      - pos.u
-      - pos.v
-      - energy
-      - log_energy
-      - energyError
-      - time
+      hcal:
+        - type
+        - pos.x
+        - pos.y
+        - pos.z
+        - pos.s
+        - pos.r
+        - pos.theta
+        - pos.eta
+        - pos.phi
+        - pos.u
+        - pos.v
+        - energy
+        - log_energy
+        - energyError
+        - time
 
-    muon:
-      - type
-      - pos.x
-      - pos.y
-      - pos.z
-      - pos.s
-      - pos.r
-      - pos.theta
-      - pos.eta
-      - pos.phi
-      - pos.u
-      - pos.v
-      - energy
-      - log_energy
-      - energyError
-      - time
+      muon:
+        - type
+        - pos.x
+        - pos.y
+        - pos.z
+        - pos.s
+        - pos.r
+        - pos.theta
+        - pos.eta
+        - pos.phi
+        - pos.u
+        - pos.v
+        - energy
+        - log_energy
+        - energyError
+        - time
 
-  targets:
-    particle:
-      - PDG
-      - charge
-      - time
-      - mass
-      - vtx.x
-      - vtx.y
-      - vtx.z
-      - vtx.r
-      - mom.x
-      - mom.y
-      - mom.z
-      - mom.r
-      - mom.eta
-      - mom.phi
-      - mom.theta
-      - mom.eta_drad
-      - mom.phi_drad
-      - mom.rinv
-      - mom.qopt
-      - spin.x
-      - spin.y
-      - spin.z
-      - colorFlow.a
-      - colorFlow.b
-      - isCharged
-      - isNeutral
-      - num_vtxd
-      - num_trkr
-      - num_ecal
-      - num_hcal
-      - num_sihit
-      - isolation
-      - energy_ecal
-      - energy_hcal
-      - calib_energy_ecal
-      - calib_energy_hcal
-      - is_neutral_hadron
-      - is_charged_hadron
-      - is_photon
-      - is_electron
-      - is_muon
-      - is_tau
-      - is_neutrino
-      - is_other
+    targets:
+      particle:
+        - PDG
+        - charge
+        - time
+        - mass
+        - vtx.x
+        - vtx.y
+        - vtx.z
+        - vtx.r
+        - mom.x
+        - mom.y
+        - mom.z
+        - mom.r
+        - mom.eta
+        - mom.phi
+        - mom.theta
+        - mom.eta_drad
+        - mom.phi_drad
+        - mom.rinv
+        - mom.qopt
+        - spin.x
+        - spin.y
+        - spin.z
+        - colorFlow.a
+        - colorFlow.b
+        - isCharged
+        - isNeutral
+        - num_vtxd
+        - num_trkr
+        - num_ecal
+        - num_hcal
+        - num_sihit
+        - isolation
+        - energy_ecal
+        - energy_hcal
+        - calib_energy_ecal
+        - calib_energy_hcal
+        - is_neutral_hadron
+        - is_charged_hadron
+        - is_photon
+        - is_electron
+        - is_muon
+        - is_tau
+        - is_neutrino
+        - is_other
 
-    particle_vtxd:
-      - pos.x
-      - pos.y
-      - pos.z
-      - mom.x
-      - mom.y
-      - mom.z
-      - mom.rinv
-      - mom.theta
-      - mom.phi
+      particle_vtxd:
+        - pos.x
+        - pos.y
+        - pos.z
+        - mom.x
+        - mom.y
+        - mom.z
+        - mom.rinv
+        - mom.theta
+        - mom.phi
 
-    particle_trkr:
-      - pos.x
-      - pos.y
-      - pos.z
-      - mom.x
-      - mom.y
-      - mom.z
-      - mom.rinv
-      - mom.theta
-      - mom.phi
+      particle_trkr:
+        - pos.x
+        - pos.y
+        - pos.z
+        - mom.x
+        - mom.y
+        - mom.z
+        - mom.rinv
+        - mom.theta
+        - mom.phi
 
-    particle_ecal:
-      - energy
-      - energy_frac
+      particle_ecal:
+        - energy
+        - energy_frac
 
-    particle_hcal:
-      - energy
-      - energy_frac
+      particle_hcal:
+        - energy
+        - energy_frac
 
-    particle_muon:
-      - energy
+      particle_muon:
+        - energy
 
 # Training stuff here
 trainer:
@@ -324,170 +326,173 @@ trainer:
         refresh_rate: 50
 
 model:
-  optimizer: lion
+  class_path: hepattn.experiments.cld.models.model.CLDReconstructor
+  init_args:
+    optimizer: lion
 
-  lrs_config:
-    initial: 1e-5
-    max: 5e-5
-    end: 1e-5
-    pct_start: 0.01
-    skip_scheduler: false
-    weight_decay: 1e-5
+    lrs_config:
+      initial: 1e-5
+      max: 5e-5
+      end: 1e-5
+      pct_start: 0.01
+      skip_scheduler: false
+      weight_decay: 1e-5
 
-  mtl: false
+    mtl: false
 
-  model:
-    class_path: hepattn.models.MaskFormer
-    init_args:
-      dim: &dim 256
-      input_sort_field: pos.phi
+    model:
+      class_path: hepattn.models.MaskFormer
+      init_args:
+        sorter:
+          class_path: hepattn.components.Sorter
+          init_args:
+            input_sort_field: pos.phi
 
-      input_nets:
-        class_path: torch.nn.ModuleList
-        init_args:
-          modules:
-            - class_path: hepattn.models.InputNet
-              init_args:
-                input_name: vtxd
-                fields:
-                  - pos.x
-                  - pos.y
-                  - pos.z
-                  - pos.s
-                  - pos.r
-                  - pos.theta
-                  - pos.phi
-                  - u.a
-                  - u.b
-                  - v.a
-                  - v.b
-                  - du
-                  - dv
-                net:
-                  class_path: hepattn.models.Dense
+        input_nets:
+          class_path: torch.nn.ModuleList
+          init_args:
+            modules:
+              - class_path: hepattn.components.InputNet
+                init_args:
+                  input_name: vtxd
+                  fields:
+                    - pos.x
+                    - pos.y
+                    - pos.z
+                    - pos.s
+                    - pos.r
+                    - pos.theta
+                    - pos.phi
+                    - u.a
+                    - u.b
+                    - v.a
+                    - v.b
+                    - du
+                    - dv
+                  net:
+                    class_path: hepattn.components.Dense
+                    init_args:
+                      input_size: 13
+                      output_size: 256
+                  posenc:
+                    class_path: hepattn.components.FourierPositionEncoder
+                    init_args:
+                      input_name: vtxd
+                      dim: 256
+                      fields:
+                        - pos.x
+                        - pos.y
+                        - pos.z
+                        - pos.r
+                        - pos.theta
+                        - pos.phi
+
+              - class_path: hepattn.components.InputNet
+                init_args:
+                  input_name: trkr
+                  fields:
+                    - pos.x
+                    - pos.y
+                    - pos.z
+                    - pos.s
+                    - pos.r
+                    - pos.theta
+                    - pos.phi
+                    - u.a
+                    - u.b
+                    - v.a
+                    - v.b
+                    - du
+                    - dv
+                  net:
+                    class_path: hepattn.components.Dense
+                    init_args:
+                      input_size: 13
+                      output_size: 256
+                  posenc:
+                    class_path: hepattn.components.FourierPositionEncoder
+                    init_args:
+                      input_name: trkr
+                      dim: 256
+                      fields:
+                        - pos.x
+                        - pos.y
+                        - pos.z
+                        - pos.r
+                        - pos.theta
+                        - pos.phi
+        encoder:
+          class_path: hepattn.components.Encoder
+          init_args:
+            num_layers: 8
+            dim: 256
+            attn_type: flash-varlen
+            window_size: 1024
+            window_wrap: true
+
+        decoder:
+          num_decoder_layers: 8
+          num_queries: *num_particles
+          mask_attention: true
+          decoder_layer_config:
+            dim: 256
+
+          tasks:
+            class_path: torch.nn.ModuleList
+            init_args:
+              modules:
+                - class_path: hepattn.tasks.ObjectClassificationTask
                   init_args:
-                    input_size: 13
-                    output_size: *dim
-                posenc:
-                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                    name: flow_valid
+                    input_object: query
+                    output_object: flow
+                    target_object: particle
+                    losses:
+                      object_bce: 1.0
+                    costs:
+                      object_bce: 1.0
+                    dim: 256
+                    null_weight: 1.0
+                    mask_queries: false
+
+                - class_path: hepattn.tasks.ObjectHitMaskTask
                   init_args:
-                    input_name: vtxd
-                    dim: *dim
-                    fields:
-                      - pos.x
-                      - pos.y
-                      - pos.z
-                      - pos.r
-                      - pos.theta
-                      - pos.phi
+                    name: flow_vtxd_assignment
+                    input_constituent: vtxd
+                    input_object: query
+                    output_object: flow
+                    target_object: particle
+                    losses:
+                      mask_bce: 100.0
+                      #mask_dice: 2.0
+                      mask_focal: 50.0
+                    costs:
+                      mask_bce: 100.0
+                      #mask_dice: 2.0
+                      mask_focal: 50.0
+                    dim: 256
+                    null_weight: 1.0
 
-            - class_path: hepattn.models.InputNet
-              init_args:
-                input_name: trkr
-                fields:
-                  - pos.x
-                  - pos.y
-                  - pos.z
-                  - pos.s
-                  - pos.r
-                  - pos.theta
-                  - pos.phi
-                  - u.a
-                  - u.b
-                  - v.a
-                  - v.b
-                  - du
-                  - dv
-                net:
-                  class_path: hepattn.models.Dense
+                - class_path: hepattn.tasks.ObjectHitMaskTask
                   init_args:
-                    input_size: 13
-                    output_size: *dim
-                posenc:
-                  class_path: hepattn.models.posenc.FourierPositionEncoder
-                  init_args:
-                    input_name: trkr
-                    dim: *dim
-                    fields:
-                      - pos.x
-                      - pos.y
-                      - pos.z
-                      - pos.r
-                      - pos.theta
-                      - pos.phi
-      encoder:
-        class_path: hepattn.models.Encoder
-        init_args:
-          num_layers: 8
-          dim: *dim
-          attn_type: flash-varlen
-          window_size: 1024
-          window_wrap: true
+                    name: flow_trkr_assignment
+                    input_constituent: trkr
+                    input_object: query
+                    output_object: flow
+                    target_object: particle
+                    losses:
+                      mask_bce: 100.0
+                      #mask_dice: 2.0
+                      mask_focal: 50.0
+                    costs:
+                      mask_bce: 100.0
+                      #mask_dice: 2.0
+                      mask_focal: 50.0
+                    dim: 256
+                    null_weight: 1.0
 
-      decoder:
-        num_decoder_layers: 8
-        num_queries: *num_particles
-        mask_attention: true
-        use_query_masks: false
-        decoder_layer_config:
-          dim: *dim
-
-      matcher:
-        class_path: hepattn.models.matcher.Matcher
-        init_args:
-          default_solver: scipy
-          adaptive_solver: true
-
-      tasks:
-        class_path: torch.nn.ModuleList
-        init_args:
-          modules:
-            - class_path: hepattn.models.task.ObjectClassificationTask
-              init_args:
-                name: flow_valid
-                input_object: query
-                output_object: flow
-                target_object: particle
-                losses:
-                  object_bce: 1.0
-                costs:
-                  object_bce: 1.0
-                dim: *dim
-                null_weight: 1.0
-                mask_queries: false
-
-            - class_path: hepattn.models.task.ObjectHitMaskTask
-              init_args:
-                name: flow_vtxd_assignment
-                input_constituent: vtxd
-                input_object: query
-                output_object: flow
-                target_object: particle
-                losses:
-                  mask_bce: 100.0
-                  #mask_dice: 2.0
-                  mask_focal: 50.0
-                costs:
-                  mask_bce: 100.0
-                  #mask_dice: 2.0
-                  mask_focal: 50.0
-                dim: *dim
-                null_weight: 1.0
-
-            - class_path: hepattn.models.task.ObjectHitMaskTask
-              init_args:
-                name: flow_trkr_assignment
-                input_constituent: trkr
-                input_object: query
-                output_object: flow
-                target_object: particle
-                losses:
-                  mask_bce: 100.0
-                  #mask_dice: 2.0
-                  mask_focal: 50.0
-                costs:
-                  mask_bce: 100.0
-                  #mask_dice: 2.0
-                  mask_focal: 50.0
-                dim: *dim
-                null_weight: 1.0
+        matcher:
+          class_path: hepattn.models.Matcher
+          init_args:
+            default_solver: scipy
+            adaptive_solver: true

@@ -1,104 +1,106 @@
 name: pixel_enriched_noclass
 
 data:
-  train_dir: /share/rcifdata/maxhart/data/pixsplit/mc23_prepped_enriched/train/
-  val_dir: /share/rcifdata/maxhart/data/pixsplit/mc23_prepped_enriched/val/
-  test_dir: /share/rcifdata/maxhart/data/pixsplit/mc23_prepped_enriched/test/
+  class_path: hepattn.experiments.pixel.data.data.PixelClusterDataModule
+  init_args:
+    train_dir: /share/rcifdata/maxhart/data/pixsplit/mc23_prepped_enriched/train/
+    val_dir: /share/rcifdata/maxhart/data/pixsplit/mc23_prepped_enriched/val/
+    test_dir: /share/rcifdata/maxhart/data/pixsplit/mc23_prepped_enriched/test/
 
-  num_train: 1000000
-  num_val: 10000
-  num_test: 10000
+    num_train: 1000000
+    num_val: 10000
+    num_test: 10000
 
-  # Number of threads to use for the dataloader
-  num_workers: 8
+    # Number of threads to use for the dataloader
+    num_workers: 8
 
-  # Number of clusters per batch
-  batch_size: 100
+    # Number of clusters per batch
+    batch_size: 100
 
-  # If specified only clusters with these multiplicities will be given
-  cluster_multiplicities:
+    # If specified only clusters with these multiplicities will be given
+    cluster_multiplicities:
 
-  # If specified, clusters with this multiplicity are retained at the spcified rate
-  cluster_multiplicity_subsample_frac:
+    # If specified, clusters with this multiplicity are retained at the spcified rate
+    cluster_multiplicity_subsample_frac:
 
-  # Maximum x / y for a particle to be marked as a valid target
-  particle_max_x: 8
-  particle_max_y: 8
+    # Maximum x / y for a particle to be marked as a valid target
+    particle_max_x: 8
+    particle_max_y: 8
 
-  # Whether to consider particles without a barcode as valid or not
-  particle_allow_notruth: true
+    # Whether to consider particles without a barcode as valid or not
+    particle_allow_notruth: true
 
-  # Whether to consider secondary particles as valid or not
-  particle_allow_secondary: true
+    # Whether to consider secondary particles as valid or not
+    particle_allow_secondary: true
 
-  # Which detector regions should be included, 0 is barrel and +/-2 is endcap
-  cluster_regions: [-2, -1, 0, 1, 2]
+    # Which detector regions should be included, 0 is barrel and +/-2 is endcap
+    cluster_regions: [-2, -1, 0, 1, 2]
 
-  # Which tracker layers should be included
-  cluster_layers: [0, 1, 2, 3]
+    # Which tracker layers should be included
+    cluster_layers: [0, 1, 2, 3]
 
-  # The minimum and maximum cluster multiplicities to allow
-  cluster_min_multiplicity: 1
-  cluster_max_multiplicity: &cluster_max_multiplicity 8
+    # The minimum and maximum cluster multiplicities to allow
+    cluster_min_multiplicity: 1
+    cluster_max_multiplicity: &cluster_max_multiplicity 8
 
-  # The maximum x/y width in pixels of a cluster for it to not be dropped
-  cluster_max_width_x: 16
-  cluster_max_width_y: 16
+    # The maximum x/y width in pixels of a cluster for it to not be dropped
+    cluster_max_width_x: 16
+    cluster_max_width_y: 16
 
-  # The maximum absolute global eta of a cluster for it to not be dropped
-  cluster_max_abs_eta: 2.8
+    # The maximum absolute global eta of a cluster for it to not be dropped
+    cluster_max_abs_eta: 2.8
 
-  # If set to true, clusters containing a notruth particle will be dropped
-  cluster_allow_notruth_particle: true
+    # If set to true, clusters containing a notruth particle will be dropped
+    cluster_allow_notruth_particle: true
 
-  # If set to false, clusters containing any particle that did not pass the particle selection are dropped
-  cluster_allow_dropped_particle: false
+    # If set to false, clusters containing any particle that did not pass the particle selection are dropped
+    cluster_allow_dropped_particle: false
 
-  inputs:
-    cluster:
-      - bec
-      - layer
-      - width_x
-      - width_y
-      - pitch_vector
-      - charge_matrix
-      - global_x
-      - global_y
-      - global_z
-      - global_r
-      - global_theta
-      - global_eta
-      - global_phi
-      - leading_theta
-      - leading_phi
+    inputs:
+      cluster:
+        - bec
+        - layer
+        - width_x
+        - width_y
+        - pitch_vector
+        - charge_matrix
+        - global_x
+        - global_y
+        - global_z
+        - global_r
+        - global_theta
+        - global_eta
+        - global_phi
+        - leading_theta
+        - leading_phi
 
-    pixel:
-      - x
-      - y
-      - charge
-      - cluster_layer
-      - cluster_bec
-      - cluster_global_eta
-      - cluster_global_phi
-      - cluster_leading_theta
-      - cluster_leading_phi
+      pixel:
+        - x
+        - y
+        - charge
+        - cluster_layer
+        - cluster_bec
+        - cluster_global_eta
+        - cluster_global_phi
+        - cluster_leading_theta
+        - cluster_leading_phi
 
-  targets:
-    particle:
-      - x
-      - y
-      - phi
-      - theta
-      - p
-      - barcode
-      - primary
-      - secondary
-      - notruth
-      - pdgid
-      - class_label
+    targets:
+      particle:
+        - x
+        - y
+        - phi
+        - theta
+        - p
+        - barcode
+        - primary
+        - secondary
+        - notruth
+        - pdgid
+        - class_label
 
-    cluster:
-      - multiplicity
+      cluster:
+        - multiplicity
 
 # Training stuff here
 trainer:
@@ -139,122 +141,125 @@ trainer:
         refresh_rate: 50
 
 model:
-  optimizer: lion
+  class_path: hepattn.experiments.pixel.models.model.PixelClusterSplitter
+  init_args:
+    optimizer: lion
 
-  lrs_config:
-    initial: 1e-5
-    max: 1e-4
-    end: 1e-5
-    pct_start: 0.01
-    skip_scheduler: false
-    weight_decay: 1e-5
+    lrs_config:
+      initial: 1e-5
+      max: 1e-4
+      end: 1e-5
+      pct_start: 0.01
+      skip_scheduler: false
+      weight_decay: 1e-5
 
-  mtl: false
+    mtl: false
 
-  model:
-    class_path: hepattn.models.MaskFormer
-    init_args:
-      dim: &dim 128
-      input_sort_field: x
+    model:
+      class_path: hepattn.models.MaskFormer
+      init_args:
+        sorter:
+          class_path: hepattn.components.Sorter
+          init_args:
+            input_sort_field: x
 
-      input_nets:
-        class_path: torch.nn.ModuleList
-        init_args:
-          modules:
-            - class_path: hepattn.models.InputNet
-              init_args:
-                input_name: pixel
-                fields:
-                  - x
-                  - y
-                  - charge
-                  - cluster_layer
-                  - cluster_bec
-                  - cluster_global_eta
-                  - cluster_global_phi
-                  - cluster_leading_theta
-                  - cluster_leading_phi
-                net:
-                  class_path: hepattn.models.Dense
+        input_nets:
+          class_path: torch.nn.ModuleList
+          init_args:
+            modules:
+              - class_path: hepattn.components.InputNet
+                init_args:
+                  input_name: pixel
+                  fields:
+                    - x
+                    - y
+                    - charge
+                    - cluster_layer
+                    - cluster_bec
+                    - cluster_global_eta
+                    - cluster_global_phi
+                    - cluster_leading_theta
+                    - cluster_leading_phi
+                  net:
+                    class_path: hepattn.components.Dense
+                    init_args:
+                      input_size: 9
+                      output_size: 128
+                  posenc:
+                    class_path: hepattn.components.FourierPositionEncoder
+                    init_args:
+                      input_name: pixel
+                      dim: 128
+                      fields:
+                        - x
+                        - y
+
+        encoder:
+          class_path: hepattn.components.Encoder
+          init_args:
+            num_layers: 2
+            dim: 128
+            attn_type: torch
+
+        decoder:
+          num_decoder_layers: 2
+          num_queries: *cluster_max_multiplicity
+          mask_attention: false
+          decoder_layer_config:
+            dim: 128
+
+          tasks:
+            class_path: torch.nn.ModuleList
+            init_args:
+              modules:
+                - class_path: hepattn.tasks.ObjectClassificationTask
                   init_args:
-                    input_size: 9
-                    output_size: *dim
-                posenc:
-                  class_path: hepattn.models.posenc.FourierPositionEncoder
+                    name: track_valid
+                    input_object: query
+                    output_object: track
+                    target_object: particle
+                    losses:
+                      object_bce: 1.0
+                    costs:
+                      object_bce: 1.0
+                    dim: 128
+                    null_weight: 1.0
+
+                - class_path: hepattn.tasks.ObjectGaussianRegressionTask
                   init_args:
-                    input_name: pixel
-                    dim: *dim
+                    name: track_regr
+                    input_object: query
+                    output_object: track
+                    target_object: particle
                     fields:
                       - x
                       - y
+                      # - theta
+                      # - phi
+                    loss_weight: 1.0
+                    cost_weight: 1.0
+                    dim: 128
 
-      encoder:
-        class_path: hepattn.models.Encoder
-        init_args:
-          num_layers: 2
-          dim: *dim
-          attn_type: torch
+                # - class_path: hepattn.tasks.ClassificationTask
+                #   init_args:
+                #     name: track_class
+                #     input_object: query
+                #     output_object: track
+                #     target_object: particle
+                #     classes:
+                #       - primary
+                #       - secondary
+                #       - notruth
+                #     class_weights:
+                #       primary: 1.00
+                #       secondary: 8.68
+                #       notruth: 2.04
+                #     loss_weight: 0.1
+                #     dim: 128
 
-      decoder:
-        num_decoder_layers: 2
-        num_queries: *cluster_max_multiplicity
-        mask_attention: false
-        use_query_masks: false
-        decoder_layer_config:
-          dim: *dim
-
-      matcher:
-        class_path: hepattn.models.matcher.Matcher
-        init_args:
-          default_solver: scipy
-          adaptive_solver: false
-          adaptive_check_interval: 1000
-
-      tasks:
-        class_path: torch.nn.ModuleList
-        init_args:
-          modules:
-            - class_path: hepattn.models.task.ObjectClassificationTask
-              init_args:
-                name: track_valid
-                input_object: query
-                output_object: track
-                target_object: particle
-                losses:
-                  object_bce: 1.0
-                costs:
-                  object_bce: 1.0
-                dim: *dim
-                null_weight: 1.0
-
-            - class_path: hepattn.models.task.ObjectGaussianRegressionTask
-              init_args:
-                name: track_regr
-                input_object: query
-                output_object: track
-                target_object: particle
-                fields:
-                  - x
-                  - y
-                  # - theta
-                  # - phi
-                loss_weight: 1.0
-                cost_weight: 1.0
-                dim: *dim
-
-            # - class_path: hepattn.models.task.ClassificationTask
-            #   init_args:
-            #     name: track_class
-            #     input_object: query
-            #     output_object: track
-            #     target_object: particle
-            #     classes:
-            #       - primary
-            #       - secondary
-            #       - notruth
-            #     class_weights:
-            #       primary: 1.00
-            #       secondary: 8.68
-            #       notruth: 2.04
-            #     loss_weight: 0.1
-            #     dim: *dim
+        matcher:
+          class_path: hepattn.models.Matcher
+          init_args:
+            default_solver: scipy
+            adaptive_solver: false
+            adaptive_check_interval: 1000

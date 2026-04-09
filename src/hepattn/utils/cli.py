@@ -58,7 +58,7 @@ class CLI(LightningCLI):
             help="Precision setting for float32 matrix multiplications.",
         )
 
-        parser.link_arguments("name", "model.name")
+        parser.link_arguments("name", "model.init_args.name")
         parser.link_arguments("name", "trainer.logger.init_args.name")
 
     def before_instantiate_classes(self) -> None:

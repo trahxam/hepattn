@@ -1,4 +1,4 @@
-# ruff: noqa: N801,TRY300,RUF059,DTZ005,C408,DOC501,F841,ICN001,TID252
+# ruff: noqa: N801, TRY300, RUF059, DTZ005, C408, F841, ICN001, TID252
 
 """HDF5-based data analysis utilities for ATLAS muon tracking data.
 

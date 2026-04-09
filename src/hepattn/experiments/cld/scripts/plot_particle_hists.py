@@ -8,10 +8,9 @@ from tqdm import tqdm
 
 from hepattn.experiments.cld.data import CLDDataModule
 from hepattn.utils.histogram import CountingHistogram
-from hepattn.utils.plotting import plot_hist_to_ax
+from hepattn.utils.plotting import plot_hist_to_ax, setup_plotting
 
-plt.rcParams["figure.dpi"] = 300
-
+setup_plotting()
 
 aliases = {
     "calib_energy_ecal": "Total Calibrated ECAL Energy [GeV]",

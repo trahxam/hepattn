@@ -2,7 +2,7 @@ import pytest
 import torch
 import torch.nn.functional as F
 
-from hepattn.models.attention import projection_packed
+from hepattn.components.attention import projection_packed
 
 # Set random seed for reproducibility
 torch.manual_seed(42)

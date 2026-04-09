@@ -1,6 +1,6 @@
 import torch
 
-from hepattn.models.task import IoUPredictionTask, ObjectHitMaskTask
+from hepattn.tasks import IoUPredictionTask, ObjectHitMaskTask
 
 
 def test_object_hit_mask_task_iou():

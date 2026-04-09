@@ -4,10 +4,10 @@ import pytest
 import torch
 from torch import nn
 
-from hepattn.models import Encoder
+from hepattn.components import Encoder
+from hepattn.components.sorter import Sorter
 from hepattn.models.decoder import MaskFormerDecoder
 from hepattn.models.maskformer import MaskFormer
-from hepattn.utils.sorter import Sorter
 
 
 class MockInputNet(nn.Module):
@@ -73,7 +73,11 @@ class TestMaskFormerSorting:
         return Encoder(num_layers=2, dim=64)
 
     @pytest.fixture
-    def decoder(self):
+    def tasks(self):
+        return nn.ModuleList([MockTask("test_task")])
+
+    @pytest.fixture
+    def decoder(self, tasks):
         decoder_layer_config = {
             "dim": 64,
             "norm": "LayerNorm",
@@ -82,15 +86,12 @@ class TestMaskFormerSorting:
             "bidirectional_ca": True,
         }
         return MaskFormerDecoder(
+            tasks=tasks,
             num_queries=5,
             decoder_layer_config=decoder_layer_config,
             num_decoder_layers=2,
             mask_attention=False,  # Disable for simpler testing # TODO: fix
         )
-
-    @pytest.fixture
-    def tasks(self):
-        return nn.ModuleList([MockTask("test_task")])
 
     @pytest.fixture
     def sample_inputs(self):
@@ -117,8 +118,6 @@ class TestMaskFormerSorting:
             input_nets=input_nets,
             encoder=encoder,
             decoder=decoder,
-            tasks=tasks,
-            dim=64,
             matcher=MockMatcher(),
             sorter=Sorter(
                 input_sort_field="phi",
@@ -138,8 +137,6 @@ class TestMaskFormerSorting:
             input_nets=input_nets,
             encoder=encoder,
             decoder=decoder,
-            tasks=tasks,
-            dim=64,
             sorter=None,
             matcher=MockMatcher(),
         )
@@ -171,8 +168,6 @@ class TestMaskFormerSorting:
             input_nets=input_nets,
             encoder=encoder,
             decoder=decoder,
-            tasks=tasks,
-            dim=64,
             matcher=MockMatcher(),
             sorter=Sorter(
                 input_sort_field="phi",

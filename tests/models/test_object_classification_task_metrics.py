@@ -1,6 +1,6 @@
 import torch
 
-from hepattn.models.task import ObjectClassificationTask
+from hepattn.tasks import ObjectClassificationTask
 
 
 def test_object_classification_task_metrics_basic():

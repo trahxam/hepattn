@@ -3,8 +3,8 @@
 import pytest
 import torch
 
-from hepattn.models.dense import Dense
-from hepattn.models.task import ClassificationTask
+from hepattn.components import Dense
+from hepattn.tasks import ClassificationTask
 
 
 class TestClassificationTask:  # noqa: PLR0904

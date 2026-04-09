@@ -3,8 +3,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pytest
 
-from hepattn.experiments.itk.data import ITkDataset
-from hepattn.experiments.itk.plot_event import plot_itk_event_reconstruction
+from hepattn.experiments.itk.data.data import ITkDataset
+from hepattn.experiments.itk.scripts.plot_event import plot_itk_event_reconstruction
 from hepattn.models.matcher import Matcher
 
 plt.rcParams["figure.dpi"] = 300

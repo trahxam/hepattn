@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.stats import binned_statistic
 
-from hepattn.utils.stats import combine_mean_std
+from hepattn.utils.stats import bayesian_binomial_error, combine_mean_std
 
 
 class CountingHistogram:
@@ -13,20 +13,11 @@ class CountingHistogram:
     """
 
     def __init__(self, bins: np.ndarray):
-        """Initialize a counting histogram.
-
-        Args:
-            bins (np.ndarray): Monotonically increasing bin edges of shape (nbins + 1,).
-        """
         self.bins = np.asarray(bins)
         self.counts = np.zeros(len(self.bins) - 1, dtype=np.float32)
 
     def fill(self, values: np.ndarray) -> None:
-        """Accumulate counts from values into the histogram bins.
-
-        Args:
-            values (np.ndarray): Values to be binned. Any array-like of numeric dtype.
-        """
+        """Accumulate counts from values into the histogram bins."""
         values = np.asarray(values)
         if values.size == 0:
             return
@@ -34,121 +25,104 @@ class CountingHistogram:
         self.counts += counts.astype(np.float32)
 
 
-class PoissonHistogram:
-    """Accumulates Poisson-binomial style (k, n) tallies per bin.
+class BinomialHistogram:
+    """Accumulates binomial (k, n) tallies per bin for computing ratios like
+    efficiency, purity, fake rate, or retention rate.
 
-    Each fill call applies a selection, then sums the numerator (k) and denominator (n)
-    within bins of a given field.
+    Usage:
+        hist = BinomialHistogram(bins=np.linspace(0, 10, 32))
+
+        for event in events:
+            hist.fill(values=pt, numerator=is_matched, denominator=is_valid)
+
+        ratio, errors = hist.ratio()
+        plot_hist_to_ax(ax, ratio, hist.bins, value_errors=errors)
 
     Attributes:
-        field (str): Key in `data` whose values define the bin coordinate.
-        bins (np.ndarray): Bin edges for the field.
-        selection (str): Key in `data` for a boolean mask to select events.
-        numerator (str): Key in `data` for the per-event numerator contributions (k).
-        denominator (str): Key in `data` for the per-event denominator contributions (n).
-        n (np.ndarray): Accumulated denominators per bin.
+        bins (np.ndarray): Bin edges of shape (nbins + 1,).
         k (np.ndarray): Accumulated numerators per bin.
+        n (np.ndarray): Accumulated denominators per bin.
     """
 
-    def __init__(self, field: str, bins: np.ndarray, selection: str, numerator: str, denominator: str):
-        """Initialize a Poisson histogram.
-
-        Args:
-            field (str): Field name for the binning coordinate in `data`.
-            bins (np.ndarray): Bin edges for `field`.
-            selection (str): Field name for a boolean selection mask in `data`.
-            numerator (str): Field name for per-event numerator (k) in `data`.
-            denominator (str): Field name for per-event denominator (n) in `data`.
-        """
-        self.field = field
+    def __init__(self, bins: np.ndarray):
         self.bins = np.asarray(bins)
-        self.selection = selection
-        self.numerator = numerator
-        self.denominator = denominator
-
-        self.n = np.zeros(len(self.bins) - 1, dtype=np.float32)
         self.k = np.zeros(len(self.bins) - 1, dtype=np.float32)
+        self.n = np.zeros(len(self.bins) - 1, dtype=np.float32)
 
-    def fill(self, data: dict[str, np.ndarray]) -> None:
+    def fill(self, values: np.ndarray, numerator: np.ndarray, denominator: np.ndarray | None = None) -> None:
         """Accumulate k and n into bins.
 
         Args:
-            data (dict[str, np.ndarray]): Mapping from field names to NumPy arrays.
-                Required keys: `self.selection` (bool), `self.numerator` (float-like),
-                `self.denominator` (float-like), `self.field` (float-like).
-                All arrays must be 1D and broadcastable to the same length.
+            values: The binning variable (e.g., pt, eta). Shape (N,).
+            numerator: Boolean or float array for the numerator count (k). Shape (N,).
+            denominator: Boolean or float array for the denominator count (n). Shape (N,).
+                If None, counts all entries (equivalent to np.ones_like(numerator)).
         """
-        sel = np.asarray(data[self.selection]).astype(bool)
-        x = np.asarray(data[self.field])[sel].astype(np.float32)
-        k = np.asarray(data[self.numerator])[sel].astype(np.float32)
-        n = np.asarray(data[self.denominator])[sel].astype(np.float32)
+        values = np.asarray(values, dtype=np.float32)
+        numerator = np.asarray(numerator, dtype=np.float32)
 
-        if x.size == 0:
+        if values.size == 0:
             return
 
-        n_binned, _, _ = binned_statistic(x, n, statistic="sum", bins=self.bins)
-        k_binned, _, _ = binned_statistic(x, k, statistic="sum", bins=self.bins)
+        # Clip to bin range so out-of-range values land in edge bins
+        values = np.clip(values, self.bins[0], self.bins[-1])
 
-        self.n += n_binned.astype(np.float32)
+        k_binned, _, _ = binned_statistic(values, numerator, statistic="sum", bins=self.bins)
         self.k += k_binned.astype(np.float32)
+
+        if denominator is None:
+            n_binned, _, _ = binned_statistic(values, numerator, statistic="count", bins=self.bins)
+        else:
+            denominator = np.asarray(denominator, dtype=np.float32)
+            n_binned, _, _ = binned_statistic(values, denominator, statistic="sum", bins=self.bins)
+        self.n += n_binned.astype(np.float32)
+
+    def ratio(self) -> tuple[np.ndarray, np.ndarray]:
+        """Compute the binomial ratio k/n and Bayesian binomial errors.
+
+        Returns:
+            Tuple of (ratio, errors), each of shape (nbins,).
+            Bins with n=0 will have ratio=nan and errors=nan.
+        """
+        with np.errstate(divide="ignore", invalid="ignore"):
+            r = self.k / self.n
+        errors = bayesian_binomial_error(self.k, self.n)
+        return r, errors
 
 
 class GaussianHistogram:
-    """Mantains per-bin Gaussian summary stats (n, mean, std) and merges across fills.
+    """Maintains per-bin Gaussian summary stats (n, mean, std) and merges across fills.
 
     Attributes:
-        field (str): Key in `data` whose values define the bin coordinate.
         bins (np.ndarray): Bin edges for the field.
-        selection (str): Key in `data` for a boolean mask to select events.
-        values (str): Key in `data` for the per-event values to summarize.
         n (np.ndarray): Number of entries per bin (float32).
         mu (np.ndarray): Mean value per bin (float32).
         sigma (np.ndarray): Standard deviation per bin (float32).
     """
 
-    def __init__(self, field: str, bins: np.ndarray, selection: str, values: str):
-        """Initialize a Gaussian histogram.
-
-        Args:
-            field (str): Field name for the binning coordinate in `data`.
-            bins (np.ndarray): Bin edges for `field`.
-            selection (str): Field name for a boolean selection mask in `data`.
-            values (str): Field name for the values to summarize in `data`.
-        """
-        self.field = field
+    def __init__(self, bins: np.ndarray):
         self.bins = np.asarray(bins)
-        self.selection = selection
-        self.values = values
-
         self.n = np.zeros(len(self.bins) - 1, dtype=np.float32)
         self.mu = np.zeros(len(self.bins) - 1, dtype=np.float32)
         self.sigma = np.zeros(len(self.bins) - 1, dtype=np.float32)
 
-    def fill(self, data: dict[str, np.ndarray]) -> None:
-        """Accumulate Gaussian summary statistics per bin and merge with existing ones.
-
-        This computes per-bin count, mean, and standard deviation for the selected
-        subset of events, then combines these statistics with the running totals
-        using `combine_mean_std`.
+    def fill(self, values: np.ndarray, weights: np.ndarray) -> None:
+        """Accumulate Gaussian summary statistics per bin.
 
         Args:
-            data (dict[str, np.ndarray]): Mapping from field names to NumPy arrays.
-                Required keys: `self.selection` (bool), `self.values` (float-like),
-                `self.field` (float-like).
-                All arrays must be 1D and broadcastable to the same length.
+            values: The binning variable. Shape (N,).
+            weights: The values to summarize (compute mean/std of). Shape (N,).
         """
-        sel = np.asarray(data[self.selection]).astype(bool)
-        x = np.asarray(data[self.field])[sel].astype(np.float32)
-        vals = np.asarray(data[self.values])[sel].astype(np.float32)
+        values = np.asarray(values, dtype=np.float32)
+        weights = np.asarray(weights, dtype=np.float32)
 
-        if x.size == 0:
+        if values.size == 0:
             return
 
-        n_new, _, _ = binned_statistic(x, vals, statistic="count", bins=self.bins)
-        mu_new, _, _ = binned_statistic(x, vals, statistic="mean", bins=self.bins)
-        sig_new, _, _ = binned_statistic(x, vals, statistic="std", bins=self.bins)
+        n_new, _, _ = binned_statistic(values, weights, statistic="count", bins=self.bins)
+        mu_new, _, _ = binned_statistic(values, weights, statistic="mean", bins=self.bins)
+        sig_new, _, _ = binned_statistic(values, weights, statistic="std", bins=self.bins)
 
-        # Merge with existing stats. Assumes combine_mean_std returns (mu, sigma, n).
         mu_comb, sig_comb, n_comb = combine_mean_std(self.mu, self.sigma, self.n, mu_new, sig_new, n_new)
 
         self.n = n_comb.astype(np.float32)

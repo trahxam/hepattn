@@ -2,65 +2,67 @@ seed_everything: 42
 name: HF-900MeV-eta4
 
 data:
-  #train_dir: data/trackml/prepped/
-  #val_dir: data/trackml/prepped/
-  #test_dir: data/trackml/prepped/
-  train_dir: /projects/u5du/pduckett/data_new/train/
-  val_dir: /projects/u5du/pduckett/data_new/val/
-  test_dir: /projects/u5du/pduckett/data_new/test/
+  class_path: hepattn.experiments.trackml.data.data.TrackMLDataModule
+  init_args:
+    #train_dir: data/trackml/prepped/
+    #val_dir: data/trackml/prepped/
+    #test_dir: data/trackml/prepped/
+    train_dir: /projects/u5du/pduckett/data_new/train/
+    val_dir: /projects/u5du/pduckett/data_new/val/
+    test_dir: /projects/u5du/pduckett/data_new/test/
 
-  num_workers: 15
-  num_train: -1
-  num_test: -1
-  num_val: -1
+    num_workers: 15
+    num_train: -1
+    num_test: -1
+    num_val: -1
 
-  # Select only hits from these detector volumes
-  # pix barrel: 8, pix endcap: 7, 9
-  # See: https://competitions.codalab.org/competitions/20112
-  hit_volume_ids: [7, 8, 9]
+    # Select only hits from these detector volumes
+    # pix barrel: 8, pix endcap: 7, 9
+    # See: https://competitions.codalab.org/competitions/20112
+    hit_volume_ids: [7, 8, 9]
 
-  # Minimum pt for a particle to be deemed reconstructible
-  particle_min_pt: 0.9
+    # Minimum pt for a particle to be deemed reconstructible
+    particle_min_pt: 0.9
 
-  # Maximum absolute eta for a particle to be deemed reconstructible
-  particle_max_abs_eta: 4.0
+    # Maximum absolute eta for a particle to be deemed reconstructible
+    particle_max_abs_eta: 4.0
 
-  # Minimum number of true hits for a particle to be deemed reconstructible
-  particle_min_num_hits: 3
+    # Minimum number of true hits for a particle to be deemed reconstructible
+    particle_min_num_hits: 3
 
-  # Maximum number of reconstructable particles allowed in an event (not relevant for filtering)
-  event_max_num_particles: 3000
-  strict_max_objects: false
+    # Maximum number of reconstructable particles allowed in an event (not relevant for filtering)
+    event_max_num_particles: 3000
+    strict_max_objects: false
 
-  # Define which inputs will be available to the model
-  inputs:
-    hit:
-      # Global hit coords
-      - x
-      - y
-      - z
-      - r
-      - s
-      - eta
-      - phi
-      - u
-      - v
-      # Hit local charge information
-      - charge_frac
-      - leta
-      - lphi
-      - lx
-      - ly
-      - lz
-      - geta
-      - gphi
+    # Define which inputs will be available to the model
+    inputs:
+      hit:
+        # Global hit coords
+        - x
+        - y
+        - z
+        - r
+        - s
+        - eta
+        - phi
+        - u
+        - v
+        # Hit local charge information
+        - charge_frac
+        - leta
+        - lphi
+        - lx
+        - ly
+        - lz
+        - geta
+        - gphi
 
-  targets:
-    hit:
-      - on_valid_particle
-      - is_first
-    particle:
-      - pt
+    targets:
+      hit:
+        - on_valid_particle
+        - is_first
+      particle:
+        - pt
 
 trainer:
   max_epochs: 80
@@ -97,69 +99,74 @@ trainer:
         refresh_rate: 100
 
 model:
-  optimizer: Lion
+  class_path: hepattn.experiments.trackml.models.filter.TrackMLFilter
+  init_args:
+    optimizer: Lion
 
-  lrs_config:
-    initial: 1e-5
-    max: 5e-5
-    end: 1e-6
-    pct_start: 0.05
-    weight_decay: 1e-5
+    lrs_config:
+      initial: 1e-5
+      max: 5e-5
+      end: 1e-6
+      pct_start: 0.05
+      weight_decay: 1e-5
 
-  model:
-    class_path: hepattn.models.HitFilter
-    init_args:
-      input_sort_field: phi
-      input_nets:
-        class_path: torch.nn.ModuleList
-        init_args:
-          modules:
-            - class_path: hepattn.models.InputNet
-              init_args:
-                input_name: hit
-                fields:
-                  - x
-                  - y
-                  - z
-                  - r
-                  - eta
-                  - phi
-                  - u
-                  - v
-                  - charge_frac
-                  - leta
-                  - lphi
-                  - lx
-                  - ly
-                  - lz
-                  - geta
-                  - gphi
-                net:
-                  class_path: hepattn.models.Dense
-                  init_args:
-                    input_size: 16
-                    hidden_layers: [128]
-                    output_size: &dim 256
-      encoder:
-        class_path: hepattn.models.Encoder
-        init_args:
-          num_layers: 8
-          dim: *dim
-          attn_type: flash
-          window_size: 1024
-          window_wrap: true
-          hybrid_norm: true
-          norm: RMSNorm
+    model:
+      class_path: hepattn.models.HitFilter
+      init_args:
+        sorter:
+          class_path: hepattn.components.Sorter
+          init_args:
+            input_sort_field: phi
+        input_nets:
+          class_path: torch.nn.ModuleList
+          init_args:
+            modules:
+              - class_path: hepattn.components.InputNet
+                init_args:
+                  input_name: hit
+                  fields:
+                    - x
+                    - y
+                    - z
+                    - r
+                    - eta
+                    - phi
+                    - u
+                    - v
+                    - charge_frac
+                    - leta
+                    - lphi
+                    - lx
+                    - ly
+                    - lz
+                    - geta
+                    - gphi
+                  net:
+                    class_path: hepattn.components.Dense
+                    init_args:
+                      input_size: 16
+                      hidden_layers: [128]
+                      output_size: &dim 256
+        encoder:
+          class_path: hepattn.components.Encoder
+          init_args:
+            num_layers: 8
+            dim: *dim
+            attn_type: flash
+            window_size: 1024
+            window_wrap: true
+            hybrid_norm: true
+            norm: RMSNorm
 
-      tasks:
-        class_path: torch.nn.ModuleList
-        init_args:
-          modules:
-            - class_path: hepattn.models.task.HitFilterTask
-              init_args:
-                name: hit_filter
-                input_object: hit
-                target_field: on_valid_particle
-                dim: *dim
-                threshold: 0.1
-                loss_fn: bce
+        tasks:
+          class_path: torch.nn.ModuleList
+          init_args:
+            modules:
+              - class_path: hepattn.tasks.HitFilterTask
+                init_args:
+                  name: hit_filter
+                  input_object: hit
+                  target_field: on_valid_particle
+                  dim: *dim
+                  threshold: 0.1
+                  loss_fn: bce

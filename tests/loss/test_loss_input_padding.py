@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from hepattn.models.loss import mask_bce_cost, mask_bce_loss, mask_dice_cost, mask_dice_loss, mask_focal_cost, mask_focal_loss, mask_iou_cost
+from hepattn.losses import mask_bce_cost, mask_bce_loss, mask_dice_cost, mask_dice_loss, mask_focal_cost, mask_focal_loss, mask_iou_cost
 
 torch.manual_seed(42)
 

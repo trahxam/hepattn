@@ -1,65 +1,67 @@
 name: itk_tracking_test
 
 data:
-  train_dir: /share/rcifdata/maxhart/data/itk/train/
-  val_dir: /share/rcifdata/maxhart/data/itk/val/
-  test_dir: /share/rcifdata/maxhart/data/itk/test/
+  class_path: hepattn.experiments.itk.data.data.ITkDataModule
+  init_args:
+    train_dir: /share/rcifdata/maxhart/data/itk/train/
+    val_dir: /share/rcifdata/maxhart/data/itk/val/
+    test_dir: /share/rcifdata/maxhart/data/itk/test/
 
-  num_workers: 10
-  num_train: -1
-  num_test: 10
-  num_val: 10
+    num_workers: 10
+    num_train: -1
+    num_test: 10
+    num_val: 10
 
-  # Pixels: 1, 3, 5
-  # Strips: 2, 4, 6
-  hit_regions: [3, 4]
+    # Pixels: 1, 3, 5
+    # Strips: 2, 4, 6
+    hit_regions: [3, 4]
 
-  particle_min_pt: 1.0
-  particle_max_abs_eta: 2.5
-  particle_min_num_hits:
-    pixel: 3
-    strip: 3
+    particle_min_pt: 1.0
+    particle_max_abs_eta: 2.5
+    particle_min_num_hits:
+      pixel: 3
+      strip: 3
 
-  event_max_num_particles: 1600
+    event_max_num_particles: 1600
 
-  inputs:
-    pixel:
-      - x
-      - y
-      - z
-      - r
-      - s
-      - eta
-      - phi
-      - u
-      - v
+    inputs:
+      pixel:
+        - x
+        - y
+        - z
+        - r
+        - s
+        - eta
+        - phi
+        - u
+        - v
 
-    strip:
-      - x
-      - y
-      - z
-      - r
-      - s
-      - eta
-      - phi
-      - u
-      - v
+      strip:
+        - x
+        - y
+        - z
+        - r
+        - s
+        - eta
+        - phi
+        - u
+        - v
 
-  targets:
-    particle:
-      - pt
-      - eta
-      - phi
+    targets:
+      particle:
+        - pt
+        - eta
+        - phi
 
-    # particle_pixel: []
+      # particle_pixel: []
 
-    # particle_strip: []
+      # particle_strip: []
 
-    # pixel:
-    #   - on_valid_particle
+      # pixel:
+      #   - on_valid_particle
 
-    # strip:
-    #   - on_valid_particle
+      # strip:
+      #   - on_valid_particle
 
 trainer:
   # Training stuff here
@@ -78,157 +80,160 @@ trainer:
       project: itk_tracking
 
 model:
-  lrs_config:
-    initial: 1e-5
-    max: 1e-4
-    end: 1e-5
-    pct_start: 0.05
-    skip_scheduler: false
-    weight_decay: 1e-5
+  class_path: hepattn.experiments.itk.models.tracker.ITkTracker
+  init_args:
+    lrs_config:
+      initial: 1e-5
+      max: 1e-4
+      end: 1e-5
+      pct_start: 0.05
+      skip_scheduler: false
+      weight_decay: 1e-5
 
-  optimizer: adamw
+    optimizer: adamw
 
-  mtl: false
+    mtl: false
 
-  model:
-    class_path: hepattn.models.MaskFormer
-    init_args:
-      dim: &dim 256
-      input_sort_field: phi
+    model:
+      class_path: hepattn.models.MaskFormer
+      init_args:
+        sorter:
+          class_path: hepattn.components.Sorter
+          init_args:
+            input_sort_field: phi
 
-      input_nets:
-        class_path: torch.nn.ModuleList
-        init_args:
-          modules:
-            - class_path: hepattn.models.InputNet
-              init_args:
-                input_name: pixel
-                fields:
-                  # Coordinates in global frame
-                  - x
-                  - y
-                  - z
-                  - r
-                  - eta
-                  - phi
-                net:
-                  class_path: hepattn.models.Dense
+        input_nets:
+          class_path: torch.nn.ModuleList
+          init_args:
+            modules:
+              - class_path: hepattn.components.InputNet
+                init_args:
+                  input_name: pixel
+                  fields:
+                    # Coordinates in global frame
+                    - x
+                    - y
+                    - z
+                    - r
+                    - eta
+                    - phi
+                  net:
+                    class_path: hepattn.components.Dense
+                    init_args:
+                      input_size: 6
+                      output_size: 256
+                  posenc:
+                    class_path: hepattn.models.PositionEncoder
+                    init_args:
+                      input_name: pixel
+                      fields:
+                        - r
+                        - eta
+                        - phi
+                      sym_fields:
+                        - phi
+                      dim: 256
+
+              - class_path: hepattn.components.InputNet
+                init_args:
+                  input_name: strip
+                  fields:
+                    # Coordinates in global frame
+                    - x
+                    - y
+                    - z
+                    - r
+                    - eta
+                    - phi
+                  net:
+                    class_path: hepattn.components.Dense
+                    init_args:
+                      input_size: 6
+                      output_size: 256
+                  posenc:
+                    class_path: hepattn.models.PositionEncoder
+                    init_args:
+                      input_name: strip
+                      fields:
+                        - r
+                        - eta
+                        - phi
+                      sym_fields:
+                        - phi
+                      dim: 256
+
+        encoder:
+          class_path: hepattn.components.Encoder
+          init_args:
+            num_layers: 8
+            dim: 256
+            attn_type: flash
+            window_size: 512
+            window_wrap: true
+
+        decoder:
+          num_decoder_layers: 8
+          num_queries: 1600
+          mask_attention: true
+          decoder_layer_config:
+            dim: 256
+
+          tasks:
+            class_path: torch.nn.ModuleList
+            init_args:
+              modules:
+                - class_path: hepattn.tasks.ObjectClassificationTask
                   init_args:
-                    input_size: 6
-                    output_size: *dim
-                posenc:
-                  class_path: hepattn.models.PositionEncoder
+                    name: track_valid
+                    input_object: query
+                    output_object: track
+                    target_object: particle
+                    losses:
+                      object_bce: 1.0
+                    costs:
+                      object_bce: 1.0
+                    dim: 256
+                    null_weight: 1.0
+
+                - class_path: hepattn.tasks.ObjectHitMaskTask
                   init_args:
-                    input_name: pixel
-                    fields:
-                      - r
-                      - eta
-                      - phi
-                    sym_fields:
-                      - phi
-                    dim: *dim
+                    name: track_pixel_assignment
+                    input_constituent: pixel
+                    input_object: query
+                    output_object: track
+                    target_object: particle
+                    losses:
+                      mask_bce: 100.0
+                      #mask_dice: 2.0
+                      #mask_focal: 50.0
+                    costs:
+                      mask_bce: 100.0
+                      #mask_dice: 2.0
+                      #mask_focal: 50.0
+                    dim: 256
+                    null_weight: 1.0
 
-            - class_path: hepattn.models.InputNet
-              init_args:
-                input_name: strip
-                fields:
-                  # Coordinates in global frame
-                  - x
-                  - y
-                  - z
-                  - r
-                  - eta
-                  - phi
-                net:
-                  class_path: hepattn.models.Dense
+                - class_path: hepattn.tasks.ObjectHitMaskTask
                   init_args:
-                    input_size: 6
-                    output_size: *dim
-                posenc:
-                  class_path: hepattn.models.PositionEncoder
-                  init_args:
-                    input_name: strip
-                    fields:
-                      - r
-                      - eta
-                      - phi
-                    sym_fields:
-                      - phi
-                    dim: *dim
+                    name: track_strip_assignment
+                    input_constituent: strip
+                    input_object: query
+                    output_object: track
+                    target_object: particle
+                    losses:
+                      mask_bce: 100.0
+                      #mask_dice: 2.0
+                      #mask_focal: 50.0
+                    costs:
+                      mask_bce: 100.0
+                      #mask_dice: 2.0
+                      #mask_focal: 50.0
+                    dim: 256
+                    null_weight: 1.0
 
-      encoder:
-        class_path: hepattn.models.Encoder
-        init_args:
-          num_layers: 8
-          dim: *dim
-          attn_type: flash
-          window_size: 512
-          window_wrap: true
-
-      decoder:
-        num_decoder_layers: 8
-        num_queries: 1600
-        mask_attention: true
-        use_query_masks: false
-        decoder_layer_config:
-          dim: *dim
-
-      matcher:
-        class_path: hepattn.models.matcher.Matcher
-        init_args:
-          default_solver: scipy
-          adaptive_solver: false
-          adaptive_check_interval: 1000
-
-      tasks:
-        class_path: torch.nn.ModuleList
-        init_args:
-          modules:
-            - class_path: hepattn.models.task.ObjectClassificationTask
-              init_args:
-                name: track_valid
-                input_object: query
-                output_object: track
-                target_object: particle
-                losses:
-                  object_bce: 1.0
-                costs:
-                  object_bce: 1.0
-                dim: *dim
-                null_weight: 1.0
-
-            - class_path: hepattn.models.task.ObjectHitMaskTask
-              init_args:
-                name: track_pixel_assignment
-                input_constituent: pixel
-                input_object: query
-                output_object: track
-                target_object: particle
-                losses:
-                  mask_bce: 100.0
-                  #mask_dice: 2.0
-                  #mask_focal: 50.0
-                costs:
-                  mask_bce: 100.0
-                  #mask_dice: 2.0
-                  #mask_focal: 50.0
-                dim: *dim
-                null_weight: 1.0
-
-            - class_path: hepattn.models.task.ObjectHitMaskTask
-              init_args:
-                name: track_strip_assignment
-                input_constituent: strip
-                input_object: query
-                output_object: track
-                target_object: particle
-                losses:
-                  mask_bce: 100.0
-                  #mask_dice: 2.0
-                  #mask_focal: 50.0
-                costs:
-                  mask_bce: 100.0
-                  #mask_dice: 2.0
-                  #mask_focal: 50.0
-                dim: *dim
-                null_weight: 1.0
+        matcher:
+          class_path: hepattn.models.Matcher
+          init_args:
+            default_solver: scipy
+            adaptive_solver: false
+            adaptive_check_interval: 1000

@@ -1,12 +1,12 @@
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import yaml
 
 from hepattn.experiments.cld.data import CLDDataModule
 from hepattn.experiments.cld.event_display import plot_cld_event
+from hepattn.utils.plotting import setup_plotting
 
-plt.rcParams["figure.dpi"] = 300
+setup_plotting()
 
 plot_save_dir = Path("src/hepattn/experiments/cld/eval_plots/")
 

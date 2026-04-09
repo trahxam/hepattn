@@ -7,7 +7,7 @@ import torch
 import yaml
 from matplotlib.colors import LogNorm
 
-from hepattn.experiments.cld.data import CLDDataModule
+from hepattn.experiments.cld.data.data import CLDDataModule
 
 plt.rcParams["figure.dpi"] = 300
 

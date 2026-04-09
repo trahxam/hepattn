@@ -1,6 +1,11 @@
 import numpy as np
 
 
+def sigmoid(x):
+    """Numerically stable sigmoid for numpy arrays."""
+    return 1 / (1 + np.exp(-np.clip(x, -10, 10)))
+
+
 def frequentist_binomial_error(k, n):
     return np.sqrt((k / n) * (1 - (k / n)) / n)
 

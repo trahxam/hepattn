@@ -1,6 +1,7 @@
-from hepattn.experiments.atlas_muon import run_filtering
+from hepattn.experiments.atlas_muon import main
+
+from ..utils import run_test  # noqa: TID252
 
 
 def test_filtering():
-    args = ["fit", "--config", "tests/experiments/atlas_muon/test_filtering.yaml"]
-    run_filtering.main(args)
+    run_test(main, "tests/experiments/atlas_muon/test_filtering.yaml")
