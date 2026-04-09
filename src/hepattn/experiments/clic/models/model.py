@@ -2,7 +2,7 @@ import torch  # noqa: F401
 import torchmetrics as tm
 from torch import nn
 
-from hepattn.experiments.clic.metrics import MaskInference
+from hepattn.experiments.clic.utils.metrics import MaskInference
 from hepattn.models import ModelWrapper
 
 

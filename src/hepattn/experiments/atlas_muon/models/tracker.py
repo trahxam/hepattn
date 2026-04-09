@@ -6,14 +6,10 @@ and per-hit statistics) during training/validation/test. The `main`
 function hooks this wrapper into the project's CLI.
 """
 
-import comet_ml  # noqa: F401
 import torch
-from lightning.pytorch.cli import ArgsType
 from torch import nn
 
-from hepattn.experiments.atlas_muon.data import AtlasMuonDataModule
 from hepattn.models import ModelWrapper
-from hepattn.utils.cli import CLI
 
 
 class TrackMLTracker(ModelWrapper):
@@ -114,14 +110,3 @@ class TrackMLTracker(ModelWrapper):
         self.log(f"{stage}/num_particles", torch.mean(true_valid.sum(-1).float()), sync_dist=True)
 
 
-def main(args: ArgsType = None) -> None:
-    CLI(
-        model_class=TrackMLTracker,
-        datamodule_class=AtlasMuonDataModule,
-        args=args,
-        parser_kwargs={"default_env": True},
-    )
-
-
-if __name__ == "__main__":
-    main()

@@ -7,15 +7,11 @@ per-batch metrics (counts, precision/recall, AUC when logits are available)
 and logs them using the Lightning logger.
 """
 
-import comet_ml  # noqa: F401
 import torch
-from lightning.pytorch.cli import ArgsType
 from torch import nn
 from torchmetrics.functional import auroc
 
-from hepattn.experiments.atlas_muon.data import AtlasMuonDataModule
 from hepattn.models import ModelWrapper
-from hepattn.utils.cli import CLI
 
 
 class AtlasMuonFilter(ModelWrapper):
@@ -94,9 +90,3 @@ class AtlasMuonFilter(ModelWrapper):
             )
 
 
-def main(args: ArgsType = None) -> None:
-    CLI(model_class=AtlasMuonFilter, datamodule_class=AtlasMuonDataModule, args=args, parser_kwargs={"default_env": True}, save_config_callback=None)
-
-
-if __name__ == "__main__":
-    main()
