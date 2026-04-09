@@ -1,6 +1,8 @@
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+
+from hepattn.utils.plotting import setup_plotting
 import numpy as np
 import torch
 import yaml
@@ -10,7 +12,8 @@ from matplotlib.patches import Rectangle
 
 from hepattn.experiments.pixel.data import PixelClusterDataModule
 
-plt.rcParams["figure.dpi"] = 300
+
+setup_plotting()
 
 config_path = Path("src/hepattn/experiments/pixel/configs/base.yaml")
 config = yaml.safe_load(config_path.read_text())["data"]

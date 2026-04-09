@@ -1,12 +1,15 @@
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+
+from hepattn.utils.plotting import setup_plotting
 import torch
 import yaml
 
 from hepattn.experiments.tide.data import ROIDataModule
 
-plt.rcParams["figure.dpi"] = 300
+
+setup_plotting()
 
 torch.manual_seed(42)
 

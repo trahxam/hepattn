@@ -1,4 +1,13 @@
+import matplotlib.pyplot as plt
 import numpy as np
+
+
+def setup_plotting(usetex: bool = False, dpi: int = 300, fontsize: int = 10):
+    """Set common matplotlib defaults for publication-quality plots."""
+    plt.rcParams["text.usetex"] = usetex
+    plt.rcParams["figure.dpi"] = dpi
+    plt.rcParams["font.size"] = fontsize
+    plt.rcParams["figure.constrained_layout.use"] = True
 
 
 def plot_hist_to_ax(ax, values, bins, value_errors=None, color="cornflowerblue", vertical_lines=False, label=None, linestyle="-"):

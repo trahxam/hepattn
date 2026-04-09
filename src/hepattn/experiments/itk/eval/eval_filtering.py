@@ -11,15 +11,10 @@ from tqdm import tqdm
 
 from hepattn.experiments.itk.data.data import ITkDataset
 from hepattn.utils.histogram import BinomialHistogram
-from hepattn.utils.plotting import plot_hist_to_ax
+from hepattn.utils.plotting import plot_hist_to_ax, setup_plotting
+from hepattn.utils.stats import sigmoid
 
-plt.rcParams["figure.dpi"] = 300
-plt.rcParams["font.size"] = 8
-plt.rcParams["figure.constrained_layout.use"] = True
-
-
-def sigmoid(x):
-    return 1 / (1 + np.exp(-np.clip(x, -10, 10)))
+setup_plotting(fontsize=8)
 
 
 def main():

@@ -10,16 +10,10 @@ from tqdm import tqdm
 from hepattn.experiments.cld.data.data import CLDDataset
 from hepattn.experiments.cld.scripts.event_display import plot_cld_event
 from hepattn.utils.histogram import BinomialHistogram
-from hepattn.utils.plotting import plot_hist_to_ax
+from hepattn.utils.plotting import plot_hist_to_ax, setup_plotting
+from hepattn.utils.stats import sigmoid
 
-plt.rcParams["text.usetex"] = False
-plt.rcParams["figure.dpi"] = 300
-plt.rcParams["font.size"] = 10
-plt.rcParams["figure.constrained_layout.use"] = True
-
-
-def sigmoid(x):
-    return 1 / (1 + np.exp(-np.clip(x, -10, 10)))
+setup_plotting()
 
 
 def main():

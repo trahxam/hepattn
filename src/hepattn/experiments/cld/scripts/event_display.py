@@ -1,9 +1,11 @@
 import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
+
+from hepattn.utils.plotting import setup_plotting
 import torch
 
-plt.rcParams["figure.dpi"] = 300
 
+setup_plotting()
 
 def plot_cld_event(data, axes_spec, object_name, batch_idx=0, valid=True, mark_transparent=None, gridspec_kw=None):
     # Setup the axes

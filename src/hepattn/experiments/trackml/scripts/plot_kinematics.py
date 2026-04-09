@@ -1,12 +1,12 @@
 import matplotlib.pyplot as plt
+
+from hepattn.utils.plotting import setup_plotting
 import numpy as np
 
 from hepattn.experiments.trackml.data.data import TrackMLDataset
 
-plt.rcParams["text.usetex"] = False
-plt.rcParams["figure.dpi"] = 300
-plt.rcParams["figure.constrained_layout.use"] = True
 
+setup_plotting()
 
 def plot_trackml_kinematics(dataset: TrackMLDataset):
     # Define histogram binnings
