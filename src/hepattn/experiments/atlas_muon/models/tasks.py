@@ -1,8 +1,8 @@
 import torch
 from torch import Tensor, nn
 
-from hepattn.losses import mask_focal_loss
-from hepattn.tasks.hit_filter import HitFilterTask
+from hepattn.components.losses import mask_focal_loss
+from hepattn.models.tasks import HitFilterTask
 
 
 class HitFilterTaskBatched(HitFilterTask):

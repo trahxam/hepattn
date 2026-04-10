@@ -1,9 +1,10 @@
 import torch
 from torch import Tensor, nn
 
-from hepattn.losses import cost_fns, loss_fns
-from hepattn.tasks.base import RegressionLossType, Task
-from hepattn.tasks.regression import RegressionTask
+from hepattn.components.costs import cost_fns
+from hepattn.components.losses import loss_fns
+from hepattn.models.tasks import RegressionLossType, Task
+from hepattn.models.tasks import RegressionTask
 from hepattn.utils.masks import topk_attn
 from hepattn.utils.scaling import FeatureScaler
 

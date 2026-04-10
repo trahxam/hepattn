@@ -4,7 +4,7 @@ import torch
 from torch import Tensor
 
 from hepattn.components.dense import Dense
-from hepattn.tasks.regression import GaussianRegressionTask
+from hepattn.models.tasks import GaussianRegressionTask
 
 
 class ObjectGaussianRegressionTask(GaussianRegressionTask):
