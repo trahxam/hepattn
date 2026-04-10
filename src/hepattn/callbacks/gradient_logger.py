@@ -2,15 +2,18 @@ from lightning import Callback, LightningModule, Trainer
 
 
 class GradientLoggerCallback(Callback):
+    """Callback that logs per-parameter gradient statistics after each backward pass."""
+
     def __init__(self, log_every_n_steps=50):
-        """Callback to log model gradients during training.
+        """Initialise the gradient logger.
 
         Args:
-            log_every_n_steps (int): Frequency of logging gradients. Logs every `n` steps.
+            log_every_n_steps: Frequency (in global steps) at which gradients are logged.
         """
         self.log_every_n_steps = log_every_n_steps
 
     def setup(self, trainer: Trainer, module: LightningModule, stage: str) -> None:
+        """Set up the logging helper, skipping non-fit stages and fast_dev_run."""
         if trainer.fast_dev_run or stage != "fit":
             return
         kwargs = {"sync_dist": len(trainer.device_ids) > 1}
@@ -23,9 +26,7 @@ class GradientLoggerCallback(Callback):
         self.log = log
 
     def on_after_backward(self, trainer, pl_module):
-        """Called after the backward pass in training.
-        Logs the gradients of the model's parameters.
-        """
+        """Log per-parameter gradient mean, std, and total magnitude after the backward pass."""
         # Check if logging should happen at this step
         if trainer.global_step % self.log_every_n_steps == 0:
             total_grad_magnitude = 0.0

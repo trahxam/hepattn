@@ -8,6 +8,8 @@ from hepattn.tasks.base import REGRESSION_LOSS_FNS, RegressionLossType, Task
 
 
 class RegressionTask(Task):
+    """Abstract base class for regression tasks that predict continuous target fields."""
+
     def __init__(
         self,
         name: str,
@@ -47,10 +49,12 @@ class RegressionTask(Task):
         self.regression_key = output_object + "_regr"
 
     def forward(self, x: dict[str, Tensor], outputs: dict[str, dict[str, Tensor]] | None = None) -> dict[str, Tensor]:
+        """Compute regression predictions by passing embeddings through the task network."""
         latent = self.latent(x)
         return {self.regression_key: latent}
 
     def predict(self, outputs: dict[str, Tensor], query_mask: Tensor | None = None) -> dict[str, Tensor]:
+        """Return per-field regression predictions from latent outputs."""
         latent = outputs[self.regression_key]
         return {self.output_object + "_" + field: latent[..., i] for i, field in enumerate(self.fields)}
 
@@ -60,6 +64,7 @@ class RegressionTask(Task):
         targets: dict[str, Tensor],
         layer_outputs: dict[str, dict[str, Tensor]] | None = None,
     ) -> dict[str, Tensor]:
+        """Compute mean regression loss over valid objects."""
         target = torch.stack([targets[self.target_object + "_" + field] for field in self.fields], dim=-1)
         output = outputs[self.regression_key]
 
@@ -73,6 +78,7 @@ class RegressionTask(Task):
         return {self.loss_fn_name: self.loss_weight * loss.mean()}
 
     def metrics(self, preds: dict[str, Tensor], targets: dict[str, Tensor]) -> dict[str, Tensor]:
+        """Compute mean absolute and normalised absolute residuals for each field."""
         metrics = {}
         for field in self.fields:
             pred = preds[self.output_object + "_" + field][targets[self.target_object + "_valid"]]
@@ -84,6 +90,8 @@ class RegressionTask(Task):
 
 
 class GaussianRegressionTask(Task):
+    """Abstract base class for regression tasks that output a full Gaussian (mean + precision)."""
+
     def __init__(
         self,
         name: str,
@@ -118,6 +126,7 @@ class GaussianRegressionTask(Task):
         self.likelihood_norm = self.k * 0.5 * math.log(2 * math.pi)
 
     def forward(self, x: dict[str, Tensor], outputs: dict[str, dict[str, Tensor]] | None = None) -> dict[str, Tensor]:
+        """Compute Gaussian distribution parameters (mean and upper-triangular precision factor)."""
         latent = self.latent(x)
         k = self.k
         triu_idx = torch.triu_indices(k, k, device=latent.device)
@@ -132,6 +141,7 @@ class GaussianRegressionTask(Task):
         return {self.output_object + "_mu": mu, self.output_object + "_u": u, self.output_object + "_ubar": ubar}
 
     def predict(self, outputs: dict[str, Tensor]) -> dict[str, Tensor]:
+        """Return per-field mean predictions and full precision matrix elements."""
         preds = outputs
         mu = outputs[self.output_object + "_mu"]
         ubar = outputs[self.output_object + "_ubar"]
@@ -155,6 +165,7 @@ class GaussianRegressionTask(Task):
         targets: dict[str, Tensor],
         layer_outputs: dict[str, dict[str, Tensor]] | None = None,
     ) -> dict[str, Tensor]:
+        """Compute negative log-likelihood loss under the predicted Gaussian distribution."""
         y = torch.stack([targets[self.target_object + "_" + field] for field in self.fields], dim=-1)
 
         z = torch.einsum("...ij,...j->...i", outputs[self.output_object + "_ubar"], y - outputs[self.output_object + "_mu"])
@@ -166,6 +177,7 @@ class GaussianRegressionTask(Task):
         return {"nll": -self.loss_weight * log_likelihood.mean()}
 
     def metrics(self, preds: dict[str, Tensor], targets: dict[str, Tensor]) -> dict[str, Tensor]:
+        """Compute RMSE, pull mean, and pull std metrics for each regression field."""
         y = torch.stack([targets[self.target_object + "_" + field] for field in self.fields], dim=-1)
         res = y - preds[self.output_object + "_mu"]
         z = torch.einsum("...ij,...j->...i", preds[self.output_object + "_ubar"], res)
@@ -182,6 +194,8 @@ class GaussianRegressionTask(Task):
 
 
 class ObjectGaussianRegressionTask(GaussianRegressionTask):
+    """Gaussian regression task that operates on per-object embeddings."""
+
     def __init__(
         self,
         name: str,
@@ -219,9 +233,11 @@ class ObjectGaussianRegressionTask(GaussianRegressionTask):
         self.net = Dense(self.dim, self.ndofs)
 
     def latent(self, x: dict[str, Tensor]) -> Tensor:
+        """Produce raw latent vector from object embeddings."""
         return self.net(x[self.input_object + "_embed"])
 
     def cost(self, outputs: dict[str, Tensor], targets: dict[str, Tensor]) -> dict[str, Tensor]:
+        """Compute pairwise negative log-likelihood costs for bipartite matching."""
         mu = outputs[self.output_object + "_mu"].to(torch.float32)
         ubar = outputs[self.output_object + "_ubar"].to(torch.float32)
         u = outputs[self.output_object + "_u"].to(torch.float32)
@@ -246,6 +262,8 @@ class ObjectGaussianRegressionTask(GaussianRegressionTask):
 
 
 class ObjectRegressionTask(RegressionTask):
+    """Regression task that operates on per-object embeddings via a dense projection."""
+
     def __init__(
         self,
         name: str,
@@ -284,10 +302,13 @@ class ObjectRegressionTask(RegressionTask):
         self.net = Dense(self.dim, self.ndofs)
 
     def latent(self, x: dict[str, Tensor]) -> Tensor:
+        """Produce raw latent regression vector from object embeddings."""
         return self.net(x[self.input_object + "_embed"])
 
 
 class ObjectHitRegressionTask(RegressionTask):
+    """Regression task that jointly encodes object and constituent hit embeddings via bilinear projection."""
+
     def __init__(
         self,
         name: str,
@@ -332,6 +353,7 @@ class ObjectHitRegressionTask(RegressionTask):
         self.object_net = Dense(dim, self.ndofs * self.dim_per_dof)
 
     def latent(self, x: dict[str, Tensor]) -> Tensor:
+        """Compute per-object per-hit regression latents via factored bilinear projection."""
         x_obj = self.object_net(x[self.input_object + "_embed"])
         x_hit = self.hit_net(x[self.input_constituent + "_embed"])
 

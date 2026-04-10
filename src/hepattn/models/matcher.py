@@ -20,6 +20,7 @@ _PROCESS_POOLS = {}
 
 
 def _get_thread_pool(n_jobs: int) -> ThreadPool:
+    """Return (or lazily create) a shared thread pool of the given size."""
     with _POOL_LOCK:
         pool = _THREAD_POOLS.get(n_jobs)
         if pool is None:
@@ -62,6 +63,7 @@ def _close_pools() -> None:
 
 
 def solve_scipy(cost):
+    """Solve the linear assignment problem using SciPy and return column indices."""
     _, col_idx = scipy.optimize.linear_sum_assignment(cost)
     return col_idx
 
@@ -94,6 +96,7 @@ else:
 
 
 def match_individual(solver_fn, cost: np.ndarray, default_idx: np.ndarray) -> np.ndarray:
+    """Solve one assignment problem and pad unmatched predictions with default indices."""
     pred_idx = np.asarray(solver_fn(cost), dtype=np.int32)
 
     if solver_fn is SOLVERS["scipy"]:
@@ -124,6 +127,7 @@ def match_parallel(solver_fn, costs_t: np.ndarray, lengths_np: np.ndarray, pred_
 
 
 def _mp_match_task(args: tuple[str, str, tuple[int, int, int], str, int, int, int]) -> np.ndarray:
+    """Worker function for multiprocess matching; reads costs from shared memory."""
     solver_name, shm_name, shape, dtype_str, i, length, pred_dim = args
     shm = shared_memory.SharedMemory(name=shm_name)
     try:
@@ -173,6 +177,11 @@ def match_multiprocess(
 
 
 class Matcher(nn.Module):
+    """Match predictions to targets using the linear assignment problem.
+
+    Optionally benchmarks available solvers at runtime and switches to the fastest one.
+    """
+
     def __init__(
         self,
         default_solver: str = "scipy",
@@ -183,28 +192,22 @@ class Matcher(nn.Module):
         n_jobs: int = 8,
         verbose: bool = False,
     ):
-        super().__init__()
-        """ Used to match predictions to targets based on a given cost matrix.
+        """Initialize the Matcher.
 
-        Parameters
-        ----------
-        default_solver : str
-            The default solving algorithm to use.
-        adaptive_solver : bool
-            If true, then after every adaptive_check_interval calls of the solver,
-            each solver algorithm is timed and used to determine the fastest solver, which
-            is then set as the current solver.
-        adaptive_check_interval : bool
-            Interval for checking which solver is the fastest.
-        parallel_solver : bool
-            If true, then the solver will use a parallel implementation to speed up the matching.
-        parallel_backend : str
-            Parallel backend when parallel_solver is True. One of: 'thread', 'process'.
-        n_jobs: int
-            Number of jobs to use for parallel matching. Only used if parallel_solver is True.
-        verbose : bool
-            If true, extra information on solver timing is printed.
+        Args:
+            default_solver: Name of the LAP solver to use initially. Must be a key of ``SOLVERS``.
+            adaptive_solver: If True, periodically benchmarks all solvers and switches to the fastest.
+            adaptive_check_interval: How many forward calls to wait between solver benchmarks.
+            parallel_solver: If True, solves each batch element in parallel.
+            parallel_backend: Parallelism backend when ``parallel_solver=True``. One of
+                ``'thread'`` or ``'process'``.
+            n_jobs: Number of parallel workers. Only used when ``parallel_solver=True``.
+            verbose: If True, prints solver timing information during adaptive checks.
+
+        Raises:
+            ValueError: If ``default_solver`` or ``parallel_backend`` is invalid.
         """
+        super().__init__()
         if default_solver not in SOLVERS:
             raise ValueError(f"Unknown solver: {default_solver}. Available solvers: {list(SOLVERS.keys())}")
         if parallel_backend not in {"thread", "process"}:
@@ -219,6 +222,17 @@ class Matcher(nn.Module):
         self.verbose = verbose
 
     def compute_matching(self, costs, object_valid_mask=None, query_valid_mask=None):
+        """Run the LAP solver on a batch of cost matrices.
+
+        Args:
+            costs: NumPy cost array of shape (B, num_pred, num_target).
+            object_valid_mask: Optional boolean tensor (B, num_target). True for valid targets.
+            query_valid_mask: Optional boolean tensor (B, num_pred). True for valid queries.
+                Invalid queries have their costs set to a large value to avoid assignment.
+
+        Returns:
+            Long tensor of shape (B, num_pred) with the assignment column indices.
+        """
         if object_valid_mask is None:
             object_valid_mask = torch.ones((costs.shape[0], costs.shape[1]), dtype=torch.bool)
 
@@ -258,6 +272,16 @@ class Matcher(nn.Module):
 
     @torch.no_grad()
     def forward(self, costs, object_valid_mask=None, query_valid_mask=None):
+        """Compute optimal assignments for a batch of cost matrices.
+
+        Args:
+            costs: Cost tensor of shape (B, num_pred, num_target).
+            object_valid_mask: Optional boolean tensor (B, num_target).
+            query_valid_mask: Optional boolean tensor (B, num_pred).
+
+        Returns:
+            Long tensor of shape (B, num_pred) with assignment indices.
+        """
         # Convert costs to numpy on CPU for solver compatibility
         costs = costs.detach().to(torch.float32).cpu().numpy()
 
@@ -271,6 +295,11 @@ class Matcher(nn.Module):
         return pred_idxs
 
     def adapt_solver(self, costs):
+        """Benchmark all available solvers and switch to the fastest.
+
+        Args:
+            costs: NumPy cost array used as a representative benchmark input.
+        """
         solver_times = {}
 
         if self.verbose:

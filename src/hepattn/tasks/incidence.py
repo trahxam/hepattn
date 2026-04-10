@@ -9,6 +9,8 @@ from hepattn.utils.scaling import FeatureScaler
 
 
 class IncidenceRegressionTask(Task):
+    """Task that predicts a soft incidence matrix between objects and their constituent hits."""
+
     def __init__(
         self,
         name: str,
@@ -52,6 +54,7 @@ class IncidenceRegressionTask(Task):
         self.outputs = [self.incidence_key]
 
     def forward(self, x: dict[str, Tensor], outputs: dict[str, dict[str, Tensor]] | None = None) -> dict[str, Tensor]:
+        """Compute the soft incidence matrix via dot-product between object and constituent embeddings."""
         x_object = self.net(x[self.input_object + "_embed"])
         x_hit = self.node_net(x[self.input_constituent + "_embed"])
 
@@ -61,9 +64,11 @@ class IncidenceRegressionTask(Task):
         return {self.incidence_key: incidence_pred}
 
     def predict(self, outputs: dict[str, Tensor], query_mask: Tensor | None = None) -> dict[str, Tensor]:
+        """Return the detached predicted incidence matrix."""
         return {self.output_object + "_incidence": outputs[self.incidence_key].detach()}
 
     def cost(self, outputs: dict[str, Tensor], targets: dict[str, Tensor]) -> dict[str, Tensor]:
+        """Compute pairwise incidence matching costs for bipartite assignment."""
         output = outputs[self.incidence_key].detach().to(torch.float32)
         target = targets[self.target_object + "_incidence"].to(torch.float32)
 
@@ -78,6 +83,7 @@ class IncidenceRegressionTask(Task):
         targets: dict[str, Tensor],
         layer_outputs: dict[str, dict[str, Tensor]] | None = None,
     ) -> dict[str, Tensor]:
+        """Compute incidence matrix loss masked by valid constituent and object positions."""
         losses = {}
         output = outputs[self.incidence_key]
         target = targets[self.target_object + "_incidence"].type_as(output)
@@ -92,6 +98,8 @@ class IncidenceRegressionTask(Task):
 
 
 class IncidenceBasedRegressionTask(RegressionTask):
+    """Regression task that constructs proxy particle features from a predicted incidence matrix."""
+
     def __init__(
         self,
         name: str,
@@ -170,6 +178,7 @@ class IncidenceBasedRegressionTask(RegressionTask):
         self.class_prob_output_key = f"{output_object}_class_prob"
 
     def forward(self, x: dict[str, Tensor], outputs: dict[str, dict[str, Tensor]] | None = None) -> dict[str, Tensor]:
+        """Build proxy particle features from the incidence matrix and regress corrections."""
         if self.use_incidence:
             inc = None
             class_probs = None
@@ -218,6 +227,7 @@ class IncidenceBasedRegressionTask(RegressionTask):
         return {self.output_object + "_regr": preds, self.output_object + "_proxy_regr": proxy_feats}
 
     def predict(self, outputs: dict[str, Tensor], query_mask: Tensor | None = None) -> dict[str, Tensor]:
+        """Return per-field regression predictions and proxy feature values."""
         pflow_regr = outputs[self.output_object + "_regr"]
         proxy_regr = outputs[self.output_object + "_proxy_regr"]
         return {self.output_object + "_" + field: pflow_regr[..., i] for i, field in enumerate(self.fields)} | {
@@ -225,6 +235,7 @@ class IncidenceBasedRegressionTask(RegressionTask):
         }
 
     def metrics(self, preds: dict[str, Tensor], targets: dict[str, Tensor]) -> dict[str, Tensor]:
+        """Compute regression metrics including residuals for proxy particle predictions."""
         metrics = super().metrics(preds, targets)
         for field in self.fields:
             pred = preds[self.output_object + "_proxy_" + field][targets[self.target_object + "_valid"]]
@@ -235,6 +246,7 @@ class IncidenceBasedRegressionTask(RegressionTask):
         return metrics
 
     def old_cost(self, outputs, targets) -> dict[str, Tensor]:
+        """Compute dR-based matching cost in eta-phi space."""
         eta_pos = self.fields.index("eta")
         sinphi_pos = self.fields.index("sinphi")
         cosphi_pos = self.fields.index("cosphi")
@@ -261,6 +273,7 @@ class IncidenceBasedRegressionTask(RegressionTask):
         return {"regression": cost}
 
     def new_cost(self, outputs: dict[str, Tensor], targets: dict[str, Tensor]) -> dict[str, Tensor]:
+        """Compute pairwise regression-based matching cost."""
         output = outputs[self.output_object + "_regr"].detach().to(torch.float32)
         target = torch.stack([targets[self.target_object + "_" + field] for field in self.fields], dim=-1).to(torch.float32)
         num_objects = output.shape[1]
@@ -280,6 +293,7 @@ class IncidenceBasedRegressionTask(RegressionTask):
         targets: dict[str, Tensor],
         layer_outputs: dict[str, dict[str, Tensor]] | None = None,
     ) -> dict[str, Tensor]:
+        """Compute regression loss over valid objects only."""
         target = torch.stack([targets[self.target_object + "_" + field] for field in self.fields], dim=-1)
         output = outputs[self.output_object + "_regr"]
 
@@ -291,6 +305,7 @@ class IncidenceBasedRegressionTask(RegressionTask):
         return {self.loss_fn_name: self.loss_weight * loss}
 
     def scale_proxy_feats(self, proxy_feats: Tensor):
+        """Normalise proxy particle features using the stored feature scaler."""
         return torch.cat([self.scaler[field].transform(proxy_feats[..., i]).unsqueeze(-1) for i, field in enumerate(self.fields)], -1)
 
     def get_proxy_feats(
@@ -299,6 +314,18 @@ class IncidenceBasedRegressionTask(RegressionTask):
         inputs: dict[str, Tensor],
         class_probs: Tensor,
     ) -> tuple[Tensor, Tensor]:
+        """Build proxy particle features for charged and neutral particles from the incidence matrix.
+
+        Args:
+            incidence: Soft incidence matrix of shape ``(B, N_objects, N_constituents)``.
+            inputs: Raw input feature dictionary.
+            class_probs: Class probability tensor used to determine charged/neutral status.
+
+        Returns:
+            Tuple of ``(proxy_feats, is_charged)`` where ``proxy_feats`` has shape
+            ``(B, N_objects, N_fields)`` and ``is_charged`` is a boolean mask of shape
+            ``(B, N_objects)``.
+        """
         proxy_feats = torch.cat(
             [inputs[self.input_constituent + "_" + field].unsqueeze(-1) for field in self.fields],
             dim=-1,

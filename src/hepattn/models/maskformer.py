@@ -45,9 +45,19 @@ class MaskFormer(nn.Module):
 
     @property
     def input_names(self) -> list[str]:
+        """Names of all registered input constituent types."""
         return [input_net.input_name for input_net in self.input_nets]
 
     def forward(self, inputs: dict[str, Tensor]) -> dict[str, dict[str, dict[str, Tensor]]]:
+        """Embed, encode, decode, and run all tasks on the inputs.
+
+        Args:
+            inputs: Dictionary of input tensors keyed by ``{input_name}_{field}``.
+
+        Returns:
+            Nested dict keyed by stage (``'encoder'``, ``'layer_N'``, ``'final'``)
+            then by task name containing raw task output dicts.
+        """
         batch_size = inputs[self.input_names[0] + "_valid"].shape[0]
         x = {"inputs": inputs}
 
@@ -168,7 +178,7 @@ class MaskFormer(nn.Module):
         return preds
 
     def _prepare_targets_and_outputs(self, outputs: dict, targets: dict) -> tuple[dict, dict, dict]:
-        """Prepare targets and separate encoder/decoder outputs."""
+        """Split outputs into encoder/decoder parts and augment targets with query mask."""
         encoder_outputs = {"encoder": outputs["encoder"]} if "encoder" in outputs else {}
         decoder_outputs = {k: v for k, v in outputs.items() if k != "encoder"}
 

@@ -9,7 +9,19 @@ from hepattn.utils.cuda_timer import cuda_timer
 
 
 class InferenceTimer(Callback):
+    """Callback that records per-batch CUDA inference times and saves them to disk after testing.
+
+    A warm-start period (``n_warm_start`` batches) is discarded before
+    computing summary statistics.
+
+    Attributes:
+        times: List of per-batch inference times in milliseconds.
+        dims: List of total input dimensions for each recorded batch.
+        n_warm_start: Number of initial batches to discard as warm-up.
+    """
+
     def __init__(self):
+        """Initialise timing and dimension accumulators."""
         super().__init__()
         self.times = []
         self.dims = []
@@ -17,6 +29,7 @@ class InferenceTimer(Callback):
         self._tmp_dims = None
 
     def on_test_start(self, trainer, pl_module):
+        """Wrap the model's forward method with a CUDA timer."""
         assert trainer.global_rank == 0, "InferenceTimer should only be used with a single process."
         model = pl_module
         if hasattr(model, "model"):
@@ -40,11 +53,13 @@ class InferenceTimer(Callback):
             )
 
     def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        """Record the input dimension count captured during the forward pass."""
         if self._tmp_dims is not None:
             self.dims.append(self._tmp_dims)
             self._tmp_dims = None
 
     def on_test_end(self, trainer, pl_module):
+        """Restore the original forward method, discard warm-up samples, and save timing arrays."""
         pl_module.forward = self.old_forward
 
         if not len(self.times):
@@ -69,6 +84,7 @@ class InferenceTimer(Callback):
         np.save(self.times_path / f"{pl_module.name}_dims.npy", self.dims)
 
     def teardown(self, trainer, pl_module, stage):
+        """Print mean and std inference time after test teardown."""
         if len(self.times):
             print("-" * 80)
             print(f"Mean inference time: {self.mean_time:.2f} ± {self.std_time:.2f} ms")

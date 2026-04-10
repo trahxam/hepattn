@@ -4,11 +4,15 @@ from lightning import Callback
 
 
 class TargetStats(Callback):
+    """Callback that tracks running positive/negative fractions for binary ``*_valid`` targets."""
+
     def __init__(self):
+        """Initialise the per-target running statistics accumulator."""
         super().__init__()
         self.stats = defaultdict(lambda: {"pos": 0, "neg": 0})
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        """Accumulate positive/negative counts and log the running positive fraction."""
         _, targets = batch
         # calculate running means for each target
         for target, values in targets.items():

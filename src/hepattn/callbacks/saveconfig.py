@@ -10,11 +10,15 @@ from lightning.pytorch.loggers import CometLogger
 
 
 class SaveConfig(Callback):
+    """Callback that saves training metadata and source code to the log directory on training start."""
+
     def __init__(self) -> None:
+        """Initialise the save-guard flag."""
         super().__init__()
         self.already_saved = False
 
     def on_train_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
+        """Save metadata and upload source assets on the first call; no-op thereafter."""
         if self.already_saved or trainer.fast_dev_run:
             return
 
@@ -43,6 +47,13 @@ class SaveConfig(Callback):
         self.already_saved = trainer.strategy.broadcast(self.already_saved, src=0)
 
     def save_metadata(self, trainer, log_dir: Path, pl_module: LightningModule) -> None:
+        """Collect run metadata and write it to ``metadata.yaml`` in the log directory.
+
+        Args:
+            trainer: The active Lightning ``Trainer``.
+            log_dir: Directory to write ``metadata.yaml`` into.
+            pl_module: The ``LightningModule`` being trained.
+        """
         logger = trainer.logger
         datamodule = trainer.datamodule
 

@@ -6,6 +6,8 @@ from hepattn.tasks.base import Task
 
 
 class IoUPredictionTask(Task):
+    """Task that predicts the IoU of mask predictions for use as a confidence score."""
+
     def __init__(
         self,
         name: str,
@@ -62,10 +64,12 @@ class IoUPredictionTask(Task):
         self.outputs = [input_object + "_iou_logit"]
 
     def forward(self, x: dict[str, Tensor], outputs: dict[str, dict[str, Tensor]] | None = None) -> dict[str, Tensor]:
+        """Compute per-object IoU logits from object embeddings."""
         iou_logit = self.iou_net(x[self.input_object + "_embed"]).squeeze(-1)
         return {self.input_object + "_iou_logit": iou_logit}
 
     def predict(self, outputs: dict[str, Tensor], query_mask: Tensor | None = None) -> dict[str, Tensor]:
+        """Return predicted IoU scores as sigmoid-activated probabilities."""
         iou = outputs[self.input_object + "_iou_logit"].detach().sigmoid()
 
         if query_mask is not None:
@@ -85,6 +89,7 @@ class IoUPredictionTask(Task):
         targets: dict[str, Tensor],
         layer_outputs: dict[str, dict[str, Tensor]] | None = None,
     ) -> dict[str, Tensor]:
+        """Compute MSE loss between predicted IoU scores and true mask IoU values."""
         if layer_outputs is None or self.mask_task_name not in layer_outputs:
             raise ValueError(f"Mask task '{self.mask_task_name}' not found in layer_outputs. Make sure the mask task runs before IoUPredictionTask.")
 

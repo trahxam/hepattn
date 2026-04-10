@@ -3,11 +3,31 @@ from torch import Tensor, nn
 
 
 class Sorter(nn.Module):
+    """Sorts inputs and targets by a specified field to impose a canonical ordering.
+
+    Attributes:
+        input_sort_field: Name of the field used to determine sort order.
+    """
+
     def __init__(self, input_sort_field: str) -> None:
+        """Initialize the Sorter.
+
+        Args:
+            input_sort_field: Field name to sort inputs by (e.g. ``'phi'``).
+        """
         super().__init__()
         self.input_sort_field = input_sort_field
 
     def sort_inputs(self, inputs: dict[str, Tensor], input_names: list[str]) -> dict[str, Tensor]:
+        """Sort all input tensors in-place according to the sort field.
+
+        Args:
+            inputs: Dictionary of input tensors keyed by ``{input_name}_{field}``.
+            input_names: List of individual input type names to sort.
+
+        Returns:
+            The same ``inputs`` dict with all tensors reordered.
+        """
         all_names = [*input_names, "key"]
         sort_idxs = {}
 
@@ -46,6 +66,16 @@ class Sorter(nn.Module):
         return inputs
 
     def sort_targets(self, targets: dict, sort_fields: dict[str, Tensor], input_names: list[str]) -> dict:
+        """Sort target tensors to match the ordering applied to inputs.
+
+        Args:
+            targets: Dictionary of target tensors.
+            sort_fields: Dictionary containing the sort-field values used to derive the sort order.
+            input_names: List of input type names whose targets should be sorted.
+
+        Returns:
+            The same ``targets`` dict with all tensors reordered.
+        """
         for input_name in input_names:
             sort_idx = torch.argsort(sort_fields[f"{input_name}_{self.input_sort_field}"], dim=-1)
 

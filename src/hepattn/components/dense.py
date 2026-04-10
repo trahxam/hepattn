@@ -68,4 +68,5 @@ class Dense(nn.Module):
         self.net = nn.Sequential(*layers)
 
     def forward(self, x: Tensor) -> Tensor:
+        """Apply the feed-forward network to the input."""
         return self.net(x)

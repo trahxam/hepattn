@@ -78,6 +78,7 @@ class MaskFormerDecoder(nn.Module):
         assert not (self.local_strided_attn and self.mask_attention), "local_strided_attn and mask_attention cannot both be True"
 
     def _extract_kmeans_logits(self, layer_outputs: dict[str, object], num_constituents: int) -> Tensor:
+        """Extract the dense assignment logit tensor required by KMeansCrossAttention."""
         for task_outputs in layer_outputs.values():
             if not isinstance(task_outputs, dict):
                 continue
@@ -91,6 +92,7 @@ class MaskFormerDecoder(nn.Module):
         raise ValueError("cross_attn_mode='kmeans' requires a task output with 3D *_logit matching key length.")
 
     def num_queries(self, x) -> int:
+        """Return the current number of queries given the input state dict."""
         if self.dynamic_queries:
             return x["query_embed"].shape[1]
         return self._num_queries
@@ -269,11 +271,13 @@ class MaskFormerDecoder(nn.Module):
         return x, outputs
 
     def flex_local_ca_mask(self, q_len: int, kv_len: int, device, dtype_float):
+        """Build a flex-attention BlockMask for local strided cross-attention."""
         stride = kv_len / q_len
         window_mask_func = sliding_window_mask_strided_wrapped if self.window_wrap else sliding_window_mask_strided
         return window_mask_func(self.window_size, stride=stride, q_len=q_len, kv_len=kv_len, device=str(device))
 
     def generate_positional_encodings(self, x: dict):
+        """Compute symmetric positional encodings for queries and keys."""
         idx = torch.arange(self.num_queries(x), device=x["query_embed"].device, dtype=x["query_embed"].dtype)
         x["query_phi"] = 2 * torch.pi * idx / self.num_queries(x)
         query_posenc = pos_enc_symmetric(x["query_phi"], self.dim, self.posenc["alpha"], self.posenc["base"])

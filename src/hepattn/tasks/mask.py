@@ -7,6 +7,8 @@ from hepattn.tasks.base import Task
 
 
 class ObjectHitMaskTask(Task):
+    """Task for predicting binary associations between reconstructed objects and constituent hits."""
+
     def __init__(
         self,
         name: str,
@@ -77,6 +79,7 @@ class ObjectHitMaskTask(Task):
         self.outputs = [self.output_object_hit + "_logit"]
 
     def forward(self, x: dict[str, Tensor], outputs: dict[str, dict[str, Tensor]] | None = None) -> dict[str, Tensor]:
+        """Compute object-hit association logits via inner product of mask tokens and constituent embeddings."""
         mask_tokens = self.object_net(x[self.input_object + "_embed"])
         xs = x[self.input_constituent + "_embed"]
         if self.constituent_net:
@@ -91,6 +94,7 @@ class ObjectHitMaskTask(Task):
         return {self.output_object_hit + "_logit": object_hit_logit}
 
     def attn_mask(self, outputs: dict[str, Tensor], threshold: float | None = None) -> dict[str, Tensor]:
+        """Return a boolean cross-attention mask derived from predicted hit associations."""
         if not self.mask_attn:
             return {}
 
@@ -99,6 +103,7 @@ class ObjectHitMaskTask(Task):
         return {self.input_constituent: attn_mask}
 
     def predict(self, outputs: dict[str, Tensor], query_mask: Tensor | None = None) -> dict[str, Tensor]:
+        """Return per-association probabilities and binary valid flags."""
         output = {}
         probs = outputs[self.output_object_hit + "_logit"].sigmoid().detach()
         valid = probs >= self.pred_threshold
@@ -112,6 +117,7 @@ class ObjectHitMaskTask(Task):
         return output
 
     def cost(self, outputs: dict[str, Tensor], targets: dict[str, Tensor]) -> dict[str, Tensor]:
+        """Compute pairwise mask matching costs for bipartite assignment."""
         output = outputs[self.output_object_hit + "_logit"].detach().to(torch.float32)
         target = targets[self.target_object_hit + "_" + self.target_field].detach().to(output.dtype)
 
@@ -128,6 +134,7 @@ class ObjectHitMaskTask(Task):
         targets: dict[str, Tensor],
         layer_outputs: dict[str, dict[str, Tensor]] | None = None,
     ) -> dict[str, Tensor]:
+        """Compute weighted mask loss over valid objects and hit positions."""
         output = outputs[self.output_object_hit + "_logit"]
         target = targets[self.target_object_hit + "_" + self.target_field].type_as(output)
 

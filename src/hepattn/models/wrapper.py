@@ -11,6 +11,19 @@ from torchjd.aggregation import UPGrad
 
 
 class ModelWrapper(LightningModule):
+    """Lightning wrapper that handles training, validation, and testing loops.
+
+    Delegates forward and loss computation to the underlying model and provides
+    optional multi-task learning (MTL) support via torchjd.
+
+    Attributes:
+        name: Identifier for this model used in logging.
+        model: The underlying PyTorch model.
+        optimizer: Optimizer callable (e.g. AdamW).
+        lr_scheduler: Optional learning-rate scheduler callable.
+        mtl: Whether to use Jacobian-descent multi-task learning.
+    """
+
     def __init__(
         self,
         name: str,
@@ -19,6 +32,15 @@ class ModelWrapper(LightningModule):
         lr_scheduler: Callable | None = None,
         mtl: bool = False,
     ):
+        """Initialize ModelWrapper.
+
+        Args:
+            name: Human-readable name for logging.
+            model: The model to wrap.
+            optimizer: Optimizer callable. Defaults to AdamW.
+            lr_scheduler: Optional learning-rate scheduler callable.
+            mtl: If True, enables Jacobian-descent multi-task learning via torchjd.
+        """
         super().__init__()
 
         self.save_hyperparameters(logger=False)
@@ -38,12 +60,23 @@ class ModelWrapper(LightningModule):
             assert all(task.has_intermediate_loss is False for task in self.model.tasks)
 
     def forward(self, inputs: dict[str, Tensor]) -> dict[str, Tensor]:
+        """Delegate forward pass to the wrapped model."""
         return self.model(inputs)
 
     def predict(self, outputs: dict[str, Tensor]) -> dict[str, Tensor]:
+        """Delegate prediction conversion to the wrapped model."""
         return self.model.predict(outputs)
 
     def aggregate_losses(self, losses: dict[str, dict[str, dict[str, Tensor]]], stage: str | None = None) -> Tensor:
+        """Sum all task losses and log individual and total values.
+
+        Args:
+            losses: Nested dict of losses keyed by layer, task, and loss name.
+            stage: Logging prefix (e.g. ``'train'``, ``'val'``).
+
+        Returns:
+            Scalar total loss tensor.
+        """
         device = next(self.model.parameters()).device
         total_loss = torch.tensor(0.0, device=device)
 
@@ -63,6 +96,13 @@ class ModelWrapper(LightningModule):
         return total_loss
 
     def log_task_metrics(self, preds: dict[str, Tensor], targets: dict[str, Tensor], stage: str) -> None:
+        """Compute and log per-task metrics for all prediction layers.
+
+        Args:
+            preds: Predictions dict keyed by layer name then task name.
+            targets: Ground-truth targets dict.
+            stage: Logging prefix (e.g. ``'train'``, ``'val'``).
+        """
         # Log any task specific metrics
         for layer_name in preds:
             # Determine which task list to use based on layer name
@@ -79,12 +119,28 @@ class ModelWrapper(LightningModule):
                     self.log_dict({f"{stage}/{layer_name}_{task.name}_{k}": v for k, v in task_metrics.items()}, sync_dist=True)
 
     def log_metrics(self, preds: dict[str, Tensor], targets: dict[str, Tensor], stage: str) -> None:
+        """Log all metrics for a given stage, including any custom metrics.
+
+        Args:
+            preds: Predictions dict.
+            targets: Ground-truth targets dict.
+            stage: Logging prefix.
+        """
         self.log_task_metrics(preds, targets, stage)
 
         if hasattr(self, "log_custom_metrics"):
             self.log_custom_metrics(preds, targets, stage)
 
     def training_step(self, batch: tuple[dict[str, Tensor], dict[str, Tensor]], batch_idx: int) -> dict[str, Tensor] | None:
+        """Run one training step: forward, loss, optional metrics logging.
+
+        Args:
+            batch: Tuple of (inputs, targets).
+            batch_idx: Index of the current batch.
+
+        Returns:
+            Dict with ``'loss'`` key, or None when MTL mode handles the optimizer step.
+        """
         inputs, targets = batch
 
         # Get the model outputs
@@ -106,6 +162,14 @@ class ModelWrapper(LightningModule):
         return {"loss": total_loss}
 
     def validation_step(self, batch: tuple[dict[str, Tensor], dict[str, Tensor]]) -> dict[str, Tensor]:
+        """Run one validation step: forward, loss, predictions, and metrics.
+
+        Args:
+            batch: Tuple of (inputs, targets).
+
+        Returns:
+            Dict with ``'loss'`` key.
+        """
         inputs, targets = batch
 
         # Get the raw model outputs
@@ -122,6 +186,14 @@ class ModelWrapper(LightningModule):
         return {"loss": total_loss}
 
     def test_step(self, batch: tuple[dict[str, Tensor], dict[str, Tensor]]) -> tuple[dict[str, Tensor], dict[str, Tensor], dict[str, Tensor]]:
+        """Run one test step: forward, loss computation, and predictions.
+
+        Args:
+            batch: Tuple of (inputs, targets).
+
+        Returns:
+            Tuple of (outputs, preds, losses).
+        """
         inputs, targets = batch
         outputs = self.model(inputs)
 
@@ -134,6 +206,7 @@ class ModelWrapper(LightningModule):
         return outputs, preds, losses
 
     def configure_optimizers(self):
+        """Build and return optimizer (and optional scheduler) for Lightning."""
         opt = self.optimizer(self.model.parameters())
         if self.lr_scheduler is None:
             return opt
@@ -141,6 +214,12 @@ class ModelWrapper(LightningModule):
         return [opt], [{"scheduler": sch, "interval": "step"}]
 
     def mlt_opt(self, losses: dict[str, Tensor], outputs: dict[str, Tensor]) -> None:
+        """Perform a single Jacobian-descent MTL optimizer step via torchjd.
+
+        Args:
+            losses: Nested loss dict from ``model.loss``.
+            outputs: Forward outputs, used to locate shared feature tensors.
+        """
         opt = self.optimizers()
         opt.zero_grad()
 

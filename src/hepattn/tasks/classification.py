@@ -7,6 +7,8 @@ from hepattn.tasks.base import Task
 
 
 class ObjectClassificationTask(Task):
+    """Task for object detection and set-prediction classification with an implicit null class."""
+
     def __init__(
         self,
         name: str,
@@ -105,6 +107,7 @@ class ObjectClassificationTask(Task):
         self.outputs = [self.logits_key, self.probs_key]
 
     def forward(self, x: dict[str, Tensor], outputs: dict[str, dict[str, Tensor]] | None = None) -> dict[str, Tensor]:
+        """Compute classification logits and class probabilities for each object query."""
         # Output both logits and class probabilities
         x_logits = self.net(x[self.input_object + "_embed"])
 
@@ -123,6 +126,7 @@ class ObjectClassificationTask(Task):
         }
 
     def predict(self, outputs: dict[str, Tensor], threshold: float = 0.5, query_mask: Tensor | None = None) -> dict[str, Tensor]:
+        """Derive predicted classes, valid flags, and valid probabilities from raw outputs."""
         class_probs = outputs[self.output_object + "_class_prob"].detach()
 
         valid_prob = 1 - class_probs[..., -1]
@@ -140,6 +144,7 @@ class ObjectClassificationTask(Task):
         }
 
     def cost(self, outputs: dict[str, Tensor], targets: dict[str, Tensor]) -> dict[str, Tensor]:
+        """Compute pairwise classification costs used for bipartite matching."""
         costs = {}
 
         if self.num_classes == 1:
@@ -159,6 +164,7 @@ class ObjectClassificationTask(Task):
         targets: dict[str, Tensor],
         layer_outputs: dict[str, dict[str, Tensor]] | None = None,
     ) -> dict[str, Tensor]:
+        """Compute the weighted classification loss for binary or multi-class settings."""
         losses = {}
 
         # Get query_mask if present (for masking padded query losses)
@@ -185,6 +191,7 @@ class ObjectClassificationTask(Task):
         return losses
 
     def query_mask(self, outputs: dict[str, Tensor], threshold: float = 0.1) -> Tensor | None:
+        """Return a boolean mask suppressing low-confidence queries, or None if masking is disabled."""
         if not self.mask_queries:
             return None
 
@@ -192,6 +199,7 @@ class ObjectClassificationTask(Task):
         return class_probs[..., -1] <= (1 - threshold)
 
     def metrics(self, preds: dict[str, Tensor], targets: dict[str, Tensor]) -> dict[str, Tensor]:
+        """Compute efficiency, fake rate, and query count metrics for object detection."""
         pred_valid = preds[f"{self.output_object}_valid"].bool()
         true_valid = targets[f"{self.target_object}_valid"].bool()
 
@@ -219,6 +227,8 @@ class ObjectClassificationTask(Task):
 
 
 class ClassificationTask(Task):
+    """Standard classification task for objects already known to be valid."""
+
     def __init__(
         self,
         name: str,
@@ -275,10 +285,12 @@ class ClassificationTask(Task):
         self.outputs = [self.output_object + "_logits"]
 
     def forward(self, x: dict[str, Tensor], outputs: dict[str, dict[str, Tensor]] | None = None) -> dict[str, Tensor]:
+        """Compute classification logits from object embeddings."""
         x = self.net(x[f"{self.input_object}_embed"])
         return {f"{self.output_object}_logits": x}
 
     def predict(self, outputs: dict[str, Tensor]) -> dict[str, Tensor]:
+        """Derive per-class probabilities and binary predictions from logits."""
         logits = outputs[self.output_object + "_logits"].detach()
         result = {}
 
@@ -307,6 +319,7 @@ class ClassificationTask(Task):
         targets: dict[str, Tensor],
         layer_outputs: dict[str, dict[str, Tensor]] | None = None,
     ) -> dict[str, Tensor]:
+        """Compute cross-entropy or BCE loss over valid objects only."""
         logits = outputs[f"{self.output_object}_logits"]
 
         if len(self.classes) == 1 and not self.multilabel:
@@ -346,6 +359,7 @@ class ClassificationTask(Task):
         return {"bce": self.loss_weight * losses.mean()}
 
     def metrics(self, preds: dict[str, Tensor], targets: dict[str, Tensor]) -> dict[str, Tensor]:
+        """Compute per-class efficiency and purity metrics over valid objects."""
         metrics = {}
         for class_name in self.classes:
             target = targets[f"{self.target_object}_{class_name}"][targets[f"{self.target_object}_valid"]].bool()
