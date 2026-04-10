@@ -5,12 +5,13 @@ import numpy as np
 import torch
 import awkward as ak
 import random
-from lightning import LightningDataModule
 from torch import Tensor
 from torch.utils.data import Dataset
 from scipy.sparse import csr_matrix
 from tqdm import tqdm
 from torch.utils.data import BatchSampler, DataLoader, Dataset, RandomSampler
+
+from hepattn.utils.data import HeptattnDataModule
 
 from hepattn.utils.tensor_utils import pad_to_size
 
@@ -516,7 +517,7 @@ class ROICollator:
         return batched_inputs, batched_targets
 
 
-class ROIDataModule(LightningDataModule):
+class ROIDataModule(HeptattnDataModule):
     def __init__(
         self,
         batch_size: int,
@@ -535,7 +536,7 @@ class ROIDataModule(LightningDataModule):
 
         Parameters
         ----------
-        batch_dimension : int
+        batch_size : int
             Number of samples to read in a minibatch.
         train_dir : str
             Training data directory.
@@ -545,56 +546,33 @@ class ROIDataModule(LightningDataModule):
             Test data directory.
         num_workers : int
             Number of workers / threads too use to read batches.
-        num_train " int
+        num_train : int
             Target number of training samples to load.
-        num_val " int
-            Target number of training samples to load.
-        num_test " int
-            Target number of training samples to load.
+        num_val : int
+            Target number of validation samples to load.
+        num_test : int
+            Target number of test samples to load.
         """
-        super().__init__()
-
-        self.batch_size = batch_size
-        self.train_dir = train_dir
-        self.val_dir = val_dir
-        self.test_dir = test_dir
-        self.num_workers = num_workers
-        self.num_train = num_train
-        self.num_val = num_val
-        self.num_test = num_test
+        super().__init__(
+            train_dir=train_dir,
+            val_dir=val_dir,
+            num_workers=num_workers,
+            num_train=num_train,
+            num_val=num_val,
+            num_test=num_test,
+            test_dir=test_dir,
+            batch_size=batch_size,
+        )
         self.kwargs = kwargs
 
-    def setup(self, stage: str):
-        # Create training and validation datasets
-        if stage == "fit":
-            self.train_dset = ROIDataset(dirpath=self.train_dir, num_samples=self.num_train, **self.kwargs)
-            self.val_dset = ROIDataset(dirpath=self.val_dir, num_samples=self.num_val, **self.kwargs)
+    def make_dataset(self, dirpath: str, num_events: int, split: str) -> ROIDataset:
+        return ROIDataset(dirpath=dirpath, num_samples=num_events, **self.kwargs)
 
-        # Only print train/val dataset details when actually training
-        if stage == "fit":
-            print(f"Created training dataset with {len(self.train_dset):,} events")
-            print(f"Created validation dataset with {len(self.val_dset):,} events")
-
-        if stage == "test":
-            assert self.test_dir is not None, "No test file specified, see --data.test_dir"
-            self.test_dset = ROIDataset(dirpath=self.test_dir, num_samples=self.num_test, **self.kwargs)
-            print(f"Created test dataset with {len(self.test_dset):,} events")
-
-    def get_dataloader(self, stage: str, dataset: ROIDataset, shuffle: bool):
+    def get_dataloader(self, dataset: ROIDataset, *, shuffle: bool) -> DataLoader:
         return DataLoader(
             dataset=dataset,
             batch_size=self.batch_size,
             collate_fn=ROICollator(dataset.inputs, dataset.targets, dataset.roi_max_num_tracks),
-            sampler=None,
             num_workers=self.num_workers,
             shuffle=shuffle,
         )
-
-    def train_dataloader(self):
-        return self.get_dataloader(dataset=self.train_dset, stage="fit", shuffle=False)
-
-    def val_dataloader(self):
-        return self.get_dataloader(dataset=self.val_dset, stage="test", shuffle=False)
-
-    def test_dataloader(self):
-        return self.get_dataloader(dataset=self.test_dset, stage="test", shuffle=False)

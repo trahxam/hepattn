@@ -4,9 +4,10 @@ import h5py
 import numpy as np
 import pandas as pd
 import torch
-from lightning import LightningDataModule
 from lightning.pytorch.utilities.rank_zero import rank_zero_info
 from torch.utils.data import DataLoader, Dataset
+
+from hepattn.utils.data import HeptattnDataModule
 
 
 def is_valid_file(path):
@@ -316,7 +317,7 @@ class TrackMLDataset(Dataset):
         return inputs, targets
 
 
-class TrackMLDataModule(LightningDataModule):
+class TrackMLDataModule(HeptattnDataModule):
     def __init__(
         self,
         train_dir: str,
@@ -332,70 +333,25 @@ class TrackMLDataModule(LightningDataModule):
         hit_eval_test: str | None = None,
         **kwargs,
     ):
-        super().__init__()
-
-        self.train_dir = train_dir
-        self.val_dir = val_dir
-        self.test_dir = test_dir
-        self.num_workers = num_workers
-        self.num_train = num_train
-        self.num_val = num_val
-        self.num_test = num_test
-        self.pin_memory = pin_memory
+        super().__init__(
+            train_dir=train_dir,
+            val_dir=val_dir,
+            num_workers=num_workers,
+            num_train=num_train,
+            num_val=num_val,
+            num_test=num_test,
+            test_dir=test_dir,
+            pin_memory=pin_memory,
+        )
         self.hit_eval_train = hit_eval_train
         self.hit_eval_val = hit_eval_val
         self.hit_eval_test = hit_eval_test
         self.kwargs = kwargs
 
-    def setup(self, stage: str):
-        if stage in {"fit", "test"}:
-            self.train_dataset = TrackMLDataset(
-                dirpath=self.train_dir,
-                num_events=self.num_train,
-                hit_eval_path=self.hit_eval_train,
-                **self.kwargs,
-            )
-
-        if stage == "fit":
-            self.val_dataset = TrackMLDataset(
-                dirpath=self.val_dir,
-                num_events=self.num_val,
-                hit_eval_path=self.hit_eval_val,
-                **self.kwargs,
-            )
-
-        # Only print train/val dataset details when actually training
-        if stage == "fit":
-            rank_zero_info(f"Created training dataset with {len(self.train_dataset):,} events")
-            rank_zero_info(f"Created validation dataset with {len(self.val_dataset):,} events")
-
-        if stage == "test":
-            assert self.test_dir is not None, "No test file specified, see --data.test_dir"
-
-            self.test_dataset = TrackMLDataset(
-                dirpath=self.test_dir,
-                num_events=self.num_test,
-                hit_eval_path=self.hit_eval_test,
-                **self.kwargs,
-            )
-            rank_zero_info(f"Created test dataset with {len(self.test_dataset):,} events")
-
-    def get_dataloader(self, stage: str, dataset: TrackMLDataset, shuffle: bool):
-        return DataLoader(
-            dataset=dataset,
-            batch_size=None,
-            collate_fn=None,
-            sampler=None,
-            num_workers=self.num_workers,
-            shuffle=shuffle,
-            pin_memory=self.pin_memory,
+    def make_dataset(self, dirpath: str, num_events: int, split: str) -> TrackMLDataset:
+        return TrackMLDataset(
+            dirpath=dirpath,
+            num_events=num_events,
+            hit_eval_path=getattr(self, f"hit_eval_{split}"),
+            **self.kwargs,
         )
-
-    def train_dataloader(self):
-        return self.get_dataloader(dataset=self.train_dataset, stage="fit", shuffle=True)
-
-    def val_dataloader(self):
-        return self.get_dataloader(dataset=self.val_dataset, stage="test", shuffle=False)
-
-    def test_dataloader(self):
-        return self.get_dataloader(dataset=self.test_dataset, stage="test", shuffle=False)

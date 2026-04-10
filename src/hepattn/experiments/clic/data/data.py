@@ -9,6 +9,7 @@ from lightning import seed_everything
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
+from hepattn.utils.data import HeptattnDataModule
 from hepattn.utils.scaling import FeatureScaler
 
 
@@ -739,7 +740,7 @@ class CLICDataset(Dataset):
         ]
 
 
-class PflowDataModule(L.LightningDataModule):
+class PflowDataModule(HeptattnDataModule):
     def __init__(
         self,
         train_path: str,
@@ -755,41 +756,40 @@ class PflowDataModule(L.LightningDataModule):
         test_suff: str | None = None,
         **kwargs,
     ):
-        super().__init__()
-
+        super().__init__(
+            train_dir=train_path,
+            val_dir=valid_path,
+            num_workers=num_workers,
+            num_train=num_train,
+            num_val=num_val,
+            num_test=num_test,
+            test_dir=test_path,
+            pin_memory=pin_memory,
+            batch_size=batch_size,
+        )
         self.train_path = train_path
         self.valid_path = valid_path
-        self.batch_size = batch_size
         self.test_path = test_path
-        self.num_workers = num_workers
-        self.num_train = num_train
-        self.num_val = num_val
-        self.num_test = num_test
-        self.pin_memory = pin_memory
         self.test_suff = test_suff
         self.scale_dict_path = scale_dict_path
         self.kwargs = kwargs
 
-    def setup(self, stage: str):
+    def make_dataset(self, dirpath: str, num_events: int, split: str) -> CLICDataset:
+        return CLICDataset(
+            filepath=dirpath,
+            num_events=num_events,
+            scale_dict_path=self.scale_dict_path,
+            **self.kwargs,
+        )
+
+    def setup(self, stage: str) -> None:
         if self.trainer.is_global_zero:
             print("-" * 100)
 
         # create training and validation datasets
         if stage == "fit":
-            self.train_dset = CLICDataset(
-                filepath=self.train_path,
-                num_events=self.num_train,
-                scale_dict_path=self.scale_dict_path,
-                **self.kwargs,
-            )
-
-        if stage == "fit":
-            self.val_dset = CLICDataset(
-                filepath=self.valid_path,
-                num_events=self.num_val,
-                scale_dict_path=self.scale_dict_path,
-                **self.kwargs,
-            )
+            self.train_dset = self.make_dataset(self.train_path, self.num_train, "train")
+            self.val_dset = self.make_dataset(self.valid_path, self.num_val, "val")
 
         # Only print train/val dataset details when actually training
         if stage == "fit" and self.trainer.is_global_zero:
@@ -798,37 +798,31 @@ class PflowDataModule(L.LightningDataModule):
 
         if stage == "test":
             assert self.test_path is not None, "No test file specified, see --data.test_path"
-            self.test_dset = CLICDataset(
-                filepath=self.test_path,
-                num_events=self.num_test,
-                scale_dict_path=self.scale_dict_path,
-                **self.kwargs,
-            )
+            self.test_dset = self.make_dataset(self.test_path, self.num_test, "test")
             print(f"Created test dataset with {len(self.test_dset):,} events")
 
         if self.trainer.is_global_zero:
             print("-" * 100, "\n")
 
-    def get_dataloader(self, stage: str, dataset: CLICDataset, shuffle: bool):
-        print(f"Creating {stage} dataloader with {len(dataset):,} events")
+    def get_dataloader(self, dataset: CLICDataset, *, shuffle: bool) -> DataLoader:
+        print(f"Creating dataloader with {len(dataset):,} events")
         return DataLoader(
             dataset=dataset,
             batch_size=self.batch_size,
             collate_fn=None,
-            sampler=None,
             num_workers=self.num_workers,
             shuffle=shuffle,
             pin_memory=self.pin_memory,
         )
 
-    def train_dataloader(self):
+    def train_dataloader(self) -> DataLoader:
         print("Instantiating train dataloader on rank", self.trainer.local_rank)
-        return self.get_dataloader(dataset=self.train_dset, stage="fit", shuffle=True)
+        return self.get_dataloader(self.train_dset, shuffle=True)
 
-    def val_dataloader(self):
+    def val_dataloader(self) -> DataLoader:
         print("Instantiating validation dataloader on rank", self.trainer.local_rank)
-        return self.get_dataloader(dataset=self.val_dset, stage="test", shuffle=False)
+        return self.get_dataloader(self.val_dset, shuffle=False)
 
-    def test_dataloader(self):
+    def test_dataloader(self) -> DataLoader:
         print("Instantiating test dataloader on rank", self.trainer.local_rank)
-        return self.get_dataloader(dataset=self.test_dset, stage="test", shuffle=False)
+        return self.get_dataloader(self.test_dset, shuffle=False)
