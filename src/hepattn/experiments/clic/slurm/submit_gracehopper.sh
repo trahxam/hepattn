@@ -1,13 +1,9 @@
 #!/bin/bash
 
-#SBATCH --job-name=colliderml-training
-#SBATCH -p GPU
-#SBATCH --nodes=1
-#SBATCH --export=ALL
-#SBATCH --gres=gpu:a100:1
-#SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=12
-#SBATCH --mem=24G
+#SBATCH --job-name=clic-train
+#SBATCH --gpus=2
+#SBATCH --ntasks-per-node=2
+#SBATCH --time=24:00:00
 #SBATCH --output=slurm_logs/slurm-%j.%x.out
 
 # Comet variables
@@ -32,11 +28,11 @@ echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
 nvidia-smi
 
 # Training command
-CONFIG="src/hepattn/experiments/colliderml/configs/base.yaml"
-PYTORCH_CMD="python src/hepattn/experiments/colliderml/main.py fit --config $CONFIG"
+CONFIG="src/hepattn/experiments/clic/configs/base.yaml"
+PYTORCH_CMD="python src/hepattn/experiments/clic/main.py fit --config $CONFIG"
 
-# Run via pixi
-PIXI_CMD="pixi run $PYTORCH_CMD"
+# Run via pixi (srun for GraceHopper multi-GPU)
+PIXI_CMD="srun pixi run -e gracehopper $PYTORCH_CMD"
 echo "Running: $PIXI_CMD"
 $PIXI_CMD
 echo "Done!"

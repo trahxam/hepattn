@@ -6,7 +6,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=4G
-#SBATCH --output=/share/rcifdata/maxhart/hepattn-test/hepattn/src/hepattn/experiments/cld/slurm_logs/slurm-%j.%x.out
+#SBATCH --output=slurm_logs/slurm-%j.%x.out
 
 # Used for downloading raw CLD samples from EOS
 # TODO

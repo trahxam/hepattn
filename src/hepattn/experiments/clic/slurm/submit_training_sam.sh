@@ -8,7 +8,7 @@
 #SBATCH --ntasks-per-node=2        # must match number of devices
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=40G
-#SBATCH --output=/share/rcifdata/svanstroud/slurm_logs/slurm-%j.%x.out
+#SBATCH --output=slurm_logs/slurm-%j.%x.out
 
 # Comet variables
 echo "Setting comet experiment key"
@@ -18,35 +18,25 @@ echo $COMET_EXPERIMENT_KEY
 echo "COMET_WORKSPACE"
 echo $COMET_WORKSPACE
 
-# Print host info
-echo "Hostname: $(hostname)"
-echo "CPU count: $(cat /proc/cpuinfo | awk '/^processor/{print $3}' | tail -1)"
-echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
-echo "nvidia-smi:"
-nvidia-smi
-
-# Move to workdir
-cd /share/rcifdata/svanstroud/hepattn/src/hepattn/experiments/clic/
-echo "Moved dir, now in: ${PWD}"
+# Move to repo root relative to this script
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../../" && pwd)"
+cd "$REPO_ROOT"
+echo "Working directory: ${PWD}"
 
 # Set tmpdir
-export TMPDIR=/var/tmp/
+export TMPDIR=/tmp/
 
-# Run the training
-echo "Running training script..."
+# Print host info
+echo "Hostname: $(hostname)"
+echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
+nvidia-smi
 
-# Python command that will be run
-CONFIG_PATH="configs/base.yaml"
-PYTORCH_CMD="python main.py fit --config $CONFIG_PATH"
+# Training command
+CONFIG="src/hepattn/experiments/clic/configs/base.yaml"
+PYTORCH_CMD="python src/hepattn/experiments/clic/main.py fit --config $CONFIG"
 
-# Pixi command that runs the python command inside the pixi env
+# Run via pixi
 PIXI_CMD="pixi run $PYTORCH_CMD"
-
-# Apptainer command that runs the pixi command inside the pixi apptainer image
-# Add srun in front of apptainer command for multiple gpus training
-APPTAINER_CMD="srun apptainer run --nv --bind /share/  /share/rcifdata/svanstroud/hepattn/pixi.sif $PIXI_CMD"
-
-# Run the final command
-echo "Running command: $APPTAINER_CMD"
-$APPTAINER_CMD
+echo "Running: $PIXI_CMD"
+$PIXI_CMD
 echo "Done!"

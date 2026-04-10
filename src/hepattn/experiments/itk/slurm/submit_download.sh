@@ -6,16 +6,17 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=24G
-#SBATCH --output=/share/rcifdata/maxhart/hepattn-test/hepattn/src/hepattn/experiments/itk/slurm_logs/slurm-%j.%x.out
+#SBATCH --output=slurm_logs/slurm-%j.%x.out
 
 # Used for downloading raw ITk samples via rucio
 
-# Move to workdir
-cd /share/rcifdata/maxhart/hepattn-test/hepattn/
-echo "Moved dir, now in: ${PWD}"
+# Move to repo root relative to this script
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../../" && pwd)"
+cd "$REPO_ROOT"
+echo "Working directory: ${PWD}"
 
 # Set tmpdir
-export TMPDIR=/var/tmp/
+export TMPDIR=/tmp/
 
 # Run the preprocessing
 echo "Running preprocessing script..."
