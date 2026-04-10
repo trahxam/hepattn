@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 import yaml
 
-from hepattn.experiments.cld.data import CLDDataModule
+from hepattn.experiments.cld.data.data import CLDDataModule
 from hepattn.utils.array_utils import masked_angle_diff_last_axis
 
 plt.rcParams["figure.dpi"] = 300

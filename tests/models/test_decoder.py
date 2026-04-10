@@ -4,7 +4,8 @@ import pytest
 import torch
 from torch import nn
 
-from hepattn.models.decoder import MaskFormerDecoder, MaskFormerDecoderLayer
+from hepattn.components.decoder import DecoderLayer
+from hepattn.models.decoder import MaskFormerDecoder
 
 BATCH_SIZE = 2
 SEQ_LEN = 10
@@ -119,6 +120,7 @@ class TestMaskFormerDecoder:  # noqa: PLR0904
     @pytest.fixture
     def decoder(self, decoder_layer_config):
         return MaskFormerDecoder(
+            tasks=nn.ModuleList([]),
             num_queries=NUM_QUERIES,
             decoder_layer_config=decoder_layer_config,
             num_decoder_layers=NUM_LAYERS,
@@ -129,6 +131,7 @@ class TestMaskFormerDecoder:  # noqa: PLR0904
     def dynamic_decoder(self, decoder_layer_config):
         config = decoder_layer_config.copy()
         return MaskFormerDecoder(
+            tasks=nn.ModuleList([]),
             num_queries=2,
             decoder_layer_config=config,
             num_decoder_layers=1,
@@ -141,6 +144,7 @@ class TestMaskFormerDecoder:  # noqa: PLR0904
         """Decoder with mask_attention=False for testing without tasks."""
         config = decoder_layer_config.copy()
         return MaskFormerDecoder(
+            tasks=nn.ModuleList([]),
             num_queries=NUM_QUERIES,
             decoder_layer_config=config,
             num_decoder_layers=NUM_LAYERS,
@@ -152,6 +156,7 @@ class TestMaskFormerDecoder:  # noqa: PLR0904
         """Decoder with local_strided_attn=True for testing local window attention."""
         config = decoder_layer_config.copy()
         return MaskFormerDecoder(
+            tasks=nn.ModuleList([]),
             num_queries=NUM_QUERIES,
             decoder_layer_config=config,
             num_decoder_layers=NUM_LAYERS,
@@ -195,11 +200,20 @@ class TestMaskFormerDecoder:  # noqa: PLR0904
         input_names = ["input1", "input2"]
         return x, input_names
 
-    def test_initialize_dynamic_queries_topk(self, dynamic_decoder):
+    def test_initialize_dynamic_queries_topk(self, decoder_layer_config):
         # probs: select indices {0,2,3} above threshold, then keep top-2 -> [0,2]
         probs = torch.tensor([[0.9, 0.1, 0.8, 0.7]], dtype=torch.float32)
-        dynamic_decoder.dynamic_query_source = "hit"
-        dynamic_decoder.encoder_tasks = [MockQueryInitTask(probs=probs, threshold=0.5)]
+        config = decoder_layer_config.copy()
+        dynamic_decoder = MaskFormerDecoder(
+            tasks=nn.ModuleList([]),
+            num_queries=2,
+            decoder_layer_config=config,
+            num_decoder_layers=1,
+            mask_attention=False,
+            dynamic_queries=True,
+            dynamic_query_source="hit",
+            encoder_tasks=nn.ModuleList([MockQueryInitTask(probs=probs, threshold=0.5)]),
+        )
 
         hit_embed = torch.randn(1, 4, DIM)
         hit_valid = torch.tensor([[True, True, True, True]])
@@ -215,7 +229,6 @@ class TestMaskFormerDecoder:  # noqa: PLR0904
 
     def test_forward_requires_preinitialized_queries_when_dynamic(self, dynamic_decoder):
         # Decoder forward should fail loudly if dynamic queries are enabled but not provided.
-        dynamic_decoder.tasks = []
         x = {
             "key_embed": torch.randn(1, SEQ_LEN, DIM),
             "key_valid": torch.ones(1, SEQ_LEN, dtype=torch.bool),
@@ -227,10 +240,19 @@ class TestMaskFormerDecoder:  # noqa: PLR0904
         with pytest.raises(ValueError, match="encoder_tasks"):
             dynamic_decoder(x, input_names)
 
-    def test_initialize_dynamic_queries_raises_if_none_selected(self, dynamic_decoder):
+    def test_initialize_dynamic_queries_raises_if_none_selected(self, decoder_layer_config):
         probs = torch.tensor([[0.1, 0.2, 0.3, 0.4]], dtype=torch.float32)
-        dynamic_decoder.dynamic_query_source = "hit"
-        dynamic_decoder.encoder_tasks = [MockQueryInitTask(probs=probs, threshold=0.5)]
+        config = decoder_layer_config.copy()
+        dynamic_decoder = MaskFormerDecoder(
+            tasks=nn.ModuleList([]),
+            num_queries=2,
+            decoder_layer_config=config,
+            num_decoder_layers=1,
+            mask_attention=False,
+            dynamic_queries=True,
+            dynamic_query_source="hit",
+            encoder_tasks=nn.ModuleList([MockQueryInitTask(probs=probs, threshold=0.5)]),
+        )
 
         hit_embed = torch.randn(1, 4, DIM)
         hit_valid = torch.tensor([[True, True, True, True]])
@@ -252,21 +274,21 @@ class TestMaskFormerDecoder:  # noqa: PLR0904
         """
         # Create a decoder with num_queries=4 to select 4 hits
         config = decoder_layer_config.copy()
+        # Set up probabilities where higher indices have higher probabilities
+        # This tests that even when sorting by probability descending would give
+        # indices [7, 5, 3, 1], we should get [1, 3, 5, 7] to preserve ordering
+        # Hits: 0    1    2    3    4    5    6    7
+        probs = torch.tensor([[0.1, 0.6, 0.2, 0.7, 0.3, 0.8, 0.4, 0.9]], dtype=torch.float32)
         decoder = MaskFormerDecoder(
+            tasks=nn.ModuleList([]),
             num_queries=4,
             decoder_layer_config=config,
             num_decoder_layers=1,
             mask_attention=False,
             dynamic_queries=True,
             dynamic_query_source="hit",
+            encoder_tasks=nn.ModuleList([MockQueryInitTask(probs=probs, threshold=0.5)]),
         )
-
-        # Set up probabilities where higher indices have higher probabilities
-        # This tests that even when sorting by probability descending would give
-        # indices [7, 5, 3, 1], we should get [1, 3, 5, 7] to preserve ordering
-        # Hits: 0    1    2    3    4    5    6    7
-        probs = torch.tensor([[0.1, 0.6, 0.2, 0.7, 0.3, 0.8, 0.4, 0.9]], dtype=torch.float32)
-        decoder.encoder_tasks = nn.ModuleList([MockQueryInitTask(probs=probs, threshold=0.5)])
 
         # Create distinct embeddings for each hit so we can verify correct selection
         num_hits = 8
@@ -306,32 +328,29 @@ class TestMaskFormerDecoder:  # noqa: PLR0904
         """Test that the decoder initializes correctly."""
         assert decoder._num_queries == NUM_QUERIES  # noqa: SLF001
         assert decoder.mask_attention is True
-        assert decoder.use_query_masks is False
         assert len(decoder.decoder_layers) == NUM_LAYERS
-        assert decoder.tasks is None
+        assert len(decoder.tasks) == 0
         assert decoder.posenc is None
 
         # Check that decoder layers are initialized correctly
         for layer in decoder.decoder_layers:
-            assert isinstance(layer, MaskFormerDecoderLayer)
+            assert isinstance(layer, DecoderLayer)
 
     def test_initialization_with_options(self, decoder_layer_config):
         """Test initialization with various options."""
         decoder = MaskFormerDecoder(
+            tasks=nn.ModuleList([]),
             num_queries=NUM_QUERIES,
             decoder_layer_config=decoder_layer_config,
             num_decoder_layers=NUM_LAYERS,
             mask_attention=False,
-            use_query_masks=True,
         )
 
         assert decoder.mask_attention is False
-        assert decoder.use_query_masks is True
 
     def test_forward_without_tasks(self, decoder_no_mask_attention, sample_decoder_data):
         """Test forward pass without any tasks defined."""
         x, input_names = sample_decoder_data
-        decoder_no_mask_attention.tasks = []  # Empty task list
 
         updated_x, outputs = decoder_no_mask_attention(x, input_names)
 
@@ -351,7 +370,6 @@ class TestMaskFormerDecoder:  # noqa: PLR0904
     def test_forward_local_strided_attn(self, decoder_local_strided_attn, sample_local_strided_decoder_data):
         """Test forward pass with local_strided_attn=True."""
         x, input_names = sample_local_strided_decoder_data
-        decoder_local_strided_attn.tasks = []  # Empty task list
 
         updated_x, outputs = decoder_local_strided_attn(x, input_names)
 
@@ -376,7 +394,6 @@ class TestMaskFormerDecoder:  # noqa: PLR0904
     def test_forward_shapes(self, decoder_no_mask_attention, sample_decoder_data):
         """Test that forward pass maintains correct tensor shapes."""
         x, input_names = sample_decoder_data
-        decoder_no_mask_attention.tasks = []
 
         original_query_shape = x["query_embed"].shape
         original_key_shape = x["key_embed"].shape
@@ -389,7 +406,6 @@ class TestMaskFormerDecoder:  # noqa: PLR0904
     def test_forward_shapes_local_strided_attn(self, decoder_local_strided_attn, sample_local_strided_decoder_data):
         """Test that forward pass maintains correct tensor shapes with local_strided_attn."""
         x, input_names = sample_local_strided_decoder_data
-        decoder_local_strided_attn.tasks = []
 
         original_query_shape = x["query_embed"].shape
         original_key_shape = x["key_embed"].shape
@@ -402,13 +418,13 @@ class TestMaskFormerDecoder:  # noqa: PLR0904
     def test_decoder_posenc(self, decoder_layer_config, sample_decoder_data):
         x, input_names = sample_decoder_data
         dec = MaskFormerDecoder(
+            tasks=nn.ModuleList([]),
             num_queries=NUM_QUERIES,
             decoder_layer_config=decoder_layer_config,
             num_decoder_layers=NUM_LAYERS,
-            mask_attention=True,
+            mask_attention=False,
             posenc={"alpha": 1.0, "base": 2.0},
         )
-        dec.tasks: list = [MockTask1(), MockTask2()]
         x["key_phi"] = torch.randn(BATCH_SIZE, SEQ_LEN)
         key_embed = x["key_embed"]
         query_embed = x["query_embed"]
@@ -419,12 +435,18 @@ class TestMaskFormerDecoder:  # noqa: PLR0904
         assert not torch.allclose(updated_x["query_embed"], query_embed)
         assert not torch.allclose(updated_x["key_embed"], key_embed)
 
-    def test_attn_mask_construction(self, decoder, sample_decoder_data):
+    def test_attn_mask_construction(self, decoder_layer_config, sample_decoder_data):
         """Test that attention mask is constructed correctly."""
         x, input_names = sample_decoder_data
         x["key_valid"] = torch.ones(BATCH_SIZE, SEQ_LEN, dtype=torch.bool)
 
-        decoder.tasks = [MockTask1(), MockTask2()]
+        decoder = MaskFormerDecoder(
+            tasks=[MockTask1(), MockTask2()],
+            num_queries=NUM_QUERIES,
+            decoder_layer_config=decoder_layer_config,
+            num_decoder_layers=NUM_LAYERS,
+            mask_attention=True,
+        )
 
         _, outputs = decoder(x, input_names)
 
@@ -472,16 +494,16 @@ class TestMaskFormerDecoder:  # noqa: PLR0904
         config = decoder_layer_config.copy()
         config["cross_attn_mode"] = "kmeans"
         config["bidirectional_ca"] = False
+
+        x, input_names = sample_decoder_data
+        logits = torch.randn(BATCH_SIZE, NUM_QUERIES, SEQ_LEN)
         decoder = MaskFormerDecoder(
+            tasks=[MockKMeansLogitTask(logits)],
             num_queries=NUM_QUERIES,
             decoder_layer_config=config,
             num_decoder_layers=1,
             mask_attention=False,
         )
-
-        x, input_names = sample_decoder_data
-        logits = torch.randn(BATCH_SIZE, NUM_QUERIES, SEQ_LEN)
-        decoder.tasks = [MockKMeansLogitTask(logits)]  # ty: ignore[unresolved-attribute]
 
         captured: dict[str, torch.Tensor | None] = {"logits": None}
         layer = decoder.decoder_layers[0]
@@ -506,6 +528,7 @@ class TestMaskFormerDecoder:  # noqa: PLR0904
         config = decoder_layer_config.copy()
         config["attn_kwargs"] = {"attn_type": "flex"}
         decoder = MaskFormerDecoder(
+            tasks=nn.ModuleList([]),
             num_queries=NUM_QUERIES,
             decoder_layer_config=config,
             num_decoder_layers=1,
@@ -519,7 +542,6 @@ class TestMaskFormerDecoder:  # noqa: PLR0904
         x, input_names = sample_local_strided_decoder_data
         # Remove key_valid since flex attention doesn't support kv_mask
         x = {k: v for k, v in x.items() if k != "key_valid"}
-        decoder.tasks = []  # ty: ignore[unresolved-attribute]  # no tasks / pure local CA
 
         # Forward pass should exercise the flex local CA path, including transpose_blockmask
         updated_x, outputs = decoder(x, input_names)
@@ -534,10 +556,10 @@ class TestMaskFormerDecoder:  # noqa: PLR0904
         assert isinstance(outputs["layer_0"], dict)
 
 
-class TestMaskFormerDecoderLayer:
+class TestDecoderLayer:
     @pytest.fixture
     def decoder_layer(self):
-        return MaskFormerDecoderLayer(dim=DIM, bidirectional_ca=True)
+        return DecoderLayer(dim=DIM, bidirectional_ca=True)
 
     @pytest.fixture
     def sample_data(self):
@@ -558,7 +580,7 @@ class TestMaskFormerDecoderLayer:
 
     def test_initialization_no_bidirectional(self):
         """Test initialization with bidirectional_ca=False."""
-        layer = MaskFormerDecoderLayer(dim=DIM, bidirectional_ca=False)
+        layer = DecoderLayer(dim=DIM, bidirectional_ca=False)
         assert not hasattr(layer, "kv_ca")
         assert not hasattr(layer, "kv_dense")
 
@@ -574,7 +596,7 @@ class TestMaskFormerDecoderLayer:
     def test_forward_no_attn_mask(self, sample_data):
         """Test forward pass without attention mask."""
         q, kv, _, kv_mask = sample_data
-        layer = MaskFormerDecoderLayer(dim=DIM, bidirectional_ca=True)
+        layer = DecoderLayer(dim=DIM, bidirectional_ca=True)
 
         # Should work fine with no attn_mask
         new_q, new_kv = layer(q, kv, attn_mask=None, kv_mask=kv_mask)
@@ -586,7 +608,7 @@ class TestMaskFormerDecoderLayer:
     def test_forward_no_bidirectional(self, sample_data):
         """Test forward pass with bidirectional_ca=False."""
         q, kv, attn_mask, kv_mask = sample_data
-        layer = MaskFormerDecoderLayer(dim=DIM, bidirectional_ca=False)
+        layer = DecoderLayer(dim=DIM, bidirectional_ca=False)
 
         new_q, new_kv = layer(q, kv, attn_mask=attn_mask, kv_mask=kv_mask)
 
@@ -597,7 +619,7 @@ class TestMaskFormerDecoderLayer:
 
     def test_forward_kmeans_uses_logits_argument(self, monkeypatch, sample_data):
         q, kv, _, _ = sample_data
-        layer = MaskFormerDecoderLayer(dim=DIM, bidirectional_ca=False, cross_attn_mode="kmeans")
+        layer = DecoderLayer(dim=DIM, bidirectional_ca=False, cross_attn_mode="kmeans")
         logits = torch.randn(BATCH_SIZE, NUM_QUERIES, SEQ_LEN)
 
         captured: dict[str, torch.Tensor | None] = {"logits": None}
@@ -654,6 +676,7 @@ class TestMaskFormerDecoderUnified:
     def unified_decoder(self, decoder_layer_config):
         """Decoder with unified_decoding=True for testing unified decoding."""
         return MaskFormerDecoder(
+            tasks=nn.ModuleList([]),
             num_queries=NUM_QUERIES,
             decoder_layer_config=decoder_layer_config,
             num_decoder_layers=NUM_LAYERS,
@@ -682,7 +705,6 @@ class TestMaskFormerDecoderUnified:
     def test_unified_forward_without_tasks(self, unified_decoder, sample_unified_decoder_data):
         """Test unified decoder forward pass without tasks."""
         x, input_names = sample_unified_decoder_data
-        unified_decoder.tasks = []
 
         x_out, outputs = unified_decoder(x, input_names)
 
@@ -700,13 +722,19 @@ class TestMaskFormerDecoderUnified:
         for i in range(NUM_LAYERS):
             assert f"layer_{i}" in outputs
 
-    def test_unified_forward_with_task(self, unified_decoder, sample_unified_decoder_data):
+    def test_unified_forward_with_task(self, decoder_layer_config, sample_unified_decoder_data):
         """Test unified decoder with a task that works on merged inputs."""
         x, input_names = sample_unified_decoder_data
 
-        # Set up the task
         task = MockUnifiedTask()
-        unified_decoder.tasks = [task]
+        unified_decoder = MaskFormerDecoder(
+            tasks=[task],
+            num_queries=NUM_QUERIES,
+            decoder_layer_config=decoder_layer_config,
+            num_decoder_layers=NUM_LAYERS,
+            mask_attention=True,
+            unified_decoding=True,
+        )
 
         _, outputs = unified_decoder(x, input_names)
 
@@ -722,7 +750,7 @@ class TestMaskFormerDecoderUnified:
                 attn_mask = outputs[f"layer_{i}"]["attn_mask"]
                 assert attn_mask.shape == (BATCH_SIZE, NUM_QUERIES, SEQ_LEN)
 
-    def test_unified_no_key_is_masks_needed(self, unified_decoder, sample_unified_decoder_data):
+    def test_unified_no_key_is_masks_needed(self, decoder_layer_config, sample_unified_decoder_data):
         """Test that unified decoder doesn't require key_is_ masks."""
         x, input_names = sample_unified_decoder_data
 
@@ -730,9 +758,15 @@ class TestMaskFormerDecoderUnified:
         assert "key_is_input1" not in x
         assert "key_is_input2" not in x
 
-        # Set up a task
         task = MockUnifiedTask()
-        unified_decoder.tasks = [task]
+        unified_decoder = MaskFormerDecoder(
+            tasks=[task],
+            num_queries=NUM_QUERIES,
+            decoder_layer_config=decoder_layer_config,
+            num_decoder_layers=NUM_LAYERS,
+            mask_attention=True,
+            unified_decoding=True,
+        )
 
         # This should work without key_is_ masks
         x_out, _ = unified_decoder(x, input_names)
@@ -741,12 +775,19 @@ class TestMaskFormerDecoderUnified:
         assert "query_embed" in x_out
         assert "key_embed" in x_out
 
-    def test_unified_attention_mask_shape(self, unified_decoder, sample_unified_decoder_data):
+    def test_unified_attention_mask_shape(self, decoder_layer_config, sample_unified_decoder_data):
         """Test that attention masks have correct shape in unified mode."""
         x, input_names = sample_unified_decoder_data
 
         task = MockUnifiedTask()
-        unified_decoder.tasks = [task]
+        unified_decoder = MaskFormerDecoder(
+            tasks=[task],
+            num_queries=NUM_QUERIES,
+            decoder_layer_config=decoder_layer_config,
+            num_decoder_layers=NUM_LAYERS,
+            mask_attention=True,
+            unified_decoding=True,
+        )
 
         _, outputs = unified_decoder(x, input_names)
 
@@ -763,6 +804,7 @@ class TestMaskFormerDecoderUnified:
         """Test that unified and traditional modes can coexist."""
         # Traditional decoder
         traditional_decoder = MaskFormerDecoder(
+            tasks=nn.ModuleList([]),
             num_queries=NUM_QUERIES,
             decoder_layer_config=decoder_layer_config,
             num_decoder_layers=NUM_LAYERS,
@@ -772,6 +814,7 @@ class TestMaskFormerDecoderUnified:
 
         # Unified decoder
         unified_decoder = MaskFormerDecoder(
+            tasks=nn.ModuleList([]),
             num_queries=NUM_QUERIES,
             decoder_layer_config=decoder_layer_config,
             num_decoder_layers=NUM_LAYERS,
@@ -782,12 +825,19 @@ class TestMaskFormerDecoderUnified:
         assert traditional_decoder.unified_decoding is False
         assert unified_decoder.unified_decoding is True
 
-    def test_unified_output_shapes(self, unified_decoder, sample_unified_decoder_data):
+    def test_unified_output_shapes(self, decoder_layer_config, sample_unified_decoder_data):
         """Test that all outputs have expected shapes in unified mode."""
         x, input_names = sample_unified_decoder_data
 
         task = MockUnifiedTask()
-        unified_decoder.tasks = [task]
+        unified_decoder = MaskFormerDecoder(
+            tasks=[task],
+            num_queries=NUM_QUERIES,
+            decoder_layer_config=decoder_layer_config,
+            num_decoder_layers=NUM_LAYERS,
+            mask_attention=True,
+            unified_decoding=True,
+        )
 
         x_out, outputs = unified_decoder(x, input_names)
 

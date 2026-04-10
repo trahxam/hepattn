@@ -66,7 +66,10 @@ class ModelWrapper(LightningModule):
         # Log any task specific metrics
         for layer_name in preds:
             # Determine which task list to use based on layer name
-            tasks = self.model.encoder_tasks if layer_name == "encoder" else self.model.tasks
+            if hasattr(self.model, "decoder"):
+                tasks = self.model.decoder.encoder_tasks if layer_name == "encoder" else self.model.decoder.tasks
+            else:
+                tasks = self.model.tasks
             for task in tasks:
                 if task.name not in preds[layer_name]:
                     continue

@@ -10,7 +10,6 @@ from hepattn.experiments.cld.data import CLDDataModule
 from hepattn.utils.histogram import CountingHistogram
 from hepattn.utils.plotting import plot_hist_to_ax, setup_plotting
 
-
 setup_plotting()
 
 aliases = {

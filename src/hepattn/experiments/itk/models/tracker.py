@@ -16,7 +16,5 @@ class ITkTracker(ModelWrapper):
         super().__init__(name, model, lrs_config, optimizer, mtl)
 
     def log_custom_metrics(self, preds, targets, stage):
-        metrics = compute_hit_assignment_metrics(
-            preds["final"], targets, hits=["pixel", "strip"], pred_object="track", target_object="particle"
-        )
+        metrics = compute_hit_assignment_metrics(preds["final"], targets, hits=["pixel", "strip"], pred_object="track", target_object="particle")
         self.log_dict({f"{stage}/{k}": v for k, v in metrics.items()})

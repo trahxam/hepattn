@@ -3,7 +3,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import torch
 
-from hepattn.models.posenc import (
+from hepattn.components.posenc import (
     FourierPositionEncoder,
     PositionEncoder,
     pos_enc,

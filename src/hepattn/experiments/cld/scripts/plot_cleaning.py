@@ -1,13 +1,10 @@
 from pathlib import Path
 
-import matplotlib.pyplot as plt
-
-from hepattn.utils.plotting import setup_plotting
 import yaml
 
 from hepattn.experiments.cld.data import CLDDataModule
 from hepattn.experiments.cld.event_display import plot_cld_event
-
+from hepattn.utils.plotting import setup_plotting
 
 setup_plotting()
 

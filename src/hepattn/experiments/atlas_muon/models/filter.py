@@ -88,5 +88,3 @@ class AtlasMuonFilter(ModelWrapper):
                 on_step=False,
                 on_epoch=True,
             )
-
-

@@ -1,15 +1,15 @@
-from hepattn.experiments.trackml import run_tracking
+from hepattn.experiments.trackml import main
 
 from ..utils import run_test  # noqa: TID252
 
 
-def test_tracking() -> None:
-    run_test(run_tracking, "tests/experiments/trackml/test_tracking.yaml")
+def test_tracking():
+    run_test(main, "tests/experiments/trackml/test_tracking.yaml")
 
 
-def test_tracking_old_sort() -> None:
-    run_test(run_tracking, "tests/experiments/trackml/test_tracking_old_sort.yaml")
+def test_tracking_old_sort():
+    run_test(main, "tests/experiments/trackml/test_tracking_old_sort.yaml")
 
 
-def test_tracking_dynamic_queries() -> None:
-    run_test(run_tracking, "tests/experiments/trackml/test_dynamic_queries.yaml")
+def test_tracking_dynamic_queries():
+    run_test(main, "tests/experiments/trackml/test_dynamic_queries.yaml")

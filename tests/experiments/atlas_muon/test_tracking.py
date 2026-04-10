@@ -1,7 +1,7 @@
-from hepattn.experiments.atlas_muon import run_tracking
+from hepattn.experiments.atlas_muon import main
 
 from ..utils import run_test  # noqa: TID252
 
 
-def test_tracking() -> None:
-    run_test(run_tracking, "tests/experiments/atlas_muon/test_tracking.yaml")
+def test_tracking():
+    run_test(main, "tests/experiments/atlas_muon/test_tracking.yaml")

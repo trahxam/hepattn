@@ -4,9 +4,9 @@ from time import perf_counter
 import matplotlib.pyplot as plt
 import torch
 import yaml
+from hepattn.experiments.colliderml.event_display import plot_colliderml_event
 
 from hepattn.experiments.colliderml.data import ColliderMLDataset
-from hepattn.experiments.colliderml.event_display import plot_colliderml_event
 
 
 def _load_config():

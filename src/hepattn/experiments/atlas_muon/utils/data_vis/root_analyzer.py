@@ -1,4 +1,4 @@
-# ruff: noqa: TRY300,RUF059,SIM118,DOC501
+# ruff: noqa: TRY300, RUF059, SIM118
 
 """ROOT file analysis utilities for muon tracking data.
 

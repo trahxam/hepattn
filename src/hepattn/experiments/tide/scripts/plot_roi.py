@@ -1,16 +1,15 @@
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-
-from hepattn.utils.plotting import setup_plotting
 import numpy as np
 import torch
 import yaml
 
 from hepattn.experiments.tide.data import ROIDataModule
-
+from hepattn.utils.plotting import setup_plotting
 
 setup_plotting()
+
 
 def plot_roi(inputs, targets):
     track = "sudo"

@@ -1,12 +1,11 @@
 import matplotlib.pyplot as plt
-
-from hepattn.utils.plotting import setup_plotting
 import numpy as np
 
 from hepattn.experiments.trackml.data.data import TrackMLDataset
-
+from hepattn.utils.plotting import setup_plotting
 
 setup_plotting()
+
 
 def plot_trackml_kinematics(dataset: TrackMLDataset):
     # Define histogram binnings

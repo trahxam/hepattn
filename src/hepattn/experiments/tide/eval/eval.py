@@ -80,7 +80,7 @@ def main():
 
                 true_is_eff = (scores >= 0.75).any(-1)[true_valid]
 
-                for qty_name, _, _, bins in trk_qtys:
+                for qty_name, _, _, _ in trk_qtys:
                     qty = targets[qty_name][0][true_valid]
                     eff_hists[pred_name][qty_name].fill(qty, numerator=true_is_eff)
 

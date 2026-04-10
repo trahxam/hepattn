@@ -92,7 +92,7 @@ def main():
         particle_recon_post = particle_hit_valid_post.sum(-1) >= 3
 
         # Fill retention histograms
-        for field, bins in particle_bins.items():
+        for field in particle_bins:
             particle_field = targets[f"particle_{field}"][targets["particle_valid"]]
             retention_hists[field].fill(particle_field, numerator=particle_recon_post, denominator=particle_recon_pre)
 

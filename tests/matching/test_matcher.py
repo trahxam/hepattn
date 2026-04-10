@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import torch
 
-from hepattn.models.loss import mask_bce_cost, mask_dice_cost, mask_focal_cost
+from hepattn.losses import mask_bce_cost, mask_dice_cost, mask_focal_cost
 from hepattn.models.matcher import SOLVERS, Matcher, match_multiprocess, match_parallel
 
 

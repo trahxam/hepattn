@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from hepattn.models.norm import (
+from hepattn.components.norm import (
     CustomLayerNorm,
     CustomRMSNorm,
     DyT,

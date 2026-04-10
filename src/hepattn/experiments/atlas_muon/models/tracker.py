@@ -108,5 +108,3 @@ class TrackMLTracker(ModelWrapper):
 
         self.log(f"{stage}/num_tracks", torch.mean(pred_valid.sum(-1).float()), sync_dist=True)
         self.log(f"{stage}/num_particles", torch.mean(true_valid.sum(-1).float()), sync_dist=True)
-
-

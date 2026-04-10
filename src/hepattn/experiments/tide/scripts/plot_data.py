@@ -1,13 +1,11 @@
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-
-from hepattn.utils.plotting import setup_plotting
 import torch
 import yaml
 
 from hepattn.experiments.tide.data import ROIDataModule
-
+from hepattn.utils.plotting import setup_plotting
 
 setup_plotting()
 

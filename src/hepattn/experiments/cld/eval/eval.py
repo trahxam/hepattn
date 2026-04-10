@@ -11,7 +11,6 @@ from hepattn.experiments.cld.data.data import CLDDataset
 from hepattn.experiments.cld.scripts.event_display import plot_cld_event
 from hepattn.utils.histogram import BinomialHistogram
 from hepattn.utils.plotting import plot_hist_to_ax, setup_plotting
-from hepattn.utils.stats import sigmoid
 
 setup_plotting()
 
@@ -123,7 +122,7 @@ def main():
             matched = particle_valid & flow_valid & (hit_iou >= 0.75)
             particle_eff = particle_valid & matched
 
-            for field, (_, bins, _) in plot_specs.items():
+            for field in plot_specs:
                 particle_field = np.pad(targets[f"particle_{field}"], ((0, particle_pad_size),), constant_values=0.0)
                 eff_hists[hit][field].fill(particle_field, numerator=particle_eff, denominator=particle_valid)
 

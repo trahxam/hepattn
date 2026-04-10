@@ -1,10 +1,10 @@
 import matplotlib.pyplot as plt
-
-from hepattn.utils.plotting import setup_plotting
 import torch
 
+from hepattn.utils.plotting import setup_plotting
 
 setup_plotting()
+
 
 def _csr_row_indices(indptr: torch.Tensor, indices: torch.Tensor, row: int) -> torch.Tensor:
     start = int(indptr[row].item())

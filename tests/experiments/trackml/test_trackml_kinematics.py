@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from hepattn.experiments.trackml.data import TrackMLDataset
-from hepattn.experiments.trackml.eval.plot_kinematics import plot_trackml_kinematics
+from hepattn.experiments.trackml.data.data import TrackMLDataset
+from hepattn.experiments.trackml.scripts.plot_kinematics import plot_trackml_kinematics
 
 
 class TestTrackMLEvent:

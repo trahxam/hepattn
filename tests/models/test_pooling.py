@@ -1,7 +1,6 @@
 import torch
 
-from hepattn.models.dense import Dense
-from hepattn.models.pooling import Pooling
+from hepattn.components import Dense, Pooling
 
 
 def test_pooling():

@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from hepattn.models.task import HitFilterTask, HitFilterTaskBatched, ObjectHitMaskTask
+from hepattn.tasks import HitFilterTask, HitFilterTaskBatched, ObjectHitMaskTask
 
 BATCH_SIZE = 2
 NUM_QUERIES = 5

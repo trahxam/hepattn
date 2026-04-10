@@ -13,6 +13,7 @@ from hepattn.tasks.regression import (
 )
 
 __all__ = [
+    "REGRESSION_LOSS_FNS",
     "ClassificationTask",
     "GaussianRegressionTask",
     "HitFilterTask",
@@ -25,7 +26,6 @@ __all__ = [
     "ObjectHitMaskTask",
     "ObjectHitRegressionTask",
     "ObjectRegressionTask",
-    "REGRESSION_LOSS_FNS",
     "RegressionLossType",
     "RegressionTask",
     "Task",

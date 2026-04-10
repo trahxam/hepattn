@@ -10,7 +10,6 @@ from hepattn.experiments.colliderml.data import ColliderMLDataset
 from hepattn.utils.histogram import CountingHistogram
 from hepattn.utils.plotting import plot_hist_to_ax, setup_plotting
 
-
 setup_plotting()
 
 PARTICLE_ALIASES = {

@@ -1,8 +1,6 @@
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-
-from hepattn.utils.plotting import setup_plotting
 import numpy as np
 import torch
 import yaml
@@ -11,7 +9,7 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
 from hepattn.experiments.pixel.data import PixelClusterDataModule
-
+from hepattn.utils.plotting import setup_plotting
 
 setup_plotting()
 

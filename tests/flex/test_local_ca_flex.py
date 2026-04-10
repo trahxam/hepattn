@@ -1,4 +1,5 @@
 import torch
+from torch import nn
 from torch.nn.attention.flex_attention import create_mask
 
 from hepattn.flex.local_ca import transpose_blockmask
@@ -30,6 +31,7 @@ def test_flex_local_ca_mask_equivalence():
     }
 
     decoder = MaskFormerDecoder(
+        tasks=nn.ModuleList([]),
         num_queries=q_len,
         decoder_layer_config=decoder_layer_config,
         num_decoder_layers=1,
@@ -48,6 +50,7 @@ def test_flex_local_ca_mask_equivalence():
 
     # Test wrapped version
     decoder = MaskFormerDecoder(
+        tasks=nn.ModuleList([]),
         num_queries=q_len,
         decoder_layer_config=decoder_layer_config,
         num_decoder_layers=1,
@@ -83,6 +86,7 @@ def test_flex_local_ca_mask_transpose_consistency():
     }
 
     decoder = MaskFormerDecoder(
+        tasks=nn.ModuleList([]),
         num_queries=q_len,
         decoder_layer_config=decoder_layer_config,
         num_decoder_layers=1,
