@@ -124,3 +124,9 @@ tmp/
 
 # Experiment output
 plots/
+plots_*/
+slurm_logs/
+eval_plots/
+evalplots/
+eval_dump*/
+torchinductor_*/
