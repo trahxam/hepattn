@@ -2,9 +2,10 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from lightning import LightningDataModule
 from scipy.sparse import csr_array, csr_matrix
 from torch.utils.data import DataLoader
+
+from hepattn.utils.data import HeptattnDataModule
 
 from hepattn.utils.array_utils import masked_angle_diff_last_axis, masked_diff_last_axis
 from hepattn.utils.lrsm_dataset import LRSMDataset
@@ -572,7 +573,7 @@ class CLDDataset(LRSMDataset):
         return event
 
 
-class CLDDataModule(LightningDataModule):
+class CLDDataModule(HeptattnDataModule):
     def __init__(
         self,
         train_dir: str,
@@ -586,46 +587,27 @@ class CLDDataModule(LightningDataModule):
         pin_memory: bool = True,
         **kwargs,
     ):
-        super().__init__()
-
-        self.train_dir = train_dir
-        self.val_dir = val_dir
-        self.test_dir = test_dir
-        self.num_workers = num_workers
-        self.num_train = num_train
-        self.num_val = num_val
-        self.num_test = num_test
-        self.batch_size = batch_size
-        self.pin_memory = pin_memory
+        super().__init__(
+            train_dir=train_dir,
+            val_dir=val_dir,
+            num_workers=num_workers,
+            num_train=num_train,
+            num_val=num_val,
+            num_test=num_test,
+            test_dir=test_dir,
+            pin_memory=pin_memory,
+            batch_size=batch_size,
+        )
         self.kwargs = kwargs
 
-    def setup(self, stage: str):
-        if stage == "fit":
-            self.train_dset = CLDDataset(dirpath=self.train_dir, num_samples=self.num_train, **self.kwargs)
-            self.val_dset = CLDDataset(dirpath=self.val_dir, num_samples=self.num_val, **self.kwargs)
-            print(f"Created training dataset with {len(self.train_dset):,} events")
-            print(f"Created validation dataset with {len(self.val_dset):,} events")
+    def make_dataset(self, dirpath: str, num_events: int, split: str) -> CLDDataset:
+        return CLDDataset(dirpath=dirpath, num_samples=num_events, **self.kwargs)
 
-        if stage == "test":
-            assert self.test_dir is not None, "No test file specified, see --data.test_dir"
-            self.test_dset = CLDDataset(dirpath=self.test_dir, num_samples=self.num_test, **self.kwargs)
-            print(f"Created test dataset with {len(self.test_dset):,} events")
-
-    def get_dataloader(self, dataset: CLDDataset):
+    def get_dataloader(self, dataset: CLDDataset, *, shuffle: bool) -> DataLoader:
         return DataLoader(
             dataset=dataset,
             batch_size=self.batch_size,
             collate_fn=dataset.collate_fn,
-            sampler=None,
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
         )
-
-    def train_dataloader(self):
-        return self.get_dataloader(dataset=self.train_dset)
-
-    def val_dataloader(self):
-        return self.get_dataloader(dataset=self.val_dset)
-
-    def test_dataloader(self):
-        return self.get_dataloader(dataset=self.test_dset)

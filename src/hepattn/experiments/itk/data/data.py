@@ -4,8 +4,9 @@ import h5py
 import numpy as np
 import pandas as pd
 import torch
-from lightning import LightningDataModule
 from torch.utils.data import DataLoader, Dataset
+
+from hepattn.utils.data import HeptattnDataModule
 
 from hepattn.utils.tensor_utils import pad_to_size
 
@@ -259,7 +260,7 @@ class ITkDataset(Dataset):
         return inputs_out, targets_out
 
 
-class ITkDataModule(LightningDataModule):
+class ITkDataModule(HeptattnDataModule):
     def __init__(
         self,
         train_dir: str,
@@ -275,54 +276,25 @@ class ITkDataModule(LightningDataModule):
         hit_eval_test: str | None = None,
         **kwargs,
     ):
-        super().__init__()
-
-        self.train_dir = train_dir
-        self.val_dir = val_dir
-        self.test_dir = test_dir
-        self.num_workers = num_workers
-        self.num_train = num_train
-        self.num_val = num_val
-        self.num_test = num_test
-        self.pin_memory = pin_memory
+        super().__init__(
+            train_dir=train_dir,
+            val_dir=val_dir,
+            num_workers=num_workers,
+            num_train=num_train,
+            num_val=num_val,
+            num_test=num_test,
+            test_dir=test_dir,
+            pin_memory=pin_memory,
+        )
         self.hit_eval_train = hit_eval_train
         self.hit_eval_val = hit_eval_val
         self.hit_eval_test = hit_eval_test
         self.kwargs = kwargs
 
-    def setup(self, stage: str):
-        if stage in {"fit", "test"}:
-            self.train_dset = ITkDataset(dirpath=self.train_dir, num_events=self.num_train, hit_eval_path=self.hit_eval_train, **self.kwargs)
-
-        if stage == "fit":
-            self.val_dset = ITkDataset(dirpath=self.val_dir, num_events=self.num_val, hit_eval_path=self.hit_eval_val, **self.kwargs)
-
-        # Only print train/val dataset details when actually training
-        if stage == "fit" and self.trainer.is_global_zero:
-            print(f"Created training dataset with {len(self.train_dset):,} events")
-            print(f"Created validation dataset with {len(self.val_dset):,} events")
-
-        if stage == "test":
-            assert self.test_dir is not None, "No test file specified, see --data.test_dir"
-            self.test_dset = ITkDataset(dirpath=self.test_dir, num_events=self.num_test, hit_eval_path=self.hit_eval_test, **self.kwargs)
-            print(f"Created test dataset with {len(self.test_dset):,} events")
-
-    def get_dataloader(self, stage: str, dataset: ITkDataset, shuffle: bool):
-        return DataLoader(
-            dataset=dataset,
-            batch_size=None,
-            collate_fn=None,
-            sampler=None,
-            num_workers=self.num_workers,
-            shuffle=shuffle,
-            pin_memory=self.pin_memory,
+    def make_dataset(self, dirpath: str, num_events: int, split: str) -> ITkDataset:
+        return ITkDataset(
+            dirpath=dirpath,
+            num_events=num_events,
+            hit_eval_path=getattr(self, f"hit_eval_{split}"),
+            **self.kwargs,
         )
-
-    def train_dataloader(self):
-        return self.get_dataloader(dataset=self.train_dset, stage="fit", shuffle=True)
-
-    def val_dataloader(self):
-        return self.get_dataloader(dataset=self.val_dset, stage="test", shuffle=False)
-
-    def test_dataloader(self):
-        return self.get_dataloader(dataset=self.test_dset, stage="test", shuffle=False)

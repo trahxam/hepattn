@@ -2,8 +2,9 @@
 # The Dataset handles loading individual events from disk.
 # The DataModule handles train/val/test splits and dataloaders.
 
-from lightning import LightningDataModule
 from torch.utils.data import Dataset
+
+from hepattn.utils.data import HeptattnDataModule
 
 
 class MyDataset(Dataset):
@@ -21,16 +22,19 @@ class MyDataset(Dataset):
         raise NotImplementedError
 
 
-class MyDataModule(LightningDataModule):
-    def __init__(self, train_dir, val_dir, test_dir, batch_size=1, num_workers=0, **kwargs):
-        super().__init__()
-        self.save_hyperparameters()
+class MyDataModule(HeptattnDataModule):
+    def __init__(self, train_dir, val_dir, num_workers, num_train, num_val, num_test, test_dir=None, batch_size=None, **kwargs):
+        super().__init__(
+            train_dir=train_dir,
+            val_dir=val_dir,
+            num_workers=num_workers,
+            num_train=num_train,
+            num_val=num_val,
+            num_test=num_test,
+            test_dir=test_dir,
+            batch_size=batch_size,
+        )
+        self.kwargs = kwargs
 
-    def setup(self, stage=None):
-        raise NotImplementedError
-
-    def train_dataloader(self):
-        raise NotImplementedError
-
-    def val_dataloader(self):
-        raise NotImplementedError
+    def make_dataset(self, dirpath, num_events, split):
+        return MyDataset(dirpath=dirpath, num_events=num_events, **self.kwargs)

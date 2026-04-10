@@ -4,9 +4,10 @@ import h5py
 import numpy as np
 import torch
 import yaml
-from lightning import LightningDataModule
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
+
+from hepattn.utils.data import HeptattnDataModule
 
 from hepattn.utils.tensor_utils import pad_to_size
 
@@ -395,7 +396,7 @@ class AtlasMuonCollator:
         return batched_inputs, batched_targets
 
 
-class AtlasMuonDataModule(LightningDataModule):
+class AtlasMuonDataModule(HeptattnDataModule):
     """PyTorch Lightning DataModule for the ATLAS muon datasets.
 
     Encapsulates creation of `AtlasMuonDataset` for train/val/test splits and
@@ -409,7 +410,7 @@ class AtlasMuonDataModule(LightningDataModule):
         num_train, num_val, num_test (int): Number of events to load per split.
         batch_size (int): Batch size for DataLoaders.
         pin_memory (bool): Whether to pin memory on CUDA transfer.
-        hit_eval_* (str|None): Optional hit-evaluation dataset paths.
+        hit_eval_* (str|None): Optional hit-evaluation dataset paths (unused by dataset).
         **kwargs: Passed through to `AtlasMuonDataset` (e.g. inputs/targets).
     """
 
@@ -429,51 +430,26 @@ class AtlasMuonDataModule(LightningDataModule):
         hit_eval_test: str | None = None,
         **kwargs,
     ):
-        super().__init__()
-
-        self.train_dir = train_dir
-        self.val_dir = val_dir
-        self.test_dir = test_dir
-        self.batch_size = batch_size
-        self.num_workers = num_workers
-        self.num_train = num_train
-        self.num_val = num_val
-        self.num_test = num_test
-        self.pin_memory = pin_memory
+        super().__init__(
+            train_dir=train_dir,
+            val_dir=val_dir,
+            num_workers=num_workers,
+            num_train=num_train,
+            num_val=num_val,
+            num_test=num_test,
+            test_dir=test_dir,
+            pin_memory=pin_memory,
+            batch_size=batch_size,
+        )
         self.hit_eval_train = hit_eval_train
         self.hit_eval_val = hit_eval_val
         self.hit_eval_test = hit_eval_test
         self.kwargs = kwargs
 
-    def setup(self, stage: str):
-        if stage in {"fit", "test"}:
-            self.train_dataset = AtlasMuonDataset(
-                dirpath=self.train_dir,
-                num_events=self.num_train,
-                **self.kwargs,
-            )
+    def make_dataset(self, dirpath: str, num_events: int, split: str) -> AtlasMuonDataset:
+        return AtlasMuonDataset(dirpath=dirpath, num_events=num_events, **self.kwargs)
 
-        if stage in {"fit", "validate"}:
-            self.val_dataset = AtlasMuonDataset(
-                dirpath=self.val_dir,
-                num_events=self.num_val,
-                **self.kwargs,
-            )
-        # Only print train/val dataset details when actually training (global rank 0)
-        if stage == "fit" and self.trainer is not None and self.trainer.is_global_zero:
-            print(f"Created training dataset with {len(self.train_dataset):,} events")
-            print(f"Created validation dataset with {len(self.val_dataset):,} events")
-
-        if stage == "test":
-            assert self.test_dir is not None, "No test file specified, see --data.test_dir"
-            self.test_dataset = AtlasMuonDataset(
-                dirpath=self.test_dir,
-                num_events=self.num_test,
-                **self.kwargs,
-            )
-            print(f"Created test dataset with {len(self.test_dataset):,} events")
-
-    def get_dataloader(self, stage: str, dataset: AtlasMuonDataset, shuffle: bool, prefetch_factor: int = 8):
+    def get_dataloader(self, dataset: AtlasMuonDataset, *, shuffle: bool, prefetch_factor: int = 8) -> DataLoader:
         # Set prefetch_factor to None when num_workers=0 to avoid ValueError
         actual_prefetch_factor = None if self.num_workers == 0 else prefetch_factor
 
@@ -481,18 +457,8 @@ class AtlasMuonDataModule(LightningDataModule):
             dataset=dataset,
             batch_size=self.batch_size,
             collate_fn=AtlasMuonCollator(dataset.inputs, dataset.targets, dataset.event_max_num_particles),
-            sampler=None,
             num_workers=self.num_workers,
             prefetch_factor=actual_prefetch_factor,
             shuffle=shuffle,
             pin_memory=self.pin_memory,
         )
-
-    def train_dataloader(self):
-        return self.get_dataloader(dataset=self.train_dataset, stage="fit", shuffle=True)
-
-    def val_dataloader(self):
-        return self.get_dataloader(dataset=self.val_dataset, stage="test", shuffle=False)
-
-    def test_dataloader(self, shuffle=False):
-        return self.get_dataloader(dataset=self.test_dataset, stage="test", shuffle=shuffle)
