@@ -111,6 +111,7 @@ for qty in particle_targets:
         continue
 
     axlist = []
+    ax1 = None
     if plot_fr:
         fig, (ax, ax1) = plt.subplots(ncols=2, figsize=(12, 4), constrained_layout=True)
         axlist.extend([ax, ax1])

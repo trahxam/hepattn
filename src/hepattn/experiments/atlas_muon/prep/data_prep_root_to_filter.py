@@ -342,7 +342,7 @@ class ParallelRootFilter:
         print(f"{'=' * 60}")
 
 
-def process_worker_files(args: tuple) -> dict:
+def process_worker_files(args: tuple) -> dict | None:
     """Worker function to process a subset of files."""
     (
         worker_id,

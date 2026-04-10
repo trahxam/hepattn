@@ -801,7 +801,7 @@ def preprocess_file(
     print("=" * 100 + f"\nPreprocessed events in {in_file_path} and saved them to {out_folder}\n" + "=" * 100)
 
 
-def preprocess_files(in_dir: str, out_dir: str, overwrite: bool, min_pt: float = 10.0, verbose: bool = False, parallel: bool = False):
+def preprocess_files(in_dir: str | Path, out_dir: str | Path, overwrite: bool, min_pt: float = 10.0, verbose: bool = False, parallel: bool = False):
     """Preprpocess root files into parquet files.
 
     Parameters
