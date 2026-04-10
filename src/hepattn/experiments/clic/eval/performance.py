@@ -110,7 +110,6 @@ class Performance:
                 case NetworkType.HGPFLOW_TARGET:
                     self.data[net_name] = load_hgpflow_target(
                         pred_path,
-                        threshold=net_config.ind_threshold,
                         num_events=num_events,
                     )
                 case NetworkType.MLPLF:
