@@ -41,11 +41,6 @@ dependencies = [
     "lapx>=0.9.2,<0.10",
 ]
 
-[dependency-groups]
-clic = ["pathos", "vector", "fastjet", "energyflow"] # has problems on isambard
-tide = ["numba>=0.61.2"] # has problems on isambard
-fa2 = ["flash-attn @ https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.4.17/flash_attn-2.8.3%2Bcu128torch2.9-cp312-cp312-linux_x86_64.whl"]
-
 [build-system]
 requires = ["scikit-build-core>=0.3.3", "pybind11"]
 build-backend = "scikit_build_core.build"
@@ -63,34 +58,58 @@ hepattn = { path = ".", editable = true }
 datasets = ">=4.4.1,<5"
 fsspec = { version = ">=2025.10.0,<2027", extras = ["http"] }
 
-[tool.pixi.pypi-options]
-no-build-isolation = ["flash-attn"]
-# extra-index-urls = ["https://download.pytorch.org/whl/cu128"]
-
+# SM7.5+ (A100, L40S, GH200): latest torch
 [tool.pixi.feature.gpu.pypi-dependencies]
+torch = { version = "==2.11.0", index = "https://download.pytorch.org/whl/cu130"}
+
+# SM7.0 (V100): latest torch that supports Volta
+[tool.pixi.feature.gpu-volta.pypi-dependencies]
 torch = { version = "==2.9.1", index = "https://download.pytorch.org/whl/cu128"}
 
 [tool.pixi.feature.cpu.pypi-dependencies]
-torch = { version = "==2.9.1", index = "https://download.pytorch.org/whl/cpu" }
+torch = { version = "==2.11.0", index = "https://download.pytorch.org/whl/cpu" }
+
+# FA2: SM8.0+ (A100, L40S) with torch 2.11 + cu130, x86_64 only
+[tool.pixi.feature.fa2.pypi-dependencies]
+flash-attn = { url = "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.4/flash_attn-2.6.3+cu130torch2.11-cp312-cp312-linux_x86_64.whl" }
+
+# FA3: SM9.0 (GH200) aarch64; SM8.0 (A100) x86_64
+[tool.pixi.feature.fa3.target.linux-64.pypi-dependencies]
+flash-attn-3 = { url = "https://github.com/windreamer/flash-attention3-wheels/releases/download/2026.03.30-a3a563f/flash_attn_3-3.0.0%2B20260330.cu130torch2110cxx11abitrue.98024f-cp39-abi3-linux_x86_64.whl" }
+
+[tool.pixi.feature.fa3.target.linux-aarch64.pypi-dependencies]
+flash-attn-3 = { url = "https://github.com/windreamer/flash-attention3-wheels/releases/download/2026.03.30-a3a563f/flash_attn_3-3.0.0%2B20260330.cu130torch2110cxx11abitrue.98024f-cp39-abi3-linux_aarch64.whl" }
+
+# clic and tide: optional experiment-specific deps
+[tool.pixi.feature.clic.pypi-dependencies]
+pathos = "*"
+vector = "*"
+fastjet = "*"
+energyflow = "*"
+
+[tool.pixi.feature.tide.pypi-dependencies]
+numba = ">=0.61.2"
 
 [tool.pixi.environments]
-default = { features = ["gpu", "fa2"] }
-isambard = { features = ["gpu"] }
-cpu = { features = ["cpu"] }
-clic = { features = ["clic"] }
-tide = { features = ["tide"] }
-ci = { features = ["cpu", "clic", "tide"]}
+default     = { features = ["gpu", "fa3"] }        # A100 (SM8.0), x86_64
+l40s        = { features = ["gpu", "fa2"] }        # L40S (SM8.9), x86_64 - FA2 only (FA3 unsupported)
+volta       = { features = ["gpu-volta"] }          # V100 (SM7.0), x86_64 - no flash attention
+gracehopper = { features = ["gpu", "fa3"] }        # GH200 (SM9.0), aarch64
+cpu         = { features = ["cpu"] }
+clic        = { features = ["clic"] }
+tide        = { features = ["tide"] }
+ci          = { features = ["cpu", "clic", "tide"] }
 
 [tool.pixi.system-requirements]
 libc = "2.28"
-cuda = "12.3"
+cuda = "12.8"
 
 [tool.pixi.dependencies]
 gxx = ">=14.3.0,<14.4"
 git = ">=2.51.0,<3"
 git-lfs = ">=3.7.0,<4"
 ninja = ">=1.13.1,<2"
-cuda = "12.8.*"
+cuda = ">=12.8"
 
 [tool.pixi.tasks.test]
 cmd = "pytest"
