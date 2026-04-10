@@ -12,6 +12,21 @@ from hepattn.utils.local_ca import auto_local_ca_mask
 
 
 class AttnMaskLogger(Callback):
+    """Callback that logs cross-attention masks and associated diagonal metrics to the experiment tracker.
+
+    For each logged batch, the callback visualises the mask of the final decoder
+    layer and computes metrics such as distance from diagonal, band width, LCA
+    comparison efficiency/purity, and attention consistency.
+
+    Attributes:
+        log_train: Whether to log during training batches.
+        log_val: Whether to log during validation batches.
+        log_stats: Whether to log basic attention statistics (avg/max/min hits per query).
+        log_every_n_batches: Frequency of logging during training.
+        lca_window_sizes: Window sizes for LCA mask comparison metrics.
+        log_diagonal_metrics: Whether to compute and log diagonal band metrics.
+    """
+
     def __init__(
         self,
         log_train: bool = True,
@@ -21,6 +36,17 @@ class AttnMaskLogger(Callback):
         lca_window_sizes: list[int] | None = None,
         log_diagonal_metrics: bool = True,
     ):
+        """Configure which metrics and figures to log and at what frequency.
+
+        Args:
+            log_train: Whether to log during training batches.
+            log_val: Whether to log during validation batches.
+            log_stats: Whether to log basic per-query hit count statistics.
+            log_every_n_batches: Interval (in training batches) between logging events.
+            lca_window_sizes: Window sizes for LCA mask efficiency/purity comparison.
+                Defaults to ``[32, 64, 128, 512, 1024, 2048]``.
+            log_diagonal_metrics: Whether to compute and log diagonal band metrics.
+        """
         super().__init__()
         self.log_train = log_train
         self.log_val = log_val
@@ -258,11 +284,13 @@ class AttnMaskLogger(Callback):
                         self._log_diagonal_metrics(pl_module, attn_mask_im, step, layer_index, f"local_ma_mask_{prefix_suffix}")
 
     def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
+        """Log attention masks and metrics for the current validation batch."""
         if not self.log_val:
             return
         self._process_attention_masks_from_outputs(pl_module, outputs, batch_idx, is_validation=True)
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        """Log attention masks and metrics for sampled training batches."""
         if not self.log_train:
             return
         # only process if this batch is selected by the sampler
@@ -272,9 +300,7 @@ class AttnMaskLogger(Callback):
         self._process_attention_masks_from_outputs(pl_module, outputs, step, is_validation=False)
 
     def _log_mask_points_for_kde(self, pl_module, mask, step, layer, prefix="local_ma_mask"):
-        """Save a subsampled set of (query, key) coordinates where mask==1.
-        These can be used later to build KDE plots without storing full masks.
-        """
+        """Save a subsampled set of (query, key) coordinates where mask==1 for later KDE plotting."""
         # mask: [num_queries, num_hits], 0/1 or bool
         mask_bool = mask.bool()
         q_idx, k_idx = torch.where(mask_bool)

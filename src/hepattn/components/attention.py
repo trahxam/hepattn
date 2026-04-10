@@ -79,26 +79,18 @@ def repad_from_flash_varlen(x: Tensor, batch_size: int, seq_len: int, indices: T
 def projection_packed(q: Tensor, k: Tensor, v: Tensor, weight: Tensor, bias: Tensor | None = None) -> tuple[Tensor, ...]:
     """Efficient input projection for MHA when using a single linear layer.
 
-    Essentially the same as torch.nn.functional._in_projection_packed.
+    Essentially the same as ``torch.nn.functional._in_projection_packed``.
     Used for nested tensors, but has issues with flex attention.
 
-    Parameters
-    ----------
-    q : Tensor
-        The queries tensor of shape (batch, q_len, dim).
-    k : Tensor
-        The keys tensor of shape (batch, kv_len, dim).
-    v : Tensor
-        The values tensor of shape (batch, kv_len, dim).
-    weight : Tensor
-        The packed weight tensor of the input linear projection with shape (3 * dim, dim).
-    bias : Tensor | None
-        The optional packed bias tensor of the input linear projection with shape (3 * dim).
+    Args:
+        q: Queries tensor of shape (batch, q_len, dim).
+        k: Keys tensor of shape (batch, kv_len, dim).
+        v: Values tensor of shape (batch, kv_len, dim).
+        weight: Packed weight tensor for the input linear projection with shape (3 * dim, dim).
+        bias: Optional packed bias tensor with shape (3 * dim).
 
     Returns:
-    -------
-    q_proj, k_proj, v_proj : tuple
-        The projected queries, keys, and values tensors.
+        Tuple of (q_proj, k_proj, v_proj) — the projected queries, keys, and values.
     """
     # If the queries, key and value tensors are equal, then we assume we are doing self-attention.
     # This is made (slightly) faster by using a single linear layer, then chunking rather than
@@ -213,6 +205,16 @@ class Attention(nn.Module):
         self.out_proj.reset_parameters()
 
     def set_backend(self, attn_type: str, torch_compile: bool = False, window_size: int | None = None) -> str:
+        """Switch the attention backend, optionally re-applying compilation and window size.
+
+        Args:
+            attn_type: Attention backend to activate.
+            torch_compile: Whether to compile the attention function.
+            window_size: Window size for flash/flash-varlen backends.
+
+        Returns:
+            The newly set attention type string.
+        """
         # Allow to change the attention backend after initialization, when evaluating the model
 
         self.attn_type = attn_type
@@ -229,12 +231,14 @@ class Attention(nn.Module):
         return self.attn_type
 
     def separate_heads(self, x: Tensor, num_heads: int) -> Tensor:
+        """Reshape flat embeddings into per-head views."""
         x = x.unflatten(-1, (num_heads, -1))  # B S D -> B S H Dh
         if self.attn_type not in FLASH_ATTN_TYPES:
             x = x.transpose(-3, -2)  # B S H Dh -> B H S Dh
         return x
 
     def recombine_heads(self, x: Tensor) -> Tensor:
+        """Merge per-head views back into flat embeddings."""
         if self.attn_type not in FLASH_ATTN_TYPES:
             x = x.transpose(-3, -2)  # B H S Dh -> B S H Dh
         return x.flatten(-2)  # B S H Dh -> B S D
@@ -246,6 +250,7 @@ class Attention(nn.Module):
         v: Tensor,
         initial_values: dict | None = None,
     ) -> tuple[Tensor, Tensor, Tensor]:
+        """Project and optionally normalize queries, keys, and values before attention."""
         # Mix for value residual
         mix = None
         if self.value_residual and not self.is_first_layer:
@@ -283,6 +288,7 @@ class Attention(nn.Module):
         return q, k, v
 
     def _flash_varlen_attention(self, q: Tensor, k: Tensor, v: Tensor, cu_seqlens: Tensor, max_seqlen: int) -> Tensor:
+        """Run flash variable-length attention on pre-unpadded inputs."""
         # Assume unpadding has been handled by the caller, so inputs are (1, total_valid_tokens, dim)
         # Flatten for flash attention which expects (total_valid_tokens, num_heads, head_dim)
         q_flat, k_flat, v_flat = q.squeeze(0), k.squeeze(0), v.squeeze(0)
@@ -304,39 +310,28 @@ class Attention(nn.Module):
     ) -> Tensor:
         """Multi-head attention forward pass.
 
-        Parameters
-        ----------
-        q : Tensor
-            Queries tensor of shape (B, N, D).
-        k : Tensor, optional
-            Keys tensor of shape (B, M, D). If None, defaults to q.
-        v : Tensor, optional
-            Values tensor of shape (B, M, D). If None, defaults to k.
-        q_mask : Tensor, optional
-            Query mask to apply. If None, no mask is applied.
-            True values indicate that a value is not padded and should partake in computation.
-            Note: For flash-varlen, this is ignored as unpadding is handled by the encoder.
-        kv_mask : Tensor, optional
-            Key/value mask to apply. If None, no mask is applied.
-            True values indicate that a value is not padded and should partake in computation.
-            Note: For flash-varlen, this is ignored as unpadding is handled by the encoder.
-        attn_mask : BlockMask | Tensor, optional
-            Attention mask to apply. If None, no mask is applied.
-            True values indicate that an attention slot should partake in computation.
-            Expected shape is (B, M, M).
-        attn_bias: Tensor, optional
-            Attention bias to apply to the attention scores. If None, no bias is applied.
-            Expected shape is (B, M, M).
-        score_mod : _score_mod_signature, optional
-            Score modifier function for flex attention. If None, no score modifier is applied.
-        initial_values : dict, optional
-            Initial values for value residual connection.
-        **kwargs : dict
-            Additional keyword arguments. For flash-varlen attention, must include:
-            - varlen_kwargs: dict containing cu_seqlens and max_seqlen
+        Args:
+            q: Queries tensor of shape (B, N, D).
+            k: Keys tensor of shape (B, M, D). If None, defaults to q (self-attention).
+            v: Values tensor of shape (B, M, D). If None, defaults to k.
+            q_mask: Query padding mask (B, N). True indicates a valid (non-padded) token.
+                Ignored for flash-varlen, where unpadding is handled by the encoder.
+            kv_mask: Key/value padding mask (B, M). True indicates a valid token.
+                Ignored for flash-varlen, where unpadding is handled by the encoder.
+            attn_mask: Boolean attention mask of shape (B, N, M), or a ``BlockMask`` for
+                flex attention. True indicates an attention slot that participates in computation.
+            attn_bias: Additive bias applied to attention scores, shape (B, N, M, H).
+            score_mod: Score modifier function for flex attention.
+            initial_values: State dict for value residual connections across layers.
+            **kwargs: Additional keyword arguments. For flash-varlen attention, must include
+                ``varlen_kwargs`` (dict with ``cu_seqlens`` and ``max_seqlen``).
+
+        Returns:
+            Output tensor of shape (B, N, D).
 
         Raises:
-            ValueError: If the input arguments are invalid or if flash-varlen is used without varlen_kwargs.
+            ValueError: If flash-varlen is used without ``varlen_kwargs``, or if an
+                unsupported mask/bias type is passed to the current attention backend.
         """
         q_shape = q.shape
         if k is None and v is None:  # Self-attention

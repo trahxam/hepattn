@@ -23,6 +23,14 @@ class Task(nn.Module, ABC):
     """
 
     def __init__(self, has_intermediate_loss: bool, has_first_layer_loss: bool | None = None, permute_loss: bool = True):
+        """Configure intermediate-loss and permutation behaviour for this task.
+
+        Args:
+            has_intermediate_loss: Whether to compute loss at each intermediate decoder layer.
+            has_first_layer_loss: Whether to compute loss at the first decoder layer.
+                Defaults to ``has_intermediate_loss`` when ``None``.
+            permute_loss: Whether query outputs should be permuted (matched) before loss computation.
+        """
         super().__init__()
         self.has_intermediate_loss = has_intermediate_loss
         self.has_first_layer_loss = has_first_layer_loss if has_first_layer_loss is not None else has_intermediate_loss
@@ -71,16 +79,21 @@ class Task(nn.Module, ABC):
         """
 
     def cost(self, outputs: dict[str, Tensor], targets: dict[str, Tensor], **kwargs) -> dict[str, Tensor]:
+        """Compute pairwise assignment costs between outputs and targets."""
         return {}
 
     def attn_mask(self, outputs: dict[str, Tensor], **kwargs) -> dict[str, Tensor]:
+        """Return cross-attention masks derived from task outputs."""
         return {}
 
     def key_mask(self, outputs: dict[str, Tensor], **kwargs) -> dict[str, Tensor]:
+        """Return key padding masks derived from task outputs."""
         return {}
 
     def query_mask(self, outputs: dict[str, Tensor], **kwargs) -> Tensor | None:
+        """Return a boolean query mask, or None if all queries are active."""
         return None
 
     def metrics(self, preds: dict[str, Tensor], targets: dict[str, Tensor]) -> dict[str, Tensor]:
+        """Compute task-specific evaluation metrics from predictions and targets."""
         return {}

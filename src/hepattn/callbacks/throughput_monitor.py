@@ -6,10 +6,14 @@ from lightning.pytorch.callbacks import ThroughputMonitor
 
 
 class MyThroughputMonitor(ThroughputMonitor):
+    """ThroughputMonitor variant that estimates FLOPs using a synthetic dummy input."""
+
     def __init__(self):
+        """Initialise with a fixed batch size of 1 for throughput measurement."""
         super().__init__(batch_size_fn=lambda x: 1)  # noqa: ARG005
 
     def setup(self, trainer, pl_module, stage):
+        """Measure FLOPs per batch using a meta-device copy of the module."""
         super().setup(trainer, pl_module, stage)
         with torch.device("meta"):
             model = deepcopy(pl_module).to(device="meta")

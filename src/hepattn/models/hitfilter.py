@@ -3,6 +3,11 @@ from torch import Tensor, nn
 
 
 class HitFilter(nn.Module):
+    """Transformer model for per-hit classification (e.g. noise filtering).
+
+    Embeds, optionally sorts, encodes, then runs classification tasks on each hit.
+    """
+
     def __init__(
         self,
         input_nets: nn.ModuleList,
@@ -10,6 +15,14 @@ class HitFilter(nn.Module):
         tasks: nn.ModuleList,
         sorter: nn.Module | None = None,
     ):
+        """Initialize HitFilter.
+
+        Args:
+            input_nets: List of input embedding modules, one per input type.
+            encoder: Encoder module applied to the merged hit embeddings.
+            tasks: List of per-hit task modules.
+            sorter: Optional sorter module for ordering hits before encoding.
+        """
         super().__init__()
 
         self.input_nets = input_nets
@@ -19,9 +32,18 @@ class HitFilter(nn.Module):
 
     @property
     def input_names(self) -> list[str]:
+        """Names of all registered input types."""
         return [input_net.input_name for input_net in self.input_nets]
 
     def forward(self, inputs: dict[str, Tensor]) -> dict[str, Tensor]:
+        """Embed, encode, and run tasks on input hits.
+
+        Args:
+            inputs: Dictionary of input tensors keyed by ``{input_name}_{field}``.
+
+        Returns:
+            Dictionary with a ``'final'`` key containing per-task output dicts.
+        """
         x = {}
 
         # Embed the input constituents
@@ -64,12 +86,30 @@ class HitFilter(nn.Module):
         return outputs
 
     def predict(self, outputs: dict) -> dict:
+        """Convert raw task outputs to predictions.
+
+        Args:
+            outputs: Raw outputs from ``forward``.
+
+        Returns:
+            Dictionary with a ``'final'`` key containing per-task predictions.
+        """
         preds = {"final": {}}
         for task in self.tasks:
             preds["final"][task.name] = task.predict(outputs["final"][task.name])
         return preds
 
     def loss(self, outputs: dict, targets: dict) -> tuple[dict, dict, dict]:
+        """Compute per-task losses.
+
+        Args:
+            outputs: Raw outputs from ``forward``.
+            targets: Ground-truth target dictionary.
+
+        Returns:
+            Tuple of (outputs, targets, losses) where losses is keyed by ``'final'``
+            and then by task name.
+        """
         losses = {"final": {}}
         for task in self.tasks:
             losses["final"][task.name] = task.loss(outputs["final"][task.name], targets)

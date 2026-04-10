@@ -11,6 +11,19 @@ from hepattn.components.norm import get_hybrid_norm_config
 
 
 class KMeansCrossAttention(nn.Module):
+    """Hard-assignment cross-attention using kMaX-style k-means updates.
+
+    Each key token is assigned to the nearest query (by dot-product), and queries
+    are updated by aggregating the values of their assigned key tokens.
+
+    Attributes:
+        dim: Embedding dimension.
+        update: Aggregation mode — ``'mean'`` (default) or ``'sum'``.
+        respect_attn_mask: Whether to respect the provided attention mask during assignment.
+        eps: Small constant for numerical stability in mean computation.
+        v_proj: Optional linear projection applied to values before aggregation.
+    """
+
     def __init__(
         self,
         dim: int,
@@ -20,6 +33,16 @@ class KMeansCrossAttention(nn.Module):
         respect_attn_mask: bool = False,
         eps: float = 1e-6,
     ):
+        """Initialize KMeansCrossAttention.
+
+        Args:
+            dim: Embedding dimension.
+            update: Aggregation mode for assigned values. One of ``'mean'`` or ``'sum'``.
+            value_proj: If True, applies a linear projection to values before aggregation.
+            mask_attn: Deprecated alias for ``respect_attn_mask``.
+            respect_attn_mask: If True, masks out invalid assignment slots using ``attn_mask``.
+            eps: Small constant for numerical stability.
+        """
         super().__init__()
         assert update in {"sum", "mean"}
         self.dim = dim
@@ -39,6 +62,21 @@ class KMeansCrossAttention(nn.Module):
         logits: Tensor | None = None,  # (B, N, M)
         **kwargs,
     ) -> Tensor:
+        """Apply k-means cross-attention update to queries.
+
+        Args:
+            q: Query embeddings of shape (B, N, D).
+            k: Key embeddings of shape (B, M, D). Required if ``logits`` is not provided.
+            v: Value embeddings of shape (B, M, D). Always required.
+            attn_mask: Boolean mask of shape (B, N, M). Used when ``respect_attn_mask=True``.
+            q_mask: Query validity mask of shape (B, N).
+            kv_mask: Key/value validity mask of shape (B, M).
+            logits: Pre-computed assignment logits of shape (B, N, M). If provided, ``k`` is ignored.
+            **kwargs: Unused extra keyword arguments (for API compatibility).
+
+        Returns:
+            Updated query embeddings of shape (B, N, D).
+        """
         if v is None:
             raise ValueError("KMeansCrossAttention requires v (values).")
 

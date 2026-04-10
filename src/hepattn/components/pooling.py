@@ -6,19 +6,13 @@ from hepattn.components.dense import Dense
 
 class Pooling(nn.Module):
     def __init__(self, input_object: str, output_object: str, dim: int, pool_net: nn.Module | None = None) -> None:
-        """A pooling module that applies optional transformation and weighted aggregation
-        over input entities (constituents or objects).
+        """Initialize the Pooling module.
 
-        Parameters
-        ----------
-        input_object : str
-            Name of the input entity (e.g., 'hit', 'particle').
-        output_object : str
-            Name of the output entity (e.g., 'track', 'jet').
-        dim : int
-            Dimensionality of the input embeddings.
-        pool_net : nn.Module, optional
-            Optional network applied to input entities before pooling.
+        Args:
+            input_object: Name of the input entity type (e.g. ``'hit'``).
+            output_object: Name of the output entity type (e.g. ``'jet'``).
+            dim: Dimensionality of the input embeddings.
+            pool_net: Optional network applied to input entities before pooling.
         """
         super().__init__()
 
@@ -29,6 +23,15 @@ class Pooling(nn.Module):
         self.pool_net = pool_net
 
     def forward(self, x: Tensor, x_valid: Tensor) -> Tensor:
+        """Pool input embeddings into a single output embedding via learned attention weights.
+
+        Args:
+            x: Input embeddings of shape (..., N, D).
+            x_valid: Boolean mask of shape (..., N). True for valid (non-padded) entries.
+
+        Returns:
+            Pooled embedding of shape (..., D).
+        """
         if self.pool_net is not None:
             x = self.pool_net(x)  # (..., N, E) -> (..., N, E)
         # Calculate a weight that will be used to pool the new embeddings (..., N, E) -> (..., N, 1)

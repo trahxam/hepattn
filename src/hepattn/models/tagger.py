@@ -3,6 +3,11 @@ from torch import Tensor, nn
 
 
 class Tagger(nn.Module):
+    """Transformer model for sequence-level or constituent-level tagging tasks.
+
+    Embeds inputs, encodes them, optionally pools, then applies classification tasks.
+    """
+
     def __init__(
         self,
         input_nets: nn.ModuleList,
@@ -11,6 +16,15 @@ class Tagger(nn.Module):
         tasks: nn.ModuleList,
         dim: int,
     ):
+        """Initialize Tagger.
+
+        Args:
+            input_nets: List of input embedding modules, one per input type.
+            encoder: Encoder module applied to the merged embeddings.
+            pooling: Pooling module for aggregating constituent features.
+            tasks: List of task modules producing final predictions.
+            dim: Embedding dimension.
+        """
         super().__init__()
 
         self.input_nets = input_nets
@@ -20,6 +34,14 @@ class Tagger(nn.Module):
         self.dim = dim
 
     def forward(self, inputs: dict[str, Tensor]) -> dict[str, Tensor]:
+        """Embed, encode, pool, and run tasks on input constituents.
+
+        Args:
+            inputs: Dictionary of input tensors keyed by ``{input_name}_{field}``.
+
+        Returns:
+            Dictionary with a ``'final'`` key containing per-task output dicts.
+        """
         # Atomic input names
         input_names = [input_net.input_name for input_net in self.input_nets]
 
@@ -66,13 +88,13 @@ class Tagger(nn.Module):
         return outputs
 
     def predict(self, outputs: dict) -> dict:
-        """Takes the raw model outputs and produces a set of actual inferences / predictions.
-        For example will take output probabilies and apply threshold cuts to prduce boolean predictions.
+        """Convert raw task outputs to concrete predictions.
 
-        Parameters
-        ----------
-        predictions:
-            The predictions used for inference from the model.
+        Args:
+            outputs: Raw outputs from ``forward``.
+
+        Returns:
+            Dictionary keyed by layer name then task name containing predictions.
         """
         preds = {}
 
@@ -86,14 +108,14 @@ class Tagger(nn.Module):
         return preds
 
     def loss(self, outputs: dict, targets: dict) -> dict:
-        """Computes the loss between the forward pass of the model and the data / targets.
+        """Compute per-task losses across all output layers.
 
-        Parameters
-        ----------
-        outputs:
-            The outputs from the forward pass of the model.
-        targets:
-            The data containing the targets.
+        Args:
+            outputs: Raw outputs from ``forward``.
+            targets: Ground-truth target dictionary.
+
+        Returns:
+            Nested dict keyed by layer name then task name containing loss dicts.
         """
         # Compute the losses for each task in each block
         losses = {}

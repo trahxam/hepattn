@@ -9,6 +9,8 @@ from hepattn.tasks.base import Task
 
 
 class HitFilterTask(Task):
+    """Task for classifying individual hits as belonging to reconstructable objects or noise."""
+
     def __init__(
         self,
         name: str,
@@ -47,10 +49,12 @@ class HitFilterTask(Task):
         self.net = Dense(dim, 1)
 
     def forward(self, x: dict[str, Tensor], outputs: dict[str, dict[str, Tensor]] | None = None) -> dict[str, Tensor]:
+        """Compute per-hit classification logits."""
         x_logit = self.net(x[f"{self.input_object}_embed"])
         return {f"{self.input_object}_logit": x_logit.squeeze(-1)}
 
     def predict(self, outputs: dict[str, Tensor]) -> dict[str, Tensor]:
+        """Return per-hit probabilities and binary valid predictions."""
         probs = outputs[f"{self.input_object}_logit"].sigmoid()
         return {
             f"{self.input_object}_{self.target_field}_prob": probs,
@@ -63,6 +67,7 @@ class HitFilterTask(Task):
         targets: dict[str, Tensor],
         layer_outputs: dict[str, dict[str, Tensor]] | None = None,
     ) -> dict[str, Tensor]:
+        """Compute BCE or focal loss for hit classification."""
         output = outputs[f"{self.input_object}_logit"]
         target = targets[f"{self.input_object}_{self.target_field}"].type_as(output)
 
@@ -84,12 +89,14 @@ class HitFilterTask(Task):
         raise ValueError(f"Unknown loss function: {self.loss_fn}")
 
     def key_mask(self, outputs: dict[str, Tensor], threshold: float = 0.1) -> dict[str, Tensor]:
+        """Return a key padding mask suppressing low-confidence hits, or empty dict if disabled."""
         if not self.mask_keys:
             return {}
 
         return {self.input_object: outputs[f"{self.input_object}_logit"].detach().sigmoid() >= threshold}
 
     def metrics(self, preds: dict[str, Tensor], targets: dict[str, Tensor]) -> dict[str, Tensor]:
+        """Compute hit-level accuracy, recall, and precision metrics."""
         expected_key = f"{self.input_object}_{self.target_field}"
         pred = preds[expected_key]
         true = targets[expected_key]
@@ -124,6 +131,7 @@ class HitFilterTaskBatched(HitFilterTask):
     """
 
     def loss(self, outputs: dict, targets: dict) -> dict:
+        """Compute loss over valid (unpadded) hits only, using the stored valid mask."""
         output = outputs[f"{self.input_object}_logit"]
         target = targets[f"{self.input_object}_{self.target_field}"].type_as(output)
 

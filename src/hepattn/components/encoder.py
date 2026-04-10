@@ -85,6 +85,7 @@ class Residual(nn.Module):
         self.norm = NORM_TYPES[norm](dim) if norm else nn.Identity()
 
     def forward(self, x: Tensor, **kwargs) -> Tensor:
+        """Apply the wrapped module with residual connection, layer scale, and drop-path."""
         if self.post_norm:
             x = self.norm(x)
             return x + self.dp(self.ls(self.fn(x, **kwargs)))
@@ -136,6 +137,7 @@ class EncoderLayer(nn.Module):
         self.dense = residual(Dense(self.dim, **dense_kwargs), norm=norm, post_norm=dense_post_norm)
 
     def forward(self, x: Tensor, **kwargs) -> Tensor:
+        """Apply self-attention then feed-forward with residual connections."""
         return self.dense(self.attn(x, **kwargs))
 
 
@@ -202,11 +204,26 @@ class Encoder(nn.Module):
         self.layers = torch.nn.ModuleList([EncoderLayer(dim=dim, depth=i, **layer_kwargs) for i in range(num_layers)])
 
     def set_backend(self, attn_type: str):
+        """Switch the attention backend for all encoder layers.
+
+        Args:
+            attn_type: Attention backend string to set.
+        """
         self.attn_type = attn_type
         for layer in self.layers:
             self.attn_type = layer.attn.fn.set_backend(self.attn_type)
 
     def forward(self, x: Tensor, kv_mask: Tensor | None = None, **kwargs) -> Tensor:
+        """Encode input sequence through all transformer layers.
+
+        Args:
+            x: Input tensor of shape (B, N, D).
+            kv_mask: Optional padding mask of shape (B, N). True for valid tokens.
+            **kwargs: Additional keyword arguments forwarded to each layer.
+
+        Returns:
+            Encoded tensor of shape (B, N, D).
+        """
         batch_size = x.shape[0]
         seq_len = x.shape[-2]
 

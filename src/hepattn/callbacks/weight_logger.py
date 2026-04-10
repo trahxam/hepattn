@@ -2,15 +2,18 @@ from lightning import Callback, LightningModule, Trainer
 
 
 class WeightLoggerCallback(Callback):
+    """Callback that logs per-parameter weight and bias statistics during training."""
+
     def __init__(self, log_every_n_steps=50):
-        """Callback to log model weights and biases during training.
+        """Initialise the weight logger.
 
         Args:
-            log_every_n_steps (int): Frequency of logging gradients. Logs every `n` steps.
+            log_every_n_steps: Frequency (in global steps) at which weights are logged.
         """
         self.log_every_n_steps = log_every_n_steps
 
     def setup(self, trainer: Trainer, module: LightningModule, stage: str) -> None:
+        """Set up the logging helper, skipping non-fit stages and fast_dev_run."""
         if trainer.fast_dev_run or stage != "fit":
             return
         kwargs = {"sync_dist": len(trainer.device_ids) > 1}
@@ -23,9 +26,7 @@ class WeightLoggerCallback(Callback):
         self.log = log
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
-        """Called after each training batch ends.
-        Logs the mean and std of weights and biases in each layer.
-        """
+        """Log mean and std of all weight and bias parameters after the training batch."""
         if trainer.global_step % self.log_every_n_steps == 0:
             for name, param in pl_module.named_parameters():
                 if "weight" in name or "bias" in name:
