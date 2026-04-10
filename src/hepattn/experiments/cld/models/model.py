@@ -1,20 +1,8 @@
-from torch import nn
-
 from hepattn.models import ModelWrapper
 from hepattn.utils.metrics import compute_hit_assignment_metrics
 
 
 class CLDReconstructor(ModelWrapper):
-    def __init__(
-        self,
-        name: str,
-        model: nn.Module,
-        lrs_config: dict,
-        optimizer: str = "AdamW",
-        mtl: bool = False,
-    ):
-        super().__init__(name, model, lrs_config, optimizer, mtl)
-
     def log_custom_metrics(self, preds, targets, stage):
         hits = ["vtxd", "trkr", "sihit", "ecal", "hcal", "vtb", "muon"]
         metrics = compute_hit_assignment_metrics(preds["final"], targets, hits, pred_object="flow", target_object="particle")

@@ -1,8 +1,8 @@
-from typing import Literal
+from collections.abc import Callable
 
 import torch
 from lightning import LightningModule
-from lion_pytorch import Lion
+from lightning.pytorch.cli import OptimizerCallable
 from torch import Tensor, nn
 from torch._functorch import config as functorch_config  # noqa: PLC2701
 from torch.optim import AdamW
@@ -15,8 +15,8 @@ class ModelWrapper(LightningModule):
         self,
         name: str,
         model: nn.Module,
-        lrs_config: dict,
-        optimizer: Literal["AdamW", "Lion"] = "AdamW",
+        optimizer: OptimizerCallable = AdamW,
+        lr_scheduler: Callable | None = None,
         mtl: bool = False,
     ):
         super().__init__()
@@ -26,7 +26,7 @@ class ModelWrapper(LightningModule):
         self.name = name
         self.model = model
         self.optimizer = optimizer
-        self.lrs_config = lrs_config
+        self.lr_scheduler = lr_scheduler
         self.mtl = mtl
 
         if mtl:
@@ -133,39 +133,12 @@ class ModelWrapper(LightningModule):
 
         return outputs, preds, losses
 
-    def on_train_start(self) -> None:
-        # Manually overwride the learning rate in case we are starting
-        # from a checkpoint that had a LRS and now we want a flat LR
-        if self.lrs_config.get("skip_scheduler"):
-            for optimizer in self.trainer.optimizers:
-                for param_group in optimizer.param_groups:
-                    param_group["lr"] = self.lrs_config["initial"]
-
     def configure_optimizers(self):
-        if self.optimizer.lower() == "adamw":
-            optimizer = AdamW
-        elif self.optimizer.lower() == "lion":
-            optimizer = Lion
-        else:
-            raise ValueError(f"Unknown optimizer: {self.opt_config['opt']}")
-
-        opt = optimizer(self.model.parameters(), lr=self.lrs_config["initial"], weight_decay=self.lrs_config["weight_decay"])
-
-        if not self.lrs_config.get("skip_scheduler"):
-            # Configure the learning rate scheduler
-            sch = torch.optim.lr_scheduler.OneCycleLR(
-                opt,
-                max_lr=self.lrs_config["max"],
-                total_steps=self.trainer.estimated_stepping_batches,
-                div_factor=self.lrs_config["max"] / self.lrs_config["initial"],
-                final_div_factor=self.lrs_config["initial"] / self.lrs_config["end"],
-                pct_start=float(self.lrs_config["pct_start"]),
-            )
-            sch = {"scheduler": sch, "interval": "step"}
-            return [opt], [sch]
-
-        print("Skipping learning rate scheduler.")
-        return opt
+        opt = self.optimizer(self.model.parameters())
+        if self.lr_scheduler is None:
+            return opt
+        sch = self.lr_scheduler(opt, total_steps=self.trainer.estimated_stepping_batches)
+        return [opt], [{"scheduler": sch, "interval": "step"}]
 
     def mlt_opt(self, losses: dict[str, Tensor], outputs: dict[str, Tensor]) -> None:
         opt = self.optimizers()

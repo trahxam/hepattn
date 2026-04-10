@@ -1,6 +1,10 @@
+from collections.abc import Callable
+
 import torch  # noqa: F401
 import torchmetrics as tm
+from lightning.pytorch.cli import OptimizerCallable
 from torch import nn
+from torch.optim import AdamW
 
 from hepattn.experiments.clic.utils.metrics import MaskInference
 from hepattn.models import ModelWrapper
@@ -11,11 +15,11 @@ class MPflow(ModelWrapper):
         self,
         name: str,
         model: nn.Module,
-        lrs_config: dict,
-        optimizer: str = "AdamW",
+        optimizer: OptimizerCallable = AdamW,
+        lr_scheduler: Callable | None = None,
         mtl: bool = False,
     ):
-        super().__init__(name, model, lrs_config, optimizer, mtl)
+        super().__init__(name, model, optimizer, lr_scheduler, mtl)
         self.MI = MaskInference
 
         self.obj_accuracy_micro = tm.classification.MulticlassAccuracy(num_classes=6, average="micro")
