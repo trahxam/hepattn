@@ -227,7 +227,7 @@ model:
                     dim: 128
                     null_weight: 1.0
 
-                - class_path: hepattn.tasks.ObjectGaussianRegressionTask
+                - class_path: hepattn.experiments.pixel.models.tasks.ObjectGaussianRegressionTask
                   init_args:
                     name: track_regr
                     input_object: query

@@ -178,7 +178,7 @@ model:
           class_path: torch.nn.ModuleList
           init_args:
             modules:
-              - class_path: hepattn.tasks.HitFilterTaskBatched
+              - class_path: hepattn.experiments.atlas_muon.models.tasks.HitFilterTaskBatched
                 init_args:
                   name: hit_filter
                   input_object: hit
