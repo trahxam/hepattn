@@ -5,19 +5,15 @@ from hepattn.components.dense import Dense
 
 
 class Pooling(nn.Module):
-    def __init__(self, input_object: str, output_object: str, dim: int, pool_net: nn.Module | None = None) -> None:
+    def __init__(self, dim: int, pool_net: nn.Module | None = None) -> None:
         """Initialize the Pooling module.
 
         Args:
-            input_object: Name of the input entity type (e.g. ``'hit'``).
-            output_object: Name of the output entity type (e.g. ``'jet'``).
             dim: Dimensionality of the input embeddings.
             pool_net: Optional network applied to input entities before pooling.
         """
         super().__init__()
 
-        self.input_object = input_object
-        self.output_object = output_object
         self.dim = dim
         self.weight_net = Dense(dim, 1)
         self.pool_net = pool_net
