@@ -10,7 +10,7 @@ import scipy.sparse as sp
 import torch
 from torch.utils.data import DataLoader, Dataset
 
-from hepattn.utils.data import HeptattnDataModule
+from hepattn.wrappers.data import DataModuleWrapper
 
 
 class ColliderMLDataset(Dataset):
@@ -910,7 +910,7 @@ class ColliderMLDataset(Dataset):
         return inputs_out, targets_out
 
 
-class ColliderMLDataModule(HeptattnDataModule):
+class ColliderMLDataModule(DataModuleWrapper):
     def __init__(
         self,
         train_dir: str,

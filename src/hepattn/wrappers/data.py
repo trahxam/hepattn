@@ -5,7 +5,7 @@ from lightning.pytorch.utilities.rank_zero import rank_zero_info
 from torch.utils.data import DataLoader, Dataset
 
 
-class HeptattnDataModule(LightningDataModule):
+class DataModuleWrapper(LightningDataModule):
     """Base DataModule for hepattn experiments.
 
     Handles the standard train/val/test split setup, DataLoader creation,

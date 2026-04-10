@@ -4,7 +4,7 @@
 
 from torch.utils.data import Dataset
 
-from hepattn.utils.data import HeptattnDataModule
+from hepattn.wrappers.data import DataModuleWrapper
 
 
 class MyDataset(Dataset):
@@ -22,7 +22,7 @@ class MyDataset(Dataset):
         raise NotImplementedError
 
 
-class MyDataModule(HeptattnDataModule):
+class MyDataModule(DataModuleWrapper):
     def __init__(self, train_dir, val_dir, num_workers, num_train, num_val, num_test, test_dir=None, batch_size=None, **kwargs):
         super().__init__(
             train_dir=train_dir,

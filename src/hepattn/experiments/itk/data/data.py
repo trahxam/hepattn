@@ -6,7 +6,7 @@ import pandas as pd
 import torch
 from torch.utils.data import DataLoader, Dataset
 
-from hepattn.utils.data import HeptattnDataModule
+from hepattn.wrappers.data import DataModuleWrapper
 
 from hepattn.utils.tensor_utils import pad_to_size
 
@@ -260,7 +260,7 @@ class ITkDataset(Dataset):
         return inputs_out, targets_out
 
 
-class ITkDataModule(HeptattnDataModule):
+class ITkDataModule(DataModuleWrapper):
     def __init__(
         self,
         train_dir: str,

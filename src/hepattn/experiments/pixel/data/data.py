@@ -8,7 +8,7 @@ from particle.pdgid import is_hadron
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 
-from hepattn.utils.data import HeptattnDataModule
+from hepattn.wrappers.data import DataModuleWrapper
 from hepattn.utils.tensor_utils import pad_to_size
 
 # Necessary to stop this
@@ -490,7 +490,7 @@ class PixelClusterCollator:
         return batched_inputs, batched_targets
 
 
-class PixelClusterDataModule(HeptattnDataModule):
+class PixelClusterDataModule(DataModuleWrapper):
     def __init__(
         self,
         batch_size: int,
