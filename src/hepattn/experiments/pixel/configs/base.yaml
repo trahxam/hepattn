@@ -214,7 +214,7 @@ model:
             class_path: torch.nn.ModuleList
             init_args:
               modules:
-                - class_path: hepattn.tasks.ObjectClassificationTask
+                - class_path: hepattn.models.tasks.ObjectClassificationTask
                   init_args:
                     name: track_valid
                     input_object: query
@@ -242,7 +242,7 @@ model:
                     cost_weight: 1.0
                     dim: 128
 
-                # - class_path: hepattn.tasks.ClassificationTask
+                # - class_path: hepattn.models.tasks.ClassificationTask
                 #   init_args:
                 #     name: track_class
                 #     input_object: query

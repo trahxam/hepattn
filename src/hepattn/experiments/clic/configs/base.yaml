@@ -144,7 +144,7 @@ model:
             class_path: torch.nn.ModuleList
             init_args:
               modules:
-                - class_path: hepattn.tasks.ObjectClassificationTask
+                - class_path: hepattn.models.tasks.ObjectClassificationTask
                   init_args:
                     name: classification
                     input_object: query
@@ -167,7 +167,7 @@ model:
                     mask_queries: false
                     has_intermediate_loss: true
 
-                - class_path: hepattn.tasks.ObjectHitMaskTask
+                - class_path: hepattn.models.tasks.ObjectHitMaskTask
                   init_args:
                     name: mask
                     input_constituent: node

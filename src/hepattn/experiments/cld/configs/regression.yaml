@@ -9,7 +9,7 @@ model:
           class_path: torch.nn.ModuleList
           init_args:
             modules:
-              - class_path: hepattn.tasks.ObjectClassificationTask
+              - class_path: hepattn.models.tasks.ObjectClassificationTask
                 init_args:
                   name: flow_valid
                   input_object: query
@@ -23,7 +23,7 @@ model:
                   null_weight: 1.0
                   mask_queries: false
 
-              - class_path: hepattn.tasks.ObjectHitMaskTask
+              - class_path: hepattn.models.tasks.ObjectHitMaskTask
                 init_args:
                   name: flow_vtxd_assignment
                   input_constituent: vtxd
@@ -41,7 +41,7 @@ model:
                   dim: 256
                   null_weight: 1.0
 
-              - class_path: hepattn.tasks.ObjectHitMaskTask
+              - class_path: hepattn.models.tasks.ObjectHitMaskTask
                 init_args:
                   name: flow_trkr_assignment
                   input_constituent: trkr
@@ -59,7 +59,7 @@ model:
                   dim: 256
                   null_weight: 1.0
 
-              - class_path: hepattn.tasks.ObjectHitMaskTask
+              - class_path: hepattn.models.tasks.ObjectHitMaskTask
                 init_args:
                   name: flow_ecal_assignment
                   input_constituent: ecal
@@ -77,7 +77,7 @@ model:
                   dim: 256
                   null_weight: 1.0
 
-              - class_path: hepattn.tasks.ObjectHitMaskTask
+              - class_path: hepattn.models.tasks.ObjectHitMaskTask
                 init_args:
                   name: flow_hcal_assignment
                   input_constituent: hcal
@@ -95,7 +95,7 @@ model:
                   dim: 256
                   null_weight: 1.0
 
-              - class_path: hepattn.tasks.ObjectRegressionTask
+              - class_path: hepattn.models.tasks.ObjectRegressionTask
                 init_args:
                   name: flow_regression
                   input_object: query
@@ -112,7 +112,7 @@ model:
                     - vtx.y
                     - vtx.z
 
-              - class_path: hepattn.tasks.ObjectHitRegressionTask
+              - class_path: hepattn.models.tasks.ObjectHitRegressionTask
                 init_args:
                   name: flow_vtxd_regression
                   input_constituent: vtxd
@@ -127,7 +127,7 @@ model:
                     - mom.theta
                     - mom.phi
 
-              - class_path: hepattn.tasks.ObjectHitRegressionTask
+              - class_path: hepattn.models.tasks.ObjectHitRegressionTask
                 init_args:
                   name: flow_trkr_regression
                   input_constituent: trkr

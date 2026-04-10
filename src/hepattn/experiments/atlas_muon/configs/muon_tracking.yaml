@@ -192,7 +192,7 @@ model:
             class_path: torch.nn.ModuleList
             init_args:
               modules:
-                - class_path: hepattn.tasks.ObjectClassificationTask
+                - class_path: hepattn.models.tasks.ObjectClassificationTask
                   init_args:
                     name: track_valid
                     input_object: query
@@ -205,7 +205,7 @@ model:
                     dim: 32
                     null_weight: 1.0
                     mask_queries: false
-                - class_path: hepattn.tasks.ObjectHitMaskTask
+                - class_path: hepattn.models.tasks.ObjectHitMaskTask
                   init_args:
                     name: track_hit_valid
                     input_constituent: hit
@@ -220,7 +220,7 @@ model:
                     null_weight: 1.0
                     mask_attn: true
 
-                - class_path: hepattn.tasks.ObjectRegressionTask
+                - class_path: hepattn.models.tasks.ObjectRegressionTask
                   init_args:
                     name: parameter_regression
                     input_object: query

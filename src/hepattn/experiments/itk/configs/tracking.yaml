@@ -184,7 +184,7 @@ model:
             class_path: torch.nn.ModuleList
             init_args:
               modules:
-                - class_path: hepattn.tasks.ObjectClassificationTask
+                - class_path: hepattn.models.tasks.ObjectClassificationTask
                   init_args:
                     name: track_valid
                     input_object: query
@@ -197,7 +197,7 @@ model:
                     dim: 256
                     null_weight: 1.0
 
-                - class_path: hepattn.tasks.ObjectHitMaskTask
+                - class_path: hepattn.models.tasks.ObjectHitMaskTask
                   init_args:
                     name: track_pixel_assignment
                     input_constituent: pixel
@@ -215,7 +215,7 @@ model:
                     dim: 256
                     null_weight: 1.0
 
-                - class_path: hepattn.tasks.ObjectHitMaskTask
+                - class_path: hepattn.models.tasks.ObjectHitMaskTask
                   init_args:
                     name: track_strip_assignment
                     input_constituent: strip

@@ -6,7 +6,7 @@ model:
         class_path: torch.nn.ModuleList
         init_args:
           modules:
-            - class_path: hepattn.tasks.ObjectClassificationTask
+            - class_path: hepattn.models.tasks.ObjectClassificationTask
               init_args:
                 name: pred_valid
                 input_object: query
@@ -20,7 +20,7 @@ model:
                 null_weight: 1.0
                 mask_queries: false
 
-            - class_path: hepattn.tasks.ObjectHitMaskTask
+            - class_path: hepattn.models.tasks.ObjectHitMaskTask
               init_args:
                 name: pred_pix_assignment
                 input_constituent: pix
@@ -34,7 +34,7 @@ model:
                 dim: 256
                 null_weight: 1.0
 
-            - class_path: hepattn.tasks.ObjectHitMaskTask
+            - class_path: hepattn.models.tasks.ObjectHitMaskTask
               init_args:
                 name: pred_sct_assignment
                 input_constituent: sct
@@ -48,7 +48,7 @@ model:
                 dim: 256
                 null_weight: 1.0
 
-            - class_path: hepattn.tasks.ObjectRegressionTask
+            - class_path: hepattn.models.tasks.ObjectRegressionTask
               init_args:
                 name: pred_regression
                 input_object: query
@@ -63,7 +63,7 @@ model:
                   - scaled_d0
                   - scaled_dz0
 
-            - class_path: hepattn.tasks.ObjectHitRegressionTask
+            - class_path: hepattn.models.tasks.ObjectHitRegressionTask
               init_args:
                 name: pred_pix_regression
                 input_constituent: pix

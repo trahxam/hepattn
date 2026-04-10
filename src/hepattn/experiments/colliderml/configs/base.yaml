@@ -174,7 +174,7 @@ model:
             class_path: torch.nn.ModuleList
             init_args:
               modules:
-                - class_path: hepattn.tasks.ObjectClassificationTask
+                - class_path: hepattn.models.tasks.ObjectClassificationTask
                   init_args:
                     name: flow_valid
                     input_object: query
@@ -190,7 +190,7 @@ model:
                     has_intermediate_loss: true
                     has_first_layer_loss: false
 
-                - class_path: hepattn.tasks.ObjectHitMaskTask
+                - class_path: hepattn.models.tasks.ObjectHitMaskTask
                   init_args:
                     name: flow_sihit_assignment
                     input_constituent: sihit
