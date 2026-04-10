@@ -14,7 +14,6 @@ class MaskFormer(nn.Module):
         encoder: nn.Module,
         decoder: MaskFormerDecoder,
         target_object: str = "particle",
-        pooling: nn.Module | None = None,
         matcher: nn.Module | None = None,
         sorter: nn.Module | None = None,
     ):
@@ -25,7 +24,6 @@ class MaskFormer(nn.Module):
             encoder: Encoder module that processes merged constituent embeddings.
             decoder: Decoder module containing decoder layers, tasks, and query initialization.
             target_object: The target object name used to mark valid/invalid objects during matching.
-            pooling: Optional pooling module for aggregating features from the input constituents.
             matcher: Module for matching predictions to targets (e.g., Hungarian algorithm).
             sorter: Optional sorter module for reordering inputs before processing.
         """
@@ -34,7 +32,6 @@ class MaskFormer(nn.Module):
         self.input_nets = input_nets
         self.encoder = encoder
         self.decoder = decoder
-        self.pooling = pooling
         self.target_object = target_object
         self.matcher = matcher
         self.sorter = sorter
@@ -132,11 +129,6 @@ class MaskFormer(nn.Module):
         x, decoder_outputs = self.decoder(x, self.input_names)
         outputs["encoder"].update(decoder_outputs.pop("encoder", {}))
         outputs.update(decoder_outputs)
-
-        # Do any pooling if desired
-        if self.pooling is not None:
-            x_pooled = self.pooling(x[f"{self.pooling.input_name}_embed"], x[f"{self.pooling.input_name}_valid"])
-            x[f"{self.pooling.output_name}_embed"] = x_pooled
 
         # Get the final outputs
         outputs["final"] = {}
