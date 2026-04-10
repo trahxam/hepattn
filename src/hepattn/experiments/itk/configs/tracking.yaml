@@ -82,17 +82,19 @@ trainer:
 model:
   class_path: hepattn.experiments.itk.models.tracker.ITkTracker
   init_args:
-    lrs_config:
-      initial: 1e-5
-      max: 1e-4
-      end: 1e-5
-      pct_start: 0.05
-      skip_scheduler: false
-      weight_decay: 1e-5
+    optimizer:
+      class_path: torch.optim.AdamW
+      init_args:
+        lr: 1e-5
+        weight_decay: 1e-5
 
-    optimizer: adamw
-
-    mtl: false
+    lr_scheduler:
+      class_path: hepattn.utils.schedulers.OneCycleLR
+      init_args:
+        max_lr: 1e-4
+        pct_start: 0.05
+        div_factor: 10.0
+        final_div_factor: 1.0
 
     model:
       class_path: hepattn.models.MaskFormer

@@ -8,7 +8,6 @@ and logs them using the Lightning logger.
 """
 
 import torch
-from torch import nn
 from torchmetrics.functional import auroc
 
 from hepattn.models import ModelWrapper
@@ -21,15 +20,6 @@ class AtlasMuonFilter(ModelWrapper):
     `log_custom_metrics` to compute and record a set of common metrics
     useful for hit-filtering evaluation (counts, precision/recall, AUC).
     """
-
-    def __init__(
-        self,
-        name: str,
-        model: nn.Module,
-        lrs_config: dict,
-        optimizer: str = "Lion",
-    ):
-        super().__init__(name, model, lrs_config, optimizer)
 
     def log_custom_metrics(self, preds, targets, stage, outputs=None):
         """Compute and log per-batch hit-filtering metrics.

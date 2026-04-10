@@ -99,18 +99,21 @@ trainer:
 model:
   class_path: hepattn.experiments.atlas_muon.models.tracker.TrackMLTracker
   init_args:
-    optimizer: Lion
+    optimizer:
+      class_path: lion_pytorch.Lion
+      init_args:
+        lr: 1e-5
+        weight_decay: 1e-5
 
-    lrs_config:
-      initial: 1e-5
-      max: 5e-5
-      end: 1e-5
-      pct_start: 0.05
-      skip_scheduler: false
-      weight_decay: 1e-5
+    lr_scheduler:
+      class_path: hepattn.utils.schedulers.OneCycleLR
+      init_args:
+        max_lr: 5e-5
+        pct_start: 0.05
+        div_factor: 5.0
+        final_div_factor: 1.0
 
     # Whether to use multi task learning or not
-    mtl: false
 
     model:
       class_path: hepattn.models.MaskFormer
@@ -162,7 +165,6 @@ model:
                         - r
                         - theta
                         - phi
-                      dim: 32
                       sym_fields:
                         - phi
 
@@ -225,10 +227,10 @@ model:
                     output_object: track
                     target_object: particle
                     fields:
-                    - truthMuon_eta
-                    - truthMuon_phi
-                    - truthMuon_pt
-                    - truthMuon_q
+                      - truthMuon_eta
+                      - truthMuon_phi
+                      - truthMuon_pt
+                      - truthMuon_q
                     loss_weight: 1.0
                     cost_weight: 1.0
                     dim: 32

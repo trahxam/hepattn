@@ -7,7 +7,6 @@ function hooks this wrapper into the project's CLI.
 """
 
 import torch
-from torch import nn
 
 from hepattn.models import ModelWrapper
 
@@ -21,16 +20,6 @@ class TrackMLTracker(ModelWrapper):
     It computes per-batch and per-track summaries (efficiency, purity, counts)
     and logs them via Lightning's logger.
     """
-
-    def __init__(
-        self,
-        name: str,
-        model: nn.Module,
-        lrs_config: dict,
-        optimizer: str = "AdamW",
-        mtl: bool = False,
-    ):
-        super().__init__(name, model, lrs_config, optimizer, mtl)
 
     def log_custom_metrics(self, preds, targets, stage):
         """Compute and log per-batch tracking metrics.

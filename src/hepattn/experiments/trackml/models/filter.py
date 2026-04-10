@@ -1,18 +1,7 @@
-from torch import nn
-
 from hepattn.models import ModelWrapper
 
 
 class TrackMLFilter(ModelWrapper):
-    def __init__(
-        self,
-        name: str,
-        model: nn.Module,
-        lrs_config: dict,
-        optimizer: str = "AdamW",
-    ):
-        super().__init__(name, model, lrs_config, optimizer)
-
     def log_custom_metrics(self, preds, targets, stage):
         task = self.model.tasks[0]
         target_field = task.target_field
