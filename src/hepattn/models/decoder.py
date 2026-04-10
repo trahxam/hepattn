@@ -8,7 +8,7 @@ from torch import Tensor, nn
 
 from hepattn.components.decoder import DecoderLayer
 from hepattn.components.posenc import pos_enc_symmetric
-from hepattn.flex.local_ca import sliding_window_mask_strided, sliding_window_mask_strided_wrapped, transpose_blockmask
+from hepattn.components.flex.local_ca import sliding_window_mask_strided, sliding_window_mask_strided_wrapped, transpose_blockmask
 from hepattn.utils.local_ca import auto_local_ca_mask
 from hepattn.utils.model_utils import unmerge_inputs
 
