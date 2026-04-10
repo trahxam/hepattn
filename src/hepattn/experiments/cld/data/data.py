@@ -5,7 +5,7 @@ import torch
 from scipy.sparse import csr_array, csr_matrix
 from torch.utils.data import DataLoader
 
-from hepattn.utils.data import HeptattnDataModule
+from hepattn.wrappers.data import DataModuleWrapper
 
 from hepattn.utils.array_utils import masked_angle_diff_last_axis, masked_diff_last_axis
 from hepattn.utils.lrsm_dataset import LRSMDataset
@@ -573,7 +573,7 @@ class CLDDataset(LRSMDataset):
         return event
 
 
-class CLDDataModule(HeptattnDataModule):
+class CLDDataModule(DataModuleWrapper):
     def __init__(
         self,
         train_dir: str,

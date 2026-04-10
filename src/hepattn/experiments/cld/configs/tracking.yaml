@@ -443,7 +443,7 @@ model:
             class_path: torch.nn.ModuleList
             init_args:
               modules:
-                - class_path: hepattn.tasks.ObjectClassificationTask
+                - class_path: hepattn.models.tasks.ObjectClassificationTask
                   init_args:
                     name: flow_valid
                     input_object: query
@@ -457,7 +457,7 @@ model:
                     null_weight: 1.0
                     mask_queries: false
 
-                - class_path: hepattn.tasks.ObjectHitMaskTask
+                - class_path: hepattn.models.tasks.ObjectHitMaskTask
                   init_args:
                     name: flow_vtxd_assignment
                     input_constituent: vtxd
@@ -475,7 +475,7 @@ model:
                     dim: 256
                     null_weight: 1.0
 
-                - class_path: hepattn.tasks.ObjectHitMaskTask
+                - class_path: hepattn.models.tasks.ObjectHitMaskTask
                   init_args:
                     name: flow_trkr_assignment
                     input_constituent: trkr

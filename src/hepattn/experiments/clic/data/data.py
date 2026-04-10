@@ -9,7 +9,7 @@ from lightning import seed_everything
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-from hepattn.utils.data import HeptattnDataModule
+from hepattn.wrappers.data import DataModuleWrapper
 from hepattn.utils.scaling import FeatureScaler
 
 
@@ -740,7 +740,7 @@ class CLICDataset(Dataset):
         ]
 
 
-class PflowDataModule(HeptattnDataModule):
+class PflowDataModule(DataModuleWrapper):
     def __init__(
         self,
         train_path: str,

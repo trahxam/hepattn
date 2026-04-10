@@ -217,7 +217,7 @@ model:
           class_path: torch.nn.ModuleList
           init_args:
             modules:
-              - class_path: hepattn.tasks.HitFilterTask
+              - class_path: hepattn.models.tasks.HitFilterTask
                 init_args:
                   name: pixel_filter
                   input_object: pixel

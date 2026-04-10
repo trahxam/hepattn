@@ -7,7 +7,7 @@ import yaml
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 
-from hepattn.utils.data import HeptattnDataModule
+from hepattn.wrappers.data import DataModuleWrapper
 
 from hepattn.utils.tensor_utils import pad_to_size
 
@@ -396,7 +396,7 @@ class AtlasMuonCollator:
         return batched_inputs, batched_targets
 
 
-class AtlasMuonDataModule(HeptattnDataModule):
+class AtlasMuonDataModule(DataModuleWrapper):
     """PyTorch Lightning DataModule for the ATLAS muon datasets.
 
     Encapsulates creation of `AtlasMuonDataset` for train/val/test splits and

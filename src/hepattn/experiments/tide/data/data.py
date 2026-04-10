@@ -11,7 +11,7 @@ from scipy.sparse import csr_matrix
 from tqdm import tqdm
 from torch.utils.data import BatchSampler, DataLoader, Dataset, RandomSampler
 
-from hepattn.utils.data import HeptattnDataModule
+from hepattn.wrappers.data import DataModuleWrapper
 
 from hepattn.utils.tensor_utils import pad_to_size
 
@@ -517,7 +517,7 @@ class ROICollator:
         return batched_inputs, batched_targets
 
 
-class ROIDataModule(HeptattnDataModule):
+class ROIDataModule(DataModuleWrapper):
     def __init__(
         self,
         batch_size: int,

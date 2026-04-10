@@ -219,7 +219,7 @@ model:
             class_path: torch.nn.ModuleList
             init_args:
               modules:
-                - class_path: hepattn.tasks.ClassificationTask
+                - class_path: hepattn.models.tasks.ClassificationTask
                   init_args:
                     name: query_init
                     input_object: hit
@@ -238,7 +238,7 @@ model:
             class_path: torch.nn.ModuleList
             init_args:
               modules:
-                - class_path: hepattn.tasks.ObjectClassificationTask
+                - class_path: hepattn.models.tasks.ObjectClassificationTask
                   init_args:
                     name: track_valid
                     input_object: query
@@ -253,7 +253,7 @@ model:
                       object_bce: 0.1
                     null_weight: 1.0
 
-                - class_path: hepattn.tasks.ObjectHitMaskTask
+                - class_path: hepattn.models.tasks.ObjectHitMaskTask
                   init_args:
                     name: track_hit_valid
                     input_constituent: hit
@@ -269,7 +269,7 @@ model:
                       mask_focal: 100.0
                     null_weight: 1.0
 
-                - class_path: hepattn.tasks.IoUPredictionTask
+                - class_path: hepattn.experiments.trackml.models.tasks.IoUPredictionTask
                   init_args:
                     name: track_iou
                     input_object: query

@@ -1,6 +1,6 @@
 from hepattn.utils.array_utils import maybe_pad
 from hepattn.utils.cli import CLI
-from hepattn.utils.data import HeptattnDataModule
+from hepattn.wrappers.data import DataModuleWrapper
 from hepattn.utils.masks import (
     argmax_mask,
     build_target_masks,
@@ -19,7 +19,7 @@ from hepattn.utils.tensor_utils import (
 
 __all__ = [
     "CLI",
-    "HeptattnDataModule",
+    "DataModuleWrapper",
     "argmax_mask",
     "build_target_masks",
     "compute_hit_assignment_metrics",

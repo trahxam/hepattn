@@ -2,7 +2,7 @@ import torch
 from torch import Tensor
 
 from hepattn.components.dense import Dense
-from hepattn.tasks.base import Task
+from hepattn.models.tasks import Task
 
 
 class IoUPredictionTask(Task):

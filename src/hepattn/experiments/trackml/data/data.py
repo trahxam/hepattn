@@ -7,7 +7,7 @@ import torch
 from lightning.pytorch.utilities.rank_zero import rank_zero_info
 from torch.utils.data import DataLoader, Dataset
 
-from hepattn.utils.data import HeptattnDataModule
+from hepattn.wrappers.data import DataModuleWrapper
 
 
 def is_valid_file(path):
@@ -317,7 +317,7 @@ class TrackMLDataset(Dataset):
         return inputs, targets
 
 
-class TrackMLDataModule(HeptattnDataModule):
+class TrackMLDataModule(DataModuleWrapper):
     def __init__(
         self,
         train_dir: str,
