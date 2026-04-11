@@ -3,13 +3,13 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import torch
 
-from hepattn.components.posenc import (
+from reconstruct_anything.components.posenc import (
     FourierPositionEncoder,
     PositionEncoder,
     pos_enc,
     pos_enc_symmetric,
 )
-from hepattn.utils.visualise_pes import (
+from reconstruct_anything.utils.visualise_pes import (
     create_similarity_matrix_visualization,
     create_simple_pos_enc_visualization,
 )

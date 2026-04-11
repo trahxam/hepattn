@@ -1,0 +1,17 @@
+# Base configuration for this experiment.
+# Specifies model class, data class, architecture, training params, etc.
+#
+# Usage:
+#   python main.py fit --config configs/base.yaml
+#
+# model:
+#   class_path: reconstruct_anything.experiments._template.models.model.MyModel
+#   init_args:
+#     name: my_experiment
+#     ...
+#
+# data:
+#   class_path: reconstruct_anything.experiments._template.data.data.MyDataModule
+#   init_args:
+#     train_dir: /path/to/train
+#     ...

@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from hepattn.utils.masks import indices_from_mask, mask_from_indices
+from reconstruct_anything.utils.masks import indices_from_mask, mask_from_indices
 
 
 @pytest.fixture

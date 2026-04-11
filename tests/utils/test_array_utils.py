@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from hepattn.utils.array_utils import (
+from reconstruct_anything.utils.array_utils import (
     join_structured_arrays,
     masked_angle_diff_last_axis,
     masked_diff_last_axis,

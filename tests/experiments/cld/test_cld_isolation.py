@@ -7,14 +7,14 @@ import torch
 import yaml
 from matplotlib.colors import LogNorm
 
-from hepattn.experiments.cld.data.data import CLDDataModule
+from reconstruct_anything.experiments.cld.data.data import CLDDataModule
 
 plt.rcParams["figure.dpi"] = 300
 
 
 @pytest.fixture
 def cld_datamodule():
-    config_path = Path("src/hepattn/experiments/cld/configs/base.yaml")
+    config_path = Path("src/reconstruct_anything/experiments/cld/configs/base.yaml")
     config = yaml.safe_load(config_path.read_text())["data"]
     config["num_workers"] = 0
     config["batch_size"] = 10

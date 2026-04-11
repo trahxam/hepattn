@@ -1,4 +1,4 @@
-# hepattn
+# reconstruct-anything
 
 We present a general end-to-end ML approach for particle physics reconstruction by adapting cutting-edge object detection techniques.
 Our work demonstrates that a single encoder-decoder transformer can solve many different reconstruction problems that traditionally required specialised, task-specific approaches.
@@ -36,8 +36,8 @@ Our method has been successfully applied to various reconstruction tasks and det
 First clone the repository:
 
 ```shell
-git clone git@github.com:samvanstroud/hepattn.git
-cd hepattn
+git clone git@github.com:samvanstroud/reconstruct-anything.git
+cd reconstruct-anything
 ```
 
 We recommend using a container to set up and run the code.
@@ -109,8 +109,8 @@ pytest -m 'not gpu and not requiresdata'
 
 See experiment directories for instructions on how to run experiments.
 
-- [TrackML Tracking](src/hepattn/experiments/trackml/)
-- [CLIC Particle Flow](src/hepattn/experiments/clic/)
+- [TrackML Tracking](src/reconstruct_anything/experiments/trackml/)
+- [CLIC Particle Flow](src/reconstruct_anything/experiments/clic/)
 
 ## 📖 Terminology
 
@@ -139,4 +139,4 @@ pre-commit install
 ## 📄 Citing
 
 If you use this software in your research, please cite it using the citation information available in the GitHub repository sidebar (generated from [`CITATION.cff`](CITATION.cff)).
-Please also cite [our papers](#hepattn) if they are relevant to your work.
+Please also cite [our papers](#reconstruct-anything) if they are relevant to your work.

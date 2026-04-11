@@ -5,7 +5,7 @@ import pytest
 import torch
 import yaml
 
-from hepattn.experiments.cld.data.data import CLDDataModule
+from reconstruct_anything.experiments.cld.data.data import CLDDataModule
 
 plt.rcParams["figure.dpi"] = 300
 
@@ -15,7 +15,7 @@ torch.manual_seed(42)
 class TestCLDDataModule:
     @pytest.fixture
     def cld_datamodule(self):
-        config_path = Path("src/hepattn/experiments/cld/configs/base.yaml")
+        config_path = Path("src/reconstruct_anything/experiments/cld/configs/base.yaml")
         config = yaml.safe_load(config_path.read_text())["data"]
         config["num_workers"] = 0
 

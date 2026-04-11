@@ -4,8 +4,8 @@ import pytest
 import torch
 from torch import nn
 
-from hepattn.components.decoder import DecoderLayer
-from hepattn.models.decoder import MaskFormerDecoder
+from reconstruct_anything.components.decoder import DecoderLayer
+from reconstruct_anything.models.decoder import MaskFormerDecoder
 
 BATCH_SIZE = 2
 SEQ_LEN = 10

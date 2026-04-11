@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from hepattn.experiments.atlas_muon.data.data import AtlasMuonDataset
+from reconstruct_anything.experiments.atlas_muon.data.data import AtlasMuonDataset
 
 
 class TestAtlasMuonEvent:

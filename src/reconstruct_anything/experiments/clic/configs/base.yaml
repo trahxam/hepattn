@@ -1,0 +1,244 @@
+name: clic_v6
+seed_everything: 42
+
+data:
+  class_path: reconstruct_anything.experiments.clic.data.data.PflowDataModule
+  init_args:
+    inputs:
+      hit:
+        - "x"
+        - "y"
+        - "z"
+        - "r"
+        - "s"
+        - "theta"
+        - "phi"
+
+    targets:
+      particle:
+        - e
+        - pt
+        - eta
+        - sinphi
+        - cosphi
+
+    num_objects: &num_particles 150
+
+    train_path: /projects/u5ar/data/clic/train_clic_fix.root
+    valid_path: /projects/u5ar/data/clic/val_clic_fix.root
+    test_path: /projects/u5ar/data/clic/test_clic_common_infer.root
+
+    num_workers: 16
+    num_train: -1
+    num_test: -1
+    num_val: 5000
+
+    batch_size: 512
+    incidence_cutval: 0.01
+
+    scale_dict_path: &scale_dict_path configs/clic_var_transform.yaml
+
+trainer:
+  max_epochs: 200
+  accelerator: gpu
+  devices: 2
+  precision: bf16-mixed
+  gradient_clip_val: 0.1
+  log_every_n_steps: 50
+  default_root_dir: logs
+  enable_progress_bar: True
+
+  logger:
+    class_path: reconstruct_anything.utils.loggers.MyCometLogger
+    init_args:
+      project: hepattn-clic
+
+  callbacks:
+    - class_path: reconstruct_anything.callbacks.Compile
+    - class_path: reconstruct_anything.callbacks.InferenceTimer
+    - class_path: reconstruct_anything.callbacks.SaveConfig
+    - class_path: reconstruct_anything.callbacks.Checkpoint
+      init_args:
+        monitor: val/loss
+        save_last: true
+        # every_n_train_steps: 1000
+    - class_path: reconstruct_anything.experiments.clic.PflowPredictionWriter
+      # init_args:
+      #   write_inputs: true
+      #   write_outputs: true
+      #   write_preds: true
+      #   write_targets: true
+      #   write_losses: false
+    - class_path: lightning.pytorch.callbacks.ModelSummary
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+    - class_path: lightning.pytorch.callbacks.TQDMProgressBar
+      init_args:
+        refresh_rate: 50
+
+model:
+  class_path: reconstruct_anything.experiments.clic.models.model.MPflow
+  init_args:
+    optimizer:
+      class_path: lion_pytorch.Lion
+      init_args:
+        lr: 1e-6
+        weight_decay: 1e-4
+
+    lr_scheduler:
+      class_path: reconstruct_anything.utils.schedulers.OneCycleLR
+      init_args:
+        max_lr: 8e-5
+        pct_start: 0.05
+        div_factor: 80.0
+        final_div_factor: 1.0
+
+    model:
+      class_path: reconstruct_anything.models.MaskFormer
+      init_args:
+
+        input_nets:
+          class_path: torch.nn.ModuleList
+          init_args:
+            modules:
+              - class_path: reconstruct_anything.components.InputNet
+                init_args:
+                  input_name: node
+                  fields:
+                    - features
+                  net:
+                    class_path: reconstruct_anything.components.Dense
+                    init_args:
+                      input_size: 27
+                      output_size: 256
+                  posenc:
+                    class_path: reconstruct_anything.components.FourierPositionEncoder
+                    init_args:
+                      input_name: node
+                      dim: 256
+                      fields: [eta, phi]
+                      scale: 0.1
+
+        encoder:
+          class_path: reconstruct_anything.components.Encoder
+          init_args:
+            num_layers: 6
+            dim: 256
+            attn_type: flash-varlen
+            hybrid_norm: true
+            value_residual: true
+            num_register_tokens: 8
+            attn_kwargs:
+              num_heads: 16
+
+        decoder:
+          num_decoder_layers: 4
+          num_queries: *num_particles
+          mask_attention: true
+          decoder_layer_config:
+            dim: 256
+            hybrid_norm: true
+            attn_kwargs:
+              num_heads: 16
+
+          tasks:
+            class_path: torch.nn.ModuleList
+            init_args:
+              modules:
+                - class_path: reconstruct_anything.models.tasks.ObjectClassificationTask
+                  init_args:
+                    name: classification
+                    input_object: query
+                    output_object: pflow
+                    target_object: particle
+                    num_classes: 5
+                    losses:
+                      object_ce: 2
+                    costs:
+                      object_ce: 2
+                    net:
+                      class_path: reconstruct_anything.components.Dense
+                      init_args:
+                        input_size: 256
+                        activation: torch.nn.SiLU
+                        output_size: 6
+                        hidden_layers: [256, 128, 32]
+                    null_weight: 0.5
+                    class_weights: [1.0, 3.0, 8.0, 1.5, 1.0]
+                    mask_queries: false
+                    has_intermediate_loss: true
+
+                - class_path: reconstruct_anything.models.tasks.ObjectHitMaskTask
+                  init_args:
+                    name: mask
+                    input_constituent: node
+                    input_object: query
+                    output_object: pflow
+                    target_object: particle
+                    pred_threshold: 0.1
+                    logit_scale: 4
+                    losses:
+                      mask_bce: 5.0
+                      mask_dice: 1.0
+                    costs:
+                      # mask_bce: 5.0
+                      mask_dice: 1.0
+                    dim: 256
+                    null_weight: 1.0
+                    has_intermediate_loss: true
+
+                - class_path: reconstruct_anything.experiments.clic.models.tasks.IncidenceRegressionTask
+                  init_args:
+                    name: incidence
+                    input_constituent: node
+                    input_object: query
+                    output_object: pflow
+                    target_object: particle
+                    losses:
+                      kl_div: 1.0
+                    costs:
+                      kl_div: 1.0
+                    net:
+                      class_path: reconstruct_anything.components.Dense
+                      init_args:
+                        input_size: 256
+                        activation: torch.nn.SiLU
+                        hidden_layers: 2
+                    node_net:
+                      class_path: reconstruct_anything.components.Dense
+                      init_args:
+                        input_size: 256
+                        hidden_layers: 1
+                    has_intermediate_loss: false
+
+                - class_path: reconstruct_anything.experiments.clic.models.tasks.IncidenceBasedRegressionTask
+                  init_args:
+                    name: regression
+                    fields: ["e", "pt", "eta", "sinphi", "cosphi"]
+                    input_constituent: node
+                    input_object: query
+                    output_object: pflow
+                    target_object: particle
+                    loss: l1
+                    loss_weight: 10.0
+                    cost_weight: 10.0
+                    use_incidence: true
+                    use_nodes: true
+                    cost: new
+                    mode: scale
+                    scale_dict_path: *scale_dict_path
+                    net:
+                      class_path: reconstruct_anything.components.Dense
+                      init_args:
+                        input_size: 518
+                        activation: torch.nn.SiLU
+                        output_size: 5
+                        hidden_layers: [512, 256, 128, 64, 32]
+                    has_intermediate_loss: false
+
+        matcher:
+          class_path: reconstruct_anything.models.Matcher
+          init_args:
+            default_solver: scipy
+            adaptive_solver: false
+            parallel_solver: true
+            n_jobs: 16

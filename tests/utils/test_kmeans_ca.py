@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from hepattn.components.decoder import KMeansCrossAttention
+from reconstruct_anything.components.decoder import KMeansCrossAttention
 
 
 def test_requires_values():

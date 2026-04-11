@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import torch
 
-from hepattn.callbacks.attn_mask_logger import AttnMaskLogger
+from reconstruct_anything.callbacks.attn_mask_logger import AttnMaskLogger
 
 
 class DummyExperiment:

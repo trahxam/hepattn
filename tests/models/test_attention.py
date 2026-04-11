@@ -3,8 +3,8 @@ import torch
 from torch import nn
 from torch.nn.attention.flex_attention import create_block_mask, create_mask
 
-from hepattn.components.attention import ATTN_MASK_ATTN_TYPES, VARLEN_ATTN_TYPES, Attention, repad_from_flash_varlen, unpad_for_flash_varlen
-from hepattn.flex.sliding_window import sliding_window_mask
+from reconstruct_anything.components.attention import ATTN_MASK_ATTN_TYPES, VARLEN_ATTN_TYPES, Attention, repad_from_flash_varlen, unpad_for_flash_varlen
+from reconstruct_anything.flex.sliding_window import sliding_window_mask
 
 HAS_GPU = torch.cuda.is_available()
 ATTN_TYPES_GPU = {"flex", "flash", "flash-varlen"}

@@ -21,8 +21,8 @@ curl -fsSL https://pixi.sh/install.sh | sh
 Get the code:
 
 ```bash
-git clone git@github.com:samvanstroud/hepattn.git
-cd hepattn
+git clone git@github.com:samvanstroud/reconstruct-anything.git
+cd reconstruct-anything
 ```
 
 You can't install the code to the default project space due to problems with Isambard's NFS4 filesystem configuration.
@@ -31,8 +31,8 @@ Either checkout and install the code under `/scratch/`, or if you have already c
 
 ```bash
 rm -rf .pixi/                                                     # remove existing pixi install dir if present
-mkdir -p /scratch/u5du/svanstroud.u5du/hepattn-pixi               # create install folder
-ln -s /scratch/u5du/svanstroud.u5du/hepattn-pixi .pixi            # symlink to current repo
+mkdir -p /scratch/u5du/svanstroud.u5du/reconstruct-anything-pixi               # create install folder
+ln -s /scratch/u5du/svanstroud.u5du/reconstruct-anything-pixi .pixi            # symlink to current repo
 export PIXI_CACHE_DIR=/scratch/u5du/svanstroud.u5du/pixi-cache/   # set the pixi cache dir
 ```
 
@@ -66,7 +66,7 @@ MAX_JOBS=12 python setup.py install
 ```
 
 If the build runs for a while, but ends in a `UnicodeDecodeError` related to `ninja`, this can be ignored as FA3 is already installed successfully by this point.
-Note that you have to import FA3 from a different namespace: `flash_attn_interface` rather than `flash_attn` (see [here](https://github.com/samvanstroud/hepattn/blob/main/src/hepattn/models/attention.py#L4)).
+Note that you have to import FA3 from a different namespace: `flash_attn_interface` rather than `flash_attn` (see [here](https://github.com/samvanstroud/reconstruct-anything/blob/main/src/reconstruct_anything/models/attention.py#L4)).
 
 
 ## Data Access & Transfer

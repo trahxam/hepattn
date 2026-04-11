@@ -5,8 +5,8 @@ import pytest
 import torch
 import yaml
 
-from hepattn.experiments.tide.data.data import ROIDataModule
-from hepattn.experiments.tide.prep.prep import preprocess_files
+from reconstruct_anything.experiments.tide.data.data import ROIDataModule
+from reconstruct_anything.experiments.tide.prep.prep import preprocess_files
 
 plt.rcParams["figure.dpi"] = 300
 
@@ -17,7 +17,7 @@ torch.manual_seed(42)
 class TestROIDataModule:
     @pytest.fixture
     def roi_datamodule(self):
-        config_path = Path("src/hepattn/experiments/tide/configs/base.yaml")
+        config_path = Path("src/reconstruct_anything/experiments/tide/configs/base.yaml")
         config = yaml.safe_load(config_path.read_text())["data"]
         config["num_workers"] = 0
         config["batch_size"] = 2
