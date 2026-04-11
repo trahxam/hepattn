@@ -2,7 +2,7 @@ seed_everything: 42
 name: filtering-test
 
 data:
-  class_path: hepattn.experiments.trackml.data.data.TrackMLDataModule
+  class_path: reconstruct_anything.experiments.trackml.data.data.TrackMLDataModule
   init_args:
     dummy_data: true
 
@@ -72,12 +72,12 @@ trainer:
   logger: false
 
   callbacks:
-    - class_path: hepattn.callbacks.InferenceTimer
-    - class_path: hepattn.callbacks.SaveConfig
-    - class_path: hepattn.callbacks.Checkpoint
+    - class_path: reconstruct_anything.callbacks.InferenceTimer
+    - class_path: reconstruct_anything.callbacks.SaveConfig
+    - class_path: reconstruct_anything.callbacks.Checkpoint
       init_args:
         monitor: val/loss
-    - class_path: hepattn.callbacks.PredictionWriter
+    - class_path: reconstruct_anything.callbacks.PredictionWriter
       init_args:
         write_inputs: false
         write_outputs: false
@@ -89,7 +89,7 @@ trainer:
         refresh_rate: 50
 
 model:
-  class_path: hepattn.experiments.trackml.models.filter.TrackMLFilter
+  class_path: reconstruct_anything.experiments.trackml.models.filter.TrackMLFilter
   init_args:
     optimizer:
       class_path: lion_pytorch.Lion
@@ -98,7 +98,7 @@ model:
         weight_decay: 1e-5
 
     lr_scheduler:
-      class_path: hepattn.utils.schedulers.OneCycleLR
+      class_path: reconstruct_anything.utils.schedulers.OneCycleLR
       init_args:
         max_lr: 5e-5
         pct_start: 0.05
@@ -106,14 +106,14 @@ model:
         final_div_factor: 10.0
 
     model:
-      class_path: hepattn.models.HitFilter
+      class_path: reconstruct_anything.models.HitFilter
       init_args:
         sorter: null
         input_nets:
           class_path: torch.nn.ModuleList
           init_args:
             modules:
-              - class_path: hepattn.components.InputNet
+              - class_path: reconstruct_anything.components.InputNet
                 init_args:
                   input_name: hit
                   fields:
@@ -134,12 +134,12 @@ model:
                     - geta
                     - gphi
                   net:
-                    class_path: hepattn.components.Dense
+                    class_path: reconstruct_anything.components.Dense
                     init_args:
                       input_size: 16
                       output_size: &dim 64
                   posenc:
-                    class_path: hepattn.components.FourierPositionEncoder
+                    class_path: reconstruct_anything.components.FourierPositionEncoder
                     init_args:
                       input_name: hit
                       fields:
@@ -149,7 +149,7 @@ model:
                       dim: *dim
                       scale: 0.1
         encoder:
-          class_path: hepattn.components.Encoder
+          class_path: reconstruct_anything.components.Encoder
           init_args:
             num_layers: 2
             dim: *dim
@@ -161,7 +161,7 @@ model:
           class_path: torch.nn.ModuleList
           init_args:
             modules:
-              - class_path: hepattn.tasks.HitFilterTask
+              - class_path: reconstruct_anything.tasks.HitFilterTask
                 init_args:
                   name: hit_filter
                   input_object: hit

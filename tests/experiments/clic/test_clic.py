@@ -1,4 +1,4 @@
-from hepattn.experiments.clic import main
+from reconstruct_anything.experiments.clic import main
 
 from ..utils import run_test  # noqa: TID252
 

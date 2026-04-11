@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-from hepattn.components import Dense  # Update the import to match your module's filename
+from reconstruct_anything.components import Dense  # Update the import to match your module's filename
 
 HAS_GPU = torch.cuda.is_available()
 ATTN_TYPES_GPU = {"flex", "flash", "flash-varlen"}

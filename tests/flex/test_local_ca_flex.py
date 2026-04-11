@@ -2,9 +2,9 @@ import torch
 from torch import nn
 from torch.nn.attention.flex_attention import create_mask
 
-from hepattn.flex.local_ca import transpose_blockmask
-from hepattn.models.decoder import MaskFormerDecoder
-from hepattn.utils.local_ca import auto_local_ca_mask
+from reconstruct_anything.flex.local_ca import transpose_blockmask
+from reconstruct_anything.models.decoder import MaskFormerDecoder
+from reconstruct_anything.utils.local_ca import auto_local_ca_mask
 
 
 def test_flex_local_ca_mask_equivalence():

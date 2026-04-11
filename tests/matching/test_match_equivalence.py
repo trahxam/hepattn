@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import torch
 
-from hepattn.models.matcher import SOLVERS, Matcher
+from reconstruct_anything.models.matcher import SOLVERS, Matcher
 
 
 def generate_dummy_cost(rng: np.random.Generator, batch_size: int, n_objects: int, scale: float = 1.0) -> tuple[np.ndarray, np.ndarray]:

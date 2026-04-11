@@ -1,0 +1,6 @@
+data:
+  class_path: reconstruct_anything.experiments.tide.data.data.ROIDataModule
+  init_args:
+    train_dir: /share/rcifdata/maxhart/data/ambi/train/
+    val_dir: /share/rcifdata/maxhart/data/ambi/val/
+    test_dir: /share/rcifdata/maxhart/data/ambi/test/

@@ -6,7 +6,7 @@ import pytest
 import torch
 from torch.utils.data import DataLoader, get_worker_info
 
-from hepattn.utils.lrsm_dataset import LRSMDataModule, LRSMDataset
+from reconstruct_anything.utils.lrsm_dataset import LRSMDataModule, LRSMDataset
 
 # ----- Test helpers -----
 

@@ -1,4 +1,4 @@
-from hepattn.experiments.trackml import main
+from reconstruct_anything.experiments.trackml import main
 
 from ..utils import run_test  # noqa: TID252
 

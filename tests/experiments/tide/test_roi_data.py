@@ -5,7 +5,7 @@ import pytest
 import torch
 import yaml
 
-from hepattn.experiments.tide.data.data import ROIDataModule
+from reconstruct_anything.experiments.tide.data.data import ROIDataModule
 
 plt.rcParams["figure.dpi"] = 300
 

@@ -3,7 +3,7 @@ authors = [{name = "Sam Van Stroud", email = "sam.van.stroud@cern.ch"}]
 description = "Attention for High Energy Physics"
 license = { text = "GPL-3.0-or-later" }
 readme = "README.md"
-name = "hepattn"
+name = "reconstruct-anything"
 requires-python = "== 3.12"
 version = "0.2.0"
 
@@ -46,7 +46,7 @@ requires = ["scikit-build-core>=0.3.3", "pybind11"]
 build-backend = "scikit_build_core.build"
 
 [tool.scikit-build]
-wheel.packages = ["src/hepattn", "src/lap1015/src/lap1015"]
+wheel.packages = ["src/reconstruct_anything", "src/lap1015/src/lap1015"]
 
 
 [tool.pixi.workspace]
@@ -54,7 +54,7 @@ channels = ["conda-forge", "nvidia", "nodefaults"]
 platforms = ["linux-64", "linux-aarch64"]
 
 [tool.pixi.pypi-dependencies]
-hepattn = { path = ".", editable = true }
+reconstruct-anything = { path = ".", editable = true }
 datasets = ">=4.4.1,<5"
 fsspec = { version = ">=2025.10.0,<2027", extras = ["http"] }
 

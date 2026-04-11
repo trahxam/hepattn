@@ -1,4 +1,4 @@
-from hepattn.experiments.atlas_muon import main
+from reconstruct_anything.experiments.atlas_muon import main
 
 from ..utils import run_test  # noqa: TID252
 

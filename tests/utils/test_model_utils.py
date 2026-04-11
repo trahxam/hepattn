@@ -1,6 +1,6 @@
 import torch
 
-from hepattn.utils import model_utils
+from reconstruct_anything.utils import model_utils
 
 
 def test_unmerge_inputs():

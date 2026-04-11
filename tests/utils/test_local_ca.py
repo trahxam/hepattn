@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import torch
 
-from hepattn.utils.local_ca import auto_local_ca_mask, get_local_ca_mask
+from reconstruct_anything.utils.local_ca import auto_local_ca_mask, get_local_ca_mask
 
 
 def test_basic_functionality():

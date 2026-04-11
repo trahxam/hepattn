@@ -2,7 +2,7 @@ seed_everything: 42
 name: tracking-test-old-sort
 
 data:
-  class_path: hepattn.experiments.trackml.data.data.TrackMLDataModule
+  class_path: reconstruct_anything.experiments.trackml.data.data.TrackMLDataModule
   init_args:
     dummy_data: true
 
@@ -77,12 +77,12 @@ trainer:
   logger: false
 
   callbacks:
-    - class_path: hepattn.callbacks.SaveConfig
-    - class_path: hepattn.callbacks.AttnMaskLogger
-    - class_path: hepattn.callbacks.Checkpoint
+    - class_path: reconstruct_anything.callbacks.SaveConfig
+    - class_path: reconstruct_anything.callbacks.AttnMaskLogger
+    - class_path: reconstruct_anything.callbacks.Checkpoint
       init_args:
         monitor: val/loss
-    - class_path: hepattn.callbacks.PredictionWriter
+    - class_path: reconstruct_anything.callbacks.PredictionWriter
       init_args:
         write_inputs: false
         write_outputs: true
@@ -94,7 +94,7 @@ trainer:
         refresh_rate: 50
 
 model:
-  class_path: hepattn.experiments.trackml.models.tracker.TrackMLTracker
+  class_path: reconstruct_anything.experiments.trackml.models.tracker.TrackMLTracker
   init_args:
     optimizer:
       class_path: lion_pytorch.Lion
@@ -103,7 +103,7 @@ model:
         weight_decay: 1e-5
 
     lr_scheduler:
-      class_path: hepattn.utils.schedulers.OneCycleLR
+      class_path: reconstruct_anything.utils.schedulers.OneCycleLR
       init_args:
         max_lr: 5e-5
         pct_start: 0.0
@@ -113,14 +113,14 @@ model:
     # Whether to use multi task learning or not
 
     model:
-      class_path: hepattn.models.MaskFormer
+      class_path: reconstruct_anything.models.MaskFormer
       init_args:
         sorter: null
         input_nets:
           class_path: torch.nn.ModuleList
           init_args:
             modules:
-              - class_path: hepattn.components.InputNet
+              - class_path: reconstruct_anything.components.InputNet
                 init_args:
                   input_name: hit
                   # Which fields will be used to construct this input type
@@ -142,12 +142,12 @@ model:
                     - geta
                     - gphi
                   net:
-                    class_path: hepattn.components.Dense
+                    class_path: reconstruct_anything.components.Dense
                     init_args:
                       input_size: 16
                       output_size: 32
                   posenc:
-                    class_path: hepattn.components.FourierPositionEncoder
+                    class_path: reconstruct_anything.components.FourierPositionEncoder
                     init_args:
                       input_name: hit
                       fields:
@@ -158,7 +158,7 @@ model:
                       scale: 0.1
 
         encoder:
-          class_path: hepattn.components.Encoder
+          class_path: reconstruct_anything.components.Encoder
           init_args:
             num_layers: 2
             dim: 32
@@ -178,7 +178,7 @@ model:
             class_path: torch.nn.ModuleList
             init_args:
               modules:
-                - class_path: hepattn.tasks.ObjectClassificationTask
+                - class_path: reconstruct_anything.tasks.ObjectClassificationTask
                   init_args:
                     name: track_valid
                     input_object: query
@@ -190,7 +190,7 @@ model:
                       object_bce: 1.0
                     dim: 32
                     null_weight: 1.0
-                - class_path: hepattn.tasks.ObjectHitMaskTask
+                - class_path: reconstruct_anything.tasks.ObjectHitMaskTask
                   init_args:
                     name: track_hit_valid
                     input_constituent: hit
@@ -209,7 +209,7 @@ model:
                     null_weight: 1.0
 
         matcher:
-          class_path: hepattn.models.Matcher
+          class_path: reconstruct_anything.models.Matcher
           init_args:
             default_solver: scipy
             adaptive_solver: true

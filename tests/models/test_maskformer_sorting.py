@@ -4,10 +4,10 @@ import pytest
 import torch
 from torch import nn
 
-from hepattn.components import Encoder
-from hepattn.components.sorter import Sorter
-from hepattn.models.decoder import MaskFormerDecoder
-from hepattn.models.maskformer import MaskFormer
+from reconstruct_anything.components import Encoder
+from reconstruct_anything.components.sorter import Sorter
+from reconstruct_anything.models.decoder import MaskFormerDecoder
+from reconstruct_anything.models.maskformer import MaskFormer
 
 
 class MockInputNet(nn.Module):

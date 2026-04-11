@@ -2,8 +2,8 @@ import pytest
 import torch
 from torch import Tensor, nn
 
-from hepattn.components import DropPath, Encoder, EncoderLayer, LayerScale, Residual
-from hepattn.components.encoder import change_attn_backends
+from reconstruct_anything.components import DropPath, Encoder, EncoderLayer, LayerScale, Residual
+from reconstruct_anything.components.encoder import change_attn_backends
 
 HAS_GPU = torch.cuda.is_available()
 ATTN_TYPES_GPU = {"flex", "flash", "flash-varlen"}

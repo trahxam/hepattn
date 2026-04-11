@@ -1,0 +1,289 @@
+seed_everything: 42
+name: TRK-v8-3l-fast-fix-vec
+data:
+  class_path: reconstruct_anything.experiments.trackml.data.data.TrackMLDataModule
+  init_args:
+    # hypatia
+    #train_dir: data/trackml/prepped/
+    #val_dir: data/trackml/prepped/
+    #test_dir: data/trackml/prepped/
+    #hit_eval_train: /share/rcifdata/svanstroud/hepattn/src/hepattn/experiments/trackml/logs/HC-v3_20250612-T220925/ckpts/epoch=015-val_loss=0.19298_train_eval.h5
+    #hit_eval_val: /share/rcifdata/svanstroud/hepattn/src/hepattn/experiments/trackml/logs/HC-v3_20250612-T220925/ckpts/epoch=015-val_loss=0.19298_val_eval.h5
+    #hit_eval_test: /share/rcifdata/svanstroud/hepattn/src/hepattn/experiments/trackml/logs/HC-v3_20250612-T220925/ckpts/epoch=015-val_loss=0.19298_test_eval.h5
+
+    # isambard
+    train_dir: /projects/u5du/pduckett/data_new/train/
+    val_dir: /projects/u5du/pduckett/data_new/val/
+    test_dir: /projects/u5du/pduckett/data_new/test/
+    hit_eval_train: /projects/u5du/pduckett/filter_evals/eta2p5pt600/epoch=100-val_loss=0.15778_train_eval.h5
+    hit_eval_val: /projects/u5du/pduckett/filter_evals/eta2p5pt600/epoch=100-val_loss=0.15778_val_eval.h5
+    hit_eval_test: /projects/u5du/pduckett/filter_evals/eta2p5pt600/epoch=100-val_loss=0.15778_test_eval.h5
+
+    num_workers: 10
+    num_train: -1
+    num_test: -1
+    num_val: -1
+
+    # Select only hits from these detector volumes
+    # pix barrel: 8, pix endcap: 7, 9
+    # See: https://competitions.codalab.org/competitions/20112
+    hit_volume_ids: [7, 8, 9]
+
+    # Minimum pt for a particle to be deemed reconstructible
+    particle_min_pt: 0.6
+
+    # Maximum absolute eta for a particle to be deemed reconstructible
+    particle_max_abs_eta: 2.5
+
+    # Minimum number of true hits for a particle to be deemed reconstructible
+    particle_min_num_hits: 3
+
+    # Maximum number of reconstructable particles allowed in an event
+    event_max_num_particles: &num_objects 2200
+    strict_max_objects: false
+
+    # Define which inputs will be available to the model
+    inputs:
+      hit:
+        # Global hit coords
+        - x
+        - y
+        - z
+        - r
+        - s
+        - eta
+        - phi
+        - u
+        - v
+        - s
+        # Hit local charge information
+        - charge_frac
+        - leta
+        - lphi
+        - lx
+        - ly
+        - lz
+        - geta
+        - gphi
+
+    targets:
+      hit:
+        - is_first
+      particle:
+        - pt
+        - eta
+        - phi
+
+trainer:
+  # Training stuff here
+  max_epochs: 10
+  accelerator: gpu
+  devices: 2
+  precision: bf16-mixed
+  log_every_n_steps: 50
+  default_root_dir: /projects/u5du/svanstroud/logs/
+  gradient_clip_val: 0.1
+  enable_progress_bar: true
+
+  #profiler:
+  #  class_path: lightning.pytorch.profilers.PyTorchProfiler
+  #  init_args:
+  #    dirpath: ./profile_logs/
+  #    filename: profile.json
+  #    row_limit: 100
+  #    sort_by_key: cpu_time_total
+
+  logger:
+    class_path: reconstruct_anything.utils.loggers.MyCometLogger
+    init_args:
+      project: trackml_tracking
+
+  callbacks:
+    - class_path: reconstruct_anything.callbacks.Compile
+      init_args:
+        skip_dynamic_cudagraphs: true
+        #mode: max-autotune # use for fastest inference
+    - class_path: reconstruct_anything.callbacks.InferenceTimer
+    - class_path: reconstruct_anything.callbacks.SaveConfig
+    - class_path: reconstruct_anything.callbacks.Checkpoint
+      init_args:
+        monitor: val/loss
+    - class_path: reconstruct_anything.callbacks.PredictionWriter
+      init_args:
+        write_inputs: false
+        write_outputs: true
+        write_preds: true
+        write_targets: true
+        write_losses: false
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+    - class_path: lightning.pytorch.callbacks.TQDMProgressBar
+      init_args:
+        refresh_rate: 50
+
+model:
+  class_path: reconstruct_anything.experiments.trackml.models.tracker.TrackMLTracker
+  init_args:
+    optimizer:
+      class_path: lion_pytorch.Lion
+      init_args:
+        lr: 1e-7
+        weight_decay: 1e-5
+
+    lr_scheduler:
+      class_path: reconstruct_anything.utils.schedulers.OneCycleLR
+      init_args:
+        max_lr: 5e-5
+        pct_start: 0.02
+        div_factor: 500.0
+        final_div_factor: 0.01
+
+    # Whether to use multi task learning or not
+
+    model:
+      class_path: reconstruct_anything.models.MaskFormer
+      init_args:
+        sorter:
+          class_path: reconstruct_anything.components.Sorter
+          init_args:
+            input_sort_field: phi
+        input_nets:
+          class_path: torch.nn.ModuleList
+          init_args:
+            modules:
+              - class_path: reconstruct_anything.components.InputNet
+                init_args:
+                  input_name: hit
+                  fields:
+                    - x
+                    - y
+                    - z
+                    - r
+                    - eta
+                    - phi
+                    - u
+                    - v
+                    - s
+                    - charge_frac
+                    - leta
+                    - lphi
+                    - lx
+                    - ly
+                    - lz
+                    - geta
+                    - gphi
+                  net:
+                    class_path: reconstruct_anything.components.Dense
+                    init_args:
+                      input_size: 17
+                      hidden_layers: [128]
+                      output_size: 256
+                      activation: SwiGLU
+                  posenc:
+                    class_path: reconstruct_anything.models.PositionEncoder
+                    init_args:
+                      input_name: hit
+                      fields:
+                        - r
+                        - eta
+                        - phi
+                      dim: 256
+
+        encoder:
+          class_path: reconstruct_anything.components.Encoder
+          init_args:
+            num_layers: 8
+            dim: 256
+            attn_type: flash
+            window_size: 512
+            window_wrap: true
+            hybrid_norm: true
+            norm: CustomLayerNorm
+            dense_kwargs: {activation: SwiGLU}
+            attn_kwargs: {bias: false}
+        decoder:
+          dynamic_queries: true
+          dynamic_query_source: hit
+          num_decoder_layers: &num_dec_layers 3
+          num_queries: *num_objects
+          mask_attention: true
+          unmask_all_false: false
+          decoder_layer_config:
+            dim: 256
+            norm: CustomLayerNorm
+            hybrid_norm: true
+            dense_kwargs: {activation: SwiGLU}
+            attn_kwargs: {bias: false}
+            bidirectional_ca: false
+
+          encoder_tasks:
+            class_path: torch.nn.ModuleList
+            init_args:
+              modules:
+                - class_path: reconstruct_anything.models.tasks.ClassificationTask
+                  init_args:
+                    name: query_init
+                    input_object: hit
+                    classes: ["is_first"]
+                    loss_weight: 1.0
+                    threshold: 0.05
+                    permute_loss: false
+                    net:
+                      class_path: reconstruct_anything.components.Dense
+                      init_args:
+                        input_size: 256
+                        hidden_layers: [256]
+                        output_size: 1
+
+          tasks:
+            class_path: torch.nn.ModuleList
+            init_args:
+              modules:
+                - class_path: reconstruct_anything.models.tasks.ObjectClassificationTask
+                  init_args:
+                    name: track_valid
+                    input_object: query
+                    output_object: track
+                    target_object: particle
+                    has_intermediate_loss: true
+                    has_first_layer_loss: false
+                    dim: 256
+                    losses:
+                      object_bce: 0.1
+                    costs:
+                      object_bce: 0.1
+                    null_weight: 1.0
+
+                - class_path: reconstruct_anything.models.tasks.ObjectHitMaskTask
+                  init_args:
+                    name: track_hit_valid
+                    input_constituent: hit
+                    input_object: query
+                    output_object: track
+                    target_object: particle
+                    dim: 256
+                    losses:
+                      mask_dice: 2.0
+                      mask_focal: 100.0
+                    costs:
+                      mask_dice: 2.0
+                      mask_focal: 100.0
+                    null_weight: 1.0
+
+                - class_path: reconstruct_anything.experiments.trackml.models.tasks.IoUPredictionTask
+                  init_args:
+                    name: track_iou
+                    input_object: query
+                    mask_task_name: track_hit_valid
+                    mask_logit_key: track_hit_logit
+                    target_mask_key: particle_hit
+                    dim: 256
+                    loss_weight: 1.0
+
+        matcher:
+          class_path: reconstruct_anything.models.Matcher
+          init_args:
+            default_solver: scipy
+            adaptive_solver: true
+            n_jobs: *num_dec_layers
+            parallel_solver: true
+            parallel_backend: process

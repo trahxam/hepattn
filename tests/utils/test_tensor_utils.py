@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import pytest
 import torch
 
-from hepattn.utils.tensor_utils import pad_to_size
+from reconstruct_anything.utils.tensor_utils import pad_to_size
 
 plt.rcParams["figure.dpi"] = 300
 

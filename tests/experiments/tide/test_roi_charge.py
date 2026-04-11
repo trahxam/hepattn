@@ -5,8 +5,8 @@ import pytest
 import torch
 import yaml
 
-from hepattn.experiments.tide.data.data import ROIDataModule
-from hepattn.experiments.tide.prep.prep import preprocess_files
+from reconstruct_anything.experiments.tide.data.data import ROIDataModule
+from reconstruct_anything.experiments.tide.prep.prep import preprocess_files
 
 plt.rcParams["figure.dpi"] = 300
 

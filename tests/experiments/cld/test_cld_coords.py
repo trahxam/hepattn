@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 import yaml
 
-from hepattn.experiments.cld.data.data import CLDDataModule
+from reconstruct_anything.experiments.cld.data.data import CLDDataModule
 
 plt.rcParams["figure.dpi"] = 300
 

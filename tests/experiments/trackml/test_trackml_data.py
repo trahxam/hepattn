@@ -4,9 +4,9 @@ import matplotlib.pyplot as plt
 import pytest
 import torch
 
-from hepattn.experiments.trackml.data.data import TrackMLDataset
-from hepattn.experiments.trackml.prep.prep import preprocess
-from hepattn.experiments.trackml.scripts.plot_event import plot_trackml_event_reconstruction
+from reconstruct_anything.experiments.trackml.data.data import TrackMLDataset
+from reconstruct_anything.experiments.trackml.prep.prep import preprocess
+from reconstruct_anything.experiments.trackml.scripts.plot_event import plot_trackml_event_reconstruction
 
 plt.rcParams["figure.dpi"] = 300
 
