@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader, Dataset
 
 
 class DataModuleWrapper(LightningDataModule):
-    """Base DataModule for hepattn experiments.
+    """Base DataModule for reconstruct-anything experiments.
 
     Handles the standard train/val/test split setup, DataLoader creation,
     and logging. Subclasses implement make_dataset() to provide the

@@ -1,8 +1,8 @@
 cff-version: 1.2.0
-title: "hepattn: Attention for High Energy Physics"
+title: "reconstruct-anything: Attention for High Energy Physics"
 message: "If you use this software, please cite it as below."
 type: software
-repository-code: "https://github.com/samvanstroud/hepattn"
+repository-code: "https://github.com/samvanstroud/reconstruct-anything"
 license: GPL-3.0-or-later
 version: "0.2.0"
 doi: "10.5281/zenodo.16880940"

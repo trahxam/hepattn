@@ -48,7 +48,7 @@ def get_best_epoch(config_path: Path) -> Path:
 
 class CLI(LightningCLI):
     def add_arguments_to_parser(self, parser) -> None:
-        parser.add_argument("--name", type=str, default="hepattn", help="Name for this training run.")
+        parser.add_argument("--name", type=str, default="reconstruct_anything", help="Name for this training run.")
 
         parser.add_argument(
             "--matmul_precision",
