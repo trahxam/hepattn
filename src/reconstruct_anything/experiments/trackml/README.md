@@ -4,9 +4,9 @@ Setup
 
 ```shell
 srun --pty  --cpus-per-task 15  --gres gpu:l40s:1 --mem=100G -p GPU bash
-apptainer shell --nv --bind /share/rcifdata/maxhart/data/trackml/ hepattn/pixi.sif
-cd hepattn && pixi shell
-cd hepattn/src/hepattn/experiments/trackml/
+apptainer shell --nv --bind /share/rcifdata/maxhart/data/trackml/ reconstruct-anything/pixi.sif
+cd reconstruct-anything && pixi shell
+cd reconstruct-anything/src/reconstruct_anything/experiments/trackml/
 ```
 
 ## Data

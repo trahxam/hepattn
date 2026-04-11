@@ -9,11 +9,11 @@ We present GLOW, a transformer-based particle flow model that combines incidence
 First, set up your environment (see the top level [README.md](../../../../README.md) for more details):
 
 ```shell
-git clone git@github.com:samvanstroud/hepattn.git
-cd hepattn
+git clone git@github.com:samvanstroud/reconstruct-anything.git
+cd reconstruct-anything
 apptainer shell --nv --bind /share/ pixi.sif
 pixi shell -e clic
-cd hepattn/src/hepattn/experiments/clic/
+cd reconstruct-anything/src/reconstruct_anything/experiments/clic/
 ```
 
 If you don't already have the CLIC data, download it from one of the locations listed in the [CLIC Data](#clic-data) section below.
@@ -25,7 +25,7 @@ To run the model, use the following commands:
 python main.py fit --config configs/base.yaml
 
 # slurm batch
-sbatch hepattn/src/hepattn/experiments/clic/submit_training_sam.sh
+sbatch reconstruct-anything/src/reconstruct_anything/experiments/clic/submit_training_sam.sh
 ```
 
 ## Evaluation

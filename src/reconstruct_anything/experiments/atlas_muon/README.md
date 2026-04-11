@@ -18,8 +18,8 @@ For more details, see:
 
 ```shell
 # Clone and enter the repository
-git clone git@github.com:samvanstroud/hepattn.git
-cd hepattn
+git clone git@github.com:samvanstroud/reconstruct-anything.git
+cd reconstruct-anything
 
 # Optional: Use container for libc compatibility
 apptainer pull pixi.sif docker://ghcr.io/prefix-dev/pixi:0.54.1-jammy-cuda-12.8.1
@@ -41,7 +41,7 @@ The training pipeline consists of three stages:
 Convert raw ROOT files from ATLAS simulation to HDF5 format for the hit filtering model:
 
 ```shell
-python -m hepattn.experiments.atlas_muon.utils.data_prep_root_to_filter \
+python -m reconstruct_anything.experiments.atlas_muon.utils.data_prep_root_to_filter \
     --input-dir /path/to/root/files \
     --output-dir /path/to/hdf5/output \
     --expected-num-events-per-file 1000 \
@@ -66,7 +66,7 @@ python run_filtering.py test --config /path/to/checkpoint/config.yaml
 Apply the trained hit filter and create a reduced dataset for tracking:
 
 ```shell
-python -m hepattn.experiments.atlas_muon.utils.data_prep_filter_to_tracking \
+python -m reconstruct_anything.experiments.atlas_muon.utils.data_prep_filter_to_tracking \
     --input-dir /path/to/filtering/hdf5 \
     --eval-file /path/to/hit_filter_predictions.h5 \
     --output-dir /path/to/tracking/hdf5 \
@@ -93,7 +93,7 @@ python run_tracking.py test --config /path/to/checkpoint/config.yaml
 Evaluate hit filtering performance with ROC curves and efficiency plots:
 
 ```shell
-python -m hepattn.experiments.atlas_muon.utils.evaluate_filtering_performance \
+python -m reconstruct_anything.experiments.atlas_muon.utils.evaluate_filtering_performance \
     --config /path/to/config.yaml \
     --checkpoint /path/to/checkpoint.ckpt \
     --output-dir ./evaluation_results
@@ -111,7 +111,7 @@ Three evaluation scripts for different tracking tasks:
 
 ```shell
 # Example: Track validity evaluation
-python -m hepattn.experiments.atlas_muon.utils.evalute_tracking_track_validity \
+python -m reconstruct_anything.experiments.atlas_muon.utils.evalute_tracking_track_validity \
     --data-dir /path/to/test/data \
     --predictions /path/to/predictions.h5 \
     --output-dir ./tracking_evaluation
@@ -131,12 +131,12 @@ Located in `utils/data_vis/`:
 
 ```shell
 # Example: Analyze HDF5 dataset statistics
-python -m hepattn.experiments.atlas_muon.utils.plot_h5_stats \
+python -m reconstruct_anything.experiments.atlas_muon.utils.plot_h5_stats \
     --data-dir /path/to/hdf5/data \
     --output-dir ./plots
 
 # Example: Analyze ROOT file statistics
-python -m hepattn.experiments.atlas_muon.utils.plot_root_stats \
+python -m reconstruct_anything.experiments.atlas_muon.utils.plot_root_stats \
     --root-file /path/to/file.root \
     --output-dir ./plots
 ```

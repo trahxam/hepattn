@@ -36,8 +36,8 @@ Our method has been successfully applied to various reconstruction tasks and det
 First clone the repository:
 
 ```shell
-git clone git@github.com:samvanstroud/hepattn.git
-cd hepattn
+git clone git@github.com:samvanstroud/reconstruct-anything.git
+cd reconstruct-anything
 ```
 
 We recommend using a container to set up and run the code.
