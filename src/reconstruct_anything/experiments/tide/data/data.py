@@ -81,9 +81,6 @@ class ROIDataset(Dataset):
 
         np.random.seed(self.sampling_seed)
 
-        # Files that are available to read from
-        self.available_file_paths = list(Path(self.dirpath).glob("*.h5"))
-
         # Files that have been registered
         self.file_paths = []
 
@@ -101,35 +98,61 @@ class ROIDataset(Dataset):
         # ROIs that have not yet been evaluated on the selection
         self.unevaluated_roi_ids = []
 
-        # At the start, we load enough files so that we will have enough for the requested sample size
-        # As we read through the dataset, some ROIs will be discarded, and so we will load more
-        # files on-demand then as we need
-        for file_path in self.available_file_paths:
-            self.register_file(file_path)
-            total_num_rois = len(self.roi_id_to_file_path)
+        # Load the manifest (builds it from H5 files on first run, then cached)
+        self._manifest = self._load_manifest()
+        self._manifest_iter = iter(self._manifest.items())
+        self._manifest_exhausted = False
 
-            if len(self.roi_id_to_file_path) >= self.num_samples:
-                break
+        # Register files from the manifest until we have enough ROIs
+        self._load_files_until(self.num_samples)
 
         print(f"Finished registering {len(self.roi_id_to_file_path)} ROIs from {len(self.file_paths)} files")
 
-    def register_file(self, file_path):
-        with h5py.File(file_path, "r") as file:
-            roi_ids = list(file.keys())
+    def _load_manifest(self) -> dict:
+        """Load or build a manifest mapping file paths to their ROI ID lists.
 
-            for roi_id in roi_ids:
-                # Check we are not duplicating ROI IDs
-                msg = f"Attempted to add duplicate ROI ID {roi_id}"
-                assert roi_id not in self.unevaluated_roi_ids, msg
-                assert roi_id not in self.roi_id_to_file_path, msg
-                assert roi_id not in self.roi_id_to_idx, msg
+        Reading ROI keys from H5 files on NFS is slow. The manifest caches this
+        so startup is instant after the first run. Delete .manifest.json to rebuild.
+        """
+        import json
 
-                self.roi_id_to_file_path[roi_id] = file_path
-                self.unevaluated_roi_ids.append(roi_id)
+        manifest_path = self.dirpath / ".manifest.json"
 
-            print(f"Registered {len(roi_ids)} ROIs from {file_path}")
-            self.file_paths.append(file_path)
+        if manifest_path.exists():
+            print(f"Loading manifest from {manifest_path}")
+            with open(manifest_path) as f:
+                raw = json.load(f)
+            return {Path(k): v for k, v in raw.items()}
+
+        print(f"Building manifest for {self.dirpath} (one-time cost)...")
+        manifest = {}
+        for file_path in sorted(self.dirpath.glob("*.h5")):
+            with h5py.File(file_path, "r") as f:
+                manifest[file_path] = list(f.keys())
+            print(f"  {file_path.name}: {len(manifest[file_path])} ROIs")
+
+        with open(manifest_path, "w") as f:
+            json.dump({str(k): v for k, v in manifest.items()}, f)
+        print(f"Manifest saved to {manifest_path}")
+        return manifest
+
+    def _load_files_until(self, target_num_rois):
+        """Pull files from the manifest iterator until we have at least target_num_rois registered."""
+        if self._manifest_exhausted:
             return
+        while len(self.roi_id_to_file_path) < target_num_rois:
+            try:
+                file_path, roi_ids = next(self._manifest_iter)
+                self.register_file(file_path, roi_ids)
+            except StopIteration:
+                self._manifest_exhausted = True
+                break
+
+    def register_file(self, file_path, roi_ids):
+        for roi_id in roi_ids:
+            self.roi_id_to_file_path[roi_id] = file_path
+            self.unevaluated_roi_ids.append(roi_id)
+        self.file_paths.append(file_path)
 
     def __len__(self) -> int:
         """Returns the number of samples / ROIs that are available in the dataset after all cuts have been applied."""
@@ -330,12 +353,8 @@ class ROIDataset(Dataset):
             for field in ["lshift", "pitches"]:
                 roi[f"pix_{field}"] = file[f"{roi_id}/pix_{field}"][:]
 
-            # Load the pixel charge matrices
-            roi["pix_charge_matrix"] = load_csr_matrix("pix_charge_matrix", "pix_charge_matrix", np.float32)
-
-            # Charge can have a large dynamic range, so take the log
-            # We need to clamp since sometimes noise means cells have a readout < 0
-            roi["pix_log_charge_matrix"] = np.log10(1.0 + np.clip(roi["pix_charge_matrix"], a_min=0.0, a_max=1e12))
+            # Load the pixel charge matrices in units of 100 ke
+            roi["pix_charge_matrix"] = load_csr_matrix("pix_charge_matrix", "pix_charge_matrix", np.float32) / 100000.0
 
             # SCT specific fields
             for field in ["side", "width"]:
@@ -399,16 +418,12 @@ class ROIDataset(Dataset):
             while roi is None:
                 # Check we still have some ROIs left
                 if not len(self.unevaluated_roi_ids) > 0:
-                    # If not, we load in more ROIs
-                    print(f"Ran out of ROIs, so loading new file")
-                    unregistered_file_paths = set(self.available_file_paths) - set(self.file_paths)
-
-                    # Check if we have no files left and have ran out of ROIs
-                    if len(unregistered_file_paths) == 0:
+                    # If not, we load in more ROIs from the lazy file iterator
+                    if self._manifest_exhausted:
                         raise StopIteration("Ran out of ROIs that pass the selection, and have no new files left to read from.")
-
-                    # Load a random How new file then continue
-                    self.register_file(next(iter(unregistered_file_paths)))
+                    print("Ran out of ROIs, loading next file from manifest")
+                    prev_count = len(self.roi_id_to_file_path)
+                    self._load_files_until(prev_count + 1)
 
                 # Randomly sample an ID from the set of unevaluated IDs
                 roi_id = random.choice(self.unevaluated_roi_ids)
