@@ -31,7 +31,7 @@ PYTORCH_CMD="python src/reconstruct_anything/experiments/tide/main.py fit \
   -c src/reconstruct_anything/experiments/tide/configs/rca.yaml \
   -c src/reconstruct_anything/experiments/tide/configs/max.yaml"
 
-PIXI_CMD="pixi run $PYTORCH_CMD"
+PIXI_CMD="pixi run -e l40s $PYTORCH_CMD"
 APPTAINER_CMD="apptainer run --nv --bind /share/rcifdata/maxhart /share/rcifdata/maxhart/pixi.sif $PIXI_CMD"
 
 echo "Running: $APPTAINER_CMD"
