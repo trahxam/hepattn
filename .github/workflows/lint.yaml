@@ -39,5 +39,5 @@ jobs:
         run: |
           pixi run -e ci ty check src/reconstruct_anything/models
           pixi run -e ci ty check src/reconstruct_anything/utils
-          pixi run -e ci ty check src/reconstruct_anything/flex
+          pixi run -e ci ty check src/reconstruct_anything/components/flex
           pixi run -e ci ty check tests/

@@ -1,5 +1,4 @@
 import torch
-
 from reconstruct_anything.tasks import ObjectClassificationTask
 
 

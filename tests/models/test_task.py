@@ -1,6 +1,5 @@
 import pytest
 import torch
-
 from reconstruct_anything.tasks import HitFilterTask, HitFilterTaskBatched, ObjectHitMaskTask
 
 BATCH_SIZE = 2

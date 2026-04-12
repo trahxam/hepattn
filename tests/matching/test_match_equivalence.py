@@ -3,7 +3,6 @@ import time
 import numpy as np
 import pytest
 import torch
-
 from reconstruct_anything.models.matcher import SOLVERS, Matcher
 
 
