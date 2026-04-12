@@ -73,10 +73,12 @@ class PredictionWriter(Callback):
         # Open the handle for writing to the file
         self.file = h5py.File(self.output_path, "w")
 
-    def _resolve_num_queries(self, pl_module: LightningModule) -> int:
-        """Read the number of decoder queries from the model."""
-        # User assumption: model.decoder._num_queries is always available.
-        return int(pl_module.model.decoder._num_queries)  # noqa: SLF001
+    def _resolve_num_queries(self, pl_module: LightningModule) -> int | None:
+        """Read the number of decoder queries from the model, if available."""
+        decoder = getattr(pl_module.model, "decoder", None)
+        if decoder is None:
+            return None
+        return int(decoder._num_queries)  # noqa: SLF001
 
     @property
     def output_path(self) -> Path:
