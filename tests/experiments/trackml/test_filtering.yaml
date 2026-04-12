@@ -161,7 +161,7 @@ model:
           class_path: torch.nn.ModuleList
           init_args:
             modules:
-              - class_path: reconstruct_anything.tasks.HitFilterTask
+              - class_path: reconstruct_anything.models.tasks.HitFilterTask
                 init_args:
                   name: hit_filter
                   input_object: hit

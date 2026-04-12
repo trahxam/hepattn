@@ -163,7 +163,7 @@ model:
             class_path: torch.nn.ModuleList
             init_args:
               modules:
-                - class_path: reconstruct_anything.tasks.ObjectClassificationTask
+                - class_path: reconstruct_anything.models.tasks.ObjectClassificationTask
                   init_args:
                     name: track_valid
                     input_object: query
@@ -175,7 +175,7 @@ model:
                       object_bce: 1.0
                     dim: 32
                     null_weight: 1.0
-                - class_path: reconstruct_anything.tasks.ObjectHitMaskTask
+                - class_path: reconstruct_anything.models.tasks.ObjectHitMaskTask
                   init_args:
                     name: track_hit_valid
                     input_constituent: hit
@@ -188,7 +188,7 @@ model:
                       mask_bce: 1.0
                     dim: 32
                     null_weight: 1.0
-                - class_path: reconstruct_anything.tasks.ObjectRegressionTask
+                - class_path: reconstruct_anything.models.tasks.ObjectRegressionTask
                   init_args:
                     name: parameter_regression
                     input_object: query
