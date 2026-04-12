@@ -3,27 +3,28 @@ from torch import Tensor, nn
 
 
 class Sorter(nn.Module):
-    """Sorts inputs and targets by a specified field to impose a canonical ordering.
+    """Sort input constituents by a specified field before encoding.
 
-    Attributes:
-        input_sort_field: Name of the field used to determine sort order.
+    This module reorders input embeddings and associated tensors along the
+    sequence dimension so that constituents are arranged by the given field
+    (e.g. ``phi``).  The sort order is recorded so that target masks can be
+    reordered consistently via :meth:`sort_targets`.
+
+    Args:
+        input_sort_field: Name of the field used as the sort key
+            (e.g. ``"phi"``).
     """
 
-    def __init__(self, input_sort_field: str) -> None:
-        """Initialize the Sorter.
-
-        Args:
-            input_sort_field: Field name to sort inputs by (e.g. ``'phi'``).
-        """
+    def __init__(self, input_sort_field: str):
         super().__init__()
         self.input_sort_field = input_sort_field
 
     def sort_inputs(self, inputs: dict[str, Tensor], input_names: list[str]) -> dict[str, Tensor]:
-        """Sort all input tensors in-place according to the sort field.
+        """Sort input tensors by the configured field for each input type.
 
         Args:
-            inputs: Dictionary of input tensors keyed by ``{input_name}_{field}``.
-            input_names: List of individual input type names to sort.
+            inputs: Dictionary of input tensors.
+            input_names: List of input type names to sort.
 
         Returns:
             The same ``inputs`` dict with all tensors reordered.
@@ -68,6 +69,11 @@ class Sorter(nn.Module):
     def sort_targets(self, targets: dict, sort_fields: dict[str, Tensor], input_names: list[str]) -> dict:
         """Sort target tensors to match the ordering applied to inputs.
 
+        Only 3D hit-assignment masks (shape ``[B, tracks, hits]``) are sorted.
+        2D targets are skipped — per-track scalars (e.g. ``sudo_num_pix``)
+        don't depend on hit ordering, and per-hit fields (e.g. ``pix_valid``)
+        are already sorted by :meth:`sort_inputs`.
+
         Args:
             targets: Dictionary of target tensors.
             sort_fields: Dictionary containing the sort-field values used to derive the sort order.
@@ -83,21 +89,14 @@ class Sorter(nn.Module):
                 if x is None or input_name not in key:
                     continue
 
-                # sort target mask
-                if x.ndim == 3:
-                    sort_dim = 2
-                    this_sort_idx = sort_idx
-                    this_sort_idx = sort_idx.unsqueeze(1).expand_as(x)
+                # Only sort 3D hit-assignment masks [B, tracks, hits] along the hits dim
+                if x.ndim != 3:
+                    continue
 
-                # sort target for input constituent
-                elif x.ndim == 2:
-                    sort_dim = 1
-                    this_sort_idx = sort_idx
-                else:
-                    raise ValueError(f"Unexpected key {key} for input hit {input_name}")
+                this_sort_idx = sort_idx.unsqueeze(1).expand_as(x)
 
                 shape_before = x.shape
-                targets[key] = torch.gather(x, sort_dim, this_sort_idx)
+                targets[key] = torch.gather(x, 2, this_sort_idx)
                 assert targets[key].shape == shape_before, f"Shape mismatch after sorting: {targets[key].shape} != {shape_before} for key {key}"
 
         return targets
