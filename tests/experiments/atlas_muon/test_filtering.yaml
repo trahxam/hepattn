@@ -59,7 +59,6 @@ trainer:
   logger: false
 
   callbacks:
-    - class_path: reconstruct_anything.callbacks.InferenceTimer
     - class_path: reconstruct_anything.callbacks.SaveConfig
     - class_path: reconstruct_anything.callbacks.Checkpoint
       init_args:
