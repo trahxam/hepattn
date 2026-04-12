@@ -523,7 +523,7 @@ class TestEquivalenceMoreRegimes:
 
 @pytest.fixture(scope="module")
 def flc_eager():
-    """Reload reconstruct_anything.flex.fast_local_ca with torch.compile turned into a no-op,
+    """Reload reconstruct_anything.components.flex.fast_local_ca with torch.compile turned into a no-op,
     so coverage includes the original Python bodies of _kv_blocks_*.
     """
 
@@ -532,7 +532,7 @@ def flc_eager():
         return fn
 
     with patch("torch.compile", new=_identity_compile):
-        mod = importlib.import_module("reconstruct_anything.flex.fast_local_ca")
+        mod = importlib.import_module("reconstruct_anything.components.flex.fast_local_ca")
         return importlib.reload(mod)
 
 
