@@ -9,8 +9,6 @@ def test_pooling():
     dim = 128
 
     pooling_layer = Pooling(
-        input_object="x",
-        output_object="y",
         dim=dim,
         pool_net=Dense(dim, dim),
     )
