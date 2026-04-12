@@ -13,7 +13,10 @@ from reconstruct_anything.utils.plotting import setup_plotting
 
 setup_plotting()
 
-config_path = Path("src/reconstruct_anything/experiments/pixel/configs/base.yaml")
+plot_save_dir = Path(__file__).resolve().parent.parent / "plots"
+plot_save_dir.mkdir(exist_ok=True, parents=True)
+
+config_path = Path(__file__).resolve().parent.parent / "configs" / "base.yaml"
 config = yaml.safe_load(config_path.read_text())["data"]
 config["num_workers"] = 0
 config["batch_size"] = 10000
@@ -104,7 +107,7 @@ ax.set_ylabel("Density")
 ax.set_xlabel("Number of Particles of Given Origin on Cluster")
 
 fig.tight_layout()
-fig.savefig("src/reconstruct_anything/experiments/pixel/plots/cluster_num_particles_hist.png")
+fig.savefig(plot_save_dir / "cluster_num_particles_hist.png")
 
 fig, ax = plt.subplots(nrows=1, ncols=2)
 fig.set_size_inches(8, 2)
@@ -125,7 +128,7 @@ ax[0].set_yscale("log")
 ax[1].set_yscale("log")
 
 fig.tight_layout()
-fig.savefig("src/reconstruct_anything/experiments/pixel/plots/cluster_width.png")
+fig.savefig(plot_save_dir / "cluster_width.png")
 
 
 fields = ["global_r", "global_eta", "global_phi"]
@@ -148,7 +151,7 @@ for i, field in enumerate(fields):
     ax[i].grid(alpha=0.25, linestyle="--")
 
 fig.tight_layout()
-fig.savefig("src/reconstruct_anything/experiments/pixel/plots/cluster_global_coords_angular.png")
+fig.savefig(plot_save_dir / "cluster_global_coords_angular.png")
 
 
 fields = ["global_x", "global_y", "global_z"]
@@ -163,7 +166,7 @@ for i, field in enumerate(fields):
     ax[i].grid(alpha=0.25, linestyle="--")
 
 fig.tight_layout()
-fig.savefig("src/reconstruct_anything/experiments/pixel/plots/cluster_global_coords_cartesian.png")
+fig.savefig(plot_save_dir / "cluster_global_coords_cartesian.png")
 
 
 fig, ax = plt.subplots(nrows=1, ncols=2)
@@ -181,7 +184,7 @@ ax[1].set_xlabel(r"Cluster Global $z$")
 ax[1].set_ylabel(r"Cluster Global $y$")
 
 fig.tight_layout()
-fig.savefig("src/reconstruct_anything/experiments/pixel/plots/cluster_higheta.png")
+fig.savefig(plot_save_dir / "cluster_higheta.png")
 
 # Plot the particle fields
 
@@ -231,7 +234,7 @@ ax[0].set_ylabel("Density")
 ax[-1].legend(fontsize=6)
 
 fig.tight_layout()
-fig.savefig("src/reconstruct_anything/experiments/pixel/plots/cluster_particle_xy_hist.png")
+fig.savefig(plot_save_dir / "cluster_particle_xy_hist.png")
 
 fields = ["theta", "phi", "p"]
 
@@ -261,7 +264,7 @@ ax[0].set_ylabel("Density")
 ax[-1].legend(fontsize=6)
 
 fig.tight_layout()
-fig.savefig("src/reconstruct_anything/experiments/pixel/plots/cluster_particle_angles_hist.png")
+fig.savefig(plot_save_dir / "cluster_particle_angles_hist.png")
 
 # Plot the pixel charge
 
@@ -283,7 +286,7 @@ ax.set_xlabel("Pixel Charge [ke / 100]")
 ax.grid(alpha=0.25, linestyle="--")
 
 fig.tight_layout()
-fig.savefig("src/reconstruct_anything/experiments/pixel/plots/pixel_charge.png")
+fig.savefig(plot_save_dir / "pixel_charge.png")
 
 # Plot the pixel coordinates
 
@@ -317,7 +320,7 @@ ax[1].set_yscale("log")
 ax[1].grid(alpha=0.25, linestyle="--")
 
 fig.tight_layout()
-fig.savefig("src/reconstruct_anything/experiments/pixel/plots/pixel_local_xy.png")
+fig.savefig(plot_save_dir / "pixel_local_xy.png")
 
 # Plot some examples
 
@@ -412,4 +415,4 @@ colorbar = fig.colorbar(sm, ax=ax[-1], location="bottom", aspect=5.0, panchor=(0
 colorbar.set_label("Pixel Charge [ke / 100]", fontsize=8)
 
 fig.tight_layout()
-fig.savefig("src/reconstruct_anything/experiments/pixel/plots/examples.png")
+fig.savefig(plot_save_dir / "examples.png")

@@ -49,7 +49,7 @@ hit_colours = {
 hists = {field: {hit: CountingHistogram(bins) for hit in hit_aliases} for field, bins in bins.items()}
 
 # Setup the dataset
-config_path = Path("src/reconstruct_anything/experiments/cld/configs/base.yaml")
+config_path = Path(__file__).resolve().parent.parent / "configs" / "base.yaml"
 config = yaml.safe_load(config_path.read_text())["data"]
 config["num_workers"] = 10
 config["batch_size"] = 10
@@ -101,4 +101,6 @@ for plot_name, fields in plots.items():
     ax[0].legend(fontsize=6)
 
     fig.tight_layout()
-    fig.savefig(Path(f"src/reconstruct_anything/experiments/cld/plots/data/{plot_name}.png"))
+    plot_dir = Path(__file__).resolve().parent.parent / "plots" / "data"
+    plot_dir.mkdir(exist_ok=True, parents=True)
+    fig.savefig(plot_dir / f"{plot_name}.png")

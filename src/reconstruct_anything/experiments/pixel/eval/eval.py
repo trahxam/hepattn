@@ -14,7 +14,9 @@ setup_plotting()
 
 
 def main():
-    eval_path = Path("/share/rcifdata/maxhart/hepattn/logs/pixel_mini_20250627-T112451/ckpts/epoch=007-train_loss=-0.68976_new_eval.h5")
+    eval_path = Path("logs/pixel_mini_20250627-T112451/ckpts/epoch=007-train_loss=-0.68976_new_eval.h5")
+    plot_save_dir = Path(__file__).resolve().parent.parent / "plots"
+    plot_save_dir.mkdir(exist_ok=True, parents=True)
 
     data = {
         "true_valid": [],
@@ -78,7 +80,7 @@ def main():
     ax.set_ylabel("True Particle Count", fontsize=8)
 
     fig.tight_layout()
-    fig.savefig("src/reconstruct_anything/experiments/pixel/plots/multiplicity_cmat.png")
+    fig.savefig(plot_save_dir / "multiplicity_cmat.png")
 
     fig, ax = plt.subplots(1, 2)
     fig.set_size_inches(8, 2)
@@ -112,12 +114,12 @@ def main():
     ax[1].legend(fontsize=6)
 
     fig.tight_layout()
-    fig.savefig("src/reconstruct_anything/experiments/pixel/plots/residuals.png")
+    fig.savefig(plot_save_dir / "residuals.png")
 
     ax[0].set_yscale("log")
     ax[1].set_yscale("log")
 
-    fig.savefig("src/reconstruct_anything/experiments/pixel/plots/residuals_logscale.png")
+    fig.savefig(plot_save_dir / "residuals_logscale.png")
 
 
 if __name__ == "__main__":

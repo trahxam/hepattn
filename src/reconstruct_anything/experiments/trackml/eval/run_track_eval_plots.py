@@ -1,5 +1,6 @@
 import math
 import pathlib
+from pathlib import Path
 
 import numpy as np
 import yaml
@@ -39,7 +40,8 @@ qty_bins = {
 
 qty_symbols = {"pt": "p_\\mathrm{T}", "eta": "\\eta", "phi": "\\phi", "vz": "v_z"}
 qty_units = {"pt": "[GeV]", "eta": "", "phi": "", "vz": "[mm]"}
-out_dir = "test/"
+out_dir = Path(__file__).resolve().parent.parent / "plots"
+out_dir.mkdir(exist_ok=True, parents=True)
 
 # ----------------------------------------------------
 # Read configuration file information
@@ -216,7 +218,7 @@ for qty in particle_targets:
         if qty == "vz":
             axlist[1].set_ylim(0.0, 0.02)
 
-    fig.savefig(out_dir + f"{qty}_eff.pdf")
+    fig.savefig(out_dir / f"{qty}_eff.pdf")
 
 # ----------------------------------------------------
 # Regression residuals
@@ -270,7 +272,7 @@ if plot_regression:
         legend_elements = [Line2D([0], [0], color=colours[j], label=labels[j]) for j in range(len(labels))]
         ax[i].legend(handles=legend_elements, frameon=False, loc="upper left", fontsize=8)
 
-    fig.savefig(out_dir + "regr_residuals.pdf")
+    fig.savefig(out_dir / "regr_residuals.pdf")
 
 # ----------------------------------------------------
 # Plots for the pt response vs the pt of the particle, and also vs the number of hits on the track
@@ -306,7 +308,7 @@ if plot_regression:
     # ax[1].set_ylabel(rf"${qty_symbols[qty]}^\mathrm{{True}}$ {qty_units[qty]}")
     ax[1].grid(zorder=0, alpha=0.25, linestyle="--")
     ax[1].legend(frameon=False)
-    fig.savefig(out_dir + "pt_regr-nhits-response_paper.pdf")
+    fig.savefig(out_dir / "pt_regr-nhits-response_paper.pdf")
 
 # ----------------------------------------------------
 # Efficiency and fake rate numbers

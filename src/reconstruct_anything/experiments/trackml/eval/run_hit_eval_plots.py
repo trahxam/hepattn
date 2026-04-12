@@ -1,5 +1,6 @@
 import math
 import pathlib
+from pathlib import Path
 
 import numpy as np
 import yaml
@@ -35,7 +36,8 @@ qty_bins = {
 
 qty_symbols = {"pt": "p_\\mathrm{T}", "eta": "\\eta", "phi": "\\phi", "vz": "v_z"}
 qty_units = {"pt": "[GeV]", "eta": "", "phi": "", "vz": "[mm]"}
-out_dir = "plots"
+out_dir = Path(__file__).resolve().parent.parent / "plots"
+out_dir.mkdir(exist_ok=True, parents=True)
 
 # ----------------------------------------------------
 # Read configuration file information
@@ -103,4 +105,4 @@ ax[1].grid(which="both")
 ax[1].grid(zorder=0, alpha=0.25, linestyle="--")
 ax[1].legend(loc=3)
 
-fig.savefig(out_dir + "/filter_response.pdf")
+fig.savefig(out_dir / "filter_response.pdf")

@@ -4,9 +4,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Specify which eval you want to plot here
-times_path = Path("/share/rcifdata/maxhart/hepattn/logs/CLD_8_320_10MeV_neutrals_muon_20250809-T183715/times/CLD_8_320_10MeV_neutrals_muon_times.npy")
-dims_path = Path("/share/rcifdata/maxhart/hepattn/logs/CLD_8_320_10MeV_neutrals_muon_20250809-T183715/times/CLD_8_320_10MeV_neutrals_muon_dims.npy")
-plot_save_path = Path("/share/rcifdata/maxhart/hepattn/src/reconstruct_anything/experiments/cld/eval_plots")
+times_path = Path("logs/CLD_8_320_10MeV_neutrals_muon_20250809-T183715/times/CLD_8_320_10MeV_neutrals_muon_times.npy")
+dims_path = Path("logs/CLD_8_320_10MeV_neutrals_muon_20250809-T183715/times/CLD_8_320_10MeV_neutrals_muon_dims.npy")
+plot_save_path = Path(__file__).resolve().parent.parent / "plots"
+plot_save_path.mkdir(exist_ok=True, parents=True)
 
 # Load in the data
 dims = np.load(dims_path, allow_pickle=True)[()]
