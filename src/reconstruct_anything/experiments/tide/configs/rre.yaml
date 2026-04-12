@@ -1,9 +1,10 @@
 name: TIDE_64trk_pix_rre
 
 model:
-  model:
-    decoder:
-      use_rre: true
-      rre_table_size: 64
-      qcl_mask_task: pred_pix_assignment
-      qcl_valid_task: pred_valid
+  init_args:
+    model:
+      decoder:
+        use_rre: true
+        rre_table_size: 64
+        qcl_mask_task: pred_pix_assignment
+        qcl_valid_task: pred_valid

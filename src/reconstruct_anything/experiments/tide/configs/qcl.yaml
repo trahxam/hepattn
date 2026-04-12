@@ -1,8 +1,9 @@
 name: TIDE_64trk_pix_qcl
 
 model:
-  model:
-    decoder:
-      use_qcl: true
-      qcl_mask_task: pred_pix_assignment
-      qcl_valid_task: pred_valid
+  init_args:
+    model:
+      decoder:
+        use_qcl: true
+        qcl_mask_task: pred_pix_assignment
+        qcl_valid_task: pred_valid

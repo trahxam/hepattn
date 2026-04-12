@@ -58,9 +58,13 @@ reconstruct-anything = { path = ".", editable = true }
 datasets = ">=4.4.1,<5"
 fsspec = { version = ">=2025.10.0,<2027", extras = ["http"] }
 
-# SM7.5+ (A100, L40S, GH200): latest torch
+# SM7.5+ (A100, GH200): torch with latest CUDA (requires driver >= 13.0)
 [tool.pixi.feature.gpu.pypi-dependencies]
 torch = { version = "==2.11.0", index = "https://download.pytorch.org/whl/cu130"}
+
+# SM8.9 (L40S): torch with CUDA 12.8 (compatible with 12.4+ drivers)
+[tool.pixi.feature.gpu-l40s.pypi-dependencies]
+torch = { version = "==2.9.1", index = "https://download.pytorch.org/whl/cu128"}
 
 # SM7.0 (V100): latest torch that supports Volta
 [tool.pixi.feature.gpu-volta.pypi-dependencies]
@@ -69,9 +73,13 @@ torch = { version = "==2.9.1", index = "https://download.pytorch.org/whl/cu128"}
 [tool.pixi.feature.cpu.pypi-dependencies]
 torch = { version = "==2.11.0", index = "https://download.pytorch.org/whl/cpu" }
 
-# FA2: SM8.0+ (A100, L40S) with torch 2.11 + cu130, x86_64 only
+# FA2: SM8.0+ with torch 2.11 + cu130, x86_64 only
 [tool.pixi.feature.fa2.pypi-dependencies]
 flash-attn = { url = "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.4/flash_attn-2.6.3+cu130torch2.11-cp312-cp312-linux_x86_64.whl" }
+
+# FA2 for L40S: torch 2.9 + cu128
+[tool.pixi.feature.fa2-l40s.pypi-dependencies]
+flash-attn = { url = "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.4.17/flash_attn-2.8.3%2Bcu128torch2.9-cp312-cp312-linux_x86_64.whl" }
 
 # FA3: SM9.0 (GH200) aarch64; SM8.0 (A100) x86_64
 [tool.pixi.feature.fa3.target.linux-64.pypi-dependencies]
@@ -92,7 +100,7 @@ numba = ">=0.61.2"
 
 [tool.pixi.environments]
 default     = { features = ["gpu", "fa3"] }        # A100 (SM8.0), x86_64
-l40s        = { features = ["gpu", "fa2"] }        # L40S (SM8.9), x86_64 - FA2 only (FA3 unsupported)
+l40s        = { features = ["gpu-l40s", "fa2-l40s"] }  # L40S (SM8.9), x86_64 - CUDA 12.4+ driver
 volta       = { features = ["gpu-volta"] }          # V100 (SM7.0), x86_64 - no flash attention
 gracehopper = { features = ["gpu", "fa3"] }        # GH200 (SM9.0), aarch64
 cpu         = { features = ["cpu"] }

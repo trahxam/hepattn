@@ -1,11 +1,12 @@
 name: TIDE_64trk_pix_competitor
 
 model:
-  model:
-    decoder:
-      use_qcl: true
-      use_rre: true
-      use_rca: true
-      rre_table_size: 64
-      qcl_mask_task: pred_pix_assignment
-      qcl_valid_task: pred_valid
+  init_args:
+    model:
+      decoder:
+        use_qcl: true
+        use_rre: true
+        use_rca: true
+        rre_table_size: 64
+        qcl_mask_task: pred_pix_assignment
+        qcl_valid_task: pred_valid
