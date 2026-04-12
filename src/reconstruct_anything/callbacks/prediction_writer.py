@@ -56,7 +56,6 @@ class PredictionWriter(Callback):
         self.write_layers = write_layers
 
         self.file = None
-        self.num_queries: int | None = None
 
     def setup(self, trainer: Trainer, pl_module: LightningModule, stage: str) -> None:
         """Open the output HDF5 file when entering the test stage."""
@@ -68,15 +67,8 @@ class PredictionWriter(Callback):
         self.trainer = trainer
         self.dataset = trainer.datamodule.test_dataloader().dataset
 
-        self.num_queries = self._resolve_num_queries(pl_module)
-
         # Open the handle for writing to the file
         self.file = h5py.File(self.output_path, "w")
-
-    def _resolve_num_queries(self, pl_module: LightningModule) -> int:
-        """Read the number of decoder queries from the model."""
-        # User assumption: model.decoder._num_queries is always available.
-        return int(pl_module.model.decoder._num_queries)  # noqa: SLF001
 
     @property
     def output_path(self) -> Path:
