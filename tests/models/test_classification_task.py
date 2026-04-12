@@ -2,9 +2,9 @@
 
 import pytest
 import torch
-from reconstruct_anything.tasks import ClassificationTask
 
 from reconstruct_anything.components import Dense
+from reconstruct_anything.models.tasks import ClassificationTask
 
 
 class TestClassificationTask:  # noqa: PLR0904
