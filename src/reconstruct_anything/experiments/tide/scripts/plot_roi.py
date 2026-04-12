@@ -31,7 +31,20 @@ plt.rcParams.update({
 
 SAVE_FORMAT = "png"
 SUB_FONTSIZE = 16
-PLOT_DIR = Path(__file__).resolve().parent.parent / "plots"
+PLOT_DIR = Path(__file__).resolve().parent.parent / "plots" / "roi_displays"
+
+
+def iqr_limits(values, margin=2.0, hard_limit=0.05):
+    """Compute axis limits based on IQR to exclude outliers.
+
+    Returns (lo, hi) covering Q1 - margin*IQR to Q3 + margin*IQR,
+    clamped to [-hard_limit, +hard_limit].
+    """
+    q1, q3 = np.percentile(values, [25, 75])
+    iqr = q3 - q1
+    lo = max(q1 - margin * iqr, -hard_limit)
+    hi = min(q3 + margin * iqr, hard_limit)
+    return lo, hi
 
 
 def plot_roi_display(inputs, targets, batch_idx, plot_dir):
@@ -43,43 +56,51 @@ def plot_roi_display(inputs, targets, batch_idx, plot_dir):
     colormap = plt.cm.tab10
     cycler = [colormap(i) for i in range(colormap.N)]
 
-    hit_x = inputs["pix_r"][batch_idx]
-    hit_y = inputs["pix_dphi"][batch_idx]
     hit_valid = inputs["pix_valid"][batch_idx]
     mask = targets[f"{track}_pix_valid"][batch_idx]
     track_valid = targets[f"{track}_valid"][batch_idx]
 
     # Left: r vs dphi
-    ax[0].scatter(hit_x[hit_valid], hit_y[hit_valid], s=16.0, marker="s", fc="none", ec="black", linewidths=0.5)
+    hit_r = inputs["pix_r"][batch_idx]
+    hit_dphi = inputs["pix_dphi"][batch_idx]
+    hit_deta = inputs["pix_deta"][batch_idx]
+
+    # Compute IQR-based limits to focus on the ROI core
+    dphi_vals = hit_dphi[hit_valid].numpy()
+    deta_vals = hit_deta[hit_valid].numpy()
+    dphi_lo, dphi_hi = iqr_limits(dphi_vals)
+    deta_lo, deta_hi = iqr_limits(deta_vals)
+
+    ax[0].scatter(hit_r[hit_valid], hit_dphi[hit_valid], s=16.0, marker="s", fc="none", ec="black", linewidths=0.5)
     for track_idx in range(track_valid.shape[-1]):
         if not track_valid[track_idx]:
             continue
         color = cycler[track_idx % len(cycler)]
-        tx = hit_x[mask[track_idx]]
-        ty = hit_y[mask[track_idx]]
+        tx = hit_r[mask[track_idx]]
+        ty = hit_dphi[mask[track_idx]]
         sort_idx = torch.argsort(tx)
         ax[0].plot(tx[sort_idx], ty[sort_idx], color=color, linewidth=1.5)
 
     ax[0].set_xlabel(r"Pixel $r$ [mm]")
     ax[0].set_ylabel(r"Pixel $\Delta\phi$")
+    ax[0].set_ylim(dphi_lo, dphi_hi)
     ax[0].grid(zorder=0, alpha=0.25, linestyle="--")
 
-    # Right: eta vs phi
-    hit_eta = inputs["pix_eta"][batch_idx]
-    hit_phi = inputs["pix_phi"][batch_idx]
-
-    ax[1].scatter(hit_eta[hit_valid], hit_phi[hit_valid], s=16.0, marker="s", fc="none", ec="black", linewidths=0.5)
+    # Right: deta vs dphi
+    ax[1].scatter(hit_deta[hit_valid], hit_dphi[hit_valid], s=16.0, marker="s", fc="none", ec="black", linewidths=0.5)
     for track_idx in range(track_valid.shape[-1]):
         if not track_valid[track_idx]:
             continue
         color = cycler[track_idx % len(cycler)]
-        tx = hit_eta[mask[track_idx]]
-        ty = hit_phi[mask[track_idx]]
+        tx = hit_deta[mask[track_idx]]
+        ty = hit_dphi[mask[track_idx]]
         sort_idx = torch.argsort(tx)
         ax[1].plot(tx[sort_idx], ty[sort_idx], color=color, linewidth=1.5)
 
-    ax[1].set_xlabel(r"Pixel $\eta$")
-    ax[1].set_ylabel(r"Pixel $\phi$")
+    ax[1].set_xlabel(r"Pixel $\Delta\eta$")
+    ax[1].set_ylabel(r"Pixel $\Delta\phi$")
+    ax[1].set_xlim(deta_lo, deta_hi)
+    ax[1].set_ylim(dphi_lo, dphi_hi)
     ax[1].grid(zorder=0, alpha=0.25, linestyle="--")
 
     num_pix = hit_valid.sum().item()
@@ -113,10 +134,16 @@ def main():
     dataloader = datamodule.test_dataloader()
     inputs, targets = next(iter(dataloader))
 
-    # Pick the ROI with the most tracks
-    batch_idx = torch.argmax(targets["sudo_valid"].sum(-1))
+    # Find the ROI containing the most-shared pixel hit
+    # sudo_pix_valid is [B, num_tracks, num_pix] — count tracks per pixel
+    tracks_per_pix = targets["sudo_pix_valid"].sum(dim=-2)  # [B, num_pix]
+    max_sharing_per_roi = tracks_per_pix.max(dim=-1).values  # [B]
+    batch_idx = torch.argmax(max_sharing_per_roi)
+    max_shared = max_sharing_per_roi[batch_idx].item()
+
     print(f"Plotting ROI {targets['sample_id'][batch_idx].item()} "
-          f"({targets['sudo_valid'][batch_idx].sum().item()} tracks, "
+          f"(most-shared pixel has {max_shared} tracks, "
+          f"{targets['sudo_valid'][batch_idx].sum().item()} total tracks, "
           f"{inputs['pix_valid'][batch_idx].sum().item()} pixel hits)")
 
     plot_roi_display(inputs, targets, batch_idx, PLOT_DIR)
