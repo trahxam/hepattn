@@ -8,9 +8,10 @@ from reconstruct_anything.utils.plotting import setup_plotting
 
 setup_plotting()
 
-plot_save_dir = Path("src/reconstruct_anything/experiments/cld/eval_plots/")
+plot_save_dir = Path(__file__).resolve().parent.parent / "plots"
+plot_save_dir.mkdir(exist_ok=True, parents=True)
 
-config_path = Path("src/reconstruct_anything/experiments/cld/configs/uncleaned.yaml")
+config_path = Path(__file__).resolve().parent.parent / "configs" / "uncleaned.yaml"
 config = yaml.safe_load(config_path.read_text())["data"]
 config["num_workers"] = 10
 config["batch_size"] = 10
@@ -49,7 +50,7 @@ fig = plot_cld_event(data, event_display_cfg, "particle", gridspec_kw=gridspec_k
 fig.tight_layout()
 fig.savefig(plot_save_dir / Path("event_displays/cleaning_pre.png"))
 
-config_path = Path("src/reconstruct_anything/experiments/cld/configs/base.yaml")
+config_path = Path(__file__).resolve().parent.parent / "configs" / "base.yaml"
 config = yaml.safe_load(config_path.read_text())["data"]
 config["num_workers"] = 10
 config["batch_size"] = 10

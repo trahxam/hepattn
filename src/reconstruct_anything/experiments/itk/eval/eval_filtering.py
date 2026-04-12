@@ -19,7 +19,7 @@ setup_plotting(fontsize=8)
 
 def main():
     # Arguments for the evaluation
-    config_path = Path("/share/rcifdata/maxhart/hepattn/src/reconstruct_anything/experiments/itk/configs/filtering_pixel.yaml")
+    config_path = Path(__file__).resolve().parent.parent / "configs" / "filtering_pixel.yaml"
     recon_max_eta = 4.0
     recon_min_pt = 1.0
     recon_min_num_pixel = 3.0
@@ -44,9 +44,9 @@ def main():
         event_max_num_particles=10000,
     )
 
-    hit_eval_path = "/share/rcifdata/maxhart/hepattn/logs/ITk_filtering_pixel_region135_3pix_eta4_900mev_PE_20250629-T133325/ckpts/epoch=099-val_loss=0.43550_test_eval.h5"
+    hit_eval_path = "logs/ITk_filtering_pixel_region135_3pix_eta4_900mev_PE_20250629-T133325/ckpts/epoch=099-val_loss=0.43550_test_eval.h5"
 
-    dump_path = Path("/share/rcifdata/maxhart/hepattn/src/reconstruct_anything/experiments/itk/eval_dump")
+    dump_path = Path(__file__).resolve().parent.parent / "eval_dump"
 
     # Define bins and create BinomialHistograms for particle retention rate
     particle_bins = {"pt": np.linspace(0.5, 10.0, 32), "eta": np.linspace(-4, 4, 32), "phi": np.linspace(-np.pi, np.pi, 32)}
@@ -105,7 +105,8 @@ def main():
             wp_num_hits_post[working_point].append(hit_filter_pred.sum())
             wp_num_recon_parts_post[working_point].append(particle_recon_post.sum())
 
-    plot_save_dir = Path(__file__).resolve().parent / Path("evalplots")
+    plot_save_dir = Path(__file__).resolve().parent.parent / "plots"
+    plot_save_dir.mkdir(exist_ok=True, parents=True)
 
     # Working point scan plot
     fig, ax = plt.subplots()

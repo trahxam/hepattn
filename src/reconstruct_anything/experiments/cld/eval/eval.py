@@ -16,15 +16,13 @@ setup_plotting()
 
 
 def main():
-    config_path = Path("/share/rcifdata/maxhart/hepattn/logs/CLD_TRKECALHCAL_5_96_TF_charged_10MeV_F32_costwt_20250518-T144640/config.yaml")
-    eval_path = Path(
-        "/share/rcifdata/maxhart/hepattn/logs/CLD_TRKECALHCAL_5_96_TF_charged_10MeV_F32_costwt_20250518-T144640/ckpts/epoch=006-train_loss=10.25808_train_eval.h5"
-    )
+    config_path = Path("logs/CLD_TRKECALHCAL_5_96_TF_charged_10MeV_F32_costwt_20250518-T144640/config.yaml")
+    eval_path = Path("logs/CLD_TRKECALHCAL_5_96_TF_charged_10MeV_F32_costwt_20250518-T144640/ckpts/epoch=006-train_loss=10.25808_train_eval.h5")
 
     # Now create the dataset
     config = yaml.safe_load(config_path.read_text())["data"]
 
-    config["dirpath"] = Path("/share/rcifdata/maxhart/data/cld/prepped/train/")
+    config["dirpath"] = Path(config.get("train_dir", "data/cld/prepped/train/"))
 
     # Remve keys that are normally for the datamodule
     config_del_keys = [
@@ -48,7 +46,8 @@ def main():
     hits = ["vtxd", "trkr", "ecal", "hcal"]
 
     # Where to save all the plots
-    plot_save_dir = Path(__file__).resolve().parent / Path("eval_plots")
+    plot_save_dir = Path(__file__).resolve().parent.parent / "plots"
+    plot_save_dir.mkdir(exist_ok=True, parents=True)
 
     # Spec for event displays
     axes_spec = [

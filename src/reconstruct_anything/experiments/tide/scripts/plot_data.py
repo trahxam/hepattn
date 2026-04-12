@@ -11,7 +11,7 @@ setup_plotting()
 
 torch.manual_seed(42)
 
-config_path = Path("src/reconstruct_anything/experiments/tide/configs/base.yaml")
+config_path = Path(__file__).resolve().parent.parent / "configs" / "base.yaml"
 config = yaml.safe_load(config_path.read_text())["data"]
 config["num_workers"] = 0
 config["batch_size"] = 250
@@ -24,7 +24,8 @@ datamodule.setup(stage="test")
 dataloader = datamodule.test_dataloader()
 data_iterator = iter(dataloader)
 
-output_dir = Path("src/reconstruct_anything/experiments/tide/plots/data")
+output_dir = Path(__file__).resolve().parent.parent / "plots" / "data"
+output_dir.mkdir(exist_ok=True, parents=True)
 
 inputs, targets = next(data_iterator)
 

@@ -14,7 +14,7 @@ setup_plotting(usetex=True)
 
 
 def main():
-    eval_path = Path("/share/rcifdata/maxhart/hepattn/logs/TIDE_100k_100_32trk_20250514-T142829/ckpts/epoch=092-train_loss=24.68639_train_eval.h5")
+    eval_path = Path("logs/TIDE_100k_100_32trk_20250514-T142829/ckpts/epoch=092-train_loss=24.68639_train_eval.h5")
 
     pred_names = ["sudo", "sisp", "reco", "pred"]
     colors = {
@@ -99,7 +99,9 @@ def main():
         ax.legend()
 
         fig.tight_layout()
-        fig.savefig(f"/share/rcifdata/maxhart/hepattn/src/reconstruct_anything/experiments/tide/plots/{qty_name}.png")
+        plot_save_dir = Path(__file__).resolve().parent.parent / "plots"
+        plot_save_dir.mkdir(exist_ok=True, parents=True)
+        fig.savefig(plot_save_dir / f"{qty_name}.png")
 
 
 if __name__ == "__main__":

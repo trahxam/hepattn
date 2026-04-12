@@ -56,7 +56,9 @@ def plot_roi(inputs, targets):
     ax[0].set_title(f"ROI {roi_id}: {num_pix} pixel hits, {num_sct} SCT hits")
 
     fig.tight_layout()
-    fig.savefig(Path("src/reconstruct_anything/experiments/tide/plots/roi_display.png"))
+    plot_dir = Path(__file__).resolve().parent.parent / "plots"
+    plot_dir.mkdir(exist_ok=True, parents=True)
+    fig.savefig(plot_dir / "roi_display.png")
 
     fig, ax = plt.subplots(4, 4)
     fig.set_size_inches(8, 4)
@@ -110,10 +112,10 @@ def plot_roi(inputs, targets):
             )
 
     fig.tight_layout()
-    fig.savefig(Path("src/reconstruct_anything/experiments/tide/plots/roi_pixel_display.png"), transparent=True)
+    fig.savefig(plot_dir / "roi_pixel_display.png", transparent=True)
 
 
-config_path = Path("src/reconstruct_anything/experiments/tide/configs/base.yaml")
+config_path = Path(__file__).resolve().parent.parent / "configs" / "base.yaml"
 config = yaml.safe_load(config_path.read_text())["data"]
 config["num_workers"] = 0
 config["batch_size"] = 100
