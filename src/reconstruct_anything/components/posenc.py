@@ -4,52 +4,31 @@ import torch
 from torch import Tensor, nn
 
 
-def get_omegas(alpha, dim, base, **kwargs):
-    """Compute logarithmically-spaced angular frequency pairs for positional encoding."""
-    omega_1 = alpha * torch.logspace(0, 2 / (dim) - 1, (dim // 2), base, **kwargs)
-    omega_2 = omega_1
-    if dim % 2 != 0:
-        omega_2 = alpha * torch.logspace(0, 2 / (dim) - 1, (dim // 2) + 1, base, **kwargs)
-    return omega_1, omega_2
-
-
-def pos_enc_symmetric(xs, dim, alpha=1000, base=100):
-    """Compute a rotationally symmetric positional encoding.
+def pos_enc(xs, dim, alpha=1000, base=100, symmetric=False):
+    """Compute sinusoidal positional encoding.
 
     Args:
         xs: Input tensor of positions.
         dim: Dimension of the positional encoding.
         alpha: Scaling factor for the angular frequencies.
         base: Base for the logarithmic frequency scale.
-
-    Returns:
-        Symmetric positional encoding tensor.
-    """
-    xs = xs.unsqueeze(-1)
-    kwargs = {"device": xs.device, "dtype": xs.dtype}
-    omega_1, omega_2 = get_omegas(alpha, dim, base, **kwargs)
-    p1 = (xs.sin() * omega_1).sin()
-    p2 = (xs.cos() * omega_2).sin()
-    return torch.cat((p1, p2), dim=-1)
-
-
-def pos_enc(xs, dim, alpha=1000, base=100):
-    """Compute a standard sinusoidal positional encoding.
-
-    Args:
-        xs: Input tensor of positions.
-        dim: Dimension of the positional encoding.
-        alpha: Scaling factor for the angular frequencies.
-        base: Base for the logarithmic frequency scale.
+        symmetric: If True, use rotationally symmetric encoding.
 
     Returns:
         Positional encoding tensor.
     """
     xs = xs.unsqueeze(-1)
     kwargs = {"device": xs.device, "dtype": xs.dtype}
-    omega_1, omega_2 = get_omegas(alpha, dim, base, **kwargs)
-    p1 = (xs * omega_1).sin()
-    p2 = (xs * omega_2).cos()
+    omega_1 = alpha * torch.logspace(0, 2 / (dim) - 1, (dim // 2), base, **kwargs)
+    omega_2 = omega_1
+    if dim % 2 != 0:
+        omega_2 = alpha * torch.logspace(0, 2 / (dim) - 1, (dim // 2) + 1, base, **kwargs)
+    if symmetric:
+        p1 = (xs.sin() * omega_1).sin()
+        p2 = (xs.cos() * omega_2).sin()
+    else:
+        p1 = (xs * omega_1).sin()
+        p2 = (xs * omega_2).cos()
     return torch.cat((p1, p2), dim=-1)
 
 
@@ -88,8 +67,7 @@ class PositionEncoder(nn.Module):
         """
         encodings = []
         for field in self.fields:
-            pos_enc_fn = pos_enc_symmetric if field in self.sym_fields else pos_enc
-            encodings.append(pos_enc_fn(inputs[f"{self.input_name}_{field}"], self.per_input_dim, self.alpha, self.base))
+            encodings.append(pos_enc(inputs[f"{self.input_name}_{field}"], self.per_input_dim, self.alpha, self.base, symmetric=field in self.sym_fields))
         if self.remainder_dim:
             encodings.append(torch.zeros_like(encodings[0])[..., : self.remainder_dim])
         return torch.cat(encodings, dim=-1)
