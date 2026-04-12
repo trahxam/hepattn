@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import torch
 
-from reconstruct_anything.components.losses import mask_bce_cost, mask_dice_cost, mask_focal_cost
+from reconstruct_anything.components.costs import mask_bce_cost, mask_dice_cost, mask_focal_cost
 from reconstruct_anything.utils.matcher import SOLVERS, Matcher, match_multiprocess, match_parallel
 
 
