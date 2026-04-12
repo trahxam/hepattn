@@ -60,13 +60,12 @@ data:
         - on_valid_particle
 
 trainer:
-  fast_dev_run: 2
-  max_epochs: 20
+  max_epochs: 1
   accelerator: cpu
   devices: 1
   precision: bf16-mixed
   log_every_n_steps: 50
-  default_root_dir: logs
+  default_root_dir: test_logs
   gradient_clip_val: 0.1
   enable_progress_bar: True
   logger: false
@@ -161,7 +160,7 @@ model:
           class_path: torch.nn.ModuleList
           init_args:
             modules:
-              - class_path: reconstruct_anything.tasks.HitFilterTask
+              - class_path: reconstruct_anything.models.tasks.HitFilterTask
                 init_args:
                   name: hit_filter
                   input_object: hit

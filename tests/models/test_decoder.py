@@ -522,6 +522,7 @@ class TestMaskFormerDecoder:  # noqa: PLR0904
 
         assert captured["logits"] is logits
 
+    @pytest.mark.gpu
     def test_flex_local_cross_attention(self, decoder_layer_config, sample_local_strided_decoder_data):
         """Test flex implementation of local cross attention in the decoder."""
         # Configure decoder to use flex attention with local_strided_attn

@@ -3,13 +3,14 @@ from unittest.mock import patch
 
 import pytest
 import torch
-from reconstruct_anything.flex.fast_local_ca import (
+from torch.nn.attention.flex_attention import create_mask
+
+from reconstruct_anything.components.flex.fast_local_ca import (
     _kv_blocks_nonwrap,  # noqa: PLC2701
     _kv_blocks_wrap,  # noqa: PLC2701
     build_strided_sliding_window_blockmask,
 )
-from reconstruct_anything.flex.local_ca import sliding_window_mask_strided, sliding_window_mask_strided_wrapped
-from torch.nn.attention.flex_attention import create_mask
+from reconstruct_anything.components.flex.local_ca import sliding_window_mask_strided, sliding_window_mask_strided_wrapped
 
 
 @pytest.fixture
@@ -522,7 +523,7 @@ class TestEquivalenceMoreRegimes:
 
 @pytest.fixture(scope="module")
 def flc_eager():
-    """Reload reconstruct_anything.flex.fast_local_ca with torch.compile turned into a no-op,
+    """Reload reconstruct_anything.components.flex.fast_local_ca with torch.compile turned into a no-op,
     so coverage includes the original Python bodies of _kv_blocks_*.
     """
 
@@ -531,7 +532,7 @@ def flc_eager():
         return fn
 
     with patch("torch.compile", new=_identity_compile):
-        mod = importlib.import_module("reconstruct_anything.flex.fast_local_ca")
+        mod = importlib.import_module("reconstruct_anything.components.flex.fast_local_ca")
         return importlib.reload(mod)
 
 

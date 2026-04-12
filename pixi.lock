@@ -17664,7 +17664,7 @@ packages:
 - pypi: ./
   name: reconstruct-anything
   version: 0.2.0
-  sha256: 6102fd7541f336833204c86104eeb8b83f4d482e3c10dd5cba00b07811c1122a
+  sha256: 0f5e274623a7be22b4fb867025750d4a4695a8c7c6f953641a2237f82df21734
   requires_dist:
   - packaging>=24.1,<27
   - jupyter>=1.1.1,<2
