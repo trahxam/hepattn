@@ -1,0 +1,344 @@
+name: TIDE_64trk_pix_qcl
+
+data:
+  batch_size: 100
+  train_dir: data/tide/prepped/
+  val_dir: data/tide/prepped/
+  test_dir: data/tide/prepped/
+  num_workers: 10
+  num_train: 1000000
+  num_test: 10000
+  num_val: 10000
+  precision: single
+
+  # Minimum track pT in GeV
+  track_min_pt: 0.5
+
+  # Maximum track d0 in mm
+  track_max_d0: 100.0
+
+  # Only require pixel hits — SCT not used
+  track_min_num_hits:
+    pix: 2
+    sct: 0
+
+  # Maximum number of tracks allowed in an ROI before we drop the ROI
+  roi_max_num_tracks: &num_tracks 64
+
+  # The maximum number of tracks that can be dropped from track
+  # cuts before we drop the entire ROI
+  roi_max_num_dropped_tracks: 0
+
+  inputs:
+    pix:
+      # Global coordinates of the cluster space point
+      - x
+      - y
+      - z
+      # Cylindrical coords
+      - s
+      - r
+      - eta
+      - phi
+      # ROI axis location in detector coords
+      - roi_eta
+      - roi_phi
+      - roi_z0
+      # Coordinates in ROI frame
+      - deta
+      - dphi
+      # Module global orientation
+      - mod_norm_x
+      - mod_norm_y
+      - mod_norm_z
+      - mod_norm_phi
+      - mod_norm_theta
+      # Module coordinates
+      - mod_x
+      - mod_y
+      - mod_z
+      - mod_r
+      - mod_eta
+      - mod_phi
+      # Pixel specific fields
+      - log_charge
+      - lshift
+      - pitches
+      - charge_matrix
+    sct: []
+
+  targets:
+    sudo:
+      # Track paramaters in global frame
+      - pt
+      - eta
+      - phi
+      - z0
+      - d0
+      - q
+      - qopt
+      # Vertex location in global frame
+      - vx
+      - vy
+      - vz
+      # Track paramaters in ROI frame
+      - deta
+      - dphi
+      - dz0
+      # Scaled fields for the regression
+      - scaled_dz0
+      - scaled_d0
+      - scaled_qopt
+      - scaled_dtheta
+      - scaled_dphi
+      # Pseudotrack specific fields
+      - origin
+      - bhad_pt
+      - from_b
+      - from_c
+      - from_tau
+      - from_other
+      # Hit summary statistics
+      - num_pix
+      - num_sct
+      - num_shared_pix
+      - num_shared_sct
+      - num_layer_0_pix
+      - num_layer_1_pix
+      - num_shared_layer_0_pix
+      - num_shared_layer_1_pix
+
+    sisp:
+      # Track paramaters in global frame
+      - pt
+      - eta
+      - phi
+      - z0
+      - d0
+      - q
+      - qopt
+      # Track paramaters in ROI frame
+      - deta
+      - dphi
+      - dz0
+      # Vertex location in global frame
+      - vx
+      - vy
+      - vz
+
+    reco:
+      # Track paramaters in global frame
+      - pt
+      - eta
+      - phi
+      - z0
+      - d0
+      - q
+      - qopt
+      # Track paramaters in ROI frame
+      - deta
+      - dphi
+      - dz0
+      # Vertex location in global frame
+      - vx
+      - vy
+      - vz
+
+    roi:
+      - eta
+      - phi
+      - energy
+      # Whether the ROI contains a b/c/tau/other
+      - has_b
+      - has_c
+      - has_tau
+      - has_other
+      # Whether the ROI is marked as a b/c/tau/other
+      - is_b
+      - is_c
+      - is_tau
+      - is_other
+
+    sudo_pix:
+      - loc_x
+      - loc_y
+      - phi
+      - energy
+
+    sudo_sct: []
+
+# Training stuff here
+trainer:
+  max_epochs: 10
+  accelerator: gpu
+  devices: 1
+  precision: 32
+  log_every_n_steps: 10
+  default_root_dir: logs
+  gradient_clip_val: 0.1
+  accumulate_grad_batches: 1
+  enable_progress_bar: True
+  val_check_interval: 1000
+
+  logger:
+    class_path: reconstruct_anything.utils.loggers.MyCometLogger
+    init_args:
+      project: tide
+
+  # Specify any callback here
+  callbacks:
+    - class_path: reconstruct_anything.callbacks.SaveConfig
+    - class_path: reconstruct_anything.callbacks.Checkpoint
+      init_args:
+        monitor: train/loss
+        every_n_train_steps: 1000
+    - class_path: reconstruct_anything.callbacks.PredictionWriter
+      init_args:
+        write_inputs: false
+        write_outputs: false
+        write_preds: true
+        write_targets: false
+        write_losses: false
+    - class_path: lightning.pytorch.callbacks.ModelSummary
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+    - class_path: lightning.pytorch.callbacks.TQDMProgressBar
+      init_args:
+        refresh_rate: 50
+
+model:
+  optimizer: lion
+
+  lrs_config:
+    initial: 1e-5
+    max: 5e-5
+    end: 1e-5
+    pct_start: 0.01
+    skip_scheduler: false
+    weight_decay: 1e-5
+
+  mtl: false
+
+  model:
+    class_path: reconstruct_anything.models.MaskFormer
+    init_args:
+      dim: &dim 256
+      input_sort_field: phi
+      target_object: sudo
+
+      input_nets:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: reconstruct_anything.components.InputNet
+              init_args:
+                input_name: pix
+                fields:
+                  # Coordinates in global frame
+                  - x
+                  - y
+                  - z
+                  - s
+                  - r
+                  - eta
+                  - phi
+                  # Coordinates relative to ROI axis
+                  - dphi
+                  # ROI axis location in detector coords
+                  - roi_phi
+                  - roi_z0
+                  # Module global orientation
+                  - mod_norm_x
+                  - mod_norm_y
+                  - mod_norm_z
+                  - mod_norm_phi
+                  - mod_norm_theta
+                  # Module coordinates
+                  - mod_x
+                  - mod_y
+                  - mod_z
+                  - mod_r
+                  - mod_eta
+                  - mod_phi
+                  # Pixel specific fields
+                  - log_charge
+                  - lshift
+                  - charge_matrix
+                  - pitches
+                net:
+                  class_path: reconstruct_anything.components.Dense
+                  init_args:
+                    input_size: 79
+                    output_size: *dim
+                posenc:
+                  class_path: reconstruct_anything.components.posenc.FourierPositionEncoder
+                  init_args:
+                    input_name: pix
+                    dim: *dim
+                    fields:
+                      - x
+                      - y
+                      - z
+                      - r
+                      - deta
+                      - dphi
+
+      encoder:
+        class_path: reconstruct_anything.components.Encoder
+        init_args:
+          num_layers: 4
+          dim: *dim
+          attn_type: torch
+
+      decoder:
+        num_decoder_layers: 4
+        num_queries: *num_tracks
+        mask_attention: true
+        use_query_masks: false
+        decoder_layer_config:
+          dim: *dim
+        # CompetitorFormer modules to reduce query competition / duplicates
+        use_qcl: true
+        use_rre: false
+        use_rca: false
+        rre_table_size: 64
+        qcl_mask_task: pred_pix_assignment
+        qcl_valid_task: pred_valid
+
+      matcher:
+        class_path: reconstruct_anything.utils.matcher.Matcher
+        init_args:
+          default_solver: scipy
+          adaptive_solver: false
+          adaptive_check_interval: 1000
+
+      tasks:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: reconstruct_anything.models.tasks.ObjectClassificationTask
+              init_args:
+                name: pred_valid
+                input_object: query
+                output_object: pred
+                target_object: sudo
+                losses:
+                  object_bce: 0.1
+                costs:
+                  object_bce: 1.0
+                dim: *dim
+                null_weight: 1.0
+                mask_queries: false
+
+            - class_path: reconstruct_anything.models.tasks.ObjectHitMaskTask
+              init_args:
+                name: pred_pix_assignment
+                input_constituent: pix
+                input_object: query
+                output_object: pred
+                target_object: sudo
+                losses:
+                  mask_bce: 1.0
+                costs:
+                  mask_bce: 1.0
+                dim: *dim
+                null_weight: 1.0
