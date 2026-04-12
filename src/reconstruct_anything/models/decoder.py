@@ -6,6 +6,7 @@
 import torch
 from torch import Tensor, nn
 
+from reconstruct_anything.components.competitor import QueryCompetitionLayer, RelativeRelationshipEncoding
 from reconstruct_anything.components.decoder import DecoderLayer
 from reconstruct_anything.components.flex.local_ca import sliding_window_mask_strided, sliding_window_mask_strided_wrapped, transpose_blockmask
 from reconstruct_anything.components.posenc import pos_enc
@@ -30,6 +31,12 @@ class MaskFormerDecoder(nn.Module):
         unmask_all_false: bool = True,
         dynamic_queries: bool = False,
         dynamic_query_source: str | None = None,
+        use_qcl: bool = False,
+        use_rre: bool = False,
+        use_rca: bool = False,
+        rre_table_size: int = 64,
+        qcl_mask_task: str = "pred_pix_assignment",
+        qcl_valid_task: str = "pred_valid",
     ):
         """MaskFormer decoder that handles multiple decoder layers and task integration.
 
@@ -48,6 +55,12 @@ class MaskFormerDecoder(nn.Module):
             unmask_all_false: If True, queries with all-false attention masks will be unmasked to attend everywhere.
             dynamic_queries: If True, queries are initialized dynamically.
             dynamic_query_source: Name of the input type to use as the source for dynamic query initialization.
+            use_qcl: If True, use Query Competition Layer (CompetitorFormer) before each decoder layer.
+            use_rre: If True, use Relative Relationship Encoding bias in self-attention.
+            use_rca: If True, use Rank Cross Attention normalization in cross-attention.
+            rre_table_size: Size of the RRE relationship encoding lookup table.
+            qcl_mask_task: Name of the mask prediction task for competitor identification.
+            qcl_valid_task: Name of the object classification task for competitor scoring.
         """
         super().__init__()
 
@@ -66,6 +79,19 @@ class MaskFormerDecoder(nn.Module):
         self.dynamic_queries = dynamic_queries
         self.dynamic_query_source = dynamic_query_source
         self.unmask_all_false = unmask_all_false
+
+        # CompetitorFormer modules
+        self.use_qcl = use_qcl
+        self.use_rre = use_rre
+        self.use_rca = use_rca
+        self.qcl_mask_task = qcl_mask_task
+        self.qcl_valid_task = qcl_valid_task
+
+        if use_qcl:
+            self.qcl = QueryCompetitionLayer(dim=self.dim)
+        if use_rre:
+            num_heads = decoder_layer_config.get("attn_kwargs", {}).get("num_heads", 8)
+            self.rre = RelativeRelationshipEncoding(dim=self.dim, num_heads=num_heads, table_size=rre_table_size)
 
         # Only initialize learned queries if not using dynamic queries
         if not dynamic_queries:
@@ -202,8 +228,15 @@ class MaskFormerDecoder(nn.Module):
                 attn_mask = self.flex_local_ca_mask(q_len, kv_len, device, dtype_float)
                 attn_mask_transpose = transpose_blockmask(attn_mask, q_tokens=q_len, kv_tokens=kv_len, dev=device)
 
+        prev_mask_logits = None
+        prev_class_prob = None
+
         for layer_index, decoder_layer in enumerate(self.decoder_layers):
             outputs[f"layer_{layer_index}"] = {}
+
+            # Apply Query Competition Layer using previous layer's predictions
+            if self.use_qcl and prev_mask_logits is not None and prev_class_prob is not None:
+                x["query_embed"] = self.qcl(x["query_embed"], prev_mask_logits, prev_class_prob)
 
             # if maskattention, PE should be added before generating the mask
             if self.posenc and self.mask_attention:
@@ -251,6 +284,11 @@ class MaskFormerDecoder(nn.Module):
             if decoder_layer.cross_attn_mode == "kmeans":
                 logits = self._extract_kmeans_logits(outputs[f"layer_{layer_index}"], num_constituents)
 
+            # Compute RRE self-attention bias from previous layer's predictions
+            sa_rel_bias = None
+            if self.use_rre and prev_mask_logits is not None and prev_class_prob is not None:
+                sa_rel_bias = self.rre(prev_mask_logits, prev_class_prob)
+
             # Update the keys and queries
             x["query_embed"], x["key_embed"] = decoder_layer(
                 x["query_embed"],
@@ -262,7 +300,25 @@ class MaskFormerDecoder(nn.Module):
                 key_posenc=x["key_posenc"] if self.posenc else None,
                 attn_mask_transpose=attn_mask_transpose,
                 logits=logits,
+                sa_rel_bias=sa_rel_bias,
+                use_rca=self.use_rca,
             )
+
+            # Extract mask logits and class probs for next layer's QCL/RRE
+            if self.use_qcl or self.use_rre:
+                layer_out = outputs[f"layer_{layer_index}"]
+                if self.qcl_mask_task in layer_out:
+                    mask_out = layer_out[self.qcl_mask_task]
+                    for k, v in mask_out.items():
+                        if k.endswith("_logit") and isinstance(v, Tensor) and v.dim() == 3:
+                            prev_mask_logits = v.detach()
+                            break
+                if self.qcl_valid_task in layer_out:
+                    valid_out = layer_out[self.qcl_valid_task]
+                    for k, v in valid_out.items():
+                        if "class_prob" in k and v.dim() == 3:
+                            prev_class_prob = v[..., 0].detach()
+                            break
 
             # update the individual input constituent representations only if not in merged input mode
             if not self.unified_decoding:

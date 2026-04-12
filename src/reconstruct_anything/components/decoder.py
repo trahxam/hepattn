@@ -179,6 +179,8 @@ class DecoderLayer(nn.Module):
         key_posenc: Tensor | None = None,
         attn_mask_transpose: Tensor | None = None,
         logits: Tensor | None = None,
+        sa_rel_bias: Tensor | None = None,
+        use_rca: bool = False,
     ) -> tuple[Tensor, Tensor]:
         """Forward pass for the decoder layer.
 
@@ -192,6 +194,8 @@ class DecoderLayer(nn.Module):
             key_posenc: Optional key positional encoding.
             attn_mask_transpose: Optional transposed attention mask for flex attention.
             logits: If cross_attn_mode="kmeans", dense logits (B, N, M).
+            sa_rel_bias: Optional [B, H, Q, Q] relative relationship bias for self-attention (RRE).
+            use_rca: If True, apply Rank Cross Attention normalization to cross-attention.
 
         Returns:
             tuple[Tensor, Tensor]: Updated (q, kv).
@@ -210,10 +214,10 @@ class DecoderLayer(nn.Module):
                 logits=logits,
             )
         else:
-            q = self.q_ca(q_pe, k=kv_pe, v=kv, attn_mask=attn_mask, q_mask=q_mask, kv_mask=kv_mask)
+            q = self.q_ca(q_pe, k=kv_pe, v=kv, attn_mask=attn_mask, q_mask=q_mask, kv_mask=kv_mask, use_rca=use_rca)
 
         q = self.q_dense(q)
-        q = self.q_sa(q, k=q, v=q, q_mask=q_mask)
+        q = self.q_sa(q, k=q, v=q, q_mask=q_mask, rel_bias=sa_rel_bias)
 
         # Update key/constituent embeddings with the query/object embeddings
         if self.bidirectional_ca:

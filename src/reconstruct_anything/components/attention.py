@@ -17,6 +17,7 @@ from torch import Size, Tensor, nn
 from torch.nn.attention.flex_attention import BlockMask, _score_mod_signature, flex_attention
 from torch.nn.functional import scaled_dot_product_attention
 
+from reconstruct_anything.components.competitor import RankCrossAttention
 from reconstruct_anything.components.norm import NORM_TYPES
 from reconstruct_anything.utils.bert_padding import pad_input, unpad_input
 
@@ -306,6 +307,8 @@ class Attention(nn.Module):
         attn_bias: Tensor | None = None,
         score_mod: _score_mod_signature | None = None,
         initial_values: dict | None = None,
+        rel_bias: Tensor | None = None,
+        use_rca: bool = False,
         **kwargs,
     ) -> Tensor:
         """Multi-head attention forward pass.
@@ -323,6 +326,8 @@ class Attention(nn.Module):
             attn_bias: Additive bias applied to attention scores, shape (B, N, M, H).
             score_mod: Score modifier function for flex attention.
             initial_values: State dict for value residual connections across layers.
+            rel_bias: Optional [B, H, Q, Q] relative relationship bias for self-attention (RRE).
+            use_rca: If True, apply Rank Cross Attention normalization to cross-attention.
             **kwargs: Additional keyword arguments. For flash-varlen attention, must include
                 ``varlen_kwargs`` (dict with ``cu_seqlens`` and ``max_seqlen``).
 
@@ -395,7 +400,27 @@ class Attention(nn.Module):
                     attn_bias = attn_bias.masked_fill(~attn_mask, float("-inf"))
 
                 attn_mask = attn_bias
-            out = self.attn(q, k, v, attn_mask=attn_mask)
+
+            # Add RRE (Relative Relationship Encoding) bias to self-attention
+            if rel_bias is not None:
+                if attn_mask is None:
+                    attn_mask = rel_bias
+                elif attn_mask.dtype == torch.bool:
+                    attn_mask = torch.where(attn_mask, rel_bias, torch.tensor(float("-inf"), device=q.device))
+                else:
+                    attn_mask = attn_mask + rel_bias
+
+            # Apply Rank Cross Attention normalization before softmax
+            if use_rca:
+                scale = q.shape[-1] ** -0.5
+                raw_scores = torch.matmul(q, k.transpose(-2, -1)) * scale
+                raw_scores = RankCrossAttention.apply(raw_scores)
+                if attn_mask is not None:
+                    raw_scores = raw_scores.masked_fill(~attn_mask, float("-inf")) if attn_mask.dtype == torch.bool else raw_scores + attn_mask
+                attn_weights = torch.softmax(raw_scores, dim=-1)
+                out = torch.matmul(attn_weights, v)
+            else:
+                out = self.attn(q, k, v, attn_mask=attn_mask)
         elif self.attn_type == "flash":
             out = self.attn(q, k, v, window_size=self.window_size)
         else:
