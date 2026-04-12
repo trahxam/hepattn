@@ -7,7 +7,7 @@ import torch
 from torch import Tensor, nn
 
 from reconstruct_anything.components.decoder import DecoderLayer
-from reconstruct_anything.components.posenc import pos_enc_symmetric
+from reconstruct_anything.components.posenc import pos_enc
 from reconstruct_anything.components.flex.local_ca import sliding_window_mask_strided, sliding_window_mask_strided_wrapped, transpose_blockmask
 from reconstruct_anything.utils.local_ca import auto_local_ca_mask
 from reconstruct_anything.utils.model_utils import unmerge_inputs
@@ -280,6 +280,6 @@ class MaskFormerDecoder(nn.Module):
         """Compute symmetric positional encodings for queries and keys."""
         idx = torch.arange(self.num_queries(x), device=x["query_embed"].device, dtype=x["query_embed"].dtype)
         x["query_phi"] = 2 * torch.pi * idx / self.num_queries(x)
-        query_posenc = pos_enc_symmetric(x["query_phi"], self.dim, self.posenc["alpha"], self.posenc["base"])
-        key_posenc = pos_enc_symmetric(x["key_phi"], self.dim, self.posenc["alpha"], self.posenc["base"])
+        query_posenc = pos_enc(x["query_phi"], self.dim, self.posenc["alpha"], self.posenc["base"], symmetric=True)
+        key_posenc = pos_enc(x["key_phi"], self.dim, self.posenc["alpha"], self.posenc["base"], symmetric=True)
         return query_posenc, key_posenc

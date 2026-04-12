@@ -7,7 +7,6 @@ from reconstruct_anything.components.posenc import (
     FourierPositionEncoder,
     PositionEncoder,
     pos_enc,
-    pos_enc_symmetric,
 )
 from reconstruct_anything.utils.visualise_pes import (
     create_similarity_matrix_visualization,
@@ -22,7 +21,7 @@ def test_pos_enc():
     out_dir.mkdir(exist_ok=True, parents=True)
     for alpha in [10, 20, 50, 100]:
         pe = pos_enc(xs, dim, alpha)
-        pe_sym = pos_enc_symmetric(xs, dim, alpha)
+        pe_sym = pos_enc(xs, dim, alpha, symmetric=True)
 
         # display the positional encoding itself
         plt.figure()
