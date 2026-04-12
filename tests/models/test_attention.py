@@ -1,6 +1,5 @@
 import pytest
 import torch
-from reconstruct_anything.flex.sliding_window import sliding_window_mask
 from torch import nn
 from torch.nn.attention.flex_attention import create_block_mask, create_mask
 
@@ -11,6 +10,7 @@ from reconstruct_anything.components.attention import (
     repad_from_flash_varlen,
     unpad_for_flash_varlen,
 )
+from reconstruct_anything.components.flex.sliding_window import sliding_window_mask
 
 HAS_GPU = torch.cuda.is_available()
 ATTN_TYPES_GPU = {"flex", "flash", "flash-varlen"}

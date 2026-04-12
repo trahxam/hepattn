@@ -1,6 +1,15 @@
 import pytest
 import torch
-from reconstruct_anything.losses import mask_bce_cost, mask_bce_loss, mask_dice_cost, mask_dice_loss, mask_focal_cost, mask_focal_loss, mask_iou_cost
+
+from reconstruct_anything.components.losses import (
+    mask_bce_cost,
+    mask_bce_loss,
+    mask_dice_cost,
+    mask_dice_loss,
+    mask_focal_cost,
+    mask_focal_loss,
+    mask_iou_cost,
+)
 
 torch.manual_seed(42)
 
