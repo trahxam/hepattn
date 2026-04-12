@@ -7,6 +7,7 @@ from pathlib import Path
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
+from atlasify import atlasify
 from scipy.optimize import linear_sum_assignment
 from scipy.sparse import csr_matrix
 from tqdm import tqdm
@@ -328,6 +329,7 @@ def plot_efficiency(wp_bins, wp_label, threshold, plot_dir):
         ax.set_ylabel(f"Particle {hit_type}Efficiency")
         ax.legend(fontsize=LEGEND_FONTSIZE)
         auto_ylim(ax)
+        atlasify("Simulation Internal", sub_label, sub_font_size=SUB_FONTSIZE)
         fig.savefig(plot_dir / f"{qty_name}_eff.pdf")
         plt.close(fig)
 
@@ -357,6 +359,7 @@ def plot_pred_metric(wp_bins, key, ylabel, wp_label, threshold, plot_dir, filena
         ax.set_ylabel(f"Track {hit_type}{ylabel}")
         ax.legend(fontsize=LEGEND_FONTSIZE)
         auto_ylim(ax)
+        atlasify("Simulation Internal", sub_label, sub_font_size=SUB_FONTSIZE)
         fig.savefig(plot_dir / f"{qty_name}_{filename_suffix}.pdf")
         plt.close(fig)
 
@@ -388,6 +391,7 @@ def plot_roi_efficiency(wp_bins, wp_label, threshold, plot_dir):
         ax.set_ylabel(f"Particle {hit_type}Efficiency")
         ax.legend(fontsize=LEGEND_FONTSIZE)
         auto_ylim(ax)
+        atlasify("Simulation Internal", sub_label, sub_font_size=SUB_FONTSIZE)
         fig.savefig(plot_dir / f"roi_{qty_name}_eff.pdf")
         plt.close(fig)
 
@@ -419,6 +423,7 @@ def plot_roi_pred_metric(wp_bins, key, ylabel, wp_label, threshold, plot_dir, fi
         ax.set_ylabel(f"Track {hit_type}{ylabel}")
         ax.legend(fontsize=LEGEND_FONTSIZE)
         auto_ylim(ax)
+        atlasify("Simulation Internal", sub_label, sub_font_size=SUB_FONTSIZE)
         fig.savefig(plot_dir / f"roi_{qty_name}_{filename_suffix}.pdf")
         plt.close(fig)
 

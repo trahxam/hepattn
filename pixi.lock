@@ -208,6 +208,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/d2/39/e7eaf1799466a4aef85b6a4fe7bd175ad2b1c6345066aa33f1f58d4b18d0/asttokens-3.0.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/13/5c/af990f019b8dd11c5492a6371fe74a5b0276357370030b67254a87329944/async_lru-2.2.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/08/34/4cf34367134d1276afc8797ad0e3ef01cf2b5890796f2a85b6fb976724c0/atlas_ftag_tools-0.2.18-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/20/93/9230c0806f7ea449ceafb89129a3ceae2cec058b0f88a85f659a514e485e/atlasify-0.8.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/3a/2a/7cc015f5b9f5db42b7d48157e23356022889fc354a2813c15934b7cb5c0e/attrs-25.4.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/77/39/4d8414260c3d83f22029a39e51553c173611b378d62ca391e5ca68e65cfa/awkward-2.9.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/28/95/dc2b3a7b78c432e0b4d01d4874e4adbd9e46d146515023c9af569297708f/awkward_cpp-52-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
@@ -593,6 +594,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/d2/39/e7eaf1799466a4aef85b6a4fe7bd175ad2b1c6345066aa33f1f58d4b18d0/asttokens-3.0.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/13/5c/af990f019b8dd11c5492a6371fe74a5b0276357370030b67254a87329944/async_lru-2.2.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/08/34/4cf34367134d1276afc8797ad0e3ef01cf2b5890796f2a85b6fb976724c0/atlas_ftag_tools-0.2.18-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/20/93/9230c0806f7ea449ceafb89129a3ceae2cec058b0f88a85f659a514e485e/atlasify-0.8.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/3a/2a/7cc015f5b9f5db42b7d48157e23356022889fc354a2813c15934b7cb5c0e/attrs-25.4.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/77/39/4d8414260c3d83f22029a39e51553c173611b378d62ca391e5ca68e65cfa/awkward-2.9.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/bc/20/510ccaa836b31c526d18006926da808292b9c536e6909843572057aefcad/awkward_cpp-52-cp312-cp312-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl
@@ -992,6 +994,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/d2/39/e7eaf1799466a4aef85b6a4fe7bd175ad2b1c6345066aa33f1f58d4b18d0/asttokens-3.0.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/13/5c/af990f019b8dd11c5492a6371fe74a5b0276357370030b67254a87329944/async_lru-2.2.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/08/34/4cf34367134d1276afc8797ad0e3ef01cf2b5890796f2a85b6fb976724c0/atlas_ftag_tools-0.2.18-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/20/93/9230c0806f7ea449ceafb89129a3ceae2cec058b0f88a85f659a514e485e/atlasify-0.8.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/3a/2a/7cc015f5b9f5db42b7d48157e23356022889fc354a2813c15934b7cb5c0e/attrs-25.4.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/77/39/4d8414260c3d83f22029a39e51553c173611b378d62ca391e5ca68e65cfa/awkward-2.9.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/28/95/dc2b3a7b78c432e0b4d01d4874e4adbd9e46d146515023c9af569297708f/awkward_cpp-52-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
@@ -1393,6 +1396,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/d2/39/e7eaf1799466a4aef85b6a4fe7bd175ad2b1c6345066aa33f1f58d4b18d0/asttokens-3.0.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/13/5c/af990f019b8dd11c5492a6371fe74a5b0276357370030b67254a87329944/async_lru-2.2.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/08/34/4cf34367134d1276afc8797ad0e3ef01cf2b5890796f2a85b6fb976724c0/atlas_ftag_tools-0.2.18-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/20/93/9230c0806f7ea449ceafb89129a3ceae2cec058b0f88a85f659a514e485e/atlasify-0.8.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/3a/2a/7cc015f5b9f5db42b7d48157e23356022889fc354a2813c15934b7cb5c0e/attrs-25.4.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/77/39/4d8414260c3d83f22029a39e51553c173611b378d62ca391e5ca68e65cfa/awkward-2.9.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/bc/20/510ccaa836b31c526d18006926da808292b9c536e6909843572057aefcad/awkward_cpp-52-cp312-cp312-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl
@@ -1790,6 +1794,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/d2/39/e7eaf1799466a4aef85b6a4fe7bd175ad2b1c6345066aa33f1f58d4b18d0/asttokens-3.0.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/13/5c/af990f019b8dd11c5492a6371fe74a5b0276357370030b67254a87329944/async_lru-2.2.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/08/34/4cf34367134d1276afc8797ad0e3ef01cf2b5890796f2a85b6fb976724c0/atlas_ftag_tools-0.2.18-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/20/93/9230c0806f7ea449ceafb89129a3ceae2cec058b0f88a85f659a514e485e/atlasify-0.8.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/3a/2a/7cc015f5b9f5db42b7d48157e23356022889fc354a2813c15934b7cb5c0e/attrs-25.4.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/77/39/4d8414260c3d83f22029a39e51553c173611b378d62ca391e5ca68e65cfa/awkward-2.9.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/28/95/dc2b3a7b78c432e0b4d01d4874e4adbd9e46d146515023c9af569297708f/awkward_cpp-52-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
@@ -2166,6 +2171,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/d2/39/e7eaf1799466a4aef85b6a4fe7bd175ad2b1c6345066aa33f1f58d4b18d0/asttokens-3.0.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/13/5c/af990f019b8dd11c5492a6371fe74a5b0276357370030b67254a87329944/async_lru-2.2.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/08/34/4cf34367134d1276afc8797ad0e3ef01cf2b5890796f2a85b6fb976724c0/atlas_ftag_tools-0.2.18-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/20/93/9230c0806f7ea449ceafb89129a3ceae2cec058b0f88a85f659a514e485e/atlasify-0.8.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/3a/2a/7cc015f5b9f5db42b7d48157e23356022889fc354a2813c15934b7cb5c0e/attrs-25.4.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/77/39/4d8414260c3d83f22029a39e51553c173611b378d62ca391e5ca68e65cfa/awkward-2.9.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/bc/20/510ccaa836b31c526d18006926da808292b9c536e6909843572057aefcad/awkward_cpp-52-cp312-cp312-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl
@@ -2556,6 +2562,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/d2/39/e7eaf1799466a4aef85b6a4fe7bd175ad2b1c6345066aa33f1f58d4b18d0/asttokens-3.0.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/13/5c/af990f019b8dd11c5492a6371fe74a5b0276357370030b67254a87329944/async_lru-2.2.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/08/34/4cf34367134d1276afc8797ad0e3ef01cf2b5890796f2a85b6fb976724c0/atlas_ftag_tools-0.2.18-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/20/93/9230c0806f7ea449ceafb89129a3ceae2cec058b0f88a85f659a514e485e/atlasify-0.8.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/3a/2a/7cc015f5b9f5db42b7d48157e23356022889fc354a2813c15934b7cb5c0e/attrs-25.4.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/77/39/4d8414260c3d83f22029a39e51553c173611b378d62ca391e5ca68e65cfa/awkward-2.9.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/28/95/dc2b3a7b78c432e0b4d01d4874e4adbd9e46d146515023c9af569297708f/awkward_cpp-52-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
@@ -2953,6 +2960,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/d2/39/e7eaf1799466a4aef85b6a4fe7bd175ad2b1c6345066aa33f1f58d4b18d0/asttokens-3.0.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/13/5c/af990f019b8dd11c5492a6371fe74a5b0276357370030b67254a87329944/async_lru-2.2.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/08/34/4cf34367134d1276afc8797ad0e3ef01cf2b5890796f2a85b6fb976724c0/atlas_ftag_tools-0.2.18-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/20/93/9230c0806f7ea449ceafb89129a3ceae2cec058b0f88a85f659a514e485e/atlasify-0.8.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/3a/2a/7cc015f5b9f5db42b7d48157e23356022889fc354a2813c15934b7cb5c0e/attrs-25.4.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/77/39/4d8414260c3d83f22029a39e51553c173611b378d62ca391e5ca68e65cfa/awkward-2.9.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/bc/20/510ccaa836b31c526d18006926da808292b9c536e6909843572057aefcad/awkward_cpp-52-cp312-cp312-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl
@@ -3373,6 +3381,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/d2/39/e7eaf1799466a4aef85b6a4fe7bd175ad2b1c6345066aa33f1f58d4b18d0/asttokens-3.0.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/e5/e2/c2e3abf398f80732e58b03be77bde9022550d221dd8781bf586bd4d97cc1/async_lru-2.3.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/08/34/4cf34367134d1276afc8797ad0e3ef01cf2b5890796f2a85b6fb976724c0/atlas_ftag_tools-0.2.18-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/20/93/9230c0806f7ea449ceafb89129a3ceae2cec058b0f88a85f659a514e485e/atlasify-0.8.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/64/b4/17d4b0b2a2dc85a6df63d1157e028ed19f90d4cd97c36717afef2bc2f395/attrs-26.1.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/77/39/4d8414260c3d83f22029a39e51553c173611b378d62ca391e5ca68e65cfa/awkward-2.9.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/28/95/dc2b3a7b78c432e0b4d01d4874e4adbd9e46d146515023c9af569297708f/awkward_cpp-52-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
@@ -3776,6 +3785,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/d2/39/e7eaf1799466a4aef85b6a4fe7bd175ad2b1c6345066aa33f1f58d4b18d0/asttokens-3.0.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/e5/e2/c2e3abf398f80732e58b03be77bde9022550d221dd8781bf586bd4d97cc1/async_lru-2.3.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/08/34/4cf34367134d1276afc8797ad0e3ef01cf2b5890796f2a85b6fb976724c0/atlas_ftag_tools-0.2.18-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/20/93/9230c0806f7ea449ceafb89129a3ceae2cec058b0f88a85f659a514e485e/atlasify-0.8.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/64/b4/17d4b0b2a2dc85a6df63d1157e028ed19f90d4cd97c36717afef2bc2f395/attrs-26.1.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/77/39/4d8414260c3d83f22029a39e51553c173611b378d62ca391e5ca68e65cfa/awkward-2.9.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/bc/20/510ccaa836b31c526d18006926da808292b9c536e6909843572057aefcad/awkward_cpp-52-cp312-cp312-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl
@@ -4194,6 +4204,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/d2/39/e7eaf1799466a4aef85b6a4fe7bd175ad2b1c6345066aa33f1f58d4b18d0/asttokens-3.0.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/e5/e2/c2e3abf398f80732e58b03be77bde9022550d221dd8781bf586bd4d97cc1/async_lru-2.3.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/08/34/4cf34367134d1276afc8797ad0e3ef01cf2b5890796f2a85b6fb976724c0/atlas_ftag_tools-0.2.18-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/20/93/9230c0806f7ea449ceafb89129a3ceae2cec058b0f88a85f659a514e485e/atlasify-0.8.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/64/b4/17d4b0b2a2dc85a6df63d1157e028ed19f90d4cd97c36717afef2bc2f395/attrs-26.1.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/77/39/4d8414260c3d83f22029a39e51553c173611b378d62ca391e5ca68e65cfa/awkward-2.9.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/28/95/dc2b3a7b78c432e0b4d01d4874e4adbd9e46d146515023c9af569297708f/awkward_cpp-52-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
@@ -4596,6 +4607,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/d2/39/e7eaf1799466a4aef85b6a4fe7bd175ad2b1c6345066aa33f1f58d4b18d0/asttokens-3.0.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/e5/e2/c2e3abf398f80732e58b03be77bde9022550d221dd8781bf586bd4d97cc1/async_lru-2.3.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/08/34/4cf34367134d1276afc8797ad0e3ef01cf2b5890796f2a85b6fb976724c0/atlas_ftag_tools-0.2.18-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/20/93/9230c0806f7ea449ceafb89129a3ceae2cec058b0f88a85f659a514e485e/atlasify-0.8.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/64/b4/17d4b0b2a2dc85a6df63d1157e028ed19f90d4cd97c36717afef2bc2f395/attrs-26.1.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/77/39/4d8414260c3d83f22029a39e51553c173611b378d62ca391e5ca68e65cfa/awkward-2.9.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/bc/20/510ccaa836b31c526d18006926da808292b9c536e6909843572057aefcad/awkward_cpp-52-cp312-cp312-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl
@@ -5004,6 +5016,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/d2/39/e7eaf1799466a4aef85b6a4fe7bd175ad2b1c6345066aa33f1f58d4b18d0/asttokens-3.0.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/13/5c/af990f019b8dd11c5492a6371fe74a5b0276357370030b67254a87329944/async_lru-2.2.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/08/34/4cf34367134d1276afc8797ad0e3ef01cf2b5890796f2a85b6fb976724c0/atlas_ftag_tools-0.2.18-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/20/93/9230c0806f7ea449ceafb89129a3ceae2cec058b0f88a85f659a514e485e/atlasify-0.8.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/3a/2a/7cc015f5b9f5db42b7d48157e23356022889fc354a2813c15934b7cb5c0e/attrs-25.4.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/77/39/4d8414260c3d83f22029a39e51553c173611b378d62ca391e5ca68e65cfa/awkward-2.9.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/28/95/dc2b3a7b78c432e0b4d01d4874e4adbd9e46d146515023c9af569297708f/awkward_cpp-52-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
@@ -5400,6 +5413,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/d2/39/e7eaf1799466a4aef85b6a4fe7bd175ad2b1c6345066aa33f1f58d4b18d0/asttokens-3.0.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/13/5c/af990f019b8dd11c5492a6371fe74a5b0276357370030b67254a87329944/async_lru-2.2.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/08/34/4cf34367134d1276afc8797ad0e3ef01cf2b5890796f2a85b6fb976724c0/atlas_ftag_tools-0.2.18-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/20/93/9230c0806f7ea449ceafb89129a3ceae2cec058b0f88a85f659a514e485e/atlasify-0.8.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/3a/2a/7cc015f5b9f5db42b7d48157e23356022889fc354a2813c15934b7cb5c0e/attrs-25.4.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/77/39/4d8414260c3d83f22029a39e51553c173611b378d62ca391e5ca68e65cfa/awkward-2.9.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/bc/20/510ccaa836b31c526d18006926da808292b9c536e6909843572057aefcad/awkward_cpp-52-cp312-cp312-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl
@@ -5801,6 +5815,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/d2/39/e7eaf1799466a4aef85b6a4fe7bd175ad2b1c6345066aa33f1f58d4b18d0/asttokens-3.0.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/e5/e2/c2e3abf398f80732e58b03be77bde9022550d221dd8781bf586bd4d97cc1/async_lru-2.3.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/08/34/4cf34367134d1276afc8797ad0e3ef01cf2b5890796f2a85b6fb976724c0/atlas_ftag_tools-0.2.18-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/20/93/9230c0806f7ea449ceafb89129a3ceae2cec058b0f88a85f659a514e485e/atlasify-0.8.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/64/b4/17d4b0b2a2dc85a6df63d1157e028ed19f90d4cd97c36717afef2bc2f395/attrs-26.1.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/77/39/4d8414260c3d83f22029a39e51553c173611b378d62ca391e5ca68e65cfa/awkward-2.9.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/28/95/dc2b3a7b78c432e0b4d01d4874e4adbd9e46d146515023c9af569297708f/awkward_cpp-52-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
@@ -6199,6 +6214,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/d2/39/e7eaf1799466a4aef85b6a4fe7bd175ad2b1c6345066aa33f1f58d4b18d0/asttokens-3.0.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/e5/e2/c2e3abf398f80732e58b03be77bde9022550d221dd8781bf586bd4d97cc1/async_lru-2.3.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/08/34/4cf34367134d1276afc8797ad0e3ef01cf2b5890796f2a85b6fb976724c0/atlas_ftag_tools-0.2.18-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/20/93/9230c0806f7ea449ceafb89129a3ceae2cec058b0f88a85f659a514e485e/atlasify-0.8.0.tar.gz
       - pypi: https://files.pythonhosted.org/packages/64/b4/17d4b0b2a2dc85a6df63d1157e028ed19f90d4cd97c36717afef2bc2f395/attrs-26.1.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/77/39/4d8414260c3d83f22029a39e51553c173611b378d62ca391e5ca68e65cfa/awkward-2.9.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/bc/20/510ccaa836b31c526d18006926da808292b9c536e6909843572057aefcad/awkward_cpp-52-cp312-cp312-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl
@@ -6650,6 +6666,13 @@ packages:
   - pytest>=8.4.2 ; extra == 'dev'
   - ruff>=0.13.0 ; extra == 'dev'
   requires_python: '>=3.10,<3.12'
+- pypi: https://files.pythonhosted.org/packages/20/93/9230c0806f7ea449ceafb89129a3ceae2cec058b0f88a85f659a514e485e/atlasify-0.8.0.tar.gz
+  name: atlasify
+  version: 0.8.0
+  sha256: 4623c23c2795fc2e457550783712b390e3626f8ee64309fbe4d53d8c02d93105
+  requires_dist:
+  - matplotlib
+  - packaging
 - conda: https://conda.anaconda.org/conda-forge/linux-64/attr-2.5.2-h39aace5_0.conda
   sha256: a9c114cbfeda42a226e2db1809a538929d2f118ef855372293bd188f71711c48
   md5: 791365c5f65975051e4e017b5da3abf5
@@ -17664,7 +17687,7 @@ packages:
 - pypi: ./
   name: reconstruct-anything
   version: 0.2.0
-  sha256: 0f5e274623a7be22b4fb867025750d4a4695a8c7c6f953641a2237f82df21734
+  sha256: dad9b34a598eef2c25e4cebf4721cfd3eab93e1f50d807782d03822e8c89491c
   requires_dist:
   - packaging>=24.1,<27
   - jupyter>=1.1.1,<2
@@ -17697,6 +17720,7 @@ packages:
   - atlas-ftag-tools>=0.2.9,<0.3
   - ty>=0.0.1a20,<0.0.1a21
   - lapx>=0.9.2,<0.10
+  - atlasify>=0.8.0,<0.9
   requires_python: ==3.12
   editable: true
 - pypi: https://files.pythonhosted.org/packages/2c/58/ca301544e1fa93ed4f80d724bf5b194f6e4b945841c5bfd555878eea9fcb/referencing-0.37.0-py3-none-any.whl
