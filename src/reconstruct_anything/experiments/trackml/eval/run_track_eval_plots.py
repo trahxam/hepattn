@@ -63,10 +63,16 @@ has_regression = {
     "trackml 0.6 GeV": False,
 }
 tracking_config_fname = {
-    "Paper": "/data/atlas/users/slin/hepattn/src/reconstruct_anything/experiments/trackml/logs/trackml_tracking_20251103-T102312/config.yaml",
-    "TRK-v0 0.9 GeV": "/data/atlas/users/slin/myHepattn/hepattn/src/reconstruct_anything/experiments/trackml/logs/TRK-v0-full_20250906-T205842/config.yaml",
-    "trackml 1 GeV": "/data/atlas/users/slin/hepattn/src/reconstruct_anything/experiments/trackml/logs/trackml_tracking_20250711-T162137/config.yaml",
-    "trackml 0.6 GeV": "/data/atlas/users/slin/hepattn/src/reconstruct_anything/experiments/trackml/logs/trackml_tracking_20251103-T102312/config.yaml",
+    "Paper": ("/data/atlas/users/slin/hepattn/src/reconstruct_anything/experiments/trackml/logs/trackml_tracking_20251103-T102312/config.yaml"),
+    "TRK-v0 0.9 GeV": (
+        "/data/atlas/users/slin/myHepattn/hepattn/src/reconstruct_anything/experiments/trackml/logs/TRK-v0-full_20250906-T205842/config.yaml"
+    ),
+    "trackml 1 GeV": (
+        "/data/atlas/users/slin/hepattn/src/reconstruct_anything/experiments/trackml/logs/trackml_tracking_20250711-T162137/config.yaml"
+    ),
+    "trackml 0.6 GeV": (
+        "/data/atlas/users/slin/hepattn/src/reconstruct_anything/experiments/trackml/logs/trackml_tracking_20251103-T102312/config.yaml"
+    ),
 }
 tracking_params = ["particle_min_pt", "particle_max_abs_eta"]
 tracking_configs = {}

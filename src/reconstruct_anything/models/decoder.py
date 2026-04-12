@@ -7,8 +7,8 @@ import torch
 from torch import Tensor, nn
 
 from reconstruct_anything.components.decoder import DecoderLayer
-from reconstruct_anything.components.posenc import pos_enc
 from reconstruct_anything.components.flex.local_ca import sliding_window_mask_strided, sliding_window_mask_strided_wrapped, transpose_blockmask
+from reconstruct_anything.components.posenc import pos_enc
 from reconstruct_anything.utils.local_ca import auto_local_ca_mask
 from reconstruct_anything.utils.model_utils import unmerge_inputs
 

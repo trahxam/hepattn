@@ -2,7 +2,6 @@ from pathlib import Path
 
 import pytest
 import torch
-
 from reconstruct_anything.flex import relative_position, relative_position_wrapped
 from reconstruct_anything.flex.relative_position import identity
 from reconstruct_anything.flex.utils import visualize_attention_scores
