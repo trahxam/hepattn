@@ -21,8 +21,8 @@ def test_sliding_window(device: str):
     q_len = torch.tensor([24])
     query, key = make_tensor(q_len[0]), make_tensor(q_len[0])
 
-    out_dir = Path(__file__).parent.parent / Path("outputs/flex")
-    out_dir.mkdir(exist_ok=True)
+    out_dir = Path(__file__).parent.parent / "outputs" / "flex"
+    out_dir.mkdir(exist_ok=True, parents=True)
 
     mask = sliding_window_mask(4)
     path = out_dir / "sliding_window_mask.png"

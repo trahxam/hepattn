@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import torch
 
@@ -70,14 +72,15 @@ def test_realistic():
     q = torch.randn(1, 1000, 5)
     kv = torch.randn(1, 5462, 5)
     mask = auto_local_ca_mask(q, kv, window_size=2048).squeeze(0)
-    # save the mask as a maplotlib image using imshow
+    out_dir = Path(__file__).parent.parent / "outputs" / "utils"
+    out_dir.mkdir(exist_ok=True, parents=True)
+
     plt.imshow(mask.numpy(), aspect="auto")
-    plt.savefig("local_ca_mask.png")
+    plt.savefig(out_dir / "local_ca_mask.png")
 
     mask = auto_local_ca_mask(q, kv, window_size=2048, wrap=True).squeeze(0)
-    # save the mask as a maplotlib image using imshow
     plt.imshow(mask.numpy(), aspect="auto")
-    plt.savefig("local_ca_mask_wrap.png")
+    plt.savefig(out_dir / "local_ca_mask_wrap.png")
 
 
 def test_wrap():
