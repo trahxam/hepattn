@@ -230,10 +230,10 @@ class TestMaskFormerSorting:
         assert torch.allclose(sorted_targets["particle_input1_valid"], expected_input1_valid)
         assert torch.allclose(sorted_targets["particle_input2_valid"], expected_input2_valid)
 
-        # also for the target variables
+        # 2D targets should NOT be sorted — only 3D hit-assignment masks are reordered
         assert "input1_target" in sorted_targets
         assert "input2_target" in sorted_targets
         assert sorted_targets["input1_target"].shape == (2, 10)
         assert sorted_targets["input2_target"].shape == (2, 15)
-        assert torch.allclose(sorted_targets["input1_target"], torch.gather(targets["input1_target"], -1, input1_sort_idx))
-        assert torch.allclose(sorted_targets["input2_target"], torch.gather(targets["input2_target"], -1, input2_sort_idx))
+        assert torch.allclose(sorted_targets["input1_target"], targets["input1_target"])
+        assert torch.allclose(sorted_targets["input2_target"], targets["input2_target"])

@@ -1,4 +1,4 @@
-# ruff: noqa: ARG001, F841, PTH123, BLE001, S110
+# ruff: noqa: ARG001, PTH123, BLE001, S110
 import json
 import os
 from multiprocessing import Pool
