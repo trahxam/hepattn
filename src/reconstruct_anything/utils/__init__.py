@@ -1,6 +1,5 @@
 from reconstruct_anything.utils.array_utils import maybe_pad
 from reconstruct_anything.utils.cli import CLI
-from reconstruct_anything.wrappers.data import DataModuleWrapper
 from reconstruct_anything.utils.masks import (
     argmax_mask,
     build_target_masks,
@@ -16,6 +15,7 @@ from reconstruct_anything.utils.tensor_utils import (
     get_torch_dtype,
     pad_to_size,
 )
+from reconstruct_anything.wrappers.data import DataModuleWrapper
 
 __all__ = [
     "CLI",

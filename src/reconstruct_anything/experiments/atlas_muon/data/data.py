@@ -7,9 +7,8 @@ import yaml
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 
-from reconstruct_anything.wrappers.data import DataModuleWrapper
-
 from reconstruct_anything.utils.tensor_utils import pad_to_size
+from reconstruct_anything.wrappers.data import DataModuleWrapper
 
 
 def pad_and_concat(items: list[Tensor], target_size: tuple[int], pad_value) -> Tensor:

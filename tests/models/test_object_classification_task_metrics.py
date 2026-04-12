@@ -1,6 +1,6 @@
 import torch
 
-from reconstruct_anything.tasks import ObjectClassificationTask
+from reconstruct_anything.models.tasks import ObjectClassificationTask
 
 
 def test_object_classification_task_metrics_basic():

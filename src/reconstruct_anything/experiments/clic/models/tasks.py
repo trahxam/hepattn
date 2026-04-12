@@ -3,8 +3,7 @@ from torch import Tensor, nn
 
 from reconstruct_anything.components.costs import cost_fns
 from reconstruct_anything.components.losses import loss_fns
-from reconstruct_anything.models.tasks import RegressionLossType, Task
-from reconstruct_anything.models.tasks import RegressionTask
+from reconstruct_anything.models.tasks import RegressionLossType, RegressionTask, Task
 from reconstruct_anything.utils.masks import topk_attn
 from reconstruct_anything.utils.scaling import FeatureScaler
 

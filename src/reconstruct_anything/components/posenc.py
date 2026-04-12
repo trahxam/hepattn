@@ -65,9 +65,16 @@ class PositionEncoder(nn.Module):
         Returns:
             Concatenated positional encoding over all fields.
         """
-        encodings = []
-        for field in self.fields:
-            encodings.append(pos_enc(inputs[f"{self.input_name}_{field}"], self.per_input_dim, self.alpha, self.base, symmetric=field in self.sym_fields))
+        encodings = [
+            pos_enc(
+                inputs[f"{self.input_name}_{field}"],
+                self.per_input_dim,
+                self.alpha,
+                self.base,
+                symmetric=field in self.sym_fields,
+            )
+            for field in self.fields
+        ]
         if self.remainder_dim:
             encodings.append(torch.zeros_like(encodings[0])[..., : self.remainder_dim])
         return torch.cat(encodings, dim=-1)

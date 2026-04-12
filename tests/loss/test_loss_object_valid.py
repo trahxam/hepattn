@@ -1,6 +1,5 @@
 import pytest
 import torch
-
 from reconstruct_anything.losses import mask_bce_loss, mask_dice_loss, mask_focal_loss
 
 torch.manual_seed(42)

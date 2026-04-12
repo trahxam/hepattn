@@ -381,7 +381,7 @@ class RootAnalyzer:
 
         except (OSError, ValueError, KeyError) as e:
             print(f"ERROR reading ROOT file: {e!s}")
-            return {k: False for k in histogram_settings}
+            return dict.fromkeys(histogram_settings, False)
 
         return results
 

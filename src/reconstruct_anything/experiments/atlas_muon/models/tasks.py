@@ -1,5 +1,5 @@
 import torch
-from torch import Tensor, nn
+from torch import nn
 
 from reconstruct_anything.components.losses import mask_focal_loss
 from reconstruct_anything.models.tasks import HitFilterTask

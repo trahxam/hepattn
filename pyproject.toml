@@ -110,6 +110,8 @@ git = ">=2.51.0,<3"
 git-lfs = ">=3.7.0,<4"
 ninja = ">=1.13.1,<2"
 cuda = ">=12.8"
+openssh = ">=10.2p1,<11"
+gh = ">=2.88.1,<3"
 
 [tool.pixi.tasks.test]
 cmd = "pytest"
@@ -140,7 +142,8 @@ pydocstyle.convention = "google"
 "*.ipynb" = ["E501"]
 
 [tool.ty.rules]
-missing-argument = "ignore" # for now as kwarg unpacking is not supported
+missing-argument = "ignore" #
+unknown-argument = "ignore" # for now as kwarg unpacking is not supported
 
 
 [tool.pytest.ini_options]

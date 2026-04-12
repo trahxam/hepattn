@@ -6,9 +6,9 @@ from torch.nn.attention.flex_attention import create_block_mask, create_mask
 
 from reconstruct_anything.components.attention import Attention, repad_from_flash_varlen, unpad_for_flash_varlen
 from reconstruct_anything.components.dense import Dense
-from reconstruct_anything.components.norm import NORM_TYPES, get_hybrid_norm_config
 from reconstruct_anything.components.flex import relative_position, relative_position_wrapped
 from reconstruct_anything.components.flex.sliding_window import sliding_window_mask, sliding_window_mask_wrapped
+from reconstruct_anything.components.norm import NORM_TYPES, get_hybrid_norm_config
 
 create_block_mask = torch.compile(create_block_mask, dynamic=True)  # ty: ignore[invalid-assignment]
 

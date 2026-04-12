@@ -2,7 +2,6 @@ from pathlib import Path
 
 import pytest
 import torch
-
 from reconstruct_anything.flex import sliding_window_mask, sliding_window_mask_wrapped
 from reconstruct_anything.flex.utils import visualize_attention_scores
 

@@ -1,8 +1,8 @@
 import torch
+from reconstruct_anything.flex.local_ca import transpose_blockmask
 from torch import nn
 from torch.nn.attention.flex_attention import create_mask
 
-from reconstruct_anything.flex.local_ca import transpose_blockmask
 from reconstruct_anything.models.decoder import MaskFormerDecoder
 from reconstruct_anything.utils.local_ca import auto_local_ca_mask
 

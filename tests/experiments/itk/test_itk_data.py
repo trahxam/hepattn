@@ -2,10 +2,10 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pytest
+from reconstruct_anything.models.matcher import Matcher
 
 from reconstruct_anything.experiments.itk.data.data import ITkDataset
 from reconstruct_anything.experiments.itk.scripts.plot_event import plot_itk_event_reconstruction
-from reconstruct_anything.models.matcher import Matcher
 
 plt.rcParams["figure.dpi"] = 300
 

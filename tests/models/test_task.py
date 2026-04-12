@@ -1,7 +1,8 @@
 import pytest
 import torch
 
-from reconstruct_anything.tasks import HitFilterTask, HitFilterTaskBatched, ObjectHitMaskTask
+from reconstruct_anything.experiments.atlas_muon.models.tasks import HitFilterTaskBatched
+from reconstruct_anything.models.tasks import HitFilterTask, ObjectHitMaskTask
 
 BATCH_SIZE = 2
 NUM_QUERIES = 5

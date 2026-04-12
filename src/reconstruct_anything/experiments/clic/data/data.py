@@ -1,7 +1,6 @@
 import gc
 from pathlib import Path
 
-import lightning as L
 import numpy as np
 import torch
 import uproot
@@ -9,8 +8,8 @@ from lightning import seed_everything
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-from reconstruct_anything.wrappers.data import DataModuleWrapper
 from reconstruct_anything.utils.scaling import FeatureScaler
+from reconstruct_anything.wrappers.data import DataModuleWrapper
 
 
 def normalize_phi(phi):

@@ -1,6 +1,7 @@
 import torch
 
-from reconstruct_anything.tasks import IoUPredictionTask, ObjectHitMaskTask
+from reconstruct_anything.experiments.trackml.models.tasks import IoUPredictionTask
+from reconstruct_anything.models.tasks import ObjectHitMaskTask
 
 
 def test_object_hit_mask_task_iou():
