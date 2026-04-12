@@ -8,7 +8,7 @@ import numpy as np
 import pyarrow.parquet as pq
 import scipy.sparse as sp
 import torch
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import Dataset
 
 from reconstruct_anything.wrappers.data import DataModuleWrapper
 

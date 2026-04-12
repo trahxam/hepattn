@@ -8,8 +8,8 @@ from particle.pdgid import is_hadron
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 
-from reconstruct_anything.wrappers.data import DataModuleWrapper
 from reconstruct_anything.utils.tensor_utils import pad_to_size
+from reconstruct_anything.wrappers.data import DataModuleWrapper
 
 # Necessary to stop this
 # https://discuss.pytorch.org/t/runtimeerror-received-0-items-of-ancdata/4999/2

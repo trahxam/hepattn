@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import torch
 from lightning.pytorch.utilities.rank_zero import rank_zero_info
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import Dataset
 
 from reconstruct_anything.wrappers.data import DataModuleWrapper
 

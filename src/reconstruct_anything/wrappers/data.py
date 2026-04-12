@@ -66,7 +66,7 @@ class DataModuleWrapper(LightningDataModule):
         """Instantiate datasets for the requested stage.
 
         Args:
-            stage: Lightning stage — "fit", "validate", or "test".
+            stage: Lightning stage - "fit", "validate", or "test".
         """
         if stage in {"fit", "test"}:
             self.train_dataset = self.make_dataset(self.train_dir, self.num_train, "train")
