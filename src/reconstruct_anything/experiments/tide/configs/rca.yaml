@@ -1,0 +1,6 @@
+name: TIDE_64trk_pix_rca
+
+model:
+  model:
+    decoder:
+      use_rca: true

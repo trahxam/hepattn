@@ -27,7 +27,7 @@ export TMPDIR=/share/rcifdata/maxhart/tmp/
 unset APPTAINER_BIND  # don't inherit login-node slurm binds into the job container
 
 PYTORCH_CMD="python src/reconstruct_anything/experiments/tide/main.py fit \
-  -c src/reconstruct_anything/experiments/tide/configs/pix_only.yaml \
+  -c src/reconstruct_anything/experiments/tide/configs/base.yaml \
   -c src/reconstruct_anything/experiments/tide/configs/max.yaml"
 
 PIXI_CMD="pixi run $PYTORCH_CMD"

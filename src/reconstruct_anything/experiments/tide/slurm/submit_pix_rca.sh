@@ -27,7 +27,8 @@ export TMPDIR=/share/rcifdata/maxhart/tmp/
 unset APPTAINER_BIND
 
 PYTORCH_CMD="python src/reconstruct_anything/experiments/tide/main.py fit \
-  -c src/reconstruct_anything/experiments/tide/configs/pix_only_rca.yaml \
+  -c src/reconstruct_anything/experiments/tide/configs/base.yaml \
+  -c src/reconstruct_anything/experiments/tide/configs/rca.yaml \
   -c src/reconstruct_anything/experiments/tide/configs/max.yaml"
 
 PIXI_CMD="pixi run $PYTORCH_CMD"
