@@ -229,11 +229,6 @@ model:
       init_args:
         target_object: sudo
 
-        sorter:
-          class_path: reconstruct_anything.components.Sorter
-          init_args:
-            input_sort_field: phi
-
         input_nets:
           class_path: torch.nn.ModuleList
           init_args:
