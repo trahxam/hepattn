@@ -17,8 +17,19 @@ class CLDReconstructor(ModelWrapper):
         optimizer: str = "AdamW",
         mtl: bool = False,
         pretrained_ckpt_path: str | None = None,
+        freeze_except: list[str] | None = None,
+        optimizer_group_overrides: list | None = None,
     ):
-        super().__init__(name, model, lrs_config, optimizer, mtl, pretrained_ckpt_path)
+        super().__init__(
+            name=name,
+            model=model,
+            lrs_config=lrs_config,
+            optimizer=optimizer,
+            mtl=mtl,
+            pretrained_ckpt_path=pretrained_ckpt_path,
+            freeze_except=freeze_except,
+            optimizer_group_overrides=optimizer_group_overrides,
+        )
         self._val_display_data = None
         self._val_display_figs = None
 

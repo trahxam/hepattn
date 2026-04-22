@@ -1,0 +1,839 @@
+# lightning.pytorch==2.5.2
+seed_everything: 0
+trainer:
+  accelerator: gpu
+  strategy: auto
+  devices: 1
+  num_nodes: 1
+  precision: bf16-mixed
+  logger:
+    class_path: hepattn.utils.loggers.MyCometLogger
+    init_args:
+      offline_directory: /share/gpu1/syw24/hepattn/logs/CLD_kmax_frozen_property_regression_v7_ablation_20260326-T155114
+      log_env_details: true
+      api_key: null
+      workspace: null
+      project: cld
+      experiment_key: null
+      mode: null
+      online: null
+      prefix: null
+  callbacks:
+  - class_path: hepattn.callbacks.Compile
+    init_args:
+      dynamic: true
+      mode: null
+      skip_dynamic_cudagraphs: false
+  - class_path: hepattn.callbacks.InferenceTimer
+  - class_path: hepattn.callbacks.SaveConfig
+  - class_path: hepattn.callbacks.Checkpoint
+    init_args:
+      monitor: val/loss
+      log_model: true
+      dirpath: null
+      verbose: false
+      save_last: null
+      save_weights_only: false
+      mode: min
+      every_n_train_steps: 5000
+      train_time_interval: null
+      every_n_epochs: null
+      save_on_train_epoch_end: null
+      enable_version_counter: true
+  - class_path: hepattn.callbacks.PredictionWriter
+    init_args:
+      write_inputs: true
+      write_outputs: false
+      write_preds: true
+      write_targets: true
+      write_losses: false
+      write_layers: null
+  - class_path: lightning.pytorch.callbacks.ModelSummary
+    init_args:
+      max_depth: 1
+  - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+    init_args:
+      logging_interval: null
+      log_momentum: false
+      log_weight_decay: false
+  - class_path: lightning.pytorch.callbacks.TQDMProgressBar
+    init_args:
+      refresh_rate: 10
+      process_position: 0
+      leave: false
+  fast_dev_run: false
+  max_epochs: 1
+  min_epochs: null
+  max_steps: -1
+  min_steps: null
+  max_time: null
+  limit_train_batches: null
+  limit_val_batches: null
+  limit_test_batches: null
+  limit_predict_batches: null
+  overfit_batches: 0.0
+  val_check_interval: 200
+  check_val_every_n_epoch: 1
+  num_sanity_val_steps: null
+  log_every_n_steps: 10
+  enable_checkpointing: null
+  enable_progress_bar: true
+  enable_model_summary: null
+  accumulate_grad_batches: 1
+  gradient_clip_val: 1.0
+  gradient_clip_algorithm: null
+  deterministic: null
+  benchmark: null
+  inference_mode: true
+  use_distributed_sampler: true
+  profiler: null
+  detect_anomaly: false
+  barebones: false
+  plugins: null
+  sync_batchnorm: false
+  reload_dataloaders_every_n_epochs: 0
+  default_root_dir: /share/gpu1/syw24/hepattn/logs/CLD_kmax_frozen_property_regression_v7_ablation_20260326-T155114
+  model_registry: null
+model:
+  model:
+    class_path: hepattn.models.MaskFormer
+    init_args:
+      input_nets:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+          - class_path: hepattn.models.InputNet
+            init_args:
+              input_name: vtxd
+              net:
+                class_path: hepattn.models.Dense
+                init_args:
+                  input_size: 13
+                  output_size: 256
+                  hidden_layers:
+                  - 128
+                  hidden_dim_scale: 2
+                  activation:
+                    class_path: hepattn.models.SwiGLU
+                  final_activation: null
+                  dropout: 0.0
+                  bias: true
+              fields:
+              - pos.x_dm
+              - pos.y_dm
+              - pos.z_dm
+              - pos.s_dm
+              - pos.r_dm
+              - pos.theta
+              - pos.phi
+              - u.a
+              - u.b
+              - v.a
+              - v.b
+              - du
+              - dv
+              posenc:
+                class_path: hepattn.models.PositionEncoder
+                init_args:
+                  input_name: vtxd
+                  fields:
+                  - pos.x_dm
+                  - pos.y_dm
+                  - pos.z_dm
+                  - pos.r_dm
+                  - pos.theta
+                  - pos.phi
+                  dim: 256
+                  sym_fields: null
+                  alpha: 1000
+                  base: 100
+              input_dtype: float32
+          - class_path: hepattn.models.InputNet
+            init_args:
+              input_name: trkr
+              net:
+                class_path: hepattn.models.Dense
+                init_args:
+                  input_size: 13
+                  output_size: 256
+                  hidden_layers:
+                  - 128
+                  hidden_dim_scale: 2
+                  activation:
+                    class_path: hepattn.models.SwiGLU
+                  final_activation: null
+                  dropout: 0.0
+                  bias: true
+              fields:
+              - pos.x
+              - pos.y
+              - pos.z
+              - pos.s
+              - pos.r
+              - pos.theta
+              - pos.phi
+              - u.a
+              - u.b
+              - v.a
+              - v.b
+              - du
+              - dv
+              posenc:
+                class_path: hepattn.models.PositionEncoder
+                init_args:
+                  input_name: trkr
+                  fields:
+                  - pos.x
+                  - pos.y
+                  - pos.z
+                  - pos.r
+                  - pos.theta
+                  - pos.phi
+                  dim: 256
+                  sym_fields: null
+                  alpha: 1000
+                  base: 100
+              input_dtype: float32
+          - class_path: hepattn.models.InputNet
+            init_args:
+              input_name: ecal
+              net:
+                class_path: hepattn.models.Dense
+                init_args:
+                  input_size: 8
+                  output_size: 256
+                  hidden_layers:
+                  - 128
+                  hidden_dim_scale: 2
+                  activation:
+                    class_path: hepattn.models.SwiGLU
+                  final_activation: null
+                  dropout: 0.0
+                  bias: true
+              fields:
+              - pos.x
+              - pos.y
+              - pos.z
+              - pos.s
+              - pos.r
+              - pos.theta
+              - pos.phi
+              - log_energy
+              posenc:
+                class_path: hepattn.models.PositionEncoder
+                init_args:
+                  input_name: ecal
+                  fields:
+                  - pos.x
+                  - pos.y
+                  - pos.z
+                  - pos.r
+                  - pos.theta
+                  - pos.phi
+                  dim: 256
+                  sym_fields: null
+                  alpha: 1000
+                  base: 100
+              input_dtype: float32
+          - class_path: hepattn.models.InputNet
+            init_args:
+              input_name: hcal
+              net:
+                class_path: hepattn.models.Dense
+                init_args:
+                  input_size: 8
+                  output_size: 256
+                  hidden_layers:
+                  - 128
+                  hidden_dim_scale: 2
+                  activation:
+                    class_path: hepattn.models.SwiGLU
+                  final_activation: null
+                  dropout: 0.0
+                  bias: true
+              fields:
+              - pos.x
+              - pos.y
+              - pos.z
+              - pos.s
+              - pos.r
+              - pos.theta
+              - pos.phi
+              - log_energy
+              posenc:
+                class_path: hepattn.models.PositionEncoder
+                init_args:
+                  input_name: hcal
+                  fields:
+                  - pos.x
+                  - pos.y
+                  - pos.z
+                  - pos.r
+                  - pos.theta
+                  - pos.phi
+                  dim: 256
+                  sym_fields: null
+                  alpha: 1000
+                  base: 100
+              input_dtype: float32
+          - class_path: hepattn.models.InputNet
+            init_args:
+              input_name: muon
+              net:
+                class_path: hepattn.models.Dense
+                init_args:
+                  input_size: 7
+                  output_size: 256
+                  hidden_layers:
+                  - 128
+                  hidden_dim_scale: 2
+                  activation:
+                    class_path: hepattn.models.SwiGLU
+                  final_activation: null
+                  dropout: 0.0
+                  bias: true
+              fields:
+              - pos.x
+              - pos.y
+              - pos.z
+              - pos.s
+              - pos.r
+              - pos.theta
+              - pos.phi
+              posenc:
+                class_path: hepattn.models.PositionEncoder
+                init_args:
+                  input_name: muon
+                  fields:
+                  - pos.x
+                  - pos.y
+                  - pos.z
+                  - pos.r
+                  - pos.theta
+                  - pos.phi
+                  dim: 256
+                  sym_fields: null
+                  alpha: 1000
+                  base: 100
+              input_dtype: float32
+      encoder:
+        class_path: hepattn.models.Encoder
+        init_args:
+          num_layers: 8
+          dim: 256
+          attn_type: flash-varlen
+          window_size: 1024
+          window_wrap: false
+          score_mod: null
+          value_residual: false
+          num_register_tokens: null
+          attn_kwargs:
+            bias: false
+          norm: CustomLayerNorm
+          layer_scale: null
+          drop_path: 0.0
+          qkv_norm: false
+          hybrid_norm: true
+          dense_kwargs:
+            activation: SwiGLU
+      decoder:
+        class_path: hepattn.models.MaskFormerDecoder
+        init_args:
+          num_queries: 512
+          decoder_layer_config:
+            dim: 256
+            norm: CustomLayerNorm
+            hybrid_norm: true
+            dense_kwargs:
+              activation: SwiGLU
+            attn_kwargs:
+              bias: false
+            cross_attn_mode: kmeans
+            bidirectional_ca: false
+            kmeans_kwargs:
+              update: mean
+              value_proj: true
+              mask_attn: false
+          num_decoder_layers: 4
+          mask_attention: false
+          use_query_masks: false
+          posenc: null
+          local_strided_attn: false
+          window_size: 512
+          window_wrap: true
+          fast_local_ca: false
+          block_size: 128
+          unified_decoding: false
+          phi_shift: 0.0
+          unmask_all_false: false
+          kmeans_affinity_task: reco
+          num_input_types: 1
+      tasks:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+          - class_path: hepattn.experiments.cld.task.CLDTask
+            init_args:
+              name: reco
+              dim: 256
+              mask_attn: false
+              has_intermediate_loss: true
+              hits_included:
+              - trkr
+              - vtxd
+              - ecal
+              - hcal
+              - muon
+              hit_mask_attn_thresholds: null
+              tracker_helix_fit: false
+              helix_fit_warmup_steps: 10000
+              calo_line_fit: false
+              calo_score_method: sigmoid
+              loss_object_mask: valid
+              hit_loss_weights:
+                vtxd:
+                  mask_dice: 1.0
+                  mask_bce: 0.5
+                trkr:
+                  mask_dice: 1.0
+                  mask_bce: 0.5
+                ecal:
+                  mask_dice: 1.0
+                  mask_bce: 0.5
+                hcal:
+                  mask_dice: 1.0
+                  mask_bce: 0.5
+                muon:
+                  mask_dice: 1.0
+                  mask_bce: 0.5
+              hit_cost_weights:
+                vtxd:
+                  mask_dice: 1.0
+                trkr:
+                  mask_dice: 1.0
+                ecal:
+                  mask_dice: 1.0
+                hcal:
+                  mask_dice: 1.0
+                muon:
+                  mask_dice: 1.0
+              mask_dice_cost_logit_scale: 1.0
+              return_embeddings: false
+          - class_path: hepattn.experiments.cld.trkfit.regrtask.ObjectPropertyRegressionTask
+            init_args:
+              name: flow_property_regression
+              input_constituent:
+              - vtxd
+              - trkr
+              calo_constituents:
+              - ecal
+              - hcal
+              input_object: query
+              output_object: flow
+              target_object: particle
+              dim: 256
+              loss: smooth_l1
+              loss_weight: 1.0
+              track_correction_weight: 2.0
+              energy_weight: 1.0
+              gate_loss_weight: 0.5
+              track_loss_beta: 0.01
+              pred_threshold: 0.5
+              b_field: 2.0
+              length_unit: 1.0
+              eps: 1.0e-08
+              min_tracker_hits: 5
+              min_calo_hits: 3
+              correction_scale: 1.0
+              log_e_scale: 6.0
+              trunk_hidden_layers:
+              - 256
+              - 256
+              - 128
+              track_adapter_hidden:
+              - 64
+              energy_adapter_hidden:
+              - 64
+              gate_adapter_hidden:
+              - 64
+              track_head_hidden_layers: []
+              energy_head_hidden_layers: []
+              gate_head_hidden_layers: []
+              scalar_mlp_hidden:
+              - 64
+              scalar_mlp_output_dim: 64
+              dropout: 0.0
+              energy_target: energy
+              energy_bias_init: 1.5
+              has_intermediate_loss: false
+              permute_loss: true
+              calo_energy_field: energy
+              num_pid_classes: 6
+              muon_constituents:
+              - muon
+              use_split_calo: true
+              use_helix_residuals: true
+              use_legacy_helix_seed: true
+              pid_charged_classes:
+              - 2
+              - 4
+              - 5
+      dim: 256
+      input_encoders: null
+      target_object: particle
+      pooling: null
+      matcher:
+        class_path: hepattn.models.matcher.Matcher
+        init_args:
+          default_solver: scipy
+          adaptive_solver: false
+          adaptive_check_interval: 1000
+          parallel_solver: false
+          n_jobs: 8
+          verbose: false
+      input_sort_field: pos.theta
+      sorter: null
+      unified_decoding: false
+      common_decoder_dense: false
+  lrs_config:
+    initial: 1.0e-05
+    max: 5.0e-05
+    end: 1.0e-06
+    pct_start: 0.1
+    skip_scheduler: false
+    weight_decay: 1.0e-05
+  optimizer: lion
+  mtl: false
+  freeze_except:
+  - flow_property_regression
+  pretrained_ckpt_path: /share/gpu1/syw24/hepattn/logs/CLD_5_256_10MeV_charged_kmax_20260319-T072454/ckpts/epoch=000-val_loss=15.44639.ckpt
+data:
+  train_dir: /share/rcif2/maxhart/data/cld/prepped/train/
+  val_dir: /share/rcif2/maxhart/data/cld/prepped/val/
+  num_workers: 10
+  num_train: -1
+  num_val: 100
+  num_test: 1000
+  batch_size: 10
+  test_dir: /share/rcif2/maxhart/data/cld/prepped/ttbar_fixed
+  pin_memory: true
+  inputs:
+    vtxd:
+    - type
+    - quality
+    - pos.x
+    - pos.y
+    - pos.z
+    - pos.s
+    - pos.r
+    - pos.x_dm
+    - pos.y_dm
+    - pos.z_dm
+    - pos.s_dm
+    - pos.r_dm
+    - pos.theta
+    - pos.eta
+    - pos.phi
+    - pos.sinphi
+    - pos.cosphi
+    - pos.u
+    - pos.v
+    - eDep
+    - eDepError
+    - time
+    - u.a
+    - u.b
+    - v.a
+    - v.b
+    - du
+    - dv
+    trkr:
+    - type
+    - quality
+    - pos.x
+    - pos.y
+    - pos.z
+    - pos.s
+    - pos.r
+    - pos.theta
+    - pos.eta
+    - pos.phi
+    - pos.sinphi
+    - pos.cosphi
+    - pos.u
+    - pos.v
+    - eDep
+    - eDepError
+    - time
+    - u.a
+    - u.b
+    - v.a
+    - v.b
+    - du
+    - dv
+    sihit:
+    - type
+    ecal:
+    - type
+    - pos.x
+    - pos.y
+    - pos.z
+    - pos.s
+    - pos.r
+    - pos.theta
+    - pos.eta
+    - pos.phi
+    - pos.sinphi
+    - pos.cosphi
+    - pos.u
+    - pos.v
+    - energy
+    - log_energy
+    - energyError
+    - time
+    hcal:
+    - type
+    - pos.x
+    - pos.y
+    - pos.z
+    - pos.s
+    - pos.r
+    - pos.theta
+    - pos.eta
+    - pos.phi
+    - pos.sinphi
+    - pos.cosphi
+    - pos.u
+    - pos.v
+    - energy
+    - log_energy
+    - energyError
+    - time
+    muon:
+    - type
+    - pos.x
+    - pos.y
+    - pos.z
+    - pos.s
+    - pos.r
+    - pos.theta
+    - pos.eta
+    - pos.phi
+    - pos.sinphi
+    - pos.cosphi
+    - pos.u
+    - pos.v
+    - energy
+    - log_energy
+    - energyError
+    - time
+  targets:
+    particle:
+    - PDG
+    - charge
+    - time
+    - mass
+    - energy
+    - vtx.x
+    - vtx.y
+    - vtx.z
+    - vtx.r
+    - mom.x
+    - mom.y
+    - mom.z
+    - mom.r
+    - mom.eta
+    - mom.abs_eta
+    - mom.phi
+    - mom.theta
+    - mom.sinphi
+    - mom.cosphi
+    - mom.rinv
+    - mom.qopt
+    - num_vtxd
+    - num_trkr
+    - num_ecal
+    - num_hcal
+    - num_sihit
+    - num_muon
+    - isolation
+    - energy_ecal
+    - energy_hcal
+    - calib_energy_ecal
+    - calib_energy_hcal
+    - calib_energy_calo
+    - is_charged
+    - is_neutral
+    - is_neutral_hadron
+    - is_charged_hadron
+    - is_photon
+    - is_electron
+    - is_muon
+    - is_tau
+    - is_neutrino
+    - is_other
+    - is_primary
+    - is_secondary
+    - class_idx
+    particle_vtxd:
+    - pos.x
+    - pos.y
+    - pos.z
+    - pos.r
+    - pos.theta
+    - pos.phi
+    - mom.x
+    - mom.y
+    - mom.z
+    - mom.r
+    - mom.rinv
+    - mom.theta
+    - mom.phi
+    particle_trkr:
+    - pos.x
+    - pos.y
+    - pos.z
+    - pos.r
+    - pos.theta
+    - pos.phi
+    - mom.x
+    - mom.y
+    - mom.z
+    - mom.r
+    - mom.rinv
+    - mom.theta
+    - mom.phi
+    particle_ecal:
+    - energy
+    - energy_frac
+    - log_energy
+    particle_hcal:
+    - energy
+    - energy_frac
+    - log_energy
+    particle_muon:
+    - energy
+    pandora:
+    - PDG
+    - charge
+    - ref.x
+    - ref.y
+    - ref.z
+    - ref.r
+    - mom.x
+    - mom.y
+    - mom.z
+    - mom.r
+    - mom.eta
+    - mom.abs_eta
+    - mom.phi
+    - is_charged
+    - is_neutral
+    - energy
+    - mass
+    - goodnessOfPID
+    pandora_vtxd: []
+    pandora_trkr: []
+    pandora_ecal: []
+    pandora_hcal: []
+    pandora_muon: []
+    sitrack:
+    - type
+    - chi2
+    - ndf
+    - state.location
+    - state.D0
+    - state.Z0
+    - state.phi
+    - state.omega
+    - state.tanLambda
+    - state.referencePoint.x
+    - state.referencePoint.y
+    - state.referencePoint.z
+    sitrack_vtxd: []
+    sitrack_trkr: []
+  input_dtype: float32
+  target_dtype: float32
+  input_pad_value: 0.0
+  target_pad_value: 0.0
+  force_pad_sizes:
+    particle: 512
+    pandora: 512
+    sitrack: 512
+  skip_pad_items: []
+  sampling_seed: 42
+  sample_reject_warn_limit: 10
+  merge_inputs:
+    vtxd:
+    - vtb
+    - vte
+    trkr:
+    - itb
+    - ite
+    - otb
+    - ote
+    sihit:
+    - vtb
+    - vte
+    - itb
+    - ite
+    - otb
+    - ote
+    ecal:
+    - ecb
+    - ece
+    hcal:
+    - hcb
+    - hce
+    - hco
+    muon:
+    - msb
+    - mse
+  particle_min_pt: 0.01
+  particle_max_abs_eta: 4.0
+  charged_particle_min_num_hits:
+    vtxd: 0
+    trkr: 0
+    sihit: 3
+  charged_particle_max_num_hits:
+    vtxd: 12
+    trkr: 12
+    sihit: 24
+  neutral_particle_min_num_hits: null
+  neutral_particle_max_num_hits: null
+  particle_cut_veto_min_num_hits:
+    ecal: 32
+    hcal: 16
+  particle_hit_min_p_ratio:
+    vtxd: 0.01
+    trkr: 0.01
+  particle_hit_deflection_cuts:
+    vtxd:
+      max_angle: 0.25
+      max_angle_xy: -1.0
+      max_angle_rz: -1.0
+      num_passes: 8.0
+    trkr:
+      max_angle: 1.0
+      max_angle_xy: -1.0
+      max_angle_rz: -1.0
+      num_passes: 12.0
+  particle_hit_separation_cuts:
+    vtxd:
+      max_dist: 0.25
+      num_passes: 8.0
+    trkr:
+      max_dist: 1.5
+      num_passes: 12.0
+  particle_min_calib_calo_energy: null
+  event_min_num_particles: 2
+  event_max_num_particles: 512
+  truth_filter_hits: []
+  calo_energy_thresh: 1.0e-06
+  fast_file_discovery: true
+  remove_neutral_sihits_from_truth_masks: false
+name: CLD_kmax_frozen_property_regression_v7_ablation
+matmul_precision: high
+optimizer: null
+lr_scheduler: null
+ckpt_path: null

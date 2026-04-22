@@ -73,10 +73,32 @@ class MaskFormer(nn.Module):
 
         if self.common_decoder_dense:
             self.object_net = Dense(dim, dim, [2*dim]*3)
-            
+
             for task in self.tasks:
                 if isinstance(task, ObjectHitMaskTask):
                     task.object_net = self.object_net
+                # Duck-typed: tasks exposing ``object_nets: dict[str, nn.Module]`` + ``input_constituents``
+                # (e.g. ObjectPropertyRegressionTask in experiments/cld/trkfit) share the common net too.
+                elif hasattr(task, "object_nets") and hasattr(task, "input_constituents"):
+                    for c in task.input_constituents:
+                        task.object_nets[c] = self.object_net
+
+        # Duck-typed fallback: for tasks with per-constituent ``object_nets`` that didn't get a common
+        # net, pull the relevant net from ObjectHitMaskTask (attr ``object_net`` + ``input_constituent``)
+        # or from any task exposing a ``hit_mask_nets`` dict (e.g. CLDTask in experiments/cld/task.py).
+        for task in self.tasks:
+            if not (hasattr(task, "object_nets") and hasattr(task, "input_constituents")):
+                continue
+            for c in task.input_constituents:
+                if c in task.object_nets:
+                    continue
+                for other in self.tasks:
+                    if isinstance(other, ObjectHitMaskTask) and getattr(other, "input_constituent", None) == c:
+                        task.object_nets[c] = other.object_net
+                        break
+                    if hasattr(other, "hit_mask_nets") and c in other.hit_mask_nets:
+                        task.object_nets[c] = other.hit_mask_nets[c]
+                        break
 
         assert "key" not in self.input_names, "'key' input name is reserved."
         assert "query" not in self.input_names, "'query' input name is reserved."
@@ -172,6 +194,15 @@ class MaskFormer(nn.Module):
                 x["incidence"] = outputs["final"][task.name][task.incidence_key].detach()
             if isinstance(task, ObjectClassificationTask):
                 x["class_probs"] = outputs["final"][task.name][task.probs_key].detach()
+
+            # Duck-typed bridge: expose softmaxed class logits from any task with a ``class_net``
+            # (e.g. CLDTask at ``experiments/cld/task.py``) to downstream tasks that consume
+            # ``class_probs`` as a scalar feature (e.g. ObjectPropertyRegressionTask for PID routing).
+            if "class_probs" not in x and hasattr(task, "class_net"):
+                task_outputs = outputs["final"][task.name]
+                flow_logit_key = f"{getattr(task, 'output_object', 'flow')}_logit"
+                if flow_logit_key in task_outputs:
+                    x["class_probs"] = torch.softmax(task_outputs[flow_logit_key], dim=-1).detach()
 
         # Store shared embeddings for MTL gradient conflict resolution
         outputs["final"]["query_embed"] = x["query_embed"]

@@ -1,0 +1,108 @@
+# Frozen training overlay for ObjectPropertyRegressionTask v7 ablation.
+# Usage: python main.py fit --config combined.yaml --config kmax_masking.yaml --config kmax_frozen_property_regression_v7_ablation.yaml
+#
+# Ablation: v7 config minus eta regression and inv-pT weighting.
+# This should match v5 behavior but with the arc-length bug fix in helix seed.
+# Goal: confirm whether eta head / inv-pT weighting caused 1/pT median regression.
+
+name: CLD_kmax_frozen_property_regression_v7_ablation
+
+data:
+  batch_size: 10
+
+model:
+  freeze_except: [flow_property_regression]
+  pretrained_ckpt_path: /share/gpu1/syw24/hepattn/logs/CLD_5_256_10MeV_charged_kmax_20260319-T072454/ckpts/epoch=000-val_loss=15.44639.ckpt
+
+  lrs_config:
+    initial: 1e-5
+    max: 5e-5
+    end: 1e-6
+    pct_start: 0.1
+    skip_scheduler: false
+    weight_decay: 1e-5
+
+  model:
+    init_args:
+      tasks:
+        class_path: torch.nn.ModuleList
+        init_args:
+          modules:
+            - class_path: hepattn.experiments.cld.task.CLDTask
+              init_args:
+                name: reco
+                dim: 256
+                mask_attn: false
+                has_intermediate_loss: true
+                hits_included:
+                  - trkr
+                  - vtxd
+                  - ecal
+                  - hcal
+                  - muon
+                hit_mask_attn_thresholds: null
+                tracker_helix_fit: false
+                helix_fit_warmup_steps: 10000
+                calo_line_fit: false
+                calo_score_method: sigmoid
+                loss_object_mask: valid
+                hit_loss_weights:
+                  vtxd: {mask_dice: 1.0, mask_bce: 0.5}
+                  trkr: {mask_dice: 1.0, mask_bce: 0.5}
+                  ecal: {mask_dice: 1.0, mask_bce: 0.5}
+                  hcal: {mask_dice: 1.0, mask_bce: 0.5}
+                  muon: {mask_dice: 1.0, mask_bce: 0.5}
+                hit_cost_weights:
+                  vtxd: {mask_dice: 1.0}
+                  trkr: {mask_dice: 1.0}
+                  ecal: {mask_dice: 1.0}
+                  hcal: {mask_dice: 1.0}
+                  muon: {mask_dice: 1.0}
+
+            - class_path: hepattn.experiments.cld.trkfit.regrtask.ObjectPropertyRegressionTask
+              init_args:
+                name: flow_property_regression
+                input_constituent: [vtxd, trkr]
+                calo_constituents: [ecal, hcal]
+                muon_constituents: [muon]
+                input_object: query
+                output_object: flow
+                target_object: particle
+                dim: 256
+                loss: smooth_l1
+                loss_weight: 1.0
+                track_correction_weight: 2.0
+                energy_weight: 1.0
+                gate_loss_weight: 0.5
+                # v5-style: beta=0.01 (linear regime)
+                track_loss_beta: 0.01
+                min_tracker_hits: 5
+                min_calo_hits: 3
+                correction_scale: 1.0
+                log_e_scale: 6.0
+                # v5 feature flags
+                use_split_calo: true
+                use_helix_residuals: true
+                use_legacy_helix_seed: true
+                pid_charged_classes: [2, 4, 5]
+                # Architecture (same as v5)
+                scalar_mlp_hidden: [64]
+                scalar_mlp_output_dim: 64
+                trunk_hidden_layers: [256, 256, 128]
+                track_adapter_hidden: [64]
+                energy_adapter_hidden: [64]
+                gate_adapter_hidden: [64]
+                track_head_hidden_layers: []
+                energy_head_hidden_layers: []
+                gate_head_hidden_layers: []
+                dropout: 0.0
+                energy_target: energy
+                energy_bias_init: 1.5
+                has_intermediate_loss: false
+                permute_loss: true
+                num_pid_classes: 6
+
+trainer:
+  max_epochs: 1
+  val_check_interval: 200
+  gradient_clip_val: 1.0

@@ -21,7 +21,18 @@ class ModelWrapper(LightningModule):
         lrs_config: dict,
         optimizer: Literal["AdamW", "Lion"] = "AdamW",
         mtl: bool = False,
+        # Keep ``pretrained_ckpt_path`` at its original position so subclasses calling
+        # ``super().__init__(..., pretrained_ckpt_path)`` positionally keep working.
         pretrained_ckpt_path: str | None = None,
+        # Freeze all params except those matching any pattern (parameter-name substring or
+        # module ``name`` attribute). Typical use: freeze backbone, train only a regression head.
+        freeze_except: list[str] | None = None,
+        # Bucket parameters by name-substring and give selected buckets their own optimizer.
+        # Format: list of ``{pattern: str, cls: "AdamW"|"Lion", lr: float, weight_decay: float, ...}``.
+        # Names matching a pattern go to the override optimizer; everything else stays on the main one.
+        # Used e.g. to move Kendall log_var params onto AdamW while the main model stays on Lion.
+        # Encoded as a list because jsonargparse rejects unknown sub-keys in 2-level-nested dicts.
+        optimizer_group_overrides: list | None = None,
     ):
         super().__init__()
 
@@ -32,6 +43,7 @@ class ModelWrapper(LightningModule):
         self.optimizer = optimizer
         self.lrs_config = lrs_config
         self.mtl = mtl
+        self.optimizer_group_overrides = optimizer_group_overrides or []
 
         if pretrained_ckpt_path is not None:
             ckpt = torch.load(pretrained_ckpt_path, map_location="cpu", weights_only=False)
@@ -52,10 +64,33 @@ class ModelWrapper(LightningModule):
             print(f"  Missing (new, random init): {len(missing)}")
             print(f"  Unexpected (not in model):  {len(unexpected)}")
 
+        # Freeze all params except those matching any pattern in ``freeze_except``. Patterns can be
+        # literal substrings of parameter names, or task names (resolved to the module's parameter
+        # prefix via ``named_modules``). Used e.g. to freeze the backbone while only training a
+        # downstream regression head via ``freeze_except: [flow_property_regression]``.
+        if freeze_except is not None:
+            resolved = list(freeze_except)
+            for module_name, module in self.named_modules():
+                if hasattr(module, "name") and module.name in freeze_except and module_name:
+                    resolved.append(f"{module_name}.")
+            n_unfrozen = 0
+            for pname, param in self.named_parameters():
+                if not any(pat in pname for pat in resolved):
+                    param.requires_grad = False
+                else:
+                    n_unfrozen += 1
+            n_frozen = sum(1 for p in self.parameters() if not p.requires_grad)
+            print(f"[freeze_except] Resolved patterns: {resolved}")
+            print(f"[freeze_except] {n_unfrozen} params unfrozen, {n_frozen} frozen")
+
         if mtl:
             # Donated buffers can cause issues with graph retention needed for MTL
             functorch_config.donated_buffer = False
             # If we are doing multi-task-learning, optimisation step must be done manually
+            self.automatic_optimization = False
+        elif self.optimizer_group_overrides:
+            # Manual multi-optimizer path: Lightning requires manual optimization when
+            # ``configure_optimizers`` returns more than one optimizer.
             self.automatic_optimization = False
 
     def forward(self, inputs: DictTensor) -> DoubleNestedDictTensor:
@@ -138,7 +173,7 @@ class ModelWrapper(LightningModule):
         outputs = self.model(inputs)
 
         # Compute and log losses
-        losses, targets = self.model.loss(outputs, targets)
+        losses, targets, *_ = self.model.loss(outputs, targets)
 
         # Get the predictions from the model, avoid calling predict if possible
         if batch_idx % self.trainer.log_every_n_steps == 0:
@@ -151,6 +186,11 @@ class ModelWrapper(LightningModule):
 
         total_loss = self.aggregate_losses(losses, stage="train")
 
+        if self.optimizer_group_overrides:
+            # Multi-optimizer manual step — shared loss, disjoint param groups.
+            self._multi_opt_step(total_loss)
+            return None
+
         return {"loss": total_loss} | outputs
 
     def validation_step(self, batch: tuple[DictTensor, DictTensor]) -> DoubleNestedDictTensor:
@@ -161,7 +201,7 @@ class ModelWrapper(LightningModule):
         outputs = self.model(inputs)
 
         # Compute losses then aggregate and log them
-        losses, targets = self.model.loss(outputs, targets)
+        losses, targets, *_ = self.model.loss(outputs, targets)
         total_loss = self.aggregate_losses(losses, stage="val")
 
         # Get the predictions from the model
@@ -176,7 +216,7 @@ class ModelWrapper(LightningModule):
         outputs = self.model(inputs)
 
         # Calculate loss to also run matching
-        losses, targets = self.model.loss(outputs, targets)
+        losses, targets, *_ = self.model.loss(outputs, targets)
 
         # Get the predictions from the model
         preds = self.model.predict(outputs)
@@ -191,31 +231,106 @@ class ModelWrapper(LightningModule):
                 for param_group in optimizer.param_groups:
                     param_group["lr"] = self.lrs_config["initial"]
 
+    def _build_main_optimizer(self, params):
+        cls_map = {"adamw": AdamW, "lion": Lion}
+        key = self.optimizer.lower()
+        if key not in cls_map:
+            raise ValueError(f"Unknown optimizer: {self.optimizer}")
+        return cls_map[key](params, lr=self.lrs_config["initial"], weight_decay=self.lrs_config["weight_decay"])
+
+    def _split_param_groups(self):
+        """Bucket ``self.model.named_parameters()`` by the first matching override pattern.
+
+        Returns ``(main_params, group_params)`` where ``main_params`` are the params not matched
+        by any pattern and ``group_params`` is a ``{pattern: [params]}`` dict. Patterns with no
+        matches are kept so the caller can warn about them.
+        """
+        patterns = [cfg["pattern"] for cfg in self.optimizer_group_overrides]
+        main_params: list = []
+        group_params: dict[str, list] = {pat: [] for pat in patterns}
+        for name, p in self.model.named_parameters():
+            if not p.requires_grad:
+                continue
+            matched = next((pat for pat in patterns if pat in name), None)
+            if matched is None:
+                main_params.append(p)
+            else:
+                group_params[matched].append(p)
+        return main_params, group_params
+
     def configure_optimizers(self):
-        if self.optimizer.lower() == "adamw":
-            optimizer = AdamW
-        elif self.optimizer.lower() == "lion":
-            optimizer = Lion
+        if self.optimizer_group_overrides:
+            main_params, group_params = self._split_param_groups()
         else:
-            raise ValueError(f"Unknown optimizer: {self.opt_config['opt']}")
+            main_params = [p for p in self.model.parameters() if p.requires_grad]
+            group_params = {}
 
-        opt = optimizer(self.model.parameters(), lr=self.lrs_config["initial"], weight_decay=self.lrs_config["weight_decay"])
+        main_opt = self._build_main_optimizer(main_params)
+        optimizers = [main_opt]
 
+        schedulers: list = []
         if not self.lrs_config.get("skip_scheduler"):
-            # Configure the learning rate scheduler
-            sch = torch.optim.lr_scheduler.OneCycleLR(
-                opt,
+            main_sch = torch.optim.lr_scheduler.OneCycleLR(
+                main_opt,
                 max_lr=self.lrs_config["max"],
                 total_steps=self.trainer.estimated_stepping_batches,
                 div_factor=self.lrs_config["max"] / self.lrs_config["initial"],
                 final_div_factor=self.lrs_config["initial"] / self.lrs_config["end"],
                 pct_start=float(self.lrs_config["pct_start"]),
             )
-            sch = {"scheduler": sch, "interval": "step"}
-            return [opt], [sch]
+            schedulers.append({"scheduler": main_sch, "interval": "step"})
+        else:
+            print("Skipping learning rate scheduler.")
 
-        print("Skipping learning rate scheduler.")
-        return opt
+        # One optimizer per non-empty override bucket, fixed LR (no scheduler).
+        cls_map = {"AdamW": AdamW, "Lion": Lion}
+        for cfg in self.optimizer_group_overrides:
+            pattern = cfg["pattern"]
+            members = group_params.get(pattern, [])
+            if not members:
+                print(f"[optimizer_group_overrides] No params matched pattern '{pattern}' — skipping.")
+                continue
+            cls_name = cfg.get("cls", "AdamW")
+            if cls_name not in cls_map:
+                raise ValueError(f"Unknown optimizer class '{cls_name}' for override '{pattern}'")
+            aux_kwargs: dict = {k: v for k, v in cfg.items() if k not in {"cls", "pattern"}}
+            aux_kwargs.setdefault("weight_decay", 0.0)
+            aux_opt = cls_map[cls_name](members, **aux_kwargs)
+            optimizers.append(aux_opt)
+            print(
+                f"[optimizer_group_overrides] pattern='{pattern}' -> {cls_name}("
+                f"n_params={len(members)}, lr={aux_kwargs.get('lr')}, weight_decay={aux_kwargs['weight_decay']})"
+            )
+
+        if schedulers:
+            return optimizers, schedulers
+        return optimizers if len(optimizers) > 1 else optimizers[0]
+
+    def _multi_opt_step(self, total_loss: Tensor) -> None:
+        """Manual optimization step when ``optimizer_group_overrides`` produces multiple optimizers.
+
+        All optimizers share the same backward pass through ``total_loss`` and step their own
+        disjoint param groups. Gradient clipping is applied per-optimizer at norm 1.0 (Lightning
+        refuses automatic clipping under manual optimization).
+        """
+        opts = self.optimizers()
+        if not isinstance(opts, (list, tuple)):
+            opts = [opts]
+        for opt in opts:
+            opt.zero_grad()
+        self.manual_backward(total_loss)
+        for opt in opts:
+            params = [p for group in opt.param_groups for p in group["params"] if p.grad is not None]
+            if params:
+                torch.nn.utils.clip_grad_norm_(params, max_norm=1.0)
+        for opt in opts:
+            opt.step()
+        schs = self.lr_schedulers()
+        if schs is not None:
+            if not isinstance(schs, (list, tuple)):
+                schs = [schs]
+            for sch in schs:
+                sch.step()
 
     def configure_gradient_clipping(self, optimizer, gradient_clip_val=None, gradient_clip_algorithm=None):
         clip_val = self.lrs_config.get("gradient_clip_val") or gradient_clip_val

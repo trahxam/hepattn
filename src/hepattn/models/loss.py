@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+from torch import nn
 
 
 def _reduce_object_loss(loss_per_object, object_valid_mask=None):
@@ -522,3 +523,124 @@ loss_fns = {
     "kl_div": torch.compile(kl_div_loss, dynamic=True),
     "mask_kl_div": torch.compile(mask_kl_div_loss, dynamic=True),
 }
+
+
+class BarronAdaptiveLoss(nn.Module):
+    """Barron adaptive robust loss as negative log-likelihood (Barron, CVPR 2019).
+
+    Uses the proper NLL form: loss = rho(x, alpha, c) + log(c) + log(Z_0(alpha))
+    where rho is the loss kernel and log(c) + log(Z_0) is the log-partition function.
+    The log(c) term prevents degenerate scale growth; log(Z_0) ensures proper alpha learning.
+
+    Learnable alpha (loss shape) and c (scale) parameters.
+    alpha=2 -> L2, alpha=1 -> Charbonnier/pseudo-Huber, alpha=0 -> Cauchy.
+
+    Args:
+        alpha_init: Initial alpha value (mapped via sigmoid to [alpha_lo, alpha_hi]).
+        scale_init: Initial scale value (parameterized as exp(log_scale)).
+        alpha_lo: Lower bound for alpha.
+        alpha_hi: Upper bound for alpha.
+    """
+
+    def __init__(
+        self,
+        alpha_init: float = 1.0,
+        scale_init: float = 1.0,
+        alpha_lo: float = 0.001,
+        alpha_hi: float = 1.999,
+        alpha_learnable: bool = True,
+    ):
+        super().__init__()
+        self.alpha_lo = alpha_lo
+        self.alpha_hi = alpha_hi
+
+        # Parameterize alpha via sigmoid: raw_alpha -> sigmoid -> [alpha_lo, alpha_hi]
+        # Inverse sigmoid to initialize at alpha_init
+        t = (alpha_init - alpha_lo) / (alpha_hi - alpha_lo)
+        t = max(1e-6, min(1 - 1e-6, t))  # clamp for numerical safety
+        raw_alpha_init = -torch.log(torch.tensor(1.0 / t - 1.0))
+        self.raw_alpha = nn.Parameter(raw_alpha_init)
+        if not alpha_learnable:
+            self.raw_alpha.requires_grad_(False)
+
+        # Parameterize scale as exp(log_scale)
+        self.log_scale = nn.Parameter(torch.log(torch.tensor(scale_init)))
+
+    def get_alpha(self) -> torch.Tensor:
+        return self.alpha_lo + (self.alpha_hi - self.alpha_lo) * torch.sigmoid(self.raw_alpha)
+
+    def get_scale(self) -> torch.Tensor:
+        return torch.exp(self.log_scale)
+
+    def _log_partition(self, alpha: torch.Tensor) -> torch.Tensor:
+        """Compute log-partition function log(Z_0(alpha)) for the unit-scale 1D Barron distribution.
+
+        Z_0(alpha) = sqrt(2*pi) * Gamma(1/beta + 0.5) / (sqrt(beta) * Gamma(1/beta))
+        where beta = |alpha - 2|.
+
+        Special cases: alpha=2 -> log(sqrt(2*pi)), alpha=0 -> log(pi).
+        For alpha <= 0 the distribution is improper, but the partition function
+        still provides a useful regularizer that penalizes extreme alpha values.
+        """
+        beta = (alpha - 2).abs().clamp(min=1e-8)
+        inv_beta = 1.0 / beta
+
+        # General case: log(sqrt(2*pi)) + lgamma(1/beta + 0.5) - 0.5*log(beta) - lgamma(1/beta)
+        general = 0.5 * torch.log(torch.tensor(2.0 * torch.pi)) + torch.lgamma(inv_beta + 0.5) - 0.5 * torch.log(beta) - torch.lgamma(inv_beta)
+
+        # alpha ~ 2 (Gaussian): log(sqrt(2*pi))
+        l2_case = 0.5 * torch.log(torch.tensor(2.0 * torch.pi))
+
+        # alpha ~ 0 (Cauchy): log(pi)
+        cauchy_case = torch.log(torch.tensor(torch.pi))
+
+        return torch.where(
+            (alpha - 2).abs() < 0.01,
+            l2_case,
+            torch.where(alpha.abs() < 0.01, cauchy_case, general),
+        )
+
+    def forward(self, residual: torch.Tensor) -> torch.Tensor:
+        """Compute per-element Barron NLL loss.
+
+        Returns rho(x, alpha, c) + log(c) + log(Z_0(alpha)).
+
+        Args:
+            residual: Tensor of residuals (pred - target).
+
+        Returns:
+            Per-element loss (same shape as residual).
+        """
+        alpha = self.get_alpha()
+        c = self.get_scale()
+
+        # Scaled squared residual
+        x2 = (residual / c) ** 2
+
+        # --- Loss kernel rho(x, alpha, c) ---
+        # General formula: (|alpha-2|/alpha) * ((x2/|alpha-2| + 1)^(alpha/2) - 1)
+        # Special cases handled via torch.where for compile-friendliness
+        abs_a2 = (alpha - 2).abs().clamp(min=1e-8)
+
+        # General case — preserve sign of alpha to handle negative alpha correctly
+        safe_alpha = torch.where(alpha.abs() < 1e-8, torch.ones_like(alpha) * 1e-8, alpha)
+        general = (abs_a2 / safe_alpha) * ((x2 / abs_a2 + 1).pow(alpha / 2) - 1)
+
+        # alpha ~ 2: L2 -> 0.5 * x2
+        l2_case = 0.5 * x2
+
+        # alpha ~ 0: Cauchy -> log(0.5 * x2 + 1)
+        cauchy_case = torch.log(0.5 * x2 + 1)
+
+        # Select based on alpha proximity
+        rho = torch.where(
+            (alpha - 2).abs() < 0.01,
+            l2_case,
+            torch.where(alpha.abs() < 0.01, cauchy_case, general),
+        )
+
+        # --- Full NLL: rho + log(c) + log(Z_0(alpha)) ---
+        # log(c) penalizes scale growth; log(Z_0) regularizes alpha
+        log_partition = self.log_scale + self._log_partition(alpha)
+
+        return rho + log_partition
